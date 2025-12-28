@@ -31,10 +31,10 @@ services:
     env_file:
       - .env
     volumes:
-      - ./src:/app:ro
+      - ./src:/app:rw
       - ./data:/data:ro
-    working_dir: /app
-    entrypoint: ["/bin/sh", "-c", "dotnet run"]
+    working_dir: /app/Bootstrap
+    entrypoint: ["dotnet", "run", "--project", "/app/Bootstrap/Bootstrap.csproj"]
     networks:
       - ci-network
 
