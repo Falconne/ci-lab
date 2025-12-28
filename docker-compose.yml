@@ -1,0 +1,41 @@
+services:
+  gitlab:
+    image: gitlab/gitlab-ce:latest
+    restart: unless-stopped
+    hostname: gitlab
+    environment:
+      GITLAB_OMNIBUS_CONFIG: |
+        external_url 'http://gitlab'
+    ports:
+      - "8081:80"
+      - "2222:22"
+    networks:
+      - ci-network
+
+  teamcity:
+    image: jetbrains/teamcity-server:2023.05
+    restart: unless-stopped
+    environment:
+      TEAMCITY_SERVER_MEM_OPTS: "-Xmx1g"
+    ports:
+      - "8111:8111"
+    networks:
+      - ci-network
+
+  # bootstrap:
+  #   image: python:3.11-slim
+  #   depends_on:
+  #     - gitlab
+  #     - teamcity
+  #   env_file:
+  #     - .env
+  #   volumes:
+  #     - ./scripts:/scripts:ro
+  #     - ./data:/data:ro
+  #   entrypoint: ["python", "/scripts/bootstrap.py"]
+  #   networks:
+  #     - ci-network
+
+networks:
+  ci-network:
+    driver: bridge
