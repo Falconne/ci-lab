@@ -36,6 +36,14 @@ if (!gitlabReady || !teamcityReady)
     return 1;
 }
 
+// Wait for TeamCity API to be fully operational
+Log("Waiting for TeamCity API to become operational...");
+var teamcityApiReady = await WaitForTeamCityApiAsync(httpClient, teamcityUrl, TimeSpan.FromMinutes(5));
+if (!teamcityApiReady)
+{
+    LogWarning("TeamCity API did not become available, agent authorization may fail");
+}
+
 // Auto-generate or retrieve tokens
 var gitlabToken = Environment.GetEnvironmentVariable("GITLAB_TOKEN");
 var teamcityToken = Environment.GetEnvironmentVariable("TEAMCITY_TOKEN");
@@ -81,6 +89,18 @@ if (!string.IsNullOrEmpty(teamcityToken))
     if (success)
     {
         Log("✓ TeamCity project created");
+    }
+
+    // Authorize agents
+    Log("Authorizing TeamCity agents...");
+    var agentsAuthorized = await AuthorizeTeamCityAgentsAsync(httpClient, teamcityUrl, teamcityToken);
+    if (agentsAuthorized)
+    {
+        Log("✓ TeamCity agents authorized");
+    }
+    else
+    {
+        LogWarning("⚠ Agent authorization incomplete - some agents may need manual approval");
     }
 }
 else
@@ -267,6 +287,42 @@ static async Task<JsonElement?> CreateGitLabProjectAsync(HttpClient client, stri
     }
 }
 
+static async Task<bool> WaitForTeamCityApiAsync(HttpClient client, string teamcityUrl, TimeSpan timeout)
+{
+    var apiUrl = $"{teamcityUrl.TrimEnd('/')}/app/rest/server";
+    var startTime = DateTime.UtcNow;
+    var interval = TimeSpan.FromSeconds(5);
+
+    while (true)
+    {
+        try
+        {
+            var response = await client.GetAsync(apiUrl);
+            if (response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                Log("TeamCity API is operational");
+                return true;
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            var elapsed = DateTime.UtcNow - startTime;
+            if (elapsed > timeout)
+            {
+                LogError($"Timeout waiting for TeamCity API: {ex.Message}");
+                return false;
+            }
+
+            if ((int)elapsed.TotalSeconds % 30 == 0)
+            {
+                Log($"Still waiting for TeamCity API... ({(int)elapsed.TotalSeconds}s elapsed)");
+            }
+
+            await Task.Delay(interval);
+        }
+    }
+}
+
 static async Task<bool> CreateTeamCityProjectAsync(HttpClient client, string teamcityUrl, string token)
 {
     var apiUrl = token switch
@@ -311,6 +367,101 @@ static async Task<bool> CreateTeamCityProjectAsync(HttpClient client, string tea
     catch (Exception ex)
     {
         LogError($"Failed to call TeamCity API: {ex.Message}");
+        return false;
+    }
+}
+
+static async Task<bool> AuthorizeTeamCityAgentsAsync(HttpClient client, string teamcityUrl, string token)
+{
+    var apiUrl = token switch
+    {
+        "GUEST_AUTH" => $"{teamcityUrl.TrimEnd('/')}/guestAuth/app/rest/agents",
+        _ => $"{teamcityUrl.TrimEnd('/')}/app/rest/agents"
+    };
+
+    try
+    {
+        // Get list of unauthorized agents
+        var listRequest = new HttpRequestMessage(HttpMethod.Get, $"{apiUrl}?locator=authorized:false");
+        listRequest.Headers.Accept.Add(MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+        if (token is not "GUEST_AUTH" and not "SUPERUSER_AUTH_NOT_NEEDED")
+        {
+            listRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        }
+
+        var listResponse = await client.SendAsync(listRequest);
+        if (!listResponse.IsSuccessStatusCode)
+        {
+            LogError($"Failed to get agents list: {(int)listResponse.StatusCode}");
+            return false;
+        }
+
+        var agentsData = await listResponse.Content.ReadFromJsonAsync<JsonElement>();
+        if (!agentsData.TryGetProperty("agent", out var agents))
+        {
+            Log("No unauthorized agents found");
+            return true;
+        }
+
+        var authorizedCount = 0;
+        foreach (var agent in agents.EnumerateArray())
+        {
+            var agentId = agent.GetProperty("id").GetInt32();
+            var agentName = agent.TryGetProperty("name", out var name) ? name.GetString() : $"agent-{agentId}";
+
+            Log($"Authorizing agent: {agentName} (ID: {agentId})");
+
+            // Authorize the agent
+            var authRequest = new HttpRequestMessage(HttpMethod.Put, $"{apiUrl}/id:{agentId}/authorized")
+            {
+                Content = new StringContent("true", Encoding.UTF8, "text/plain")
+            };
+
+            if (token is not "GUEST_AUTH" and not "SUPERUSER_AUTH_NOT_NEEDED")
+            {
+                authRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            }
+
+            var authResponse = await client.SendAsync(authRequest);
+            if (authResponse.IsSuccessStatusCode)
+            {
+                Log($"  ✓ Agent {agentName} authorized");
+                authorizedCount++;
+
+                // Add to default pool
+                var poolRequest = new HttpRequestMessage(HttpMethod.Post, $"{apiUrl}/id:{agentId}/pool")
+                {
+                    Content = new StringContent("""<agentPool id="0" />""", Encoding.UTF8, "application/xml")
+                };
+
+                if (token is not "GUEST_AUTH" and not "SUPERUSER_AUTH_NOT_NEEDED")
+                {
+                    poolRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                }
+
+                var poolResponse = await client.SendAsync(poolRequest);
+                if (poolResponse.IsSuccessStatusCode)
+                {
+                    Log($"  ✓ Agent {agentName} added to default pool");
+                }
+                else
+                {
+                    LogWarning($"  Could not add agent {agentName} to pool: {(int)poolResponse.StatusCode}");
+                }
+            }
+            else
+            {
+                LogWarning($"  Failed to authorize agent {agentName}: {(int)authResponse.StatusCode}");
+            }
+        }
+
+        Log($"Authorized {authorizedCount} agent(s)");
+        return authorizedCount > 0;
+    }
+    catch (Exception ex)
+    {
+        LogError($"Failed to authorize agents: {ex.Message}");
         return false;
     }
 }

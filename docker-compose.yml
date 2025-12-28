@@ -23,6 +23,39 @@ services:
     networks:
       - ci-network
 
+  teamcity-agent-1:
+    image: jetbrains/teamcity-agent:2023.05
+    restart: unless-stopped
+    environment:
+      SERVER_URL: "http://teamcity:8111"
+      AGENT_NAME: "agent-1"
+    depends_on:
+      - teamcity
+    networks:
+      - ci-network
+
+  teamcity-agent-2:
+    image: jetbrains/teamcity-agent:2023.05
+    restart: unless-stopped
+    environment:
+      SERVER_URL: "http://teamcity:8111"
+      AGENT_NAME: "agent-2"
+    depends_on:
+      - teamcity
+    networks:
+      - ci-network
+
+  teamcity-agent-3:
+    image: jetbrains/teamcity-agent:2023.05
+    restart: unless-stopped
+    environment:
+      SERVER_URL: "http://teamcity:8111"
+      AGENT_NAME: "agent-3"
+    depends_on:
+      - teamcity
+    networks:
+      - ci-network
+
   bootstrap:
     image: mcr.microsoft.com/dotnet/sdk:9.0
     depends_on:
