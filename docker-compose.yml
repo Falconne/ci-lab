@@ -4,6 +4,7 @@ services:
     restart: unless-stopped
     hostname: gitlab
     environment:
+      GITLAB_ROOT_PASSWORD: "${GITLAB_ROOT_PASSWORD:-changeme123}"
       GITLAB_OMNIBUS_CONFIG: |
         external_url 'http://gitlab'
     ports:
@@ -22,19 +23,20 @@ services:
     networks:
       - ci-network
 
-  # bootstrap:
-  #   image: python:3.11-slim
-  #   depends_on:
-  #     - gitlab
-  #     - teamcity
-  #   env_file:
-  #     - .env
-  #   volumes:
-  #     - ./scripts:/scripts:ro
-  #     - ./data:/data:ro
-  #   entrypoint: ["python", "/scripts/bootstrap.py"]
-  #   networks:
-  #     - ci-network
+  bootstrap:
+    image: python:3.11-slim
+    depends_on:
+      - gitlab
+      - teamcity
+    env_file:
+      - .env
+    volumes:
+      - ./scripts:/scripts:ro
+      - ./data:/data:ro
+      - ./requirements.txt:/requirements.txt:ro
+    entrypoint: ["/bin/sh", "-c", "pip install --quiet -r /requirements.txt && python /scripts/bootstrap.py"]
+    networks:
+      - ci-network
 
 networks:
   ci-network:
