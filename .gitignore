@@ -1,14 +1,14 @@
 # Environment variables with sensitive credentials
 .env
 
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-venv/
-env/
+# .NET
+bin/
+obj/
+*.user
+*.suo
+*.cache
+.vs/
+*.DotSettings.user
 
 # Docker volumes (if persisted locally)
 gitlab-data/

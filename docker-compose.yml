@@ -24,17 +24,17 @@ services:
       - ci-network
 
   bootstrap:
-    image: python:3.11-slim
+    image: mcr.microsoft.com/dotnet/sdk:9.0
     depends_on:
       - gitlab
       - teamcity
     env_file:
       - .env
     volumes:
-      - ./scripts:/scripts:ro
+      - ./src:/app:ro
       - ./data:/data:ro
-      - ./requirements.txt:/requirements.txt:ro
-    entrypoint: ["/bin/sh", "-c", "pip install --quiet -r /requirements.txt && python /scripts/bootstrap.py"]
+    working_dir: /app
+    entrypoint: ["/bin/sh", "-c", "dotnet run"]
     networks:
       - ci-network
 

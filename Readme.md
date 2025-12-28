@@ -28,13 +28,15 @@ The bootstrap script runs automatically and will:
 # Directory Structure
 The root of the repo contains a docker compose file and related settings for spinning up Gitlab and TeamCity, sharing the same network and exposing necessary UI and API ports to the host. The data for each service is internal to the container and not persisted to disk, so each time the services are recreated we will have a clean start for testing.
 
-The compose file will execute the `scripts/bootstrap.py` script upon creation of services to initialise them with data (see below).
+The compose file will execute the bootstrap .NET application (in `src/`) upon creation of services to initialise them with data (see below).
 
-## scripts
-This subdirectory contains python scripts for initialising Gitlab and TeamCity with a known set of repos and CIs. The bootstrap script automatically:
+## src
+This subdirectory contains a .NET 9 C# application for initialising Gitlab and TeamCity with a known set of repos and CIs. The bootstrap application automatically:
 - Generates GitLab Personal Access Tokens using root credentials
 - Extracts TeamCity authentication tokens
 - Creates sample projects in both services
+
+Built with modern C# patterns including top-level statements, nullable reference types, and async/await.
 
 ## data
 This subdirectory contains data files and sample repos to be used by the scripts for initialising data on the services.
