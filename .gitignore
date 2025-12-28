@@ -11,11 +11,12 @@ obj/
 *.DotSettings.user
 
 # Docker volumes (if persisted locally)
-gitlab-data/
-teamcity-data/
+data/teamcity/datadir/
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+
+*.jar
