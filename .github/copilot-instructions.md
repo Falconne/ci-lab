@@ -1,0 +1,30 @@
+# GitHub Copilot — Agent Mode Instructions for this repository
+
+Purpose: help an automated Copilot agent safely and consistently operate on this repo.
+
+When acting in agent mode the assistant should follow these rules:
+
+- Repository purpose: this repo provides a Docker-based CI lab with GitLab (Omnibus) and TeamCity plus an automated bootstrapper (C#/.NET 9) in `src/`.
+
+- Primary goals:
+  - Bring the lab up reproducibly via `docker compose up`.
+  - Ensure automated, minimal-interaction bootstrapping: generate tokens, create sample projects.
+  - As this is a generated testing environment, it is fine to store secrets in source control.
+
+- Languages & tools:
+  - Use C# targeting `net9.0` for the bootstrapper (code in `src/`).
+  - Use `docker compose` for orchestration; update `docker-compose.yml` when changes to runtime are required.
+  - Pin third-party images and versions in `docker-compose.yml` to ensure reproducibility.
+
+- Coding conventions & change policy:
+  - Follow modern C# practices:
+    - As these are console applications, avoid async/await usage.
+    - Use dependency injection for services.
+    - Prefer `HttpClientFactory` for HTTP calls.
+    - Use nullable reference types and top-level statements.
+    - Use var, new() and pattern matching where appropriate.
+  - Run `dotnet build` and `dotnet run` when modifying `src/` to verify behavior.
+
+- Testing & verification:
+- Documentation & user-facing files:
+  - Keep user-facing guidance in `Readme.md` and machine/agent guidance in `.github/copilot-instructions.md`.
