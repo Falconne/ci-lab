@@ -68,8 +68,8 @@ if (!string.IsNullOrEmpty(gitlabToken))
     var project = await CreateGitLabProjectAsync(httpClient, gitlabUrl, gitlabToken, "sample-repo");
     if (project is not null)
     {
-        var url = project.GetProperty("web_url").GetString() ??
-                  project.GetProperty("http_url_to_repo").GetString() ??
+        var url = project.Value.GetProperty("web_url").GetString() ??
+                  project.Value.GetProperty("http_url_to_repo").GetString() ??
                   "Created";
         Log($"✓ GitLab project ready: {url}");
     }
