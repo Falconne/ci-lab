@@ -12,6 +12,51 @@ services:
       - "2222:22"
     networks:
       - ci-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/-/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 180s
+
+  gitlab-token-generator:
+    image: alpine:latest
+    depends_on:
+      gitlab:
+        condition: service_healthy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - .:/workspace
+    working_dir: /workspace
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        apk add --no-cache docker-cli
+        echo "[token-gen] Waiting for GitLab container..."
+        CONTAINER=$$(docker ps --filter "name=gitlab" --format "{{.Names}}" | head -n1)
+        if [ -z "$$CONTAINER" ]; then
+          echo "[token-gen] ERROR: GitLab container not found"
+          exit 1
+        fi
+        echo "[token-gen] Found GitLab container: $$CONTAINER"
+        echo "[token-gen] Creating Personal Access Token for root user..."
+        TOKEN=$$(docker exec $$CONTAINER gitlab-rails runner "user = User.find_by_username('root'); token = user.personal_access_tokens.create(scopes: ['api', 'read_api', 'write_repository'], name: 'bootstrap-automation', expires_at: 365.days.from_now); puts token.token" 2>/dev/null | tail -n1)
+        if [ -n "$$TOKEN" ] && [ $${#TOKEN} -gt 10 ]; then
+          echo "[token-gen] Token created successfully"
+          if grep -q "^GITLAB_TOKEN=" .env 2>/dev/null; then
+            sed -i "s|^GITLAB_TOKEN=.*|GITLAB_TOKEN=\"$$TOKEN\"|" .env
+            echo "[token-gen] Updated GITLAB_TOKEN in .env"
+          else
+            echo "GITLAB_TOKEN=\"$$TOKEN\"" >> .env
+            echo "[token-gen] Added GITLAB_TOKEN to .env"
+          fi
+        else
+          echo "[token-gen] ERROR: Failed to create token"
+          exit 1
+        fi
+    networks:
+      - ci-network
+    restart: "no"
 
   teamcity:
     image: jetbrains/teamcity-server:2023.05
