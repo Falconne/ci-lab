@@ -20,6 +20,8 @@ LoadEnvFile(envFullPath);
 
 var gitlabUrl = Environment.GetEnvironmentVariable("GITLAB_URL") ?? "http://localhost:8081";
 var teamcityUrl = Environment.GetEnvironmentVariable("TEAMCITY_URL") ?? "http://localhost:8111";
+Log($"GitLab URL:   {gitlabUrl}");
+Log($"TeamCity URL: {teamcityUrl}");
 
 using var httpClient = new HttpClient(new HttpClientHandler
 {

@@ -6,7 +6,7 @@ services:
     environment:
       GITLAB_ROOT_PASSWORD: "${GITLAB_ROOT_PASSWORD:-changeme123}"
       GITLAB_OMNIBUS_CONFIG: |
-        external_url 'http://gitlab'
+        external_url 'http://localhost:8081'
     ports:
       - "8081:80"
       - "2222:22"
