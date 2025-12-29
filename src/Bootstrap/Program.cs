@@ -45,20 +45,6 @@ Log("=".PadRight(60, '='));
 Log("Token Setup");
 Log("=".PadRight(60, '='));
 
-var gitlabToken = await GetAndValidateTokenAsync(
-    httpClient,
-    "GitLab",
-    gitlabUrl,
-    "GITLAB_TOKEN",
-    envFullPath,
-    ValidateGitLabTokenAsync);
-
-if (string.IsNullOrEmpty(gitlabToken))
-{
-    LogError("Failed to obtain valid GitLab token; exiting");
-    return 1;
-}
-
 var teamcityToken = await GetAndValidateTokenAsync(
     httpClient,
     "TeamCity",
@@ -70,6 +56,20 @@ var teamcityToken = await GetAndValidateTokenAsync(
 if (string.IsNullOrEmpty(teamcityToken))
 {
     LogError("Failed to obtain valid TeamCity token; exiting");
+    return 1;
+}
+
+var gitlabToken = await GetAndValidateTokenAsync(
+    httpClient,
+    "GitLab",
+    gitlabUrl,
+    "GITLAB_TOKEN",
+    envFullPath,
+    ValidateGitLabTokenAsync);
+
+if (string.IsNullOrEmpty(gitlabToken))
+{
+    LogError("Failed to obtain valid GitLab token; exiting");
     return 1;
 }
 
