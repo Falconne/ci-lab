@@ -19,9 +19,16 @@ if command -v dotnet >/dev/null 2>&1; then
   dotnet run --project ./Bootstrap.csproj
 else
   echo "Local dotnet not found — running within .NET SDK Docker image..."
+
+  # Pass GITLAB_ROOT_PASSWORD to container for auto-token generation
+  GITLAB_ROOT_PASSWORD="${GITLAB_ROOT_PASSWORD:-changeme123}"
+
   docker run --net=host --rm -it \
-    -v "$ROOT_DIR/src":/app \
-    -w /app/Bootstrap \
+    -v "$ROOT_DIR":/workspace \
+    -w /workspace/src/Bootstrap \
+    -e GITLAB_ROOT_PASSWORD="$GITLAB_ROOT_PASSWORD" \
+    -e GITLAB_URL="${GITLAB_URL:-http://localhost:8081}" \
+    -e TEAMCITY_URL="${TEAMCITY_URL:-http://localhost:8111}" \
     mcr.microsoft.com/dotnet/sdk:9.0 \
-    dotnet run --project /app/Bootstrap/Bootstrap.csproj
+    dotnet run --project /workspace/src/Bootstrap/Bootstrap.csproj
 fi
