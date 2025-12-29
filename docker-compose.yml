@@ -45,21 +45,6 @@ services:
     networks:
       - ci-network
 
-  bootstrap:
-    image: mcr.microsoft.com/dotnet/sdk:9.0
-    depends_on:
-      - gitlab
-      - teamcity
-    env_file:
-      - .env
-    volumes:
-      - ./src:/app:rw
-      - ./data:/data:ro
-    working_dir: /app/Bootstrap
-    entrypoint: ["dotnet", "run", "--project", "/app/Bootstrap/Bootstrap.csproj"]
-    networks:
-      - ci-network
-
 networks:
   ci-network:
     driver: bridge

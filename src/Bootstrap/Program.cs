@@ -3,19 +3,23 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
-using DotNetEnv;
 
-// Automated bootstrap script for the CI lab
-// Waits for GitLab and TeamCity, auto-generates tokens, and creates sample projects
+// Manual bootstrap script for the CI lab
+// Prompts for and validates GitLab and TeamCity tokens, then creates sample projects
 
-Env.Load("/.env");
 Console.WriteLine("=".PadRight(60, '='));
-Console.WriteLine("CI Lab Bootstrap - Automated Setup (.NET 9)");
+Console.WriteLine("CI Lab Bootstrap - Manual Setup (.NET 9)");
 Console.WriteLine("=".PadRight(60, '='));
 
-var gitlabUrl = Environment.GetEnvironmentVariable("GITLAB_URL") ?? "http://gitlab";
-var teamcityUrl = Environment.GetEnvironmentVariable("TEAMCITY_URL") ?? "http://teamcity:8111";
-var gitlabRootPassword = Environment.GetEnvironmentVariable("GITLAB_ROOT_PASSWORD");
+// Determine .env file path relative to the project directory
+var envPath = Path.Combine(Directory.GetCurrentDirectory(), "..", "..", ".env");
+var envFullPath = Path.GetFullPath(envPath);
+
+// Load environment variables from .env file if it exists
+LoadEnvFile(envFullPath);
+
+var gitlabUrl = Environment.GetEnvironmentVariable("GITLAB_URL") ?? "http://localhost:8081";
+var teamcityUrl = Environment.GetEnvironmentVariable("TEAMCITY_URL") ?? "http://localhost:8111";
 
 using var httpClient = new HttpClient(new HttpClientHandler
 {
@@ -27,7 +31,7 @@ using var httpClient = new HttpClient(new HttpClientHandler
 
 // Wait for services
 Log("Waiting for services to become available...");
-var gitlabReady = await WaitForServiceAsync(httpClient, gitlabUrl, TimeSpan.FromMinutes(10));
+var gitlabReady = await WaitForServiceAsync(httpClient, gitlabUrl, TimeSpan.FromMinutes(5));
 var teamcityReady = await WaitForServiceAsync(httpClient, teamcityUrl, TimeSpan.FromMinutes(5));
 
 if (!gitlabReady || !teamcityReady)
@@ -36,28 +40,37 @@ if (!gitlabReady || !teamcityReady)
     return 1;
 }
 
-// Wait for TeamCity API to be fully operational
-Log("Waiting for TeamCity API to become operational...");
-var teamcityApiReady = await WaitForTeamCityApiAsync(httpClient, teamcityUrl, TimeSpan.FromMinutes(5));
-if (!teamcityApiReady)
+// Get and validate tokens
+Log("=".PadRight(60, '='));
+Log("Token Setup");
+Log("=".PadRight(60, '='));
+
+var gitlabToken = await GetAndValidateTokenAsync(
+    httpClient,
+    "GitLab",
+    gitlabUrl,
+    "GITLAB_TOKEN",
+    envFullPath,
+    ValidateGitLabTokenAsync);
+
+if (string.IsNullOrEmpty(gitlabToken))
 {
-    LogWarning("TeamCity API did not become available, agent authorization may fail");
+    LogError("Failed to obtain valid GitLab token; exiting");
+    return 1;
 }
 
-// Auto-generate or retrieve tokens
-var gitlabToken = Environment.GetEnvironmentVariable("GITLAB_TOKEN");
-var teamcityToken = Environment.GetEnvironmentVariable("TEAMCITY_TOKEN");
-
-if (string.IsNullOrEmpty(gitlabToken) && !string.IsNullOrEmpty(gitlabRootPassword))
-{
-    Log("No GITLAB_TOKEN provided; attempting auto-generation...");
-    gitlabToken = await GetGitLabTokenAsync(httpClient, gitlabUrl, gitlabRootPassword);
-}
+var teamcityToken = await GetAndValidateTokenAsync(
+    httpClient,
+    "TeamCity",
+    teamcityUrl,
+    "TEAMCITY_TOKEN",
+    envFullPath,
+    ValidateTeamCityTokenAsync);
 
 if (string.IsNullOrEmpty(teamcityToken))
 {
-    Log("No TEAMCITY_TOKEN provided; attempting auto-detection...");
-    teamcityToken = await GetTeamCityTokenAsync(httpClient, teamcityUrl);
+    LogError("Failed to obtain valid TeamCity token; exiting");
+    return 1;
 }
 
 // Create GitLab projects
@@ -73,11 +86,6 @@ if (!string.IsNullOrEmpty(gitlabToken))
                   "Created";
         Log($"✓ GitLab project ready: {url}");
     }
-}
-else
-{
-    LogWarning("⚠ GitLab setup skipped - no token available");
-    Log("   Manual setup: http://localhost:8081/-/profile/personal_access_tokens");
 }
 
 // Create TeamCity projects
@@ -103,23 +111,173 @@ if (!string.IsNullOrEmpty(teamcityToken))
         LogWarning("⚠ Agent authorization incomplete - some agents may need manual approval");
     }
 }
-else
-{
-    LogWarning("⚠ TeamCity setup skipped - no token available");
-    Log("   Manual setup: http://localhost:8111");
-}
 
 Log("=".PadRight(60, '='));
 Log("Bootstrap complete!");
 Log("=".PadRight(60, '='));
 Log("Services available at:");
-Log("  GitLab:   http://localhost:8081 (root / <your-password>)");
-Log("  TeamCity: http://localhost:8111");
+Log($"  GitLab:   {gitlabUrl}");
+Log($"  TeamCity: {teamcityUrl}");
 Log("=".PadRight(60, '='));
 
 return 0;
 
 // Helper methods
+
+static void LoadEnvFile(string envPath)
+{
+    if (!File.Exists(envPath))
+    {
+        Log($"No .env file found at {envPath}");
+        return;
+    }
+
+    Log($"Loading environment from {envPath}");
+    foreach (var line in File.ReadAllLines(envPath))
+    {
+        var trimmed = line.Trim();
+        if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith('#'))
+            continue;
+
+        var parts = trimmed.Split('=', 2);
+        if (parts.Length == 2)
+        {
+            var key = parts[0].Trim();
+            var value = parts[1].Trim().Trim('"');
+            Environment.SetEnvironmentVariable(key, value);
+        }
+    }
+}
+
+static void SaveOrUpdateEnvFile(string envPath, string key, string value)
+{
+    var lines = File.Exists(envPath) ? File.ReadAllLines(envPath).ToList() : new List<string>();
+    var keyPrefix = $"{key}=";
+    var lineIndex = lines.FindIndex(l => l.Trim().StartsWith(keyPrefix));
+
+    var newLine = $"{key}=\"{value}\"";
+
+    if (lineIndex >= 0)
+    {
+        lines[lineIndex] = newLine;
+        Log($"Updated {key} in .env file");
+    }
+    else
+    {
+        lines.Add(newLine);
+        Log($"Added {key} to .env file");
+    }
+
+    File.WriteAllLines(envPath, lines);
+    Environment.SetEnvironmentVariable(key, value);
+}
+
+static async Task<string?> GetAndValidateTokenAsync(
+    HttpClient client,
+    string serviceName,
+    string serviceUrl,
+    string envVarName,
+    string envFilePath,
+    Func<HttpClient, string, string, Task<bool>> validator)
+{
+    var token = Environment.GetEnvironmentVariable(envVarName);
+
+    while (true)
+    {
+        if (string.IsNullOrEmpty(token))
+        {
+            Log($"\n{serviceName} token not found in environment or .env file");
+            Log($"Please create a token in {serviceName}:");
+            if (serviceName == "GitLab")
+            {
+                Log($"  1. Visit {serviceUrl}/-/profile/personal_access_tokens");
+                Log("  2. Create a token with 'api', 'read_api', 'write_repository' scopes");
+            }
+            else if (serviceName == "TeamCity")
+            {
+                Log($"  1. Visit {serviceUrl}/profile.html?item=accessTokens");
+                Log("  2. Create a token with appropriate permissions");
+            }
+
+            Console.Write($"Enter {serviceName} token: ");
+            token = Console.ReadLine()?.Trim();
+
+            if (string.IsNullOrEmpty(token))
+            {
+                LogError("Token cannot be empty");
+                continue;
+            }
+        }
+
+        Log($"Validating {serviceName} token...");
+        var isValid = await validator(client, serviceUrl, token);
+
+        if (isValid)
+        {
+            Log($"✓ {serviceName} token is valid");
+            SaveOrUpdateEnvFile(envFilePath, envVarName, token);
+            return token;
+        }
+
+        LogError($"✗ {serviceName} token is invalid or insufficient permissions");
+        token = null; // Force re-prompt
+    }
+}
+
+static async Task<bool> ValidateGitLabTokenAsync(HttpClient client, string gitlabUrl, string token)
+{
+    try
+    {
+        var apiUrl = $"{gitlabUrl.TrimEnd('/')}/api/v4/user";
+        var request = new HttpRequestMessage(HttpMethod.Get, apiUrl)
+        {
+            Headers = { { "PRIVATE-TOKEN", token } }
+        };
+
+        var response = await client.SendAsync(request);
+        if (response.IsSuccessStatusCode)
+        {
+            var userData = await response.Content.ReadFromJsonAsync<JsonElement>();
+            var username = userData.GetProperty("username").GetString();
+            Log($"  Authenticated as: {username}");
+            return true;
+        }
+
+        return false;
+    }
+    catch (Exception ex)
+    {
+        LogError($"  Validation error: {ex.Message}");
+        return false;
+    }
+}
+
+static async Task<bool> ValidateTeamCityTokenAsync(HttpClient client, string teamcityUrl, string token)
+{
+    try
+    {
+        var apiUrl = $"{teamcityUrl.TrimEnd('/')}/app/rest/server";
+        var request = new HttpRequestMessage(HttpMethod.Get, apiUrl)
+        {
+            Headers = { Authorization = new AuthenticationHeaderValue("Bearer", token) }
+        };
+
+        var response = await client.SendAsync(request);
+        if (response.IsSuccessStatusCode)
+        {
+            var serverData = await response.Content.ReadAsStringAsync();
+            Log("  Token authentication successful");
+            return true;
+        }
+
+        return false;
+    }
+    catch (Exception ex)
+    {
+        LogError($"  Validation error: {ex.Message}");
+        return false;
+    }
+}
 
 static async Task<bool> WaitForServiceAsync(HttpClient client, string url, TimeSpan timeout)
 {
@@ -151,101 +309,6 @@ static async Task<bool> WaitForServiceAsync(HttpClient client, string url, TimeS
 
             await Task.Delay(interval);
         }
-    }
-}
-
-static async Task<string?> GetGitLabTokenAsync(HttpClient client, string gitlabUrl, string password)
-{
-    Log("Attempting to create GitLab Personal Access Token for user root");
-
-    try
-    {
-        var apiUrl = $"{gitlabUrl.TrimEnd('/')}/api/v4/user/personal_access_tokens";
-        var tokenData = new
-        {
-            name = "bootstrap-automation",
-            scopes = new[] { "api", "read_api", "write_repository" }
-        };
-
-        var credentials = Convert.ToBase64String(Encoding.ASCII.GetBytes($"root:{password}"));
-        var request = new HttpRequestMessage(HttpMethod.Post, apiUrl)
-        {
-            Content = JsonContent.Create(tokenData),
-            Headers = { Authorization = new AuthenticationHeaderValue("Basic", credentials) }
-        };
-
-        var response = await client.SendAsync(request);
-        if (response.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created)
-        {
-            var result = await response.Content.ReadFromJsonAsync<JsonElement>();
-            var token = result.GetProperty("token").GetString();
-            Log("GitLab Personal Access Token created successfully");
-            return token;
-        }
-
-        // Fallback: try OAuth
-        var oauthUrl = $"{gitlabUrl.TrimEnd('/')}/oauth/token";
-        var oauthData = new Dictionary<string, string>
-        {
-            ["grant_type"] = "password",
-            ["username"] = "root",
-            ["password"] = password
-        };
-
-        var oauthResponse = await client.PostAsync(oauthUrl, new FormUrlEncodedContent(oauthData));
-        if (oauthResponse.IsSuccessStatusCode)
-        {
-            var oauthResult = await oauthResponse.Content.ReadFromJsonAsync<JsonElement>();
-            var accessToken = oauthResult.GetProperty("access_token").GetString();
-            Log("GitLab OAuth token obtained");
-            return accessToken;
-        }
-
-        LogError($"Failed to create GitLab token: {(int)response.StatusCode} - {await response.Content.ReadAsStringAsync()}");
-        Log("You may need to manually create a Personal Access Token in GitLab UI and set GITLAB_TOKEN");
-        return null;
-    }
-    catch (Exception ex)
-    {
-        LogError($"Exception creating GitLab token: {ex.Message}");
-        Log("Fallback: You can manually create a token at http://localhost:8081/-/profile/personal_access_tokens");
-        return null;
-    }
-}
-
-static async Task<string?> GetTeamCityTokenAsync(HttpClient client, string teamcityUrl)
-{
-    Log("Attempting to obtain TeamCity authentication token");
-
-    try
-    {
-        var infoUrl = $"{teamcityUrl.TrimEnd('/')}/app/rest/server";
-        var response = await client.GetAsync(infoUrl);
-
-        if (response.IsSuccessStatusCode)
-        {
-            Log("TeamCity accessible without authentication (initial setup mode)");
-            return "SUPERUSER_AUTH_NOT_NEEDED";
-        }
-
-        // Try guest auth
-        var guestUrl = $"{teamcityUrl.TrimEnd('/')}/guestAuth/app/rest/server";
-        var guestResponse = await client.GetAsync(guestUrl);
-
-        if (guestResponse.IsSuccessStatusCode)
-        {
-            Log("TeamCity guest access available");
-            return "GUEST_AUTH";
-        }
-
-        Log("TeamCity token extraction not implemented for this setup");
-        Log("You may need to manually configure TeamCity and set TEAMCITY_TOKEN");
-        return null;
-    }
-    catch (Exception ex)
-    {
-        LogError($"Exception getting TeamCity token: {ex.Message}");
-        return null;
     }
 }
 
@@ -287,49 +350,9 @@ static async Task<JsonElement?> CreateGitLabProjectAsync(HttpClient client, stri
     }
 }
 
-static async Task<bool> WaitForTeamCityApiAsync(HttpClient client, string teamcityUrl, TimeSpan timeout)
-{
-    var apiUrl = $"{teamcityUrl.TrimEnd('/')}/app/rest/server";
-    var startTime = DateTime.UtcNow;
-    var interval = TimeSpan.FromSeconds(5);
-
-    while (true)
-    {
-        try
-        {
-            var response = await client.GetAsync(apiUrl);
-            if (response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.Unauthorized)
-            {
-                Log("TeamCity API is operational");
-                return true;
-            }
-        }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
-        {
-            var elapsed = DateTime.UtcNow - startTime;
-            if (elapsed > timeout)
-            {
-                LogError($"Timeout waiting for TeamCity API: {ex.Message}");
-                return false;
-            }
-
-            if ((int)elapsed.TotalSeconds % 30 == 0)
-            {
-                Log($"Still waiting for TeamCity API... ({(int)elapsed.TotalSeconds}s elapsed)");
-            }
-
-            await Task.Delay(interval);
-        }
-    }
-}
-
 static async Task<bool> CreateTeamCityProjectAsync(HttpClient client, string teamcityUrl, string token)
 {
-    var apiUrl = token switch
-    {
-        "GUEST_AUTH" => $"{teamcityUrl.TrimEnd('/')}/guestAuth/app/rest/projects",
-        _ => $"{teamcityUrl.TrimEnd('/')}/app/rest/projects"
-    };
+    var apiUrl = $"{teamcityUrl.TrimEnd('/')}/app/rest/projects";
 
     Log($"Creating TeamCity project 'Sample Project' via {apiUrl}");
 
@@ -339,13 +362,12 @@ static async Task<bool> CreateTeamCityProjectAsync(HttpClient client, string tea
         var request = new HttpRequestMessage(HttpMethod.Post, apiUrl)
         {
             Content = new StringContent(xml, Encoding.UTF8, "application/xml"),
-            Headers = { Accept = { MediaTypeWithQualityHeaderValue.Parse("application/json") } }
+            Headers =
+            {
+                Accept = { MediaTypeWithQualityHeaderValue.Parse("application/json") },
+                Authorization = new AuthenticationHeaderValue("Bearer", token)
+            }
         };
-
-        if (token is not "GUEST_AUTH" and not "SUPERUSER_AUTH_NOT_NEEDED")
-        {
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        }
 
         var response = await client.SendAsync(request);
 
@@ -373,22 +395,19 @@ static async Task<bool> CreateTeamCityProjectAsync(HttpClient client, string tea
 
 static async Task<bool> AuthorizeTeamCityAgentsAsync(HttpClient client, string teamcityUrl, string token)
 {
-    var apiUrl = token switch
-    {
-        "GUEST_AUTH" => $"{teamcityUrl.TrimEnd('/')}/guestAuth/app/rest/agents",
-        _ => $"{teamcityUrl.TrimEnd('/')}/app/rest/agents"
-    };
+    var apiUrl = $"{teamcityUrl.TrimEnd('/')}/app/rest/agents";
 
     try
     {
         // Get list of unauthorized agents
-        var listRequest = new HttpRequestMessage(HttpMethod.Get, $"{apiUrl}?locator=authorized:false");
-        listRequest.Headers.Accept.Add(MediaTypeWithQualityHeaderValue.Parse("application/json"));
-
-        if (token is not "GUEST_AUTH" and not "SUPERUSER_AUTH_NOT_NEEDED")
+        var listRequest = new HttpRequestMessage(HttpMethod.Get, $"{apiUrl}?locator=authorized:false")
         {
-            listRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        }
+            Headers =
+            {
+                Accept = { MediaTypeWithQualityHeaderValue.Parse("application/json") },
+                Authorization = new AuthenticationHeaderValue("Bearer", token)
+            }
+        };
 
         var listResponse = await client.SendAsync(listRequest);
         if (!listResponse.IsSuccessStatusCode)
@@ -415,13 +434,9 @@ static async Task<bool> AuthorizeTeamCityAgentsAsync(HttpClient client, string t
             // Authorize the agent
             var authRequest = new HttpRequestMessage(HttpMethod.Put, $"{apiUrl}/id:{agentId}/authorized")
             {
-                Content = new StringContent("true", Encoding.UTF8, "text/plain")
+                Content = new StringContent("true", Encoding.UTF8, "text/plain"),
+                Headers = { Authorization = new AuthenticationHeaderValue("Bearer", token) }
             };
-
-            if (token is not "GUEST_AUTH" and not "SUPERUSER_AUTH_NOT_NEEDED")
-            {
-                authRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-            }
 
             var authResponse = await client.SendAsync(authRequest);
             if (authResponse.IsSuccessStatusCode)
@@ -432,13 +447,9 @@ static async Task<bool> AuthorizeTeamCityAgentsAsync(HttpClient client, string t
                 // Add to default pool
                 var poolRequest = new HttpRequestMessage(HttpMethod.Post, $"{apiUrl}/id:{agentId}/pool")
                 {
-                    Content = new StringContent("""<agentPool id="0" />""", Encoding.UTF8, "application/xml")
+                    Content = new StringContent("""<agentPool id="0" />""", Encoding.UTF8, "application/xml"),
+                    Headers = { Authorization = new AuthenticationHeaderValue("Bearer", token) }
                 };
-
-                if (token is not "GUEST_AUTH" and not "SUPERUSER_AUTH_NOT_NEEDED")
-                {
-                    poolRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-                }
 
                 var poolResponse = await client.SendAsync(poolRequest);
                 if (poolResponse.IsSuccessStatusCode)

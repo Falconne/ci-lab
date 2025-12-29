@@ -3,52 +3,52 @@ This repo contains tools for creating a mock CI/CD environment using Gitlab for 
 
 # Quick Start
 
-1. **Configure credentials** (optional - defaults will work):
+1. **Start the lab services**:
    ```bash
-   cp .env .env.local  # Optional: customize settings
-   # Edit .env to set GITLAB_ROOT_PASSWORD (default: changeme123)
+   docker compose up -d
    ```
 
-2. **Start the lab**:
-   ```bash
-   docker compose up
-   ```
-
-3. **Access services**:
+2. **Access services and create tokens**:
    - GitLab: http://localhost:8081 (root / changeme123)
+     - Create a Personal Access Token with `api`, `read_api`, `write_repository` scopes at http://localhost:8081/-/profile/personal_access_tokens
    - TeamCity: http://localhost:8111
+     - Complete initial setup and create an access token at http://localhost:8111/profile.html?item=accessTokens
 
-The bootstrap script runs automatically and will:
-- Wait for both services to become available (GitLab can take 2-3 minutes)
-- Automatically generate API tokens using the root credentials
+3. **Run the bootstrap script**:
+   ```bash
+   cd src/Bootstrap
+   dotnet run
+   ```
+
+The bootstrap script will:
+- Wait for both services to become available
+- Prompt you for GitLab and TeamCity tokens if not already in `.env`
+- Validate the tokens with test API calls
+- Save valid tokens to `.env` file for future use
 - Create sample projects in both services
+- Authorize TeamCity agents
 
-**Minimal user interaction required!** Just set `GITLAB_ROOT_PASSWORD` in `.env` and run `docker compose up`.
+**Note**: The bootstrap script checks for tokens in environment variables and the `.env` file. If tokens are invalid or missing, it will prompt you interactively to provide them.
 
 # Directory Structure
 The root of the repo contains a docker compose file and related settings for spinning up Gitlab and TeamCity, sharing the same network and exposing necessary UI and API ports to the host. The data for each service is internal to the container and not persisted to disk, so each time the services are recreated we will have a clean start for testing.
 
-The compose file will execute the bootstrap .NET application (in `src/`) upon creation of services to initialise them with data (see below).
-
 ## src
-This subdirectory contains a .NET 9 C# application for initialising Gitlab and TeamCity with a known set of repos and CIs. The bootstrap application automatically:
-- Generates GitLab Personal Access Tokens using root credentials
-- Extracts TeamCity authentication tokens
+This subdirectory contains a .NET 9 C# application for initialising Gitlab and TeamCity with a known set of repos and CIs. The bootstrap application:
+- Interactively prompts for and validates API tokens
+- Saves tokens to `.env` file for convenience
 - Creates sample projects in both services
+- Authorizes TeamCity build agents
 
-Built with modern C# patterns including top-level statements, nullable reference types, and async/await.
+Built with modern C# patterns including top-level statements, nullable reference types, and HttpClientFactory.
 
 ## data
 This subdirectory contains data files and sample repos to be used by the scripts for initialising data on the services.
 
-# Manual Token Configuration (Optional)
+# Token Management
 
-If automatic token generation fails, you can manually create tokens:
+Tokens are stored in the `.env` file at the repository root:
+- `GITLAB_TOKEN`: Personal Access Token from GitLab
+- `TEAMCITY_TOKEN`: Access Token from TeamCity
 
-1. **GitLab**: Visit http://localhost:8081/-/profile/personal_access_tokens
-   - Create a token with `api`, `read_api`, `write_repository` scopes
-   - Set `GITLAB_TOKEN` in `.env`
-
-2. **TeamCity**: Configure authentication in the UI at http://localhost:8111
-   - Create an access token
-   - Set `TEAMCITY_TOKEN` in `.env`
+The bootstrap script will automatically create or update this file when you provide valid tokens.
