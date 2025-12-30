@@ -25,7 +25,8 @@ Log($"TeamCity URL: {teamcityUrl}");
 
 using var httpClient = new HttpClient(new HttpClientHandler
 {
-    ServerCertificateCustomValidationCallback = (_, _, _, _) => true
+    ServerCertificateCustomValidationCallback = (_, _, _, _) => true,
+    UseCookies = false
 })
 {
     Timeout = TimeSpan.FromSeconds(10)
@@ -438,7 +439,10 @@ static async Task<bool> AuthorizeTeamCityAgentsAsync(HttpClient client, string t
             var authRequest = new HttpRequestMessage(HttpMethod.Put, $"{apiUrl}/id:{agentId}/authorized")
             {
                 Content = new StringContent("true", Encoding.UTF8, "text/plain"),
-                Headers = { Authorization = new AuthenticationHeaderValue("Bearer", token) }
+                Headers =
+                {
+                    Authorization = new AuthenticationHeaderValue("Bearer", token)
+                }
             };
 
             var authResponse = await client.SendAsync(authRequest);
@@ -447,11 +451,15 @@ static async Task<bool> AuthorizeTeamCityAgentsAsync(HttpClient client, string t
                 Log($"  ✓ Agent {agentName} authorized");
                 authorizedCount++;
 
-                // Add to default pool
-                var poolRequest = new HttpRequestMessage(HttpMethod.Post, $"{apiUrl}/id:{agentId}/pool")
+                // Add to default pool (pool ID 0)
+                var poolApiUrl = $"{teamcityUrl.TrimEnd('/')}/app/rest/agentPools/id:0/agents";
+                var poolRequest = new HttpRequestMessage(HttpMethod.Post, poolApiUrl)
                 {
-                    Content = new StringContent("""<agentPool id="0" />""", Encoding.UTF8, "application/xml"),
-                    Headers = { Authorization = new AuthenticationHeaderValue("Bearer", token) }
+                    Content = new StringContent($"""<agent id="{agentId}" />""", Encoding.UTF8, "application/xml"),
+                    Headers =
+                    {
+                        Authorization = new AuthenticationHeaderValue("Bearer", token)
+                    }
                 };
 
                 var poolResponse = await client.SendAsync(poolRequest);
