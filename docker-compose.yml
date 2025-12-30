@@ -32,7 +32,8 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        exec > /workspace/data/gitlab-token-generator.log 2>&1
+        mkdir -p /workspace/data/logs
+        exec > /workspace/data/logs/gitlab-token-generator.log 2>&1
         apk add --no-cache docker-cli
         echo "[token-gen] Waiting for GitLab container..."
         CONTAINER=$$(docker ps --filter "name=gitlab-1" --format "{{.Names}}" | head -n1)
