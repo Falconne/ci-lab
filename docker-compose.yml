@@ -13,7 +13,7 @@ services:
     networks:
       - ci-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/-/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8081/-/health"]
       interval: 30s
       timeout: 10s
       retries: 100
@@ -31,6 +31,7 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
+        exec > /workspace/data/gitlab-token-generator.log 2>&1
         apk add --no-cache docker-cli
         echo "[token-gen] Waiting for GitLab container..."
         CONTAINER=$$(docker ps --filter "name=gitlab" --format "{{.Names}}" | head -n1)

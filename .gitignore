@@ -1,3 +1,5 @@
+# Ignore gitlab token generator log
+/data/gitlab-token-generator.log
 # Environment variables with sensitive credentials
 .env
 
