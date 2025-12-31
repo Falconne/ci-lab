@@ -1064,6 +1064,58 @@ static async Task<bool> AutomateTeamCitySetupAsync(string teamcityUrl, string us
             await TakeScreenshot(page, "14d_after_skip");
         }
 
+        // Step 5.5: Handle post-setup agreement page (showAgreement.html)
+        Log("Step 5.5: Checking for post-setup agreement page");
+        await Task.Delay(2000);
+
+        // Check if we're on the showAgreement page
+        var currentPageUrl = page.Url;
+        if (currentPageUrl.Contains("showAgreement"))
+        {
+            Log("  Found showAgreement page, handling agreement...");
+            await TakeScreenshot(page, "14e_at_show_agreement");
+
+            // Check the "Accept license agreement" checkbox
+            var acceptAgreementCheckbox = page.Locator("input[type='checkbox'][name='accept'], input[id='accept']");
+            if (await acceptAgreementCheckbox.CountAsync() > 0)
+            {
+                Log("  Checking agreement checkbox...");
+                await acceptAgreementCheckbox.First.CheckAsync();
+                await Task.Delay(500);
+            }
+
+            // Uncheck the "Send anonymous usage statistics" checkbox
+            var statisticsCheckbox = page.Locator("input[type='checkbox'][name='sendUsageStatistics'], input[id='sendUsageStatistics']");
+            if (await statisticsCheckbox.CountAsync() > 0)
+            {
+                var isChecked = await statisticsCheckbox.First.IsCheckedAsync();
+                if (isChecked)
+                {
+                    Log("  Unchecking statistics checkbox...");
+                    await statisticsCheckbox.First.UncheckAsync();
+                    await Task.Delay(500);
+                }
+            }
+
+            await TakeScreenshot(page, "14f_agreement_checkboxes_set");
+
+            // Click Continue button
+            var continueAgreementButton = page.Locator("button:has-text('Continue'), input[value='Continue']");
+            if (await continueAgreementButton.CountAsync() > 0)
+            {
+                Log("  Clicking Continue button on agreement page...");
+                await continueAgreementButton.First.ClickAsync();
+                await Task.Delay(3000);
+                await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+                await TakeScreenshot(page, "14g_after_agreement_continue");
+                Log("  Agreement page handled");
+            }
+        }
+        else
+        {
+            Log("  Not on showAgreement page, continuing...");
+        }
+
         // Step 6: Create access token
         Log("Step 6: Creating access token");
 
@@ -1085,7 +1137,7 @@ static async Task<bool> AutomateTeamCitySetupAsync(string teamcityUrl, string us
 
                 // Check if we escaped the setup page
                 var currentUrl = page.Url;
-                if (!currentUrl.Contains("setupAdmin"))
+                if (!currentUrl.Contains("setupAdmin") && !currentUrl.Contains("showAgreement"))
                 {
                     Log($"  Successfully navigated away from setup page to: {currentUrl}");
                     break;
