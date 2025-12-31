@@ -3,6 +3,8 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using LibGit2Sharp;
+using Microsoft.Playwright;
 
 // Manual bootstrap script for the CI lab
 // Prompts for and validates GitLab and TeamCity tokens, then creates sample projects
@@ -43,6 +45,23 @@ if (!gitlabReady || !teamcityReady)
     return 1;
 }
 
+// Automated TeamCity initial setup
+Log("=".PadRight(60, '='));
+Log("TeamCity Automated Initial Setup");
+Log("=".PadRight(60, '='));
+
+var gitlabRootPassword = Environment.GetEnvironmentVariable("GITLAB_ROOT_PASSWORD") ?? "changeme123";
+var teamcitySetupSuccess = await AutomateTeamCitySetupAsync(teamcityUrl, "root", gitlabRootPassword);
+
+if (!teamcitySetupSuccess)
+{
+    LogError("TeamCity automated setup failed");
+    LogError("Check screenshots in data/screenshots/ directory for details");
+    return 1;
+}
+
+Log("✓ TeamCity initial setup completed");
+
 // Get and validate tokens
 Log("=".PadRight(60, '='));
 Log("Token Setup");
@@ -81,15 +100,20 @@ if (string.IsNullOrEmpty(gitlabToken))
 if (!string.IsNullOrEmpty(gitlabToken))
 {
     Log("=".PadRight(60, '='));
-    Log("Setting up GitLab...");
-    var project = await CreateGitLabProjectAsync(httpClient, gitlabUrl, gitlabToken, "sample-repo");
-    if (project is not null)
+    Log("Setting up GitLab test projects...");
+
+    var projectsCreated = 0;
+    for (var i = 1; i <= 5; i++)
     {
-        var url = project.Value.GetProperty("web_url").GetString() ??
-                  project.Value.GetProperty("http_url_to_repo").GetString() ??
-                  "Created";
-        Log($"✓ GitLab project ready: {url}");
+        var projectName = $"test-project-{i}";
+        var created = await CreateAndPopulateGitLabProjectAsync(httpClient, gitlabUrl, gitlabToken, projectName, i);
+        if (created)
+        {
+            projectsCreated++;
+        }
     }
+
+    Log($"✓ {projectsCreated} GitLab test project(s) ready");
 }
 
 // Create TeamCity projects
@@ -323,9 +347,33 @@ static async Task<JsonElement?> CreateGitLabProjectAsync(HttpClient client, stri
 
     try
     {
+        // Check if project already exists
+        var checkUrl = $"{gitlabUrl.TrimEnd('/')}/api/v4/projects?search={projectName}";
+        var checkRequest = new HttpRequestMessage(HttpMethod.Get, checkUrl)
+        {
+            Headers = { { "PRIVATE-TOKEN", token } }
+        };
+
+        var checkResponse = await client.SendAsync(checkRequest);
+        if (checkResponse.IsSuccessStatusCode)
+        {
+            var existingProjects = await checkResponse.Content.ReadFromJsonAsync<JsonElement[]>();
+            if (existingProjects is not null)
+            {
+                foreach (var proj in existingProjects)
+                {
+                    if (proj.GetProperty("name").GetString() == projectName)
+                    {
+                        Log($"  Project '{projectName}' already exists");
+                        return proj;
+                    }
+                }
+            }
+        }
+
         var request = new HttpRequestMessage(HttpMethod.Post, apiUrl)
         {
-            Content = JsonContent.Create(new { name = projectName, initialize_with_readme = true }),
+            Content = JsonContent.Create(new { name = projectName, initialize_with_readme = false }),
             Headers = { { "PRIVATE-TOKEN", token } }
         };
 
@@ -334,14 +382,8 @@ static async Task<JsonElement?> CreateGitLabProjectAsync(HttpClient client, stri
 
         if (response.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created)
         {
-            Log("GitLab project created successfully");
+            Log($"  ✓ Project '{projectName}' created");
             return JsonSerializer.Deserialize<JsonElement>(content);
-        }
-
-        if (response.StatusCode == HttpStatusCode.Conflict)
-        {
-            Log("GitLab project already exists");
-            return string.IsNullOrEmpty(content) ? null : JsonSerializer.Deserialize<JsonElement>(content);
         }
 
         LogError($"GitLab API error {(int)response.StatusCode}: {content}");
@@ -351,6 +393,191 @@ static async Task<JsonElement?> CreateGitLabProjectAsync(HttpClient client, stri
     {
         LogError($"Failed to call GitLab API: {ex.Message}");
         return null;
+    }
+}
+
+static async Task<bool> CreateAndPopulateGitLabProjectAsync(HttpClient client, string gitlabUrl, string token, string projectName, int projectNumber)
+{
+    // Create the project in GitLab
+    var project = await CreateGitLabProjectAsync(client, gitlabUrl, token, projectName);
+    if (project is null || !project.HasValue)
+    {
+        return false;
+    }
+
+    // Get the project details
+    var projectId = project.Value.GetProperty("id").GetInt32();
+    var httpUrlToRepo = project.Value.GetProperty("http_url_to_repo").GetString();
+
+    if (string.IsNullOrEmpty(httpUrlToRepo))
+    {
+        LogError($"Could not get repository URL for project '{projectName}'");
+        return false;
+    }
+
+    // Check if repo already has commits (idempotency check)
+    var hasCommits = await CheckGitLabProjectHasCommitsAsync(client, gitlabUrl, token, projectId);
+    if (hasCommits)
+    {
+        Log($"  Project '{projectName}' already has commits, skipping repo population");
+        return true;
+    }
+
+    // Create a temporary directory for the repo
+    var tempDir = Path.Combine(Path.GetTempPath(), $"cilab-{projectName}-{Guid.NewGuid():N}");
+    Directory.CreateDirectory(tempDir);
+
+    try
+    {
+        // Generate random sleep duration (10-60 seconds)
+        var random = new Random(projectNumber * 1000 + DateTime.UtcNow.Millisecond);
+        var sleepDuration = random.Next(10, 61);
+
+        // Create build.sh
+        var buildShContent = $"""
+            #!/bin/bash
+            set -e
+
+            echo "=========================================="
+            echo "Starting build for {projectName}"
+            echo "Build started at: $(date)"
+            echo "=========================================="
+            echo ""
+            echo "Running build steps..."
+            echo "- Preparing environment..."
+            echo "- Compiling sources..."
+            echo ""
+
+            # Simulated build time
+            sleep {sleepDuration}
+
+            echo ""
+            echo "=========================================="
+            echo "Build completed successfully!"
+            echo "Build finished at: $(date)"
+            echo "Total build time: {sleepDuration} seconds"
+            echo "=========================================="
+
+            """;
+
+        var buildShPath = Path.Combine(tempDir, "build.sh");
+        File.WriteAllText(buildShPath, buildShContent);
+
+        // Make build.sh executable on Unix systems
+        if (!OperatingSystem.IsWindows())
+        {
+            File.SetUnixFileMode(buildShPath, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute |
+                                              UnixFileMode.GroupRead | UnixFileMode.GroupExecute |
+                                              UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
+        }
+
+        // Create README.md
+        var readmeContent = $"""
+            # {projectName}
+
+            This is test project #{projectNumber} for the CI lab environment.
+
+            ## Build
+
+            To build this project, run:
+
+            ```bash
+            ./build.sh
+            ```
+
+            The build simulates compilation and takes approximately {sleepDuration} seconds.
+
+            ## Project Details
+
+            - Project Name: {projectName}
+            - Project Number: {projectNumber}
+            - Build Duration: ~{sleepDuration}s
+
+            """;
+
+        var readmePath = Path.Combine(tempDir, "README.md");
+        File.WriteAllText(readmePath, readmeContent);
+
+        // Initialize git repository
+        Repository.Init(tempDir);
+        using var repo = new Repository(tempDir);
+
+        // Stage all files
+        Commands.Stage(repo, "*");
+
+        // Create commit
+        var signature = new Signature("CI Lab Bootstrap", "bootstrap@cilab.local", DateTimeOffset.Now);
+        repo.Commit($"Initial commit for {projectName}", signature, signature);
+
+        // Add remote and push
+        var repoUrl = httpUrlToRepo.Replace("http://", $"http://root:{token}@");
+        repo.Network.Remotes.Add("origin", repoUrl);
+
+        var pushOptions = new PushOptions
+        {
+            CredentialsProvider = (_url, _user, _cred) => new UsernamePasswordCredentials
+            {
+                Username = "root",
+                Password = token
+            }
+        };
+
+        repo.Network.Push(repo.Branches["master"] ?? repo.Branches["main"], pushOptions);
+
+        Log($"  ✓ Repository populated and pushed to '{projectName}'");
+        return true;
+    }
+    catch (Exception ex)
+    {
+        LogError($"Failed to populate project '{projectName}': {ex.Message}");
+        return false;
+    }
+    finally
+    {
+        // Clean up temp directory
+        try
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, true);
+            }
+        }
+        catch
+        {
+            // Ignore cleanup errors
+        }
+    }
+}
+
+static async Task<bool> CheckGitLabProjectHasCommitsAsync(HttpClient client, string gitlabUrl, string token, int projectId)
+{
+    try
+    {
+        var apiUrl = $"{gitlabUrl.TrimEnd('/')}/api/v4/projects/{projectId}/repository/commits";
+        var request = new HttpRequestMessage(HttpMethod.Get, apiUrl)
+        {
+            Headers = { { "PRIVATE-TOKEN", token } }
+        };
+
+        var response = await client.SendAsync(request);
+
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            // No repository or no commits yet
+            return false;
+        }
+
+        if (response.IsSuccessStatusCode)
+        {
+            var commits = await response.Content.ReadFromJsonAsync<JsonElement[]>();
+            return commits is not null && commits.Length > 0;
+        }
+
+        return false;
+    }
+    catch
+    {
+        return false;
     }
 }
 
@@ -484,6 +711,548 @@ static async Task<bool> AuthorizeTeamCityAgentsAsync(HttpClient client, string t
     catch (Exception ex)
     {
         LogError($"Failed to authorize agents: {ex.Message}");
+        return false;
+    }
+}
+
+static async Task<bool> AutomateTeamCitySetupAsync(string teamcityUrl, string username, string password)
+{
+    var screenshotDir = Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "data", "screenshots");
+    var screenshotCounter = 0;
+
+    // Delete and recreate screenshots directory
+    if (Directory.Exists(screenshotDir))
+    {
+        Directory.Delete(screenshotDir, true);
+    }
+    Directory.CreateDirectory(screenshotDir);
+    Log($"Screenshot directory created: {screenshotDir}");
+
+    async Task TakeScreenshot(IPage page, string description)
+    {
+        try
+        {
+            screenshotCounter++;
+            var timestamp = DateTime.UtcNow.ToString("HHmmss");
+            var filename = $"{screenshotCounter:D3}_{timestamp}_{description}.png";
+            var path = Path.Combine(screenshotDir, filename);
+            await page.ScreenshotAsync(new PageScreenshotOptions { Path = path, FullPage = true });
+            Log($"  📸 Screenshot saved: {filename}");
+        }
+        catch (Exception ex)
+        {
+            LogWarning($"  Could not save screenshot: {ex.Message}");
+        }
+    }
+
+    try
+    {
+        Log("Starting automated TeamCity initial setup using Playwright...");
+
+        // Install Playwright browsers if needed
+        var exitCode = Microsoft.Playwright.Program.Main(["install", "chromium"]);
+        if (exitCode != 0)
+        {
+            LogWarning("Playwright browser installation returned non-zero exit code, continuing anyway...");
+        }
+
+        using var playwright = await Playwright.CreateAsync();
+        await using var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
+        {
+            Headless = true,
+            Timeout = 60000
+        });
+
+        var context = await browser.NewContextAsync(new BrowserNewContextOptions
+        {
+            IgnoreHTTPSErrors = true
+        });
+
+        var page = await context.NewPageAsync();
+        page.SetDefaultTimeout(60000);
+
+        Log($"Navigating to {teamcityUrl}");
+        await page.GotoAsync(teamcityUrl, new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle });
+        await Task.Delay(3000);
+        await TakeScreenshot(page, "01_initial_page");
+
+        // Check if already configured
+        if (await page.Locator("input[name='username'], input[id='username']").CountAsync() > 0)
+        {
+            Log("TeamCity appears to be already configured (login page detected)");
+            await TakeScreenshot(page, "already_configured");
+            return true;
+        }
+
+        // Step 1: Data Directory - Click Proceed
+        Log("Step 1: Checking for data directory configuration screen");
+        await TakeScreenshot(page, "02_before_data_directory");
+
+        var proceedButton = page.Locator("button:has-text('Proceed'), input[value='Proceed']").First;
+        if (await proceedButton.CountAsync() > 0)
+        {
+            Log("  Found Proceed button, clicking...");
+            await proceedButton.ClickAsync();
+            Log("  Waiting for navigation...");
+            await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+            await Task.Delay(3000);
+            await TakeScreenshot(page, "03_after_data_directory");
+            Log("  Data directory step completed");
+        }
+        else
+        {
+            Log("  No Proceed button found, may already be past this step");
+        }
+
+        // Step 2: Database type - Select Internal (HSQLDB) from dropdown
+        Log("Step 2: Selecting internal database");
+        await TakeScreenshot(page, "04_before_database_selection");
+
+        // Look for the dropdown select element
+        var dbSelect = page.Locator("select#databaseType, select[name='databaseType']").First;
+        if (await dbSelect.CountAsync() > 0)
+        {
+            Log("  Found database dropdown, selecting Internal (HSQLDB)...");
+            await dbSelect.SelectOptionAsync(new[] { "HSQLDB" });
+            await Task.Delay(1000);
+            await TakeScreenshot(page, "05_after_db_selection");
+            Log("  Database option selected");
+        }
+        else
+        {
+            Log("  Database dropdown not found, trying radio button approach...");
+            var internalDbRadio = page.Locator("input[value='HSQLDB'], input[type='radio'][value='internal']").First;
+            if (await internalDbRadio.CountAsync() > 0)
+            {
+                Log("  Found radio button, clicking...");
+                await internalDbRadio.ClickAsync();
+                await Task.Delay(1000);
+                await TakeScreenshot(page, "05_after_db_radio_click");
+            }
+        }
+
+        // Click Proceed button for database selection
+        await TakeScreenshot(page, "06_before_db_proceed");
+        var proceedDbButton = page.Locator("button:has-text('Proceed'), input[value='Proceed']").First;
+        if (await proceedDbButton.CountAsync() > 0)
+        {
+            Log("  Found Proceed button for database, clicking...");
+            await proceedDbButton.ClickAsync();
+            Log("  Waiting for database initialization to start...");
+            await Task.Delay(5000);
+
+            // Explicitly wait for navigation or some indication processing started
+            try
+            {
+                await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 30000 });
+            }
+            catch
+            {
+                Log("  Timeout waiting for network idle, continuing...");
+            }
+
+            await TakeScreenshot(page, "07_after_db_proceed_click");
+            Log("  Database initialization should have started");
+        }
+        else
+        {
+            LogWarning("  Could not find Proceed button for database selection");
+            await TakeScreenshot(page, "error_no_proceed_button");
+        }
+
+        // Wait for database initialization (3 minutes max)
+        Log("Step 3: Waiting for database initialization (up to 3 minutes)...");
+
+        var maxWaitTime = TimeSpan.FromMinutes(3);
+        var startTime = DateTime.UtcNow;
+        var lastLogTime = DateTime.UtcNow;
+        var lastScreenshotTime = DateTime.UtcNow;
+
+        while (DateTime.UtcNow - startTime < maxWaitTime)
+        {
+            // Log progress every 30 seconds
+            if ((DateTime.UtcNow - lastLogTime).TotalSeconds >= 30)
+            {
+                var elapsed = (DateTime.UtcNow - startTime).TotalSeconds;
+                Log($"  Still waiting for database initialization... ({elapsed:F0}s elapsed)");
+                lastLogTime = DateTime.UtcNow;
+            }
+
+            // Take screenshot every 60 seconds
+            if ((DateTime.UtcNow - lastScreenshotTime).TotalSeconds >= 60)
+            {
+                var elapsed = (int)(DateTime.UtcNow - startTime).TotalSeconds;
+                await TakeScreenshot(page, $"wait_{elapsed}s");
+                lastScreenshotTime = DateTime.UtcNow;
+            }
+
+            // Check if we've moved past database initialization
+            string pageContent;
+            try
+            {
+                pageContent = await page.ContentAsync();
+            }
+            catch (Exception)
+            {
+                // Page is navigating, which is expected during initialization
+                await Task.Delay(5000);
+                continue;
+            }
+
+            // Look for license agreement or next step
+            if (pageContent.Contains("Accept license agreement") ||
+                pageContent.Contains("accept") && pageContent.Contains("license"))
+            {
+                Log("  License agreement page detected - database initialization complete!");
+                await TakeScreenshot(page, "08_db_init_complete_license_page");
+                break;
+            }
+
+            // Look for admin account creation
+            if (pageContent.Contains("Create") && pageContent.Contains("administrator") ||
+                await page.Locator("input[id='input_teamcityUsername']").CountAsync() > 0)
+            {
+                Log("  Administrator account page detected - database initialization complete!");
+                await TakeScreenshot(page, "08_db_init_complete_admin_page");
+                break;
+            }
+
+            // Check if at login page (already configured)
+            if (await page.Locator("input[name='username'], input[id='username']").CountAsync() > 0)
+            {
+                Log("  Login page detected - setup already complete!");
+                await TakeScreenshot(page, "08_already_complete");
+                return true;
+            }
+
+            await Task.Delay(5000);
+        }
+
+        // Check if database initialization timed out
+        if (DateTime.UtcNow - startTime >= maxWaitTime)
+        {
+            var totalElapsed = (DateTime.UtcNow - startTime).TotalSeconds;
+            Log($"  Waited {totalElapsed:F0}s for database initialization");
+            await TakeScreenshot(page, "error_timeout");
+
+            LogError("Database initialization did not complete within 3 minutes");
+            LogError("Check screenshots in data/screenshots/ directory for details");
+            return false;
+        }
+
+        // Step 4: Accept license agreement
+        Log("Step 4: Accepting license agreement");
+        await TakeScreenshot(page, "09_before_license_accept");
+
+        var acceptCheckbox = page.Locator("input[type='checkbox'][name='accept'], input[id='accept']");
+        if (await acceptCheckbox.CountAsync() > 0)
+        {
+            Log("  Found license checkbox, checking...");
+            await acceptCheckbox.First.CheckAsync();
+            await Task.Delay(500);
+            await TakeScreenshot(page, "10_after_license_check");
+
+            var continueButton = page.Locator("button:has-text('Continue'), input[value='Continue']");
+            if (await continueButton.CountAsync() > 0)
+            {
+                Log("  Clicking Continue button...");
+                await continueButton.First.ClickAsync();
+                await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+                await Task.Delay(2000);
+                await TakeScreenshot(page, "11_after_license_continue");
+                Log("  License accepted");
+            }
+        }
+        else
+        {
+            Log("  No license checkbox found - may already be accepted or at different step");
+        }
+
+        // Step 5: Create administrator account
+        Log("Step 5: Creating administrator account");
+        await TakeScreenshot(page, "12_before_admin_account");
+
+        var usernameInput = page.Locator("input[name='username'], input[id='input_teamcityUsername']");
+        if (await usernameInput.CountAsync() > 0)
+        {
+            // TeamCity bug: sometimes requires submitting the form twice
+            for (int attempt = 1; attempt <= 2; attempt++)
+            {
+                Log($"  Account creation attempt {attempt} - filling form for user: {username}");
+
+                // Re-locate elements each time as page may have reloaded
+                var usernameField = page.Locator("input[name='username'], input[id='input_teamcityUsername']").First;
+                var passwordField = page.Locator("input[name='password'], input[id='password1']").First;
+                var confirmPasswordField = page.Locator("input[name='confirmPassword'], input[id='password2']").First;
+
+                if (await usernameField.CountAsync() == 0)
+                {
+                    Log($"  No username input found on attempt {attempt} - may have moved to next step");
+                    break;
+                }
+
+                await usernameField.FillAsync(username);
+                await passwordField.FillAsync(password);
+                await confirmPasswordField.FillAsync(password);
+
+                await TakeScreenshot(page, $"13_admin_form_filled_attempt{attempt}");
+
+                var createAccountButton = page.Locator("button:has-text('Create Account'), input[value='Create Account']").First;
+                if (await createAccountButton.CountAsync() > 0)
+                {
+                    Log($"  Clicking Create Account button (attempt {attempt})...");
+                    await createAccountButton.ClickAsync();
+
+                    // Wait for response
+                    Log("  Waiting for response...");
+                    await Task.Delay(5000);
+
+                    try
+                    {
+                        await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 30000 });
+                    }
+                    catch
+                    {
+                        Log("  Timeout waiting for page load, continuing...");
+                    }
+
+                    await Task.Delay(3000);
+                    await TakeScreenshot(page, $"14_after_account_creation_attempt{attempt}");
+
+                    // Check if we're still on the admin account page (TeamCity bug - need to submit twice)
+                    var stillOnAdminPage = await page.Locator("input[id='input_teamcityUsername']").CountAsync() > 0;
+                    if (stillOnAdminPage && attempt == 1)
+                    {
+                        Log("  Still on admin account page - this is expected due to TeamCity bug, will retry...");
+                        continue;
+                    }
+                    else if (!stillOnAdminPage)
+                    {
+                        Log($"  Successfully moved away from admin account page after attempt {attempt}");
+                        break;
+                    }
+                }
+            }
+
+            await TakeScreenshot(page, "14b_admin_creation_complete");
+
+            // Look for and click any "Continue" or "Proceed" buttons to exit setup wizard
+            var continueAfterAccountButton = page.Locator("button:has-text('Continue'), button:has-text('Proceed'), a:has-text('Continue'), a:has-text('Proceed')");
+            if (await continueAfterAccountButton.CountAsync() > 0)
+            {
+                Log("  Found Continue/Proceed button, clicking to exit setup wizard...");
+                await continueAfterAccountButton.First.ClickAsync();
+                await Task.Delay(3000);
+                await TakeScreenshot(page, "14c_after_continue");
+            }
+
+            Log("  Administrator account created");
+        }
+        else
+        {
+            Log("  No username input found - may already have admin account");
+        }
+
+        // Wait for any welcome/getting started screens and dismiss them
+        await Task.Delay(2000);
+        var skipButton = page.Locator("button:has-text('Skip'), a:has-text('Skip'), button:has-text('Close'), button:has-text('Finish')");
+        if (await skipButton.CountAsync() > 0)
+        {
+            Log("  Found skip/close/finish button, clicking...");
+            await skipButton.First.ClickAsync();
+            await Task.Delay(2000);
+            await TakeScreenshot(page, "14d_after_skip");
+        }
+
+        // Step 6: Create access token
+        Log("Step 6: Creating access token");
+
+        // Try to close/exit setup mode by visiting a specific page and clearing setup state
+        Log("  Attempting to exit setup wizard by clearing state...");
+
+        // Try visiting a non-setup URL multiple times with different approaches
+        for (int attempt = 1; attempt <= 3; attempt++)
+        {
+            try
+            {
+                var targetUrl = attempt == 1 ? $"{teamcityUrl}/overview.html" :
+                               attempt == 2 ? $"{teamcityUrl}/favorite/projects" :
+                               $"{teamcityUrl}/profile.html";
+
+                Log($"  Navigation attempt {attempt}: {targetUrl}");
+                await page.GotoAsync(targetUrl, new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle, Timeout = 15000 });
+                await Task.Delay(2000);
+
+                // Check if we escaped the setup page
+                var currentUrl = page.Url;
+                if (!currentUrl.Contains("setupAdmin"))
+                {
+                    Log($"  Successfully navigated away from setup page to: {currentUrl}");
+                    break;
+                }
+                else
+                {
+                    Log($"  Still on setup page, trying next approach...");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"  Navigation attempt {attempt} failed: {ex.Message}");
+            }
+        }
+
+        await TakeScreenshot(page, "15_after_escape_attempts");
+
+        // Step 6: Create access token
+        Log("Step 6: Creating access token");
+
+        // First, ensure we're logged in and navigate to home
+        Log("  Navigating to TeamCity home page");
+        await page.GotoAsync($"{teamcityUrl}/", new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle, Timeout = 30000 });
+        await Task.Delay(2000);
+        await TakeScreenshot(page, "15_home_page");
+
+        // Check if we need to login
+        var loginUsernameInput = page.Locator("input[name='username'], input[id='username']");
+        if (await loginUsernameInput.CountAsync() > 0)
+        {
+            Log("  Login page detected - logging in with created credentials");
+            await TakeScreenshot(page, "16_at_login_page");
+            await loginUsernameInput.First.FillAsync(username);
+
+            var loginPasswordInput = page.Locator("input[name='password'], input[id='password'], input[type='password']");
+            if (await loginPasswordInput.CountAsync() > 0)
+            {
+                await loginPasswordInput.First.FillAsync(password);
+            }
+
+            await TakeScreenshot(page, "17_login_form_filled");
+
+            var loginButton = page.Locator("button[type='submit'], input[type='submit'], button:has-text('Log in')");
+            if (await loginButton.CountAsync() > 0)
+            {
+                Log("  Logging in...");
+                await loginButton.First.ClickAsync();
+                await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+                await Task.Delay(3000);
+                await TakeScreenshot(page, "18_after_login");
+            }
+        }
+
+        // Navigate to token creation page
+        Log("  Navigating to token management page");
+        try
+        {
+            await page.GotoAsync($"{teamcityUrl}/profile.html?item=accessTokens", new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle, Timeout = 30000 });
+            await Task.Delay(2000);
+            await TakeScreenshot(page, "19_token_page");
+        }
+        catch (Exception ex)
+        {
+            LogWarning($"  Could not navigate to token page: {ex.Message}");
+            await TakeScreenshot(page, "19_token_page_error");
+        }
+
+        // Check if token already exists (idempotency)
+        var existingToken = page.Locator("td:has-text('bootstrap-automation'), span:has-text('bootstrap-automation'), div:has-text('bootstrap-automation')");
+        if (await existingToken.CountAsync() > 0)
+        {
+            Log("  ✓ TeamCity token 'bootstrap-automation' already exists - skipping creation");
+            await TakeScreenshot(page, "19_token_already_exists");
+            return true;
+        }
+
+        // Try multiple selectors for the create token button
+        var createTokenButton = page.Locator(
+            "button:has-text('Create access token'), " +
+            "a:has-text('Create access token'), " +
+            "input[value='Create access token'], " +
+            "button:has-text('Create token'), " +
+            "a:has-text('Create token'), " +
+            "button.btn:has-text('Create'), " +
+            "a.btn:has-text('Create')"
+        );
+
+        if (await createTokenButton.CountAsync() > 0)
+        {
+            Log($"  Found create token button (matched {await createTokenButton.CountAsync()} elements)");
+            await createTokenButton.First.ClickAsync();
+            await Task.Delay(1000);
+            await TakeScreenshot(page, "20_token_creation_dialog");
+
+            // Fill token name
+            var tokenNameInput = page.Locator("input[name='tokenName'], input[id='tokenName'], input[name='name'], input[placeholder*='name']");
+            if (await tokenNameInput.CountAsync() > 0)
+            {
+                Log("  Filling token name 'bootstrap-automation'");
+                await tokenNameInput.First.FillAsync("bootstrap-automation");
+                await Task.Delay(500);
+                await TakeScreenshot(page, "20b_token_name_filled");
+
+                var createButton = page.Locator("button:has-text('Create'), input[value='Create'], button[type='submit']");
+                if (await createButton.CountAsync() > 0)
+                {
+                    Log("  Clicking Create button");
+                    await createButton.First.ClickAsync();
+                    await Task.Delay(2000);
+                    await TakeScreenshot(page, "21_token_created");
+
+                    // Try to extract the token
+                    var tokenValue = page.Locator("input[readonly], textarea[readonly], code, pre, span.token, div.token");
+                    if (await tokenValue.CountAsync() > 0)
+                    {
+                        var token = await tokenValue.First.TextContentAsync();
+                        if (string.IsNullOrWhiteSpace(token))
+                        {
+                            // Try input value attribute
+                            var tokenInput = await tokenValue.First.GetAttributeAsync("value");
+                            token = tokenInput;
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(token))
+                        {
+                            // Save token to .env
+                            var envPath = Path.Combine(Directory.GetCurrentDirectory(), "..", "..", ".env");
+                            var envFullPath = Path.GetFullPath(envPath);
+                            SaveOrUpdateEnvFile(envFullPath, "TEAMCITY_TOKEN", token.Trim());
+                            Log($"  ✓ TeamCity token created and saved to .env");
+                        }
+                        else
+                        {
+                            LogWarning("  Token created but could not be extracted automatically");
+                        }
+                    }
+                    else
+                    {
+                        LogWarning("  Token created but token value element not found");
+                    }
+                }
+                else
+                {
+                    LogWarning("  Could not find Create button in dialog");
+                }
+            }
+            else
+            {
+                LogWarning("  Could not find token name input field");
+            }
+        }
+        else
+        {
+            LogWarning("  Could not find 'Create access token' button");
+            // Log page content for debugging
+            var currentUrl = page.Url;
+            Log($"  Current URL: {currentUrl}");
+        }
+
+        await TakeScreenshot(page, "22_final_state");
+        Log("✓ TeamCity automated setup completed successfully");
+        return true;
+    }
+    catch (Exception ex)
+    {
+        LogError($"TeamCity automated setup failed: {ex.Message}");
+        LogError($"  Stack trace: {ex.StackTrace}");
         return false;
     }
 }

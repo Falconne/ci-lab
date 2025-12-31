@@ -3,6 +3,9 @@
 # Environment variables with sensitive credentials
 .env
 
+# Bootstrap build marker
+.docker-bootstrap-build
+
 # .NET
 bin/
 obj/
@@ -14,6 +17,8 @@ obj/
 
 # Docker volumes (if persisted locally)
 data/teamcity/datadir/
+data/logs/
+data/screenshots/
 
 # IDE
 .vscode/

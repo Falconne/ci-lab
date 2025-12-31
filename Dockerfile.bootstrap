@@ -1,0 +1,49 @@
+FROM mcr.microsoft.com/dotnet/sdk:9.0
+
+# Install Playwright dependencies
+RUN apt-get update && \
+    apt-get install -y \
+    wget \
+    gnupg \
+    libnss3 \
+    libnspr4 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxrandr2 \
+    libgbm1 \
+    libasound2 \
+    libpango-1.0-0 \
+    libcairo2 \
+    libgdk-pixbuf2.0-0 \
+    libgtk-3-0 \
+    libx11-xcb1 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace
+
+# Copy project files
+COPY src/Bootstrap/Bootstrap.csproj src/Bootstrap/
+RUN dotnet restore src/Bootstrap/Bootstrap.csproj
+
+# Copy source code
+COPY src/Bootstrap/ src/Bootstrap/
+
+# Build the project
+RUN dotnet build src/Bootstrap/Bootstrap.csproj -c Release
+
+# Install Playwright browsers
+RUN dotnet tool install --global Microsoft.Playwright.CLI && \
+    export PATH="$PATH:/root/.dotnet/tools" && \
+    cd src/Bootstrap && \
+    dotnet build && \
+    playwright install chromium
+
+WORKDIR /workspace/src/Bootstrap
+
+ENTRYPOINT ["dotnet", "run", "--project", "/workspace/src/Bootstrap/Bootstrap.csproj"]
