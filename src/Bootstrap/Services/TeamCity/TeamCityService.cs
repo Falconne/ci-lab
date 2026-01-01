@@ -333,7 +333,8 @@ public class TeamCityService
 
                 var tokenNameInput = page.Locator(
                     "input[name='tokenName'], input[id='tokenName'], input[name='name'], " +
-                    "input[placeholder*='name'], input[placeholder*='Token'], input[aria-label*='name'], textarea[name='name']"
+                    "input[placeholder*='name'], input[placeholder*='Token'], input[aria-label*='name'], textarea[name='name'], " +
+                    "input#input_accessTokenName, input[name='prop:accessTokenName']"
                 );
 
                 if (await tokenNameInput.CountAsync() == 0)
@@ -365,44 +366,46 @@ public class TeamCityService
                             await createButton.First.ClickAsync();
                             await Task.Delay(2000);
                             await TakeScreenshot(page, "21_token_created");
-
-                            var tokenValue = page.Locator(
-                                "input[readonly], textarea[readonly], input[aria-readonly='true'], code, pre, span.token, div.token, input.token-value"
-                            );
-
-                            if (await tokenValue.CountAsync() > 0)
+                            // Wait for the created token element to appear (#createdToken) or the accessTokenValue row to be shown
+                            try
                             {
-                                var token = await tokenValue.First.TextContentAsync();
-                                if (string.IsNullOrWhiteSpace(token))
+                                var createdTokenLocator = page.Locator("#createdToken");
+                                var accessTokenRow = page.Locator("#accessTokenValue");
+                                if (await accessTokenRow.CountAsync() > 0)
                                 {
-                                    var tokenInput = await tokenValue.First.GetAttributeAsync("value");
-                                    token = tokenInput;
+                                    // Wait for the row to become visible
+                                    await accessTokenRow.First.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 5000 });
                                 }
 
-                                if (string.IsNullOrWhiteSpace(token))
+                                if (await createdTokenLocator.CountAsync() > 0)
                                 {
-                                    var specificInput = page.Locator("input[type='text'][readonly], input[id*='token']");
-                                    if (await specificInput.CountAsync() > 0)
+                                    var token = (await createdTokenLocator.First.TextContentAsync())?.Trim();
+                                    if (string.IsNullOrWhiteSpace(token))
                                     {
-                                        token = await specificInput.First.GetAttributeAsync("value");
+                                        // Sometimes the token may be in a child or as a value attribute
+                                        token = (await createdTokenLocator.First.GetAttributeAsync("value"))?.Trim();
                                     }
-                                }
 
-                                if (!string.IsNullOrWhiteSpace(token))
-                                {
-                                    var envPath = Path.Combine(Directory.GetCurrentDirectory(), "..", "..", ".env");
-                                    var envFullPath = Path.GetFullPath(envPath);
-                                    EnvHelper.SaveOrUpdateEnvFile(envFullPath, "TEAMCITY_TOKEN", token.Trim());
-                                    Console.WriteLine($"[bootstrap]   ✓ TeamCity token created and saved to .env");
+                                    if (!string.IsNullOrWhiteSpace(token))
+                                    {
+                                        var envPath = Path.Combine(Directory.GetCurrentDirectory(), "..", "..", ".env");
+                                        var envFullPath = Path.GetFullPath(envPath);
+                                        EnvHelper.SaveOrUpdateEnvFile(envFullPath, "TEAMCITY_TOKEN", token);
+                                        Console.WriteLine($"[bootstrap]   ✓ TeamCity token created and saved to .env");
+                                    }
+                                    else
+                                    {
+                                        Console.WriteLine("[bootstrap] WARNING:   Token created but '#createdToken' was empty");
+                                    }
                                 }
                                 else
                                 {
-                                    Console.WriteLine("[bootstrap] WARNING:   Token created but could not be extracted automatically");
+                                    Console.WriteLine("[bootstrap] WARNING:   Token created but '#createdToken' element not found");
                                 }
                             }
-                            else
+                            catch (Exception ex)
                             {
-                                Console.WriteLine("[bootstrap] WARNING:   Token created but token value element not found");
+                                Console.WriteLine($"[bootstrap] WARNING:   Exception while extracting created token: {ex.Message}");
                             }
                         }
                         else
