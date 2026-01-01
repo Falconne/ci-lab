@@ -18,42 +18,43 @@ public class GitLabService
     {
         try
         {
-            var apiUrl = $"{gitlabUrl.TrimEnd('/')}/api/v4/user";
-            var request = new HttpRequestMessage(HttpMethod.Get, apiUrl)
-            {
-                Headers = { { "PRIVATE-TOKEN", token } }
-            };
+            var apiUrl = ApiUrlHelper.BuildGitLabApiUrl(gitlabUrl, "user");
+            var request = HttpRequestHelper.CreateWithPrivateToken(HttpMethod.Get, apiUrl, token);
 
             var response = await client.SendAsync(request);
             if (response.IsSuccessStatusCode)
             {
                 var userData = await response.Content.ReadFromJsonAsync<JsonElement>();
                 var username = userData.GetProperty("username").GetString();
-                Console.WriteLine($"[bootstrap]   Authenticated as: {username}");
+                LogHelper.LogInfo($"Authenticated as: {username}", 1);
                 return true;
             }
 
+            // Log detailed error information when validation fails
+            var responseBody = await response.Content.ReadAsStringAsync();
+            LogHelper.LogError($"GitLab token validation failed: {(int)response.StatusCode} {response.StatusCode}", 1);
+            if (!string.IsNullOrWhiteSpace(responseBody) && responseBody.Length < 500)
+            {
+                LogHelper.LogError($"Response: {responseBody}", 1);
+            }
             return false;
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"[bootstrap] ERROR:   Validation error: {ex.Message}");
+            LogHelper.LogError($"Validation error: {ex.Message}", 1);
             return false;
         }
     }
 
     public async Task<JsonElement?> CreateGitLabProjectAsync(HttpClient client, string gitlabUrl, string token, string projectName)
     {
-        var apiUrl = $"{gitlabUrl.TrimEnd('/')}/api/v4/projects";
-        Console.WriteLine($"[bootstrap] Creating GitLab project '{projectName}' via {apiUrl}");
+        var apiUrl = ApiUrlHelper.BuildGitLabApiUrl(gitlabUrl, "projects");
+        LogHelper.Log($"Creating GitLab project '{projectName}' via {apiUrl}");
 
         try
         {
-            var checkUrl = $"{gitlabUrl.TrimEnd('/')}/api/v4/projects?search={projectName}";
-            var checkRequest = new HttpRequestMessage(HttpMethod.Get, checkUrl)
-            {
-                Headers = { { "PRIVATE-TOKEN", token } }
-            };
+            var checkUrl = ApiUrlHelper.BuildGitLabApiUrl(gitlabUrl, $"projects?search={projectName}");
+            var checkRequest = HttpRequestHelper.CreateWithPrivateToken(HttpMethod.Get, checkUrl, token);
 
             var checkResponse = await client.SendAsync(checkRequest);
             if (checkResponse.IsSuccessStatusCode)
@@ -65,34 +66,31 @@ public class GitLabService
                     {
                         if (proj.GetProperty("name").GetString() == projectName)
                         {
-                            Console.WriteLine($"[bootstrap]   Project '{projectName}' already exists");
+                            LogHelper.LogInfo($"Project '{projectName}' already exists", 1);
                             return proj;
                         }
                     }
                 }
             }
 
-            var request = new HttpRequestMessage(HttpMethod.Post, apiUrl)
-            {
-                Content = JsonContent.Create(new { name = projectName, initialize_with_readme = false }),
-                Headers = { { "PRIVATE-TOKEN", token } }
-            };
+            var request = HttpRequestHelper.CreateWithPrivateToken(HttpMethod.Post, apiUrl, token);
+            request.Content = JsonContent.Create(new { name = projectName, initialize_with_readme = false });
 
             var response = await client.SendAsync(request);
             var content = await response.Content.ReadAsStringAsync();
 
             if (response.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created)
             {
-                Console.WriteLine($"[bootstrap]   ✓ Project '{projectName}' created");
+                LogHelper.LogSuccess($"Project '{projectName}' created", 1);
                 return JsonSerializer.Deserialize<JsonElement>(content);
             }
 
-            Console.Error.WriteLine($"[bootstrap] ERROR: GitLab API error {(int)response.StatusCode}: {content}");
+            LogHelper.LogError($"GitLab API error {(int)response.StatusCode}: {content}");
             return null;
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"[bootstrap] ERROR: Failed to call GitLab API: {ex.Message}");
+            LogHelper.LogError($"Failed to call GitLab API: {ex.Message}");
             return null;
         }
     }
@@ -117,7 +115,7 @@ public class GitLabService
         var hasCommits = await CheckGitLabProjectHasCommitsAsync(client, gitlabUrl, token, projectId);
         if (hasCommits)
         {
-            Console.WriteLine($"[bootstrap]   Project '{projectName}' already has commits, skipping repo population");
+            LogHelper.LogInfo($"Project '{projectName}' already has commits, skipping repo population", 1);
             return true;
         }
 
@@ -232,12 +230,12 @@ public class GitLabService
                 throw new Exception($"Git push failed for branch '{localName}': {ex.Message}", ex);
             }
 
-            Console.WriteLine($"[bootstrap]   ✓ Repository populated and pushed to '{projectName}'");
+            LogHelper.LogSuccess($"Repository populated and pushed to '{projectName}'", 1);
             return true;
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"[bootstrap] ERROR: Failed to populate project '{projectName}': {ex.Message}");
+            LogHelper.LogError($"Failed to populate project '{projectName}': {ex.Message}");
             return false;
         }
         finally
@@ -259,11 +257,8 @@ public class GitLabService
     {
         try
         {
-            var apiUrl = $"{gitlabUrl.TrimEnd('/')}/api/v4/projects/{projectId}/repository/commits";
-            var request = new HttpRequestMessage(HttpMethod.Get, apiUrl)
-            {
-                Headers = { { "PRIVATE-TOKEN", token } }
-            };
+            var apiUrl = ApiUrlHelper.BuildGitLabApiUrl(gitlabUrl, $"projects/{projectId}/repository/commits");
+            var request = HttpRequestHelper.CreateWithPrivateToken(HttpMethod.Get, apiUrl, token);
 
             var response = await client.SendAsync(request);
 

@@ -11,11 +11,11 @@ public static class EnvHelper
     {
         if (!File.Exists(envPath))
         {
-            Console.WriteLine($"[bootstrap] No .env file found at {envPath}");
+            LogHelper.Log($"No .env file found at {envPath}");
             return;
         }
 
-        Console.WriteLine($"[bootstrap] Loading environment from {envPath}");
+        LogHelper.Log($"Loading environment from {envPath}");
         foreach (var line in File.ReadAllLines(envPath))
         {
             var trimmed = line.Trim();
@@ -43,12 +43,12 @@ public static class EnvHelper
         if (lineIndex >= 0)
         {
             lines[lineIndex] = newLine;
-            Console.WriteLine($"[bootstrap] Updated {key} in .env file");
+            LogHelper.Log($"Updated {key} in .env file");
         }
         else
         {
             lines.Add(newLine);
-            Console.WriteLine($"[bootstrap] Added {key} to .env file");
+            LogHelper.Log($"Added {key} to .env file");
         }
 
         File.WriteAllLines(envPath, lines);

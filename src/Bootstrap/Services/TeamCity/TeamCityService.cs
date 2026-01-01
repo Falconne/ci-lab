@@ -23,7 +23,7 @@ public class TeamCityService
             Directory.Delete(screenshotDir, true);
         }
         Directory.CreateDirectory(screenshotDir);
-        Console.WriteLine($"[bootstrap] Screenshot directory created: {screenshotDir}");
+        LogHelper.Log($"Screenshot directory created: {screenshotDir}");
 
         async Task TakeScreenshot(IPage page, string description)
         {
@@ -34,11 +34,11 @@ public class TeamCityService
                 var filename = $"{screenshotCounter:D3}_{timestamp}_{description}.png";
                 var path = Path.Combine(screenshotDir, filename);
                 await page.ScreenshotAsync(new PageScreenshotOptions { Path = path, FullPage = true });
-                Console.WriteLine($"[bootstrap]   📸 Screenshot saved: {filename}");
+                LogHelper.LogInfo($"📸 Screenshot saved: {filename}", 1);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[bootstrap] WARNING:   Could not save screenshot: {ex.Message}");
+                LogHelper.LogWarning($"Could not save screenshot: {ex.Message}", 1);
             }
         }
 
@@ -50,14 +50,14 @@ public class TeamCityService
                 if (pageContent.Contains("TeamCity server requires technical maintenance") &&
                     pageContent.Contains("already logged in"))
                 {
-                    Console.Error.WriteLine("[bootstrap] ERROR: TeamCity server is in maintenance mode");
+                    LogHelper.LogError("TeamCity server is in maintenance mode");
                     await TakeScreenshot(page, "error_maintenance_mode");
                     return true; // Error detected
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[bootstrap] WARNING: Could not check for maintenance message: {ex.Message}");
+                LogHelper.LogWarning($"Could not check for maintenance message: {ex.Message}");
             }
             return false; // No error
         }
@@ -74,7 +74,7 @@ public class TeamCityService
                 {
                     found = true;
                     if (s % 5 == 0)
-                        Console.WriteLine($"[bootstrap]   Waiting for '{text}' to disappear... waited {s}s");
+                        LogHelper.LogInfo($"Waiting for '{text}' to disappear... waited {s}s", 1);
                     await Task.Delay(pollMs);
                     continue;
                 }
@@ -82,23 +82,23 @@ public class TeamCityService
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[bootstrap]   Warning reading page content while waiting for '{text}': {ex.Message}");
+                LogHelper.LogWarning($"Warning reading page content while waiting for '{text}': {ex.Message}", 1);
                 await Task.Delay(pollMs);
             }
         }
 
         if (found)
-            Console.WriteLine($"[bootstrap]   '{text}' no longer present (or timed out waiting)");
+            LogHelper.LogInfo($"'{text}' no longer present (or timed out waiting)", 1);
     }
 
         try
         {
-            Console.WriteLine("[bootstrap] Starting automated TeamCity initial setup using Playwright...");
+            LogHelper.Log("Starting automated TeamCity initial setup using Playwright...");
 
             var exitCode = Microsoft.Playwright.Program.Main(new[] { "install", "chromium" });
             if (exitCode != 0)
             {
-                Console.WriteLine("[bootstrap] WARNING: Playwright browser installation returned non-zero exit code, continuing anyway...");
+                LogHelper.LogWarning("Playwright browser installation returned non-zero exit code, continuing anyway...");
             }
 
             using var playwright = await Playwright.CreateAsync();
@@ -116,7 +116,7 @@ public class TeamCityService
             var page = await context.NewPageAsync();
             page.SetDefaultTimeout(60000);
 
-            Console.WriteLine($"[bootstrap] Navigating to {teamcityUrl}");
+            LogHelper.Log($"Navigating to {teamcityUrl}");
             await page.GotoAsync(teamcityUrl, new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle });
             await Task.Delay(3000);
             await TakeScreenshot(page, "01_initial_page");
@@ -129,7 +129,7 @@ public class TeamCityService
 
             if (await page.Locator("input[name='username'], input[id='username']").CountAsync() > 0)
             {
-                Console.WriteLine("[bootstrap] TeamCity appears to be already configured (login page detected)");
+                LogHelper.Log("TeamCity appears to be already configured (login page detected)");
                 await TakeScreenshot(page, "already_configured");
             }
 
@@ -139,23 +139,23 @@ public class TeamCityService
             // EnvHelper for environment updates.
 
             // Step 1: Data Directory - Click Proceed
-            Console.WriteLine("[bootstrap] Step 1: Checking for data directory configuration screen");
+            LogHelper.Log("Step 1: Checking for data directory configuration screen");
             await TakeScreenshot(page, "02_before_data_directory");
 
             var proceedButton = page.Locator("button:has-text('Proceed'), input[value='Proceed']").First;
             if (await proceedButton.CountAsync() > 0)
             {
-                Console.WriteLine("[bootstrap]   Found Proceed button, clicking...");
+                LogHelper.LogInfo("Found Proceed button, clicking...", 1);
                 await proceedButton.ClickAsync();
-                Console.WriteLine("[bootstrap]   Waiting for navigation...");
+                LogHelper.LogInfo("Waiting for navigation...", 1);
                 await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
                 await Task.Delay(3000);
                 await TakeScreenshot(page, "03_after_data_directory");
-                Console.WriteLine("[bootstrap]   Data directory step completed");
+                LogHelper.LogInfo("Data directory step completed", 1);
             }
 
             // Step 2: Database Setup - Wait and Proceed
-            Console.WriteLine("[bootstrap] Step 2: Checking for database setup screen");
+            LogHelper.Log("Step 2: Checking for database setup screen");
             await Task.Delay(2000);
             await TakeScreenshot(page, "04_before_database");
 
@@ -165,7 +165,7 @@ public class TeamCityService
             {
                 if (await dbProceedButton.CountAsync() > 0)
                 {
-                    Console.WriteLine("[bootstrap]   Database setup ready, clicking Proceed...");
+                    LogHelper.LogInfo("Database setup ready, clicking Proceed...", 1);
                     await dbProceedButton.First.ClickAsync();
                     await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
                     await Task.Delay(3000);
@@ -177,18 +177,18 @@ public class TeamCityService
                     await WaitForTextToDisappearAsync(page, "Initializing TeamCity server components", 180);
 
                     await TakeScreenshot(page, "05_after_database");
-                    Console.WriteLine("[bootstrap]   Database setup completed");
+                    LogHelper.LogInfo("Database setup completed", 1);
                     break;
                 }
                 await Task.Delay(1000);
                 if (i % 10 == 0 && i > 0)
                 {
-                    Console.WriteLine($"[bootstrap]   Still waiting for database initialization... ({i}s)");
+                    LogHelper.LogInfo($"Still waiting for database initialization... ({i}s)", 1);
                 }
             }
 
             // Step 3: License Agreement - Accept
-            Console.WriteLine("[bootstrap] Step 3: Checking for license agreement");
+            LogHelper.Log("Step 3: Checking for license agreement");
             await Task.Delay(2000);
             await TakeScreenshot(page, "06_before_license");
 
@@ -198,30 +198,30 @@ public class TeamCityService
                 var acceptCheckbox = page.Locator("input[type='checkbox'][name='accept'], input[id='accept'], input[name='acceptLicense']");
                 if (await acceptCheckbox.CountAsync() > 0)
                 {
-                    Console.WriteLine("[bootstrap]   Found license checkbox, checking it...");
+                    LogHelper.LogInfo("Found license checkbox, checking it...", 1);
                     await acceptCheckbox.First.CheckAsync();
                     await Task.Delay(1000); // Wait for JavaScript to enable the button
 
                     var continueButton = page.Locator("input[type='submit'][name='Continue'], input[type='submit'].submitButton, button:has-text('Continue'), input[value*='Continue']");
                     if (await continueButton.CountAsync() == 0)
                     {
-                        Console.Error.WriteLine("[bootstrap] ERROR: Continue button not found on license page");
+                        LogHelper.LogError("Continue button not found on license page");
                         await TakeScreenshot(page, "error_license_no_continue");
                         return false;
                     }
 
                     // Wait for button to be enabled (JavaScript enables it after checkbox is checked)
-                    Console.WriteLine("[bootstrap]   Waiting for Continue button to be enabled...");
+                    LogHelper.LogInfo("Waiting for Continue button to be enabled...", 1);
                     try
                     {
                         await continueButton.First.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 5000 });
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"[bootstrap]   Warning: Could not wait for button visibility: {ex.Message}");
+                        LogHelper.LogWarning($"Could not wait for button visibility: {ex.Message}", 1);
                     }
 
-                    Console.WriteLine("[bootstrap]   Clicking Continue after license acceptance...");
+                    LogHelper.LogInfo("Clicking Continue after license acceptance...", 1);
                     await continueButton.First.ClickAsync();
                     await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
                     await Task.Delay(3000);
@@ -232,32 +232,32 @@ public class TeamCityService
                     var postLicenseText = await page.ContentAsync();
                     if (postLicenseText != null && postLicenseText.IndexOf("License Agreement for JetBrains", StringComparison.OrdinalIgnoreCase) >= 0)
                     {
-                        Console.Error.WriteLine("[bootstrap] ERROR: License acceptance did not complete successfully");
+                        LogHelper.LogError("License acceptance did not complete successfully");
                         await TakeScreenshot(page, "error_license_still_present");
                         return false;
                     }
 
-                    Console.WriteLine("[bootstrap]   License accepted");
+                    LogHelper.LogInfo("License accepted", 1);
                 }
                 else
                 {
-                    Console.WriteLine("[bootstrap]   License checkbox not found, skipping license acceptance step");
+                    LogHelper.LogInfo("License checkbox not found, skipping license acceptance step", 1);
                 }
             }
             else
             {
-                Console.WriteLine("[bootstrap]   License page not detected, skipping license acceptance step");
+                LogHelper.LogInfo("License page not detected, skipping license acceptance step", 1);
             }
 
             // Step 4: Create Administrator Account
-            Console.WriteLine("[bootstrap] Step 4: Checking for admin account creation");
+            LogHelper.Log("Step 4: Checking for admin account creation");
             await Task.Delay(2000);
             await TakeScreenshot(page, "08_before_admin_creation");
 
             var usernameField = page.Locator("input[name='username'], input[id='input_teamcityUsername']");
             if (await usernameField.CountAsync() > 0)
             {
-                Console.WriteLine("[bootstrap]   Found admin creation form, filling in details...");
+                LogHelper.LogInfo("Found admin creation form, filling in details...", 1);
                 await usernameField.First.FillAsync(username);
                 await Task.Delay(300);
 
@@ -277,21 +277,21 @@ public class TeamCityService
                 var createAccountButton = page.Locator("button:has-text('Create Account'), input[value='Create Account'], button[type='submit']");
                 if (await createAccountButton.CountAsync() > 0)
                 {
-                    Console.WriteLine("[bootstrap]   Submitting admin account creation...");
+                    LogHelper.LogInfo("Submitting admin account creation...", 1);
                     await createAccountButton.First.ClickAsync();
                     await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
                     await Task.Delay(5000); // Give TeamCity time to fully initialize
                     await TakeScreenshot(page, "10_after_admin_creation");
-                    Console.WriteLine("[bootstrap]   Admin account created successfully");
+                    LogHelper.LogSuccess("Admin account created successfully", 1);
                 }
             }
             else
             {
-                Console.WriteLine("[bootstrap]   Admin account may already exist, continuing...");
+                LogHelper.LogInfo("Admin account may already exist, continuing...", 1);
             }
 
             // Navigate to token creation page and attempt to create/access token
-            Console.WriteLine("[bootstrap] Step 5: Creating access token (UI)");
+            LogHelper.Log("Step 5: Creating access token (UI)");
             try
             {
                 await page.GotoAsync($"{teamcityUrl}/profile.html?item=accessTokens", new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle, Timeout = 30000 });
@@ -300,7 +300,7 @@ public class TeamCityService
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[bootstrap] WARNING:   Could not navigate to token page: {ex.Message}");
+                LogHelper.LogWarning($"Could not navigate to token page: {ex.Message}", 1);
                 await TakeScreenshot(page, "19_token_page_error");
             }
 
@@ -308,7 +308,7 @@ public class TeamCityService
             var existingToken = page.Locator("td:has-text('bootstrap-automation'), span:has-text('bootstrap-automation'), div:has-text('bootstrap-automation')");
             if (await existingToken.CountAsync() > 0)
             {
-                Console.WriteLine("[bootstrap]   ✓ TeamCity token 'bootstrap-automation' already exists - skipping creation");
+                LogHelper.LogSuccess("TeamCity token 'bootstrap-automation' already exists - skipping creation", 1);
                 await TakeScreenshot(page, "19_token_already_exists");
                 return true;
             }
@@ -326,7 +326,7 @@ public class TeamCityService
 
             if (await createTokenButton.CountAsync() > 0)
             {
-                Console.WriteLine($"[bootstrap]   Found create token button (matched {await createTokenButton.CountAsync()} elements)");
+                LogHelper.LogInfo($"Found create token button (matched {await createTokenButton.CountAsync()} elements)", 1);
                 await createTokenButton.First.ClickAsync();
                 await Task.Delay(1000);
                 await TakeScreenshot(page, "20_token_creation_dialog");
@@ -354,7 +354,7 @@ public class TeamCityService
                 {
                     try
                     {
-                        Console.WriteLine("[bootstrap]   Filling token name 'bootstrap-automation'");
+                        LogHelper.LogInfo("Filling token name 'bootstrap-automation'", 2);
                         await tokenNameInput.First.FillAsync("bootstrap-automation");
                         await Task.Delay(500);
                         await TakeScreenshot(page, "20b_token_name_filled");
@@ -362,7 +362,7 @@ public class TeamCityService
                         var createButton = page.Locator("button:has-text('Create'), input[value='Create'], button[type='submit'], button:has-text('Generate')");
                         if (await createButton.CountAsync() > 0)
                         {
-                            Console.WriteLine("[bootstrap]   Clicking Create/Generate button");
+                            LogHelper.LogInfo("Clicking Create/Generate button", 2);
                             await createButton.First.ClickAsync();
                             await Task.Delay(2000);
                             await TakeScreenshot(page, "21_token_created");
@@ -391,42 +391,42 @@ public class TeamCityService
                                         var envPath = Path.Combine(Directory.GetCurrentDirectory(), "..", "..", ".env");
                                         var envFullPath = Path.GetFullPath(envPath);
                                         EnvHelper.SaveOrUpdateEnvFile(envFullPath, "TEAMCITY_TOKEN", token);
-                                        Console.WriteLine($"[bootstrap]   ✓ TeamCity token created and saved to .env");
+                                        LogHelper.LogSuccess("TeamCity token created and saved to .env", 3);
                                     }
                                     else
                                     {
-                                        Console.WriteLine("[bootstrap] WARNING:   Token created but '#createdToken' was empty");
+                                        LogHelper.LogWarning("Token created but '#createdToken' was empty", 3);
                                     }
                                 }
                                 else
                                 {
-                                    Console.WriteLine("[bootstrap] WARNING:   Token created but '#createdToken' element not found");
+                                    LogHelper.LogWarning("Token created but '#createdToken' element not found", 3);
                                 }
                             }
                             catch (Exception ex)
                             {
-                                Console.WriteLine($"[bootstrap] WARNING:   Exception while extracting created token: {ex.Message}");
+                                LogHelper.LogWarning($"Exception while extracting created token: {ex.Message}", 3);
                             }
                         }
                         else
                         {
-                            Console.WriteLine("[bootstrap] WARNING:   Could not find Create/Generate button in dialog");
+                            LogHelper.LogWarning("Could not find Create/Generate button in dialog", 2);
                         }
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"[bootstrap] WARNING:   Exception during token creation: {ex.Message}");
+                        LogHelper.LogWarning($"Exception during token creation: {ex.Message}", 2);
                     }
                 }
                 else
                 {
-                    Console.WriteLine("[bootstrap] WARNING:   Could not find token name input field (tried multiple selectors)");
+                    LogHelper.LogWarning("Could not find token name input field (tried multiple selectors)", 2);
                     try
                     {
                         var fallbackSubmit = page.Locator("button:has-text('Create'), button:has-text('Generate'), input[type='submit']");
                         if (await fallbackSubmit.CountAsync() > 0)
                         {
-                            Console.WriteLine("[bootstrap]   Attempting fallback submit for token creation");
+                            LogHelper.LogInfo("Attempting fallback submit for token creation", 2);
                             await fallbackSubmit.First.ClickAsync();
                             await Task.Delay(1500);
                             await TakeScreenshot(page, "21_token_created_fallback");
@@ -437,205 +437,108 @@ public class TeamCityService
             }
             else
             {
-                Console.WriteLine("[bootstrap] WARNING:   Could not find 'Create access token' button");
+                LogHelper.LogWarning("Could not find 'Create access token' button", 1);
                 var currentUrl = page.Url;
-                Console.WriteLine($"[bootstrap]   Current URL: {currentUrl}");
+                LogHelper.LogInfo($"Current URL: {currentUrl}", 1);
             }
 
             await TakeScreenshot(page, "22_final_state");
-            Console.WriteLine("[bootstrap] ✓ TeamCity automated setup completed successfully");
+            LogHelper.LogSuccess("TeamCity automated setup completed successfully");
             return true;
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"[bootstrap] ERROR: TeamCity automated setup failed: {ex.Message}");
-            Console.Error.WriteLine($"[bootstrap] ERROR:   Stack trace: {ex.StackTrace}");
+            LogHelper.LogError($"TeamCity automated setup failed: {ex.Message}");
+            LogHelper.LogError($"Stack trace: {ex.StackTrace}");
             return false;
         }
     }
 
     public async Task<string?> TryCreateTokenViaApiAsync(HttpClient client, string teamcityUrl, string username, string password, string tokenName)
     {
-        Console.WriteLine($"[bootstrap]   Attempting API token creation with username '{username}' and tokenName '{tokenName}'");
-        var auth = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{username}:{password}"));
+        LogHelper.LogInfo($"Attempting API token creation with username '{username}' and tokenName '{tokenName}'", 1);
 
         var endpoints = new[]
         {
-            $"{teamcityUrl.TrimEnd('/')}/app/rest/users/username:{username}/tokens",
-            $"{teamcityUrl.TrimEnd('/')}/app/rest/users/{username}/tokens",
-            $"{teamcityUrl.TrimEnd('/')}/app/rest/users/id:1/tokens",
-            $"{teamcityUrl.TrimEnd('/')}/app/rest/users/current/tokens"
+            $"users/username:{username}/tokens",
+            $"users/{username}/tokens",
+            $"users/id:1/tokens",
+            $"users/current/tokens"
         };
 
-        var maxAttempts = 3;
-        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        return await RetryHelper.RetryAsync(async () =>
         {
-            Console.WriteLine($"[bootstrap]   API token creation attempt {attempt}/{maxAttempts}");
-            foreach (var url in endpoints)
+            foreach (var endpoint in endpoints)
             {
-                try
-                {
-                    Console.WriteLine($"[bootstrap]     Trying endpoint: {url}");
-                    var xmlBody = $"<token name=\"{System.Net.WebUtility.HtmlEncode(tokenName)}\"/>";
-                    var xmlReq = new HttpRequestMessage(HttpMethod.Post, url)
-                    {
-                        Content = new StringContent(xmlBody, Encoding.UTF8, "application/xml")
-                    };
-                    xmlReq.Headers.Authorization = new AuthenticationHeaderValue("Basic", auth);
-                    xmlReq.Headers.Accept.Clear();
-                    xmlReq.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                var url = ApiUrlHelper.BuildTeamCityApiUrl(teamcityUrl, endpoint);
+                LogHelper.LogInfo($"Trying endpoint: {url}", 2);
 
-                    var resp = await client.SendAsync(xmlReq);
-                    var respText = await resp.Content.ReadAsStringAsync();
-                    Console.WriteLine($"[bootstrap]       Response status: {(int)resp.StatusCode} {resp.StatusCode}");
-                    if (!resp.IsSuccessStatusCode)
-                    {
-                        Console.WriteLine($"[bootstrap]       Response body: {respText.Substring(0, Math.Min(200, respText.Length))}");
-                    }
-                    if (resp.IsSuccessStatusCode)
-                    {
-                        Console.WriteLine($"[bootstrap]       ✓ Success! Parsing response...");
-                        try
-                        {
-                            using var doc = JsonDocument.Parse(respText);
-                            if (doc.RootElement.TryGetProperty("token", out var tokenElem))
-                            {
-                                Console.WriteLine($"[bootstrap]       ✓ Token extracted from JSON 'token' field");
-                                return tokenElem.GetString();
-                            }
-                            if (doc.RootElement.TryGetProperty("value", out var valueElem))
-                            {
-                                Console.WriteLine($"[bootstrap]       ✓ Token extracted from JSON 'value' field");
-                                return valueElem.GetString();
-                            }
-                            if (doc.RootElement.TryGetProperty("tokenValue", out var tvElem))
-                            {
-                                Console.WriteLine($"[bootstrap]       ✓ Token extracted from JSON 'tokenValue' field");
-                                return tvElem.GetString();
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine($"[bootstrap]       JSON parse failed: {ex.Message}");
-                        }
+                // Try XML body first
+                var token = await TryCreateTokenWithBodyAsync(client, url, username, password, tokenName, "application/xml",
+                    $"<token name=\"{System.Net.WebUtility.HtmlEncode(tokenName)}\"/>");
+                if (token != null) return token;
 
-                        try
-                        {
-                            var xmlDoc = System.Xml.Linq.XDocument.Parse(respText);
-                            var tokenElem = xmlDoc.Root?.Element("token") ?? xmlDoc.Root;
-                            if (tokenElem != null)
-                            {
-                                var valAttr = tokenElem.Attribute("value") ?? tokenElem.Attribute("tokenValue");
-                                if (valAttr != null && !string.IsNullOrWhiteSpace(valAttr.Value))
-                                {
-                                    Console.WriteLine($"[bootstrap]       ✓ Token extracted from XML attribute");
-                                    return valAttr.Value;
-                                }
-                                if (!string.IsNullOrWhiteSpace(tokenElem.Value))
-                                {
-                                    Console.WriteLine($"[bootstrap]       ✓ Token extracted from XML element value");
-                                    return tokenElem.Value.Trim();
-                                }
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine($"[bootstrap]       XML parse failed: {ex.Message}");
-                        }
+                // Try JSON body
+                LogHelper.LogInfo("Trying with JSON body...", 2);
+                token = await TryCreateTokenWithBodyAsync(client, url, username, password, tokenName, "application/json",
+                    JsonSerializer.Serialize(new { name = tokenName }));
+                if (token != null) return token;
+            }
+            return null;
+        }, maxAttempts: 3, baseDelayMs: 2000);
+    }
 
-                        if (!string.IsNullOrWhiteSpace(respText) && respText.Length > 20)
-                        {
-                            Console.WriteLine($"[bootstrap]       ✓ Using raw response as token (length: {respText.Length})");
-                            return respText.Trim();
-                        }
-                        Console.WriteLine($"[bootstrap]       WARNING: Success response but couldn't extract token");
-                    }
+    private async Task<string?> TryCreateTokenWithBodyAsync(HttpClient client, string url, string username, string password,
+        string tokenName, string contentType, string body)
+    {
+        try
+        {
+            var request = HttpRequestHelper.CreateWithBasicAuth(HttpMethod.Post, url, username, password);
+            request.AddJsonAccept();
+            request.Content = new StringContent(body, Encoding.UTF8, contentType);
 
-                    Console.WriteLine($"[bootstrap]     Trying with JSON body...");
-                    Console.WriteLine($"[bootstrap]     Trying with JSON body...");
-                    var jsonBody = JsonSerializer.Serialize(new { name = tokenName });
-                    var jsonReq = new HttpRequestMessage(HttpMethod.Post, url)
-                    {
-                        Content = new StringContent(jsonBody, Encoding.UTF8, "application/json")
-                    };
-                    jsonReq.Headers.Authorization = new AuthenticationHeaderValue("Basic", auth);
-                    jsonReq.Headers.Accept.Clear();
-                    jsonReq.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            var response = await client.SendAsync(request);
+            var respText = await response.Content.ReadAsStringAsync();
 
-                    var resp2 = await client.SendAsync(jsonReq);
-                    var resp2Text = await resp2.Content.ReadAsStringAsync();
-                    Console.WriteLine($"[bootstrap]       Response status (JSON): {(int)resp2.StatusCode} {resp2.StatusCode}");
-                    if (!resp2.IsSuccessStatusCode)
-                    {
-                        Console.WriteLine($"[bootstrap]       Response body: {resp2Text.Substring(0, Math.Min(200, resp2Text.Length))}");
-                    }
-                    if (resp2.IsSuccessStatusCode)
-                    {
-                        Console.WriteLine($"[bootstrap]       ✓ Success with JSON! Parsing response...");
-                        try
-                        {
-                            using var doc = JsonDocument.Parse(resp2Text);
-                            if (doc.RootElement.TryGetProperty("token", out var tokenElem))
-                            {
-                                Console.WriteLine($"[bootstrap]       ✓ Token extracted from JSON response");
-                                return tokenElem.GetString();
-                            }
-                            if (doc.RootElement.TryGetProperty("value", out var valueElem))
-                            {
-                                Console.WriteLine($"[bootstrap]       ✓ Token extracted from JSON 'value' field");
-                                return valueElem.GetString();
-                            }
-                            if (doc.RootElement.TryGetProperty("tokenValue", out var tvElem))
-                            {
-                                Console.WriteLine($"[bootstrap]       ✓ Token extracted from JSON 'tokenValue' field");
-                                return tvElem.GetString();
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine($"[bootstrap]       JSON parse failed: {ex.Message}");
-                        }
+            LogHelper.LogInfo($"Response status: {(int)response.StatusCode} {response.StatusCode}", 3);
 
-                        if (!string.IsNullOrWhiteSpace(resp2Text) && resp2Text.Length > 20)
-                        {
-                            Console.WriteLine($"[bootstrap]       ✓ Using raw JSON response as token");
-                            return resp2Text.Trim();
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"[bootstrap]       Exception: {ex.Message}");
-                }
+            if (!response.IsSuccessStatusCode)
+            {
+                LogHelper.LogInfo($"Response body: {respText.Substring(0, Math.Min(200, respText.Length))}", 3);
+                return null;
             }
 
-            if (attempt < maxAttempts)
+            LogHelper.LogSuccess("Success! Parsing response...", 3);
+            var token = ResponseParser.TryParseTokenFromResponse(respText);
+
+            if (token != null)
             {
-                var delay = Math.Min(2000 * (int)Math.Pow(2, attempt - 1), 10000);
-                Console.WriteLine($"[bootstrap]   Waiting {delay}ms before retry...");
-                await Task.Delay(delay);
+                LogHelper.LogSuccess($"Token extracted (length: {token.Length})", 3);
+                return token;
             }
+
+            LogHelper.LogWarning("Success response but couldn't extract token", 3);
+            return null;
         }
-
-        Console.WriteLine($"[bootstrap]   ✗ All API token creation attempts failed");
-        return null;
+        catch (Exception ex)
+        {
+            LogHelper.LogInfo($"Exception: {ex.Message}", 3);
+            return null;
+        }
     }
 
     public async Task<bool> ValidateTeamCityTokenAsync(HttpClient client, string teamcityUrl, string token)
     {
         try
         {
-            var apiUrl = $"{teamcityUrl.TrimEnd('/')}/app/rest/server";
-            var request = new HttpRequestMessage(HttpMethod.Get, apiUrl)
-            {
-                Headers = { Authorization = new AuthenticationHeaderValue("Bearer", token) }
-            };
+            var apiUrl = ApiUrlHelper.BuildTeamCityApiUrl(teamcityUrl, "server");
+            var request = HttpRequestHelper.CreateWithBearerAuth(HttpMethod.Get, apiUrl, token);
 
             var response = await client.SendAsync(request);
             if (response.IsSuccessStatusCode)
             {
                 var serverData = await response.Content.ReadAsStringAsync();
-                Console.WriteLine("[bootstrap]   Token authentication successful");
+                LogHelper.LogInfo("Token authentication successful", 1);
                 return true;
             }
 
@@ -643,81 +546,70 @@ public class TeamCityService
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"[bootstrap] ERROR:   Validation error: {ex.Message}");
+            LogHelper.LogError($"Validation error: {ex.Message}", 1);
             return false;
         }
     }
 
     public async Task<bool> CreateProjectAsync(HttpClient client, string teamcityUrl, string token)
     {
-        var apiUrl = $"{teamcityUrl.TrimEnd('/')}/app/rest/projects";
+        var apiUrl = ApiUrlHelper.BuildTeamCityApiUrl(teamcityUrl, "projects");
 
-        Console.WriteLine($"[bootstrap] Creating TeamCity project 'Sample Project' via {apiUrl}");
+        LogHelper.Log($"Creating TeamCity project 'Sample Project' via {apiUrl}");
 
         try
         {
             var xml = """<newProjectDescription name="Sample Project" id="SampleProject" />""";
-            var request = new HttpRequestMessage(HttpMethod.Post, apiUrl)
-            {
-                Content = new StringContent(xml, Encoding.UTF8, "application/xml"),
-                Headers =
-                {
-                    Accept = { MediaTypeWithQualityHeaderValue.Parse("application/json") },
-                    Authorization = new AuthenticationHeaderValue("Bearer", token)
-                }
-            };
+            var request = HttpRequestHelper.CreateWithBearerAuth(HttpMethod.Post, apiUrl, token);
+            request.AddJsonAccept();
+            request.SetXmlContent(xml);
 
             var response = await client.SendAsync(request);
 
             if (response.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created)
             {
-                Console.WriteLine("[bootstrap] TeamCity project created successfully");
+                LogHelper.LogSuccess("TeamCity project created successfully");
                 return true;
             }
 
             var body = await response.Content.ReadAsStringAsync();
             if (response.StatusCode == HttpStatusCode.Conflict || body.Contains("DuplicateProjectNameException") || body.Contains("already exists"))
             {
-                Console.WriteLine("[bootstrap] TeamCity project already exists");
+                LogHelper.Log("TeamCity project already exists");
                 return true;
             }
 
-            Console.Error.WriteLine($"[bootstrap] ERROR: TeamCity API error {(int)response.StatusCode}: {body}");
+            LogHelper.LogError($"TeamCity API error {(int)response.StatusCode}: {body}");
             return false;
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"[bootstrap] ERROR: Failed to call TeamCity API: {ex.Message}");
+            LogHelper.LogError($"Failed to call TeamCity API: {ex.Message}");
             return false;
         }
     }
 
     public async Task<bool> AuthorizeAgentsAsync(HttpClient client, string teamcityUrl, string token)
     {
-        var apiUrl = $"{teamcityUrl.TrimEnd('/')}/app/rest/agents";
+        var apiUrl = ApiUrlHelper.BuildTeamCityApiUrl(teamcityUrl, "agents");
 
         try
         {
-            var listRequest = new HttpRequestMessage(HttpMethod.Get, $"{apiUrl}?locator=authorized:false")
-            {
-                Headers =
-                {
-                    Accept = { MediaTypeWithQualityHeaderValue.Parse("application/json") },
-                    Authorization = new AuthenticationHeaderValue("Bearer", token)
-                }
-            };
+            var listRequest = HttpRequestHelper.CreateWithBearerAuth(HttpMethod.Get,
+                $"{apiUrl}?locator=authorized:false", token);
+            listRequest.AddJsonAccept();
 
             var listResponse = await client.SendAsync(listRequest);
             if (!listResponse.IsSuccessStatusCode)
             {
-                Console.Error.WriteLine($"[bootstrap] ERROR: Failed to get agents list: {(int)listResponse.StatusCode}");
+                LogHelper.LogError($"Failed to get agents list: {(int)listResponse.StatusCode}");
                 return false;
             }
 
             var agentsData = await listResponse.Content.ReadFromJsonAsync<JsonElement>();
             if (!agentsData.TryGetProperty("agent", out var agents))
             {
-                Console.WriteLine("[bootstrap] No unauthorized agents found");
+                LogHelper.Log("No unauthorized agents found");
                 return true;
             }
 
@@ -727,55 +619,44 @@ public class TeamCityService
                 var agentId = agent.GetProperty("id").GetInt32();
                 var agentName = agent.TryGetProperty("name", out var name) ? name.GetString() : $"agent-{agentId}";
 
-                Console.WriteLine($"[bootstrap] Authorizing agent: {agentName} (ID: {agentId})");
+                LogHelper.Log($"Authorizing agent: {agentName} (ID: {agentId})");
 
-                var authRequest = new HttpRequestMessage(HttpMethod.Put, $"{apiUrl}/id:{agentId}/authorized")
-                {
-                    Content = new StringContent("true", Encoding.UTF8, "text/plain"),
-                    Headers =
-                    {
-                        Authorization = new AuthenticationHeaderValue("Bearer", token)
-                    }
-                };
+                var authRequest = HttpRequestHelper.CreateWithBearerAuth(HttpMethod.Put,
+                    $"{apiUrl}/id:{agentId}/authorized", token);
+                authRequest.Content = new StringContent("true", Encoding.UTF8, "text/plain");
 
                 var authResponse = await client.SendAsync(authRequest);
                 if (authResponse.IsSuccessStatusCode)
                 {
-                    Console.WriteLine($"[bootstrap]   ✓ Agent {agentName} authorized");
+                    LogHelper.LogSuccess($"Agent {agentName} authorized", 1);
                     authorizedCount++;
 
-                    var poolApiUrl = $"{teamcityUrl.TrimEnd('/')}/app/rest/agentPools/id:0/agents";
-                    var poolRequest = new HttpRequestMessage(HttpMethod.Post, poolApiUrl)
-                    {
-                        Content = new StringContent($"<agent id=\"{agentId}\" />", Encoding.UTF8, "application/xml"),
-                        Headers =
-                        {
-                            Authorization = new AuthenticationHeaderValue("Bearer", token)
-                        }
-                    };
+                    var poolApiUrl = ApiUrlHelper.BuildTeamCityApiUrl(teamcityUrl, "agentPools/id:0/agents");
+                    var poolRequest = HttpRequestHelper.CreateWithBearerAuth(HttpMethod.Post, poolApiUrl, token);
+                    poolRequest.SetXmlContent($"<agent id=\"{agentId}\" />");
 
                     var poolResponse = await client.SendAsync(poolRequest);
                     if (poolResponse.IsSuccessStatusCode)
                     {
-                        Console.WriteLine($"[bootstrap]   ✓ Agent {agentName} added to default pool");
+                        LogHelper.LogSuccess($"Agent {agentName} added to default pool", 1);
                     }
                     else
                     {
-                        Console.WriteLine($"[bootstrap] WARNING:   Could not add agent {agentName} to pool: {(int)poolResponse.StatusCode}");
+                        LogHelper.LogWarning($"Could not add agent {agentName} to pool: {(int)poolResponse.StatusCode}", 1);
                     }
                 }
                 else
                 {
-                    Console.WriteLine($"[bootstrap] WARNING:   Failed to authorize agent {agentName}: {(int)authResponse.StatusCode}");
+                    LogHelper.LogWarning($"Failed to authorize agent {agentName}: {(int)authResponse.StatusCode}", 1);
                 }
             }
 
-            Console.WriteLine($"[bootstrap] Authorized {authorizedCount} agent(s)");
+            LogHelper.Log($"Authorized {authorizedCount} agent(s)");
             return authorizedCount > 0;
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"[bootstrap] ERROR: Failed to authorize agents: {ex.Message}");
+            LogHelper.LogError($"Failed to authorize agents: {ex.Message}");
             return false;
         }
     }
