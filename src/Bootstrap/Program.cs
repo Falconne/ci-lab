@@ -62,6 +62,29 @@ if (!teamcitySetupSuccess)
 
 Log("✓ TeamCity initial setup completed");
 
+// Try to create TeamCity token via REST API (avoids UI fragility)
+if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("TEAMCITY_TOKEN")))
+{
+    Log("Attempting to create TeamCity token via REST API...");
+    try
+    {
+        var createdToken = await TryCreateTeamCityTokenViaApiAsync(httpClient, teamcityUrl, "root", gitlabRootPassword, "bootstrap-automation");
+        if (!string.IsNullOrEmpty(createdToken))
+        {
+            SaveOrUpdateEnvFile(envFullPath, "TEAMCITY_TOKEN", createdToken);
+            Log("✓ TeamCity token created via API and saved to .env");
+        }
+        else
+        {
+            Log("Could not create TeamCity token via API; falling back to UI/interactive flow");
+        }
+    }
+    catch (Exception ex)
+    {
+        LogWarning($"TeamCity API token creation failed: {ex.Message}");
+    }
+}
+
 // Get and validate tokens
 Log("=".PadRight(60, '='));
 Log("Token Setup");
@@ -198,6 +221,73 @@ static void SaveOrUpdateEnvFile(string envPath, string key, string value)
 
     File.WriteAllLines(envPath, lines);
     Environment.SetEnvironmentVariable(key, value);
+}
+
+static async Task<string?> TryCreateTeamCityTokenViaApiAsync(HttpClient client, string teamcityUrl, string username, string password, string tokenName)
+{
+    // Prepare basic auth
+    var auth = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{username}:{password}"));
+    client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", auth);
+    client.DefaultRequestHeaders.Accept.Clear();
+    client.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+
+    // Try several likely endpoints for creating a personal token
+    var attempts = new[]
+    {
+        $"{teamcityUrl.TrimEnd('/')}/app/rest/users/username:{username}/tokens",
+        $"{teamcityUrl.TrimEnd('/')}/app/rest/users/{username}/tokens",
+        $"{teamcityUrl.TrimEnd('/')}/app/rest/users/1/tokens",
+        $"{teamcityUrl.TrimEnd('/')}/app/rest/users/{username}/personalTokens"
+    };
+
+    foreach (var url in attempts)
+    {
+        try
+        {
+            var body = new { name = tokenName };
+            var json = JsonSerializer.Serialize(body);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var resp = await client.PostAsync(url, content);
+            if (!resp.IsSuccessStatusCode)
+            {
+                continue;
+            }
+
+            var respText = await resp.Content.ReadAsStringAsync();
+            // Response may be JSON containing token value or plain text; try to parse JSON first
+            try
+            {
+                using var doc = JsonDocument.Parse(respText);
+                if (doc.RootElement.TryGetProperty("token", out var tokenElem))
+                {
+                    return tokenElem.GetString();
+                }
+
+                // Some TeamCity versions return 'value' or 'tokenValue'
+                if (doc.RootElement.TryGetProperty("value", out var valueElem))
+                {
+                    return valueElem.GetString();
+                }
+                if (doc.RootElement.TryGetProperty("tokenValue", out var tvElem))
+                {
+                    return tvElem.GetString();
+                }
+            }
+            catch { }
+
+            // Fallback: return raw response if it looks like a token
+            if (!string.IsNullOrWhiteSpace(respText) && respText.Length > 20)
+            {
+                return respText.Trim();
+            }
+        }
+        catch (Exception)
+        {
+            // Try next endpoint
+        }
+    }
+
+    return null;
 }
 
 static async Task<string?> GetAndValidateTokenAsync(
@@ -776,12 +866,12 @@ static async Task<bool> AutomateTeamCitySetupAsync(string teamcityUrl, string us
         await Task.Delay(3000);
         await TakeScreenshot(page, "01_initial_page");
 
-        // Check if already configured
+        // Check if already configured (login page): continue instead of returning
         if (await page.Locator("input[name='username'], input[id='username']").CountAsync() > 0)
         {
             Log("TeamCity appears to be already configured (login page detected)");
             await TakeScreenshot(page, "already_configured");
-            return true;
+            // Do not return here - continue to token creation steps which may still be needed
         }
 
         // Step 1: Data Directory - Click Proceed
@@ -922,7 +1012,8 @@ static async Task<bool> AutomateTeamCitySetupAsync(string teamcityUrl, string us
             {
                 Log("  Login page detected - setup already complete!");
                 await TakeScreenshot(page, "08_already_complete");
-                return true;
+                // Break out of the DB init wait loop and continue to token creation/login flow
+                break;
             }
 
             await Task.Delay(5000);
@@ -1330,68 +1421,118 @@ static async Task<bool> AutomateTeamCitySetupAsync(string teamcityUrl, string us
             "a.btn:has-text('Create')"
         );
 
-        if (await createTokenButton.CountAsync() > 0)
+            if (await createTokenButton.CountAsync() > 0)
         {
             Log($"  Found create token button (matched {await createTokenButton.CountAsync()} elements)");
             await createTokenButton.First.ClickAsync();
             await Task.Delay(1000);
             await TakeScreenshot(page, "20_token_creation_dialog");
 
-            // Fill token name
-            var tokenNameInput = page.Locator("input[name='tokenName'], input[id='tokenName'], input[name='name'], input[placeholder*='name']");
+            // Try several selectors for the token name input. TeamCity versions differ.
+            var tokenNameInput = page.Locator(
+                "input[name='tokenName'], input[id='tokenName'], input[name='name'], " +
+                "input[placeholder*='name'], input[placeholder*='Token'], input[aria-label*='name'], textarea[name='name']"
+            );
+
+            // If not found, look inside any dialog/modal for the first usable input
+            if (await tokenNameInput.CountAsync() == 0)
+            {
+                var dialog = page.Locator("[role='dialog'], div.modal, div[aria-modal='true']");
+                if (await dialog.CountAsync() > 0)
+                {
+                    var innerInput = dialog.First.Locator("input, textarea, [contenteditable='true']");
+                    if (await innerInput.CountAsync() > 0)
+                    {
+                        tokenNameInput = innerInput;
+                    }
+                }
+            }
+
             if (await tokenNameInput.CountAsync() > 0)
             {
-                Log("  Filling token name 'bootstrap-automation'");
-                await tokenNameInput.First.FillAsync("bootstrap-automation");
-                await Task.Delay(500);
-                await TakeScreenshot(page, "20b_token_name_filled");
-
-                var createButton = page.Locator("button:has-text('Create'), input[value='Create'], button[type='submit']");
-                if (await createButton.CountAsync() > 0)
+                try
                 {
-                    Log("  Clicking Create button");
-                    await createButton.First.ClickAsync();
-                    await Task.Delay(2000);
-                    await TakeScreenshot(page, "21_token_created");
+                    Log("  Filling token name 'bootstrap-automation'");
+                    await tokenNameInput.First.FillAsync("bootstrap-automation");
+                    await Task.Delay(500);
+                    await TakeScreenshot(page, "20b_token_name_filled");
 
-                    // Try to extract the token
-                    var tokenValue = page.Locator("input[readonly], textarea[readonly], code, pre, span.token, div.token");
-                    if (await tokenValue.CountAsync() > 0)
+                    var createButton = page.Locator("button:has-text('Create'), input[value='Create'], button[type='submit'], button:has-text('Generate')");
+                    if (await createButton.CountAsync() > 0)
                     {
-                        var token = await tokenValue.First.TextContentAsync();
-                        if (string.IsNullOrWhiteSpace(token))
-                        {
-                            // Try input value attribute
-                            var tokenInput = await tokenValue.First.GetAttributeAsync("value");
-                            token = tokenInput;
-                        }
+                        Log("  Clicking Create/Generate button");
+                        await createButton.First.ClickAsync();
+                        await Task.Delay(2000);
+                        await TakeScreenshot(page, "21_token_created");
 
-                        if (!string.IsNullOrWhiteSpace(token))
+                        // Try to extract the token from various possible elements
+                        var tokenValue = page.Locator(
+                            "input[readonly], textarea[readonly], input[aria-readonly='true'], code, pre, span.token, div.token, input.token-value"
+                        );
+
+                        if (await tokenValue.CountAsync() > 0)
                         {
-                            // Save token to .env
-                            var envPath = Path.Combine(Directory.GetCurrentDirectory(), "..", "..", ".env");
-                            var envFullPath = Path.GetFullPath(envPath);
-                            SaveOrUpdateEnvFile(envFullPath, "TEAMCITY_TOKEN", token.Trim());
-                            Log($"  ✓ TeamCity token created and saved to .env");
+                            var token = await tokenValue.First.TextContentAsync();
+                            if (string.IsNullOrWhiteSpace(token))
+                            {
+                                var tokenInput = await tokenValue.First.GetAttributeAsync("value");
+                                token = tokenInput;
+                            }
+
+                            if (string.IsNullOrWhiteSpace(token))
+                            {
+                                // Try common specific selector that TeamCity sometimes uses
+                                var specificInput = page.Locator("input[type='text'][readonly], input[id*='token']");
+                                if (await specificInput.CountAsync() > 0)
+                                {
+                                    token = await specificInput.First.GetAttributeAsync("value");
+                                }
+                            }
+
+                            if (!string.IsNullOrWhiteSpace(token))
+                            {
+                                var envPath = Path.Combine(Directory.GetCurrentDirectory(), "..", "..", ".env");
+                                var envFullPath = Path.GetFullPath(envPath);
+                                SaveOrUpdateEnvFile(envFullPath, "TEAMCITY_TOKEN", token.Trim());
+                                Log($"  ✓ TeamCity token created and saved to .env");
+                            }
+                            else
+                            {
+                                LogWarning("  Token created but could not be extracted automatically");
+                            }
                         }
                         else
                         {
-                            LogWarning("  Token created but could not be extracted automatically");
+                            LogWarning("  Token created but token value element not found");
                         }
                     }
                     else
                     {
-                        LogWarning("  Token created but token value element not found");
+                        LogWarning("  Could not find Create/Generate button in dialog");
                     }
                 }
-                else
+                catch (Exception ex)
                 {
-                    LogWarning("  Could not find Create button in dialog");
+                    LogWarning($"  Exception during token creation: {ex.Message}");
                 }
             }
             else
             {
-                LogWarning("  Could not find token name input field");
+                LogWarning("  Could not find token name input field (tried multiple selectors)");
+
+                // As a last resort, attempt to submit the dialog (some TeamCity UIs auto-fill name)
+                try
+                {
+                    var fallbackSubmit = page.Locator("button:has-text('Create'), button:has-text('Generate'), input[type='submit']");
+                    if (await fallbackSubmit.CountAsync() > 0)
+                    {
+                        Log("  Attempting fallback submit for token creation");
+                        await fallbackSubmit.First.ClickAsync();
+                        await Task.Delay(1500);
+                        await TakeScreenshot(page, "21_token_created_fallback");
+                    }
+                }
+                catch { }
             }
         }
         else
