@@ -101,12 +101,14 @@ if (needCreateToken)
         }
         else
         {
-            Log("Could not create TeamCity token via API; falling back to UI/interactive flow");
+            LogError("Could not create TeamCity token via API; cannot continue without TEAMCITY_TOKEN");
+            return 1;
         }
     }
     catch (Exception ex)
     {
-        LogWarning($"TeamCity API token creation failed: {ex.Message}");
+        LogError($"TeamCity API token creation failed: {ex.Message}");
+        return 1;
     }
 }
 
@@ -222,17 +224,18 @@ static async Task<string?> GetAndValidateTokenAsync(
     {
         if (string.IsNullOrEmpty(token))
         {
+            if (serviceName == "TeamCity")
+            {
+                LogError("TeamCity token missing and could not be created automatically; cannot proceed.");
+                return null;
+            }
+
             Log($"\n{serviceName} token not found in environment or .env file");
             Log($"Please create a token in {serviceName}:");
             if (serviceName == "GitLab")
             {
                 Log($"  1. Visit {serviceUrl}/-/profile/personal_access_tokens");
                 Log("  2. Create a token with 'api', 'read_api', 'write_repository' scopes");
-            }
-            else if (serviceName == "TeamCity")
-            {
-                Log($"  1. Visit {serviceUrl}/profile.html?item=accessTokens");
-                Log("  2. Create a token with appropriate permissions");
             }
 
             Console.Write($"Enter {serviceName} token: ");

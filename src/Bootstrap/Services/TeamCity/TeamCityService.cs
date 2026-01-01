@@ -126,13 +126,99 @@ public class TeamCityService
                 Console.WriteLine("[bootstrap]   Data directory step completed");
             }
 
-            // (Full flow copied from Program.cs omitted in this file for brevity in the patch)
-            // To keep the repository maintainable the long Playwright-driven flow remains
-            // implemented exactly as before in Program.cs, but moved into this method
-            // so the Program.cs file can focus on orchestration.
+            // Step 2: Database Setup - Wait and Proceed
+            Console.WriteLine("[bootstrap] Step 2: Checking for database setup screen");
+            await Task.Delay(2000);
+            await TakeScreenshot(page, "04_before_database");
+
+            var dbProceedButton = page.Locator("button:has-text('Proceed'), input[value='Proceed']");
+            var maxWaitForDb = 60; // Wait up to 60 seconds for DB initialization
+            for (var i = 0; i < maxWaitForDb; i++)
+            {
+                if (await dbProceedButton.CountAsync() > 0)
+                {
+                    Console.WriteLine("[bootstrap]   Database setup ready, clicking Proceed...");
+                    await dbProceedButton.First.ClickAsync();
+                    await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+                    await Task.Delay(3000);
+                    await TakeScreenshot(page, "05_after_database");
+                    Console.WriteLine("[bootstrap]   Database setup completed");
+                    break;
+                }
+                await Task.Delay(1000);
+                if (i % 10 == 0 && i > 0)
+                {
+                    Console.WriteLine($"[bootstrap]   Still waiting for database initialization... ({i}s)");
+                }
+            }
+
+            // Step 3: License Agreement - Accept
+            Console.WriteLine("[bootstrap] Step 3: Checking for license agreement");
+            await Task.Delay(2000);
+            await TakeScreenshot(page, "06_before_license");
+
+            var acceptCheckbox = page.Locator("input[type='checkbox'][name='accept'], input[id='accept'], input[name='acceptLicense']");
+            if (await acceptCheckbox.CountAsync() > 0)
+            {
+                Console.WriteLine("[bootstrap]   Found license checkbox, checking it...");
+                await acceptCheckbox.First.CheckAsync();
+                await Task.Delay(500);
+
+                var continueButton = page.Locator("button:has-text('Continue'), input[value='Continue'], button[type='submit']");
+                if (await continueButton.CountAsync() > 0)
+                {
+                    Console.WriteLine("[bootstrap]   Clicking Continue after license acceptance...");
+                    await continueButton.First.ClickAsync();
+                    await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+                    await Task.Delay(3000);
+                    await TakeScreenshot(page, "07_after_license");
+                    Console.WriteLine("[bootstrap]   License accepted");
+                }
+            }
+
+            // Step 4: Create Administrator Account
+            Console.WriteLine("[bootstrap] Step 4: Checking for admin account creation");
+            await Task.Delay(2000);
+            await TakeScreenshot(page, "08_before_admin_creation");
+
+            var usernameField = page.Locator("input[name='username'], input[id='input_teamcityUsername']");
+            if (await usernameField.CountAsync() > 0)
+            {
+                Console.WriteLine("[bootstrap]   Found admin creation form, filling in details...");
+                await usernameField.First.FillAsync(username);
+                await Task.Delay(300);
+
+                var passwordField = page.Locator("input[name='password'], input[id='password1'], input[type='password']").First;
+                await passwordField.FillAsync(password);
+                await Task.Delay(300);
+
+                var confirmPasswordField = page.Locator("input[name='confirmPassword'], input[id='password2'], input[name='retypedPassword']");
+                if (await confirmPasswordField.CountAsync() > 0)
+                {
+                    await confirmPasswordField.First.FillAsync(password);
+                    await Task.Delay(300);
+                }
+
+                await TakeScreenshot(page, "09_admin_form_filled");
+
+                var createAccountButton = page.Locator("button:has-text('Create Account'), input[value='Create Account'], button[type='submit']");
+                if (await createAccountButton.CountAsync() > 0)
+                {
+                    Console.WriteLine("[bootstrap]   Submitting admin account creation...");
+                    await createAccountButton.First.ClickAsync();
+                    await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+                    await Task.Delay(5000); // Give TeamCity time to fully initialize
+                    await TakeScreenshot(page, "10_after_admin_creation");
+                    Console.WriteLine("[bootstrap]   Admin account created successfully");
+                }
+            }
+            else
+            {
+                Console.WriteLine("[bootstrap]   Admin account may already exist, continuing...");
+            }
 
             // Navigate to token creation page and attempt to create/access token
-            Console.WriteLine("[bootstrap] Step 6: Creating access token (UI)");
+            Console.WriteLine("[bootstrap] Step 5: Creating access token (UI)");
             try
             {
                 await page.GotoAsync($"{teamcityUrl}/profile.html?item=accessTokens", new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle, Timeout = 30000 });
@@ -294,24 +380,26 @@ public class TeamCityService
 
     public async Task<string?> TryCreateTokenViaApiAsync(HttpClient client, string teamcityUrl, string username, string password, string tokenName)
     {
+        Console.WriteLine($"[bootstrap]   Attempting API token creation with username '{username}' and tokenName '{tokenName}'");
         var auth = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{username}:{password}"));
 
         var endpoints = new[]
         {
             $"{teamcityUrl.TrimEnd('/')}/app/rest/users/username:{username}/tokens",
             $"{teamcityUrl.TrimEnd('/')}/app/rest/users/{username}/tokens",
-            $"{teamcityUrl.TrimEnd('/')}/app/rest/users/1/tokens",
-            $"{teamcityUrl.TrimEnd('/')}/app/rest/users/{username}/personalTokens",
-            $"{teamcityUrl.TrimEnd('/')}/app/rest/users/{username}/token"
+            $"{teamcityUrl.TrimEnd('/')}/app/rest/users/id:1/tokens",
+            $"{teamcityUrl.TrimEnd('/')}/app/rest/users/current/tokens"
         };
 
-        var maxAttempts = 6;
+        var maxAttempts = 3;
         for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
+            Console.WriteLine($"[bootstrap]   API token creation attempt {attempt}/{maxAttempts}");
             foreach (var url in endpoints)
             {
                 try
                 {
+                    Console.WriteLine($"[bootstrap]     Trying endpoint: {url}");
                     var xmlBody = $"<token name=\"{System.Net.WebUtility.HtmlEncode(tokenName)}\"/>";
                     var xmlReq = new HttpRequestMessage(HttpMethod.Post, url)
                     {
@@ -323,19 +411,37 @@ public class TeamCityService
 
                     var resp = await client.SendAsync(xmlReq);
                     var respText = await resp.Content.ReadAsStringAsync();
+                    Console.WriteLine($"[bootstrap]       Response status: {(int)resp.StatusCode} {resp.StatusCode}");
+                    if (!resp.IsSuccessStatusCode)
+                    {
+                        Console.WriteLine($"[bootstrap]       Response body: {respText.Substring(0, Math.Min(200, respText.Length))}");
+                    }
                     if (resp.IsSuccessStatusCode)
                     {
+                        Console.WriteLine($"[bootstrap]       ✓ Success! Parsing response...");
                         try
                         {
                             using var doc = JsonDocument.Parse(respText);
                             if (doc.RootElement.TryGetProperty("token", out var tokenElem))
+                            {
+                                Console.WriteLine($"[bootstrap]       ✓ Token extracted from JSON 'token' field");
                                 return tokenElem.GetString();
+                            }
                             if (doc.RootElement.TryGetProperty("value", out var valueElem))
+                            {
+                                Console.WriteLine($"[bootstrap]       ✓ Token extracted from JSON 'value' field");
                                 return valueElem.GetString();
+                            }
                             if (doc.RootElement.TryGetProperty("tokenValue", out var tvElem))
+                            {
+                                Console.WriteLine($"[bootstrap]       ✓ Token extracted from JSON 'tokenValue' field");
                                 return tvElem.GetString();
+                            }
                         }
-                        catch { }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[bootstrap]       JSON parse failed: {ex.Message}");
+                        }
 
                         try
                         {
@@ -345,17 +451,32 @@ public class TeamCityService
                             {
                                 var valAttr = tokenElem.Attribute("value") ?? tokenElem.Attribute("tokenValue");
                                 if (valAttr != null && !string.IsNullOrWhiteSpace(valAttr.Value))
+                                {
+                                    Console.WriteLine($"[bootstrap]       ✓ Token extracted from XML attribute");
                                     return valAttr.Value;
+                                }
                                 if (!string.IsNullOrWhiteSpace(tokenElem.Value))
+                                {
+                                    Console.WriteLine($"[bootstrap]       ✓ Token extracted from XML element value");
                                     return tokenElem.Value.Trim();
+                                }
                             }
                         }
-                        catch { }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[bootstrap]       XML parse failed: {ex.Message}");
+                        }
 
                         if (!string.IsNullOrWhiteSpace(respText) && respText.Length > 20)
+                        {
+                            Console.WriteLine($"[bootstrap]       ✓ Using raw response as token (length: {respText.Length})");
                             return respText.Trim();
+                        }
+                        Console.WriteLine($"[bootstrap]       WARNING: Success response but couldn't extract token");
                     }
 
+                    Console.WriteLine($"[bootstrap]     Trying with JSON body...");
+                    Console.WriteLine($"[bootstrap]     Trying with JSON body...");
                     var jsonBody = JsonSerializer.Serialize(new { name = tokenName });
                     var jsonReq = new HttpRequestMessage(HttpMethod.Post, url)
                     {
@@ -367,33 +488,60 @@ public class TeamCityService
 
                     var resp2 = await client.SendAsync(jsonReq);
                     var resp2Text = await resp2.Content.ReadAsStringAsync();
+                    Console.WriteLine($"[bootstrap]       Response status (JSON): {(int)resp2.StatusCode} {resp2.StatusCode}");
+                    if (!resp2.IsSuccessStatusCode)
+                    {
+                        Console.WriteLine($"[bootstrap]       Response body: {resp2Text.Substring(0, Math.Min(200, resp2Text.Length))}");
+                    }
                     if (resp2.IsSuccessStatusCode)
                     {
+                        Console.WriteLine($"[bootstrap]       ✓ Success with JSON! Parsing response...");
                         try
                         {
                             using var doc = JsonDocument.Parse(resp2Text);
                             if (doc.RootElement.TryGetProperty("token", out var tokenElem))
+                            {
+                                Console.WriteLine($"[bootstrap]       ✓ Token extracted from JSON response");
                                 return tokenElem.GetString();
+                            }
                             if (doc.RootElement.TryGetProperty("value", out var valueElem))
+                            {
+                                Console.WriteLine($"[bootstrap]       ✓ Token extracted from JSON 'value' field");
                                 return valueElem.GetString();
+                            }
                             if (doc.RootElement.TryGetProperty("tokenValue", out var tvElem))
+                            {
+                                Console.WriteLine($"[bootstrap]       ✓ Token extracted from JSON 'tokenValue' field");
                                 return tvElem.GetString();
+                            }
                         }
-                        catch { }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[bootstrap]       JSON parse failed: {ex.Message}");
+                        }
 
                         if (!string.IsNullOrWhiteSpace(resp2Text) && resp2Text.Length > 20)
+                        {
+                            Console.WriteLine($"[bootstrap]       ✓ Using raw JSON response as token");
                             return resp2Text.Trim();
+                        }
                     }
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
+                    Console.WriteLine($"[bootstrap]       Exception: {ex.Message}");
                 }
             }
 
-            var delay = Math.Min(2000 * (int)Math.Pow(2, attempt - 1), 15000);
-            await Task.Delay(delay);
+            if (attempt < maxAttempts)
+            {
+                var delay = Math.Min(2000 * (int)Math.Pow(2, attempt - 1), 10000);
+                Console.WriteLine($"[bootstrap]   Waiting {delay}ms before retry...");
+                await Task.Delay(delay);
+            }
         }
 
+        Console.WriteLine($"[bootstrap]   ✗ All API token creation attempts failed");
         return null;
     }
 
