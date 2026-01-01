@@ -65,7 +65,7 @@ Log("✓ TeamCity initial setup completed");
 // Ensure TEAMCITY_TOKEN is present and valid; if missing or invalid, attempt API creation
 var existingTeamcityToken = Environment.GetEnvironmentVariable("TEAMCITY_TOKEN");
 var needCreateToken = string.IsNullOrEmpty(existingTeamcityToken);
-if (!needCreateToken)
+if (!needCreateToken && existingTeamcityToken != null)
 {
     Log("Validating existing TEAMCITY_TOKEN...");
     try
