@@ -210,11 +210,62 @@ static async Task<string?> GetAndValidateTokenAsync(
     string envFilePath,
     Func<HttpClient, string, string, Task<bool>> validator)
 {
-    var token = Environment.GetEnvironmentVariable(envVarName);
+    // Special handling for GitLab: poll the .env file for a token and validate it
+    if (serviceName == "GitLab")
+    {
+        var timeout = TimeSpan.FromMinutes(7);
+        var deadline = DateTime.UtcNow + timeout;
+        var pollInterval = TimeSpan.FromSeconds(5);
+
+        LogHelper.Log($"Waiting up to {timeout.TotalMinutes} minutes for GITLAB_TOKEN in .env...");
+
+        while (DateTime.UtcNow < deadline)
+        {
+            // Reload .env to pick up tokens written by external processes
+            EnvHelper.LoadEnvFile(envFilePath);
+            var token = Environment.GetEnvironmentVariable(envVarName);
+
+            if (!string.IsNullOrEmpty(token))
+            {
+                LogHelper.Log("Found GITLAB_TOKEN in .env; validating...");
+                try
+                {
+                    var isValid = await validator(client, serviceUrl, token);
+                    if (isValid)
+                    {
+                        LogHelper.LogSuccess("GitLab token is valid");
+                        // Ensure the .env is updated consistently
+                        EnvHelper.SaveOrUpdateEnvFile(envFilePath, envVarName, token);
+                        return token;
+                    }
+                    else
+                    {
+                        LogHelper.Log("GITLAB_TOKEN present but not valid yet; will retry until timeout");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    LogHelper.LogWarning($"Error validating GitLab token: {ex.Message}");
+                }
+            }
+            else
+            {
+                LogHelper.Log("No GITLAB_TOKEN found yet; polling .env...");
+            }
+
+            await Task.Delay(pollInterval);
+        }
+
+        LogHelper.LogError($"Timed out waiting for a valid GITLAB_TOKEN after {timeout.TotalMinutes} minutes");
+        return null;
+    }
+
+    // Default behavior for other services (interactive TeamCity flow)
+    var tokenInteractive = Environment.GetEnvironmentVariable(envVarName);
 
     while (true)
     {
-        if (string.IsNullOrEmpty(token))
+        if (string.IsNullOrEmpty(tokenInteractive))
         {
             if (serviceName == "TeamCity")
             {
@@ -231,9 +282,9 @@ static async Task<string?> GetAndValidateTokenAsync(
             }
 
             Console.Write($"Enter {serviceName} token: ");
-            token = Console.ReadLine()?.Trim();
+            tokenInteractive = Console.ReadLine()?.Trim();
 
-            if (string.IsNullOrEmpty(token))
+            if (string.IsNullOrEmpty(tokenInteractive))
             {
                 LogHelper.LogError("Token cannot be empty");
                 continue;
@@ -241,16 +292,16 @@ static async Task<string?> GetAndValidateTokenAsync(
         }
 
         LogHelper.Log($"Validating {serviceName} token...");
-        var isValid = await validator(client, serviceUrl, token);
+        var isValidInteractive = await validator(client, serviceUrl, tokenInteractive);
 
-        if (isValid)
+        if (isValidInteractive)
         {
             LogHelper.LogSuccess($"{serviceName} token is valid");
-            EnvHelper.SaveOrUpdateEnvFile(envFilePath, envVarName, token);
-            return token;
+            EnvHelper.SaveOrUpdateEnvFile(envFilePath, envVarName, tokenInteractive);
+            return tokenInteractive;
         }
 
         LogHelper.LogError($"✗ {serviceName} token is invalid or insufficient permissions");
-        token = null; // Force re-prompt
+        tokenInteractive = null; // Force re-prompt
     }
 }
