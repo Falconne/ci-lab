@@ -48,10 +48,9 @@ public class TeamCityService
             {
                 var pageContent = await page.ContentAsync();
                 if (pageContent.Contains("TeamCity server requires technical maintenance") &&
-                    pageContent.Contains("administrators already logged in"))
+                    pageContent.Contains("already logged in"))
                 {
                     Console.Error.WriteLine("[bootstrap] ERROR: TeamCity server is in maintenance mode");
-                    Console.Error.WriteLine("[bootstrap] ERROR: Too many administrators already logged in. Please try again later.");
                     await TakeScreenshot(page, "error_maintenance_mode");
                     return true; // Error detected
                 }
@@ -62,6 +61,35 @@ public class TeamCityService
             }
             return false; // No error
         }
+
+    async Task WaitForTextToDisappearAsync(IPage page, string text, int timeoutSeconds = 120, int pollMs = 1000)
+    {
+        var found = false;
+        for (var s = 0; s < timeoutSeconds; s++)
+        {
+            try
+            {
+                var pageContent = await page.ContentAsync();
+                if (pageContent != null && pageContent.IndexOf(text, StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    found = true;
+                    if (s % 5 == 0)
+                        Console.WriteLine($"[bootstrap]   Waiting for '{text}' to disappear... waited {s}s");
+                    await Task.Delay(pollMs);
+                    continue;
+                }
+                break;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[bootstrap]   Warning reading page content while waiting for '{text}': {ex.Message}");
+                await Task.Delay(pollMs);
+            }
+        }
+
+        if (found)
+            Console.WriteLine($"[bootstrap]   '{text}' no longer present (or timed out waiting)");
+    }
 
         try
         {
@@ -141,6 +169,13 @@ public class TeamCityService
                     await dbProceedButton.First.ClickAsync();
                     await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
                     await Task.Delay(3000);
+
+                    // Wait for TeamCity database initialization message to clear
+                    await WaitForTextToDisappearAsync(page, "Creating a new database", 120);
+
+                    // Also wait for server components initialization message to clear if present
+                    await WaitForTextToDisappearAsync(page, "Initializing TeamCity server components", 180);
+
                     await TakeScreenshot(page, "05_after_database");
                     Console.WriteLine("[bootstrap]   Database setup completed");
                     break;
@@ -157,23 +192,50 @@ public class TeamCityService
             await Task.Delay(2000);
             await TakeScreenshot(page, "06_before_license");
 
-            var acceptCheckbox = page.Locator("input[type='checkbox'][name='accept'], input[id='accept'], input[name='acceptLicense']");
-            if (await acceptCheckbox.CountAsync() > 0)
+            var pageText = await page.ContentAsync();
+            if (pageText != null && pageText.IndexOf("License Agreement for JetBrains", StringComparison.OrdinalIgnoreCase) >= 0)
             {
-                Console.WriteLine("[bootstrap]   Found license checkbox, checking it...");
-                await acceptCheckbox.First.CheckAsync();
-                await Task.Delay(500);
-
-                var continueButton = page.Locator("button:has-text('Continue'), input[value='Continue'], button[type='submit']");
-                if (await continueButton.CountAsync() > 0)
+                var acceptCheckbox = page.Locator("input[type='checkbox'][name='accept'], input[id='accept'], input[name='acceptLicense']");
+                if (await acceptCheckbox.CountAsync() > 0)
                 {
+                    Console.WriteLine("[bootstrap]   Found license checkbox, checking it...");
+                    await acceptCheckbox.First.CheckAsync();
+                    await Task.Delay(500);
+
+                    var continueButton = page.Locator("button:has-text('Continue'), input[value='Continue'], button[type='submit']");
+                    if (await continueButton.CountAsync() == 0)
+                    {
+                        Console.Error.WriteLine("[bootstrap] ERROR: Continue button not found on license page");
+                        await TakeScreenshot(page, "error_license_no_continue");
+                        return false;
+                    }
+
                     Console.WriteLine("[bootstrap]   Clicking Continue after license acceptance...");
                     await continueButton.First.ClickAsync();
                     await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
                     await Task.Delay(3000);
                     await TakeScreenshot(page, "07_after_license");
+
+                    // Ensure license text disappeared
+                    await WaitForTextToDisappearAsync(page, "License Agreement for JetBrains", 30);
+                    var postLicenseText = await page.ContentAsync();
+                    if (postLicenseText != null && postLicenseText.IndexOf("License Agreement for JetBrains", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        Console.Error.WriteLine("[bootstrap] ERROR: License acceptance did not complete successfully");
+                        await TakeScreenshot(page, "error_license_still_present");
+                        return false;
+                    }
+
                     Console.WriteLine("[bootstrap]   License accepted");
                 }
+                else
+                {
+                    Console.WriteLine("[bootstrap]   License checkbox not found, skipping license acceptance step");
+                }
+            }
+            else
+            {
+                Console.WriteLine("[bootstrap]   License page not detected, skipping license acceptance step");
             }
 
             // Step 4: Create Administrator Account
