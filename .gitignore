@@ -27,3 +27,4 @@ data/screenshots/
 *.swo
 
 *.jar
+*.log

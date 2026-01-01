@@ -599,7 +599,7 @@ static async Task<bool> CreateAndPopulateGitLabProjectAsync(HttpClient client, s
         var signature = new Signature("CI Lab Bootstrap", "bootstrap@cilab.local", DateTimeOffset.Now);
         repo.Commit($"Initial commit for {projectName}", signature, signature);
 
-        // Add remote and push
+        // Add remote and push (use explicit refspec and set upstream to avoid tracking errors)
         var repoUrl = httpUrlToRepo.Replace("http://", $"http://root:{token}@");
         repo.Network.Remotes.Add("origin", repoUrl);
 
@@ -612,7 +612,30 @@ static async Task<bool> CreateAndPopulateGitLabProjectAsync(HttpClient client, s
             }
         };
 
-        repo.Network.Push(repo.Branches["master"] ?? repo.Branches["main"], pushOptions);
+        // Determine local branch (HEAD) and push it to origin with same name
+        var localBranch = repo.Head;
+        var localName = localBranch.FriendlyName;
+        var remoteName = localName;
+
+        try
+        {
+            // Push using explicit refspec: refs/heads/local:refs/heads/remote
+            var remote = repo.Network.Remotes["origin"];
+            var refSpec = $"refs/heads/{localName}:refs/heads/{remoteName}";
+            repo.Network.Push(remote, refSpec, pushOptions);
+
+            // Set upstream tracking so future pushes succeed
+            repo.Branches.Update(localBranch, b =>
+            {
+                b.Remote = "origin";
+                b.UpstreamBranch = $"refs/heads/{remoteName}";
+            });
+        }
+        catch (Exception ex)
+        {
+            // Re-throw with more context
+            throw new Exception($"Git push failed for branch '{localName}': {ex.Message}", ex);
+        }
 
         Log($"  ✓ Repository populated and pushed to '{projectName}'");
         return true;
@@ -698,13 +721,14 @@ static async Task<bool> CreateTeamCityProjectAsync(HttpClient client, string tea
             return true;
         }
 
-        if (response.StatusCode == HttpStatusCode.Conflict)
+        var body = await response.Content.ReadAsStringAsync();
+        if (response.StatusCode == HttpStatusCode.Conflict || body.Contains("DuplicateProjectNameException") || body.Contains("already exists"))
         {
             Log("TeamCity project already exists");
             return true;
         }
 
-        LogError($"TeamCity API error {(int)response.StatusCode}: {await response.Content.ReadAsStringAsync()}");
+        LogError($"TeamCity API error {(int)response.StatusCode}: {body}");
         return false;
     }
     catch (Exception ex)
