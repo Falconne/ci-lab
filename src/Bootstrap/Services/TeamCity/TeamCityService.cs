@@ -42,6 +42,27 @@ public class TeamCityService
             }
         }
 
+        async Task<bool> CheckForMaintenanceErrorAsync(IPage page)
+        {
+            try
+            {
+                var pageContent = await page.ContentAsync();
+                if (pageContent.Contains("TeamCity server requires technical maintenance") &&
+                    pageContent.Contains("administrators already logged in"))
+                {
+                    Console.Error.WriteLine("[bootstrap] ERROR: TeamCity server is in maintenance mode");
+                    Console.Error.WriteLine("[bootstrap] ERROR: Too many administrators already logged in. Please try again later.");
+                    await TakeScreenshot(page, "error_maintenance_mode");
+                    return true; // Error detected
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[bootstrap] WARNING: Could not check for maintenance message: {ex.Message}");
+            }
+            return false; // No error
+        }
+
         try
         {
             Console.WriteLine("[bootstrap] Starting automated TeamCity initial setup using Playwright...");
@@ -71,6 +92,12 @@ public class TeamCityService
             await page.GotoAsync(teamcityUrl, new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle });
             await Task.Delay(3000);
             await TakeScreenshot(page, "01_initial_page");
+
+            // Check for maintenance/admin limit error early
+            if (await CheckForMaintenanceErrorAsync(page))
+            {
+                return false;
+            }
 
             if (await page.Locator("input[name='username'], input[id='username']").CountAsync() > 0)
             {
