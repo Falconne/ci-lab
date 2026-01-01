@@ -200,14 +200,25 @@ public class TeamCityService
                 {
                     Console.WriteLine("[bootstrap]   Found license checkbox, checking it...");
                     await acceptCheckbox.First.CheckAsync();
-                    await Task.Delay(500);
+                    await Task.Delay(1000); // Wait for JavaScript to enable the button
 
-                    var continueButton = page.Locator("button:has-text('Continue'), input[value='Continue'], button[type='submit']");
+                    var continueButton = page.Locator("input[type='submit'][name='Continue'], input[type='submit'].submitButton, button:has-text('Continue'), input[value*='Continue']");
                     if (await continueButton.CountAsync() == 0)
                     {
                         Console.Error.WriteLine("[bootstrap] ERROR: Continue button not found on license page");
                         await TakeScreenshot(page, "error_license_no_continue");
                         return false;
+                    }
+
+                    // Wait for button to be enabled (JavaScript enables it after checkbox is checked)
+                    Console.WriteLine("[bootstrap]   Waiting for Continue button to be enabled...");
+                    try
+                    {
+                        await continueButton.First.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 5000 });
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[bootstrap]   Warning: Could not wait for button visibility: {ex.Message}");
                     }
 
                     Console.WriteLine("[bootstrap]   Clicking Continue after license acceptance...");
