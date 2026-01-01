@@ -1015,7 +1015,7 @@ static async Task<bool> AutomateTeamCitySetupAsync(string teamcityUrl, string us
         Log("Step 5: Creating administrator account");
         await TakeScreenshot(page, "12_before_admin_account");
 
-        var usernameInput = page.Locator("input[name='username'], input[id='input_teamcityUsername']");
+        var usernameInput = page.Locator("input[name='username1'], input[id='input_teamcityUsername']");
         if (await usernameInput.CountAsync() > 0)
         {
             // TeamCity bug: sometimes requires submitting the form twice
@@ -1023,10 +1023,10 @@ static async Task<bool> AutomateTeamCitySetupAsync(string teamcityUrl, string us
             {
                 Log($"  Account creation attempt {attempt} - filling form for user: {username}");
 
-                // Re-locate elements each time as page may have reloaded
-                var usernameField = page.Locator("input[name='username'], input[id='input_teamcityUsername']").First;
-                var passwordField = page.Locator("input[name='password'], input[id='password1']").First;
-                var confirmPasswordField = page.Locator("input[name='confirmPassword'], input[id='password2']").First;
+                // Re-locate elements each time as page may have reloaded (note: actual field names are username1, password1, retypedPassword)
+                var usernameField = page.Locator("input[name='username1'], input[id='input_teamcityUsername']").First;
+                var passwordField = page.Locator("input[name='password1'], input[id='password1']").First;
+                var confirmPasswordField = page.Locator("input[name='retypedPassword'], input[id='retypedPassword']").First;
 
                 if (await usernameField.CountAsync() == 0)
                 {
@@ -1040,7 +1040,7 @@ static async Task<bool> AutomateTeamCitySetupAsync(string teamcityUrl, string us
 
                 await TakeScreenshot(page, $"13_admin_form_filled_attempt{attempt}");
 
-                var createAccountButton = page.Locator("button:has-text('Create Account'), input[value='Create Account']").First;
+                var createAccountButton = page.Locator("input[type='submit'][value='Create Account'], button:has-text('Create Account')").First;
                 if (await createAccountButton.CountAsync() > 0)
                 {
                     Log($"  Clicking Create Account button (attempt {attempt})...");
