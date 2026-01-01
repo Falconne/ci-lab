@@ -949,18 +949,61 @@ static async Task<bool> AutomateTeamCitySetupAsync(string teamcityUrl, string us
         {
             Log("  Found license checkbox, checking...");
             await acceptCheckbox.First.CheckAsync();
-            await Task.Delay(500);
+            await Task.Delay(1000);
             await TakeScreenshot(page, "10_after_license_check");
 
-            var continueButton = page.Locator("button:has-text('Continue'), input[value='Continue']");
+            // Locate Continue button using name attribute and class (matches: <input name="Continue" class="submitButton">)
+            var continueButton = page.Locator("input[name='Continue'], input.submitButton, input[type='submit']:has-text('Continue')");
             if (await continueButton.CountAsync() > 0)
             {
+                Log("  Found Continue button, waiting for it to be enabled...");
+                
+                // Wait for button to be enabled (JavaScript enables it after checkbox is checked)
+                try
+                {
+                    await continueButton.First.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 5000 });
+                    await Task.Delay(500); // Give JavaScript time to enable the button
+                }
+                catch
+                {
+                    Log("  Warning: Timeout waiting for button to be visible, proceeding anyway...");
+                }
+                
                 Log("  Clicking Continue button...");
                 await continueButton.First.ClickAsync();
-                await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-                await Task.Delay(2000);
+                Log("  Waiting for navigation after Continue click...");
+                
+                // Wait for navigation to complete
+                try
+                {
+                    await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 30000 });
+                }
+                catch
+                {
+                    Log("  NetworkIdle timeout, checking if page changed...");
+                }
+                
+                await Task.Delay(3000);
                 await TakeScreenshot(page, "11_after_license_continue");
-                Log("  License accepted");
+                
+                // Verify we moved away from license page
+                var currentUrl = page.Url;
+                if (currentUrl.Contains("showAgreement"))
+                {
+                    LogError("  Still on license/agreement page after clicking Continue - button click failed");
+                    await TakeScreenshot(page, "11b_license_failed.png");
+                    return false;
+                }
+                else
+                {
+                    Log($"  License accepted, navigated to: {currentUrl}");
+                }
+            }
+            else
+            {
+                LogError("  CRITICAL: No Continue button found after checking license");
+                await TakeScreenshot(page, "10b_no_continue_button_found");
+                return false;
             }
         }
         else
@@ -1081,7 +1124,13 @@ static async Task<bool> AutomateTeamCitySetupAsync(string teamcityUrl, string us
             {
                 Log("  Checking agreement checkbox...");
                 await acceptAgreementCheckbox.First.CheckAsync();
-                await Task.Delay(500);
+                await Task.Delay(1000);
+            }
+            else
+            {
+                LogError("  CRITICAL: No agreement checkbox found on showAgreement page");
+                await TakeScreenshot(page, "14e_no_checkbox.png");
+                return false;
             }
 
             // Uncheck the "Send anonymous usage statistics" checkbox
@@ -1099,16 +1148,57 @@ static async Task<bool> AutomateTeamCitySetupAsync(string teamcityUrl, string us
 
             await TakeScreenshot(page, "14f_agreement_checkboxes_set");
 
-            // Click Continue button
-            var continueAgreementButton = page.Locator("button:has-text('Continue'), input[value='Continue']");
+            // Locate Continue button using name attribute and class (matches: <input name="Continue" class="submitButton">)
+            var continueAgreementButton = page.Locator("input[name='Continue'], input.submitButton, input[type='submit']:has-text('Continue')");
             if (await continueAgreementButton.CountAsync() > 0)
             {
-                Log("  Clicking Continue button on agreement page...");
+                Log("  Found Continue button on agreement page, waiting for it to be enabled...");
+                
+                // Wait for button to be enabled
+                try
+                {
+                    await continueAgreementButton.First.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 5000 });
+                    await Task.Delay(500); // Give JavaScript time to enable the button
+                }
+                catch
+                {
+                    Log("  Warning: Timeout waiting for button, proceeding anyway...");
+                }
+                
+                Log("  Clicking Continue button...");
                 await continueAgreementButton.First.ClickAsync();
+                Log("  Waiting for navigation after agreement Continue...");
+                
+                try
+                {
+                    await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 30000 });
+                }
+                catch
+                {
+                    Log("  NetworkIdle timeout, checking if page changed...");
+                }
+                
                 await Task.Delay(3000);
-                await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
                 await TakeScreenshot(page, "14g_after_agreement_continue");
-                Log("  Agreement page handled");
+                
+                // Check if we successfully left the showAgreement page
+                var urlAfterContinue = page.Url;
+                if (urlAfterContinue.Contains("showAgreement"))
+                {
+                    LogError("  CRITICAL: Still on showAgreement page after clicking Continue - button click failed");
+                    await TakeScreenshot(page, "14g_failed.png");
+                    return false;
+                }
+                else
+                {
+                    Log($"  Successfully left agreement page, now at: {urlAfterContinue}");
+                }
+            }
+            else
+            {
+                LogError("  CRITICAL: No Continue button found on showAgreement page");
+                await TakeScreenshot(page, "14f_no_button.png");
+                return false;
             }
         }
         else
