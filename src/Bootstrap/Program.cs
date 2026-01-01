@@ -957,7 +957,7 @@ static async Task<bool> AutomateTeamCitySetupAsync(string teamcityUrl, string us
             if (await continueButton.CountAsync() > 0)
             {
                 Log("  Found Continue button, waiting for it to be enabled...");
-                
+
                 // Wait for button to be enabled (JavaScript enables it after checkbox is checked)
                 try
                 {
@@ -968,11 +968,11 @@ static async Task<bool> AutomateTeamCitySetupAsync(string teamcityUrl, string us
                 {
                     Log("  Warning: Timeout waiting for button to be visible, proceeding anyway...");
                 }
-                
+
                 Log("  Clicking Continue button...");
                 await continueButton.First.ClickAsync();
                 Log("  Waiting for navigation after Continue click...");
-                
+
                 // Wait for navigation to complete
                 try
                 {
@@ -982,10 +982,10 @@ static async Task<bool> AutomateTeamCitySetupAsync(string teamcityUrl, string us
                 {
                     Log("  NetworkIdle timeout, checking if page changed...");
                 }
-                
+
                 await Task.Delay(3000);
                 await TakeScreenshot(page, "11_after_license_continue");
-                
+
                 // Verify we moved away from license page
                 var currentUrl = page.Url;
                 if (currentUrl.Contains("showAgreement"))
@@ -1098,13 +1098,28 @@ static async Task<bool> AutomateTeamCitySetupAsync(string teamcityUrl, string us
 
         // Wait for any welcome/getting started screens and dismiss them
         await Task.Delay(2000);
-        var skipButton = page.Locator("button:has-text('Skip'), a:has-text('Skip'), button:has-text('Close'), button:has-text('Finish')");
+
+        // Look for Skip/Close/Finish buttons, but exclude accessibility skip links
+        var skipButton = page.Locator("button:has-text('Skip'), button:has-text('Close'), button:has-text('Finish'), a.btn:has-text('Skip')");
         if (await skipButton.CountAsync() > 0)
         {
-            Log("  Found skip/close/finish button, clicking...");
-            await skipButton.First.ClickAsync();
-            await Task.Delay(2000);
-            await TakeScreenshot(page, "14d_after_skip");
+            Log("  Found skip/close/finish button, attempting to click...");
+            try
+            {
+                await skipButton.First.ClickAsync(new LocatorClickOptions { Timeout = 10000 });
+                await Task.Delay(2000);
+                await TakeScreenshot(page, "14d_after_skip");
+                Log("  Successfully clicked skip/close button");
+            }
+            catch (Exception ex)
+            {
+                Log($"  Skip button click failed (this is usually OK): {ex.Message}");
+                await TakeScreenshot(page, "14d_skip_failed");
+            }
+        }
+        else
+        {
+            Log("  No skip/close button found - proceeding to next step");
         }
 
         // Step 5.5: Handle post-setup agreement page (showAgreement.html)
@@ -1153,7 +1168,7 @@ static async Task<bool> AutomateTeamCitySetupAsync(string teamcityUrl, string us
             if (await continueAgreementButton.CountAsync() > 0)
             {
                 Log("  Found Continue button on agreement page, waiting for it to be enabled...");
-                
+
                 // Wait for button to be enabled
                 try
                 {
@@ -1164,11 +1179,11 @@ static async Task<bool> AutomateTeamCitySetupAsync(string teamcityUrl, string us
                 {
                     Log("  Warning: Timeout waiting for button, proceeding anyway...");
                 }
-                
+
                 Log("  Clicking Continue button...");
                 await continueAgreementButton.First.ClickAsync();
                 Log("  Waiting for navigation after agreement Continue...");
-                
+
                 try
                 {
                     await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 30000 });
@@ -1177,10 +1192,10 @@ static async Task<bool> AutomateTeamCitySetupAsync(string teamcityUrl, string us
                 {
                     Log("  NetworkIdle timeout, checking if page changed...");
                 }
-                
+
                 await Task.Delay(3000);
                 await TakeScreenshot(page, "14g_after_agreement_continue");
-                
+
                 // Check if we successfully left the showAgreement page
                 var urlAfterContinue = page.Url;
                 if (urlAfterContinue.Contains("showAgreement"))
