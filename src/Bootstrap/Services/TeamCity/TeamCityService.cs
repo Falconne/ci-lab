@@ -127,10 +127,41 @@ public class TeamCityService
                 return false;
             }
 
-            if (await page.Locator("input[name='username'], input[id='username']").CountAsync() > 0)
+            // Check if TeamCity is already configured (login page present)
+            var pageContent = await page.ContentAsync();
+            if (pageContent != null && pageContent.Contains("Log in to TeamCity", StringComparison.OrdinalIgnoreCase))
             {
                 LogHelper.Log("TeamCity appears to be already configured (login page detected)");
-                await TakeScreenshot(page, "already_configured");
+                await TakeScreenshot(page, "already_configured_login");
+
+                // Log in with the provided credentials
+                LogHelper.LogInfo("Logging in with provided credentials...", 1);
+                var loginUsernameField = page.Locator("input[id='username']");
+                var loginPasswordField = page.Locator("input[id='password']");
+                var loginButton = page.Locator("input[type='submit'][name='submitLogin']");
+
+                if (await loginUsernameField.CountAsync() > 0 && await loginPasswordField.CountAsync() > 0 && await loginButton.CountAsync() > 0)
+                {
+                    await loginUsernameField.FillAsync(username);
+                    await loginPasswordField.FillAsync(password);
+                    await TakeScreenshot(page, "login_form_filled");
+
+                    await loginButton.ClickAsync();
+                    await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+                    await Task.Delay(2000);
+                    await TakeScreenshot(page, "after_login");
+
+                    LogHelper.LogSuccess("Successfully logged in to already-configured TeamCity", 1);
+
+                    // Skip setup steps and go directly to token verification/creation
+                    // The token check logic will happen after this method returns
+                    return true;
+                }
+                else
+                {
+                    LogHelper.LogError("Login form fields not found despite detecting login page");
+                    return false;
+                }
             }
 
             // The rest of the original flow is preserved here; many UI interactions
