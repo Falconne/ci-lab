@@ -217,7 +217,7 @@ public class GitLabService
 
             var pushOptions = new PushOptions
             {
-                CredentialsProvider = (_url, _user, _cred) => new UsernamePasswordCredentials
+                CredentialsProvider = (url, user, cred) => new UsernamePasswordCredentials
                 {
                     Username = "root",
                     Password = token
