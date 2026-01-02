@@ -2,7 +2,7 @@ namespace Bootstrap.Services.Utilities;
 
 public static class RetryHelper
 {
-    public static async Task<T?> RetryAsync<T>(
+    public static async Task<T?> Retry<T>(
         Func<Task<T?>> operation,
         int maxAttempts = 3,
         int baseDelayMs = 2000,
@@ -30,7 +30,7 @@ public static class RetryHelper
         return null;
     }
 
-    public static async Task<bool> RetryUntilSuccessAsync(
+    public static async Task<bool> RetryUntilSuccess(
         Func<Task<bool>> operation,
         int maxAttempts = 3,
         int baseDelayMs = 2000,

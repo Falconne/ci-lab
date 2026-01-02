@@ -2,7 +2,7 @@ namespace Bootstrap.Services.Utilities;
 
 public static class HttpHelper
 {
-    public static async Task<bool> WaitForServiceAsync(
+    public static async Task<bool> WaitForService(
         HttpClient client,
         string url,
         TimeSpan timeout,

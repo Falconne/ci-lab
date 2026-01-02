@@ -13,7 +13,7 @@ public class GitLabService
         return ApiUrlHelper.BuildUrl(gitlabUrl, "api/v4", endpoint);
     }
 
-    public async Task<bool> ValidateGitLabTokenAsync(HttpClient client, string gitlabUrl, string token)
+    public async Task<bool> ValidateGitLabToken(HttpClient client, string gitlabUrl, string token)
     {
         try
         {
@@ -49,11 +49,8 @@ public class GitLabService
         }
     }
 
-    public async Task<JsonElement?> CreateGitLabProjectAsync(
-        HttpClient client,
-        string gitlabUrl,
-        string token,
-        string projectName)
+    public async Task<JsonElement?> CreateGitLabProject(HttpClient client, string gitlabUrl, string token, string projectName)
+        
     {
             var apiUrl = BuildApiUrl(gitlabUrl, "projects");
         LogHelper.Log($"Creating GitLab project '{projectName}' via {apiUrl}");
@@ -102,14 +99,14 @@ public class GitLabService
         }
     }
 
-    public async Task<bool> CreateAndPopulateGitLabProjectAsync(
+    public async Task<bool> CreateAndPopulateGitLabProject(
         HttpClient client,
         string gitlabUrl,
         string token,
         string projectName,
         int projectNumber)
     {
-        var project = await CreateGitLabProjectAsync(client, gitlabUrl, token, projectName);
+        var project = await CreateGitLabProject(client, gitlabUrl, token, projectName);
         if (project is null || !project.HasValue)
         {
             return false;
@@ -126,7 +123,7 @@ public class GitLabService
             return false;
         }
 
-        var hasCommits = await CheckGitLabProjectHasCommitsAsync(client, gitlabUrl, token, projectId);
+        var hasCommits = await CheckGitLabProjectHasCommits(client, gitlabUrl, token, projectId);
         if (hasCommits)
         {
             LogHelper.LogInfo($"Project '{projectName}' already has commits, skipping repo population", 1);
@@ -275,7 +272,7 @@ public class GitLabService
         }
     }
 
-    public async Task<bool> CheckGitLabProjectHasCommitsAsync(
+    public async Task<bool> CheckGitLabProjectHasCommits(
         HttpClient client,
         string gitlabUrl,
         string token,

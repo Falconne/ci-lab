@@ -8,6 +8,6 @@
     - Use nullable reference types and top-level statements.
     - Use var, new() and pattern matching where appropriate.
     - Do not use inner classes. Organise code into Services and Models (in appropriate folder structure).
-- As these are console applications, do not use async/await unless the library code only supports async.
+- As these are console applications, do not use async/await unless the library code only supports async. Never add Async suffix to method names, unless the method has a non-async counterpart.
 - Use dependency injection for services.
 - Prefer `HttpClientFactory` for HTTP calls.

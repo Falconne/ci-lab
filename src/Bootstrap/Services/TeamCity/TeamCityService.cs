@@ -14,7 +14,7 @@ public class TeamCityService
         return ApiUrlHelper.BuildUrl(teamcityUrl, "app/rest", endpoint);
     }
 
-    public async Task<bool> AutomateTeamCitySetupAsync(
+    public async Task<bool> AutomateTeamCitySetup(
         HttpClient client,
         string teamcityUrl,
         string username,
@@ -48,7 +48,7 @@ public class TeamCityService
             }
         }
 
-        async Task<bool> CheckForMaintenanceErrorAsync(IPage page)
+        async Task<bool> CheckForMaintenanceError(IPage page)
         {
             try
             {
@@ -69,7 +69,7 @@ public class TeamCityService
             return false; // No error
         }
 
-        async Task WaitForTextToDisappearAsync(
+        async Task WaitForTextToDisappear(
             IPage page,
             string text,
             int timeoutSeconds = 120,
@@ -139,7 +139,7 @@ public class TeamCityService
             await TakeScreenshot(page, "01_initial_page");
 
             // Check for maintenance/admin limit error early
-            if (await CheckForMaintenanceErrorAsync(page))
+            if (await CheckForMaintenanceError(page))
             {
                 return false;
             }
@@ -220,10 +220,10 @@ public class TeamCityService
                     await Task.Delay(3000);
 
                     // Wait for TeamCity database initialization message to clear
-                    await WaitForTextToDisappearAsync(page, "Creating a new database");
+                    await WaitForTextToDisappear(page, "Creating a new database");
 
                     // Also wait for server components initialization message to clear if present
-                    await WaitForTextToDisappearAsync(page, "Initializing TeamCity server components", 180);
+                    await WaitForTextToDisappear(page, "Initializing TeamCity server components", 180);
 
                     await TakeScreenshot(page, "05_after_database");
                     LogHelper.LogInfo("Database setup completed", 1);
@@ -288,7 +288,7 @@ public class TeamCityService
                     await TakeScreenshot(page, "07_after_license");
 
                     // Ensure license text disappeared
-                    await WaitForTextToDisappearAsync(page, "License Agreement for JetBrains", 30);
+                    await WaitForTextToDisappear(page, "License Agreement for JetBrains", 30);
                     var postLicenseText = await page.ContentAsync();
                     if (postLicenseText != null
                         && postLicenseText.IndexOf(
@@ -559,7 +559,7 @@ public class TeamCityService
         }
     }
 
-    public async Task<string?> TryCreateTokenViaApiAsync(
+    public async Task<string?> TryCreateTokenViaApi(
         HttpClient client,
         string teamcityUrl,
         string username,
@@ -578,7 +578,7 @@ public class TeamCityService
             "users/current/tokens"
         };
 
-        return await RetryHelper.RetryAsync(
+        return await RetryHelper.Retry(
             async () =>
             {
                 foreach (var endpoint in endpoints)
@@ -587,7 +587,7 @@ public class TeamCityService
                     LogHelper.LogInfo($"Trying endpoint: {url}", 2);
 
                     // Try XML body first
-                    var token = await TryCreateTokenWithBodyAsync(
+                    var token = await TryCreateTokenWithBody(
                         client,
                         url,
                         username,
@@ -603,7 +603,7 @@ public class TeamCityService
 
                     // Try JSON body
                     LogHelper.LogInfo("Trying with JSON body...", 2);
-                    token = await TryCreateTokenWithBodyAsync(
+                    token = await TryCreateTokenWithBody(
                         client,
                         url,
                         username,
@@ -624,7 +624,7 @@ public class TeamCityService
             baseDelayMs: 2000);
     }
 
-    private async Task<string?> TryCreateTokenWithBodyAsync(
+    private async Task<string?> TryCreateTokenWithBody(
         HttpClient client,
         string url,
         string username,
@@ -672,7 +672,7 @@ public class TeamCityService
         }
     }
 
-    public async Task<bool> ValidateTeamCityTokenAsync(HttpClient client, string teamcityUrl, string token)
+    public async Task<bool> ValidateTeamCityToken(HttpClient client, string teamcityUrl, string token)
     {
         try
         {
@@ -696,7 +696,7 @@ public class TeamCityService
         }
     }
 
-    public async Task<bool> CreateProjectAsync(HttpClient client, string teamcityUrl, string token)
+    public async Task<bool> CreateProject(HttpClient client, string teamcityUrl, string token)
     {
         var apiUrl = BuildApiUrl(teamcityUrl, "projects");
 
@@ -736,7 +736,7 @@ public class TeamCityService
         }
     }
 
-    public async Task<bool> AuthorizeAgentsAsync(HttpClient client, string teamcityUrl, string token)
+    public async Task<bool> AuthorizeAgents(HttpClient client, string teamcityUrl, string token)
     {
         var apiUrl = BuildApiUrl(teamcityUrl, "agents");
 
