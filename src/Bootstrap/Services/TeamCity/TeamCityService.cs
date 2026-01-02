@@ -9,6 +9,11 @@ namespace Bootstrap.Services.TeamCity;
 
 public class TeamCityService
 {
+    private static string BuildApiUrl(string teamcityUrl, string endpoint)
+    {
+        return ApiUrlHelper.BuildUrl(teamcityUrl, "app/rest", endpoint);
+    }
+
     public async Task<bool> AutomateTeamCitySetupAsync(
         HttpClient client,
         string teamcityUrl,
@@ -578,7 +583,7 @@ public class TeamCityService
             {
                 foreach (var endpoint in endpoints)
                 {
-                    var url = ApiUrlHelper.BuildTeamCityApiUrl(teamcityUrl, endpoint);
+                var url = BuildApiUrl(teamcityUrl, endpoint);
                     LogHelper.LogInfo($"Trying endpoint: {url}", 2);
 
                     // Try XML body first
@@ -671,7 +676,7 @@ public class TeamCityService
     {
         try
         {
-            var apiUrl = ApiUrlHelper.BuildTeamCityApiUrl(teamcityUrl, "server");
+            var apiUrl = BuildApiUrl(teamcityUrl, "server");
             var request = HttpRequestHelper.CreateWithBearerAuth(HttpMethod.Get, apiUrl, token);
 
             var response = await client.SendAsync(request);
@@ -693,7 +698,7 @@ public class TeamCityService
 
     public async Task<bool> CreateProjectAsync(HttpClient client, string teamcityUrl, string token)
     {
-        var apiUrl = ApiUrlHelper.BuildTeamCityApiUrl(teamcityUrl, "projects");
+        var apiUrl = BuildApiUrl(teamcityUrl, "projects");
 
         LogHelper.Log($"Creating TeamCity project 'Sample Project' via {apiUrl}");
 
@@ -733,7 +738,7 @@ public class TeamCityService
 
     public async Task<bool> AuthorizeAgentsAsync(HttpClient client, string teamcityUrl, string token)
     {
-        var apiUrl = ApiUrlHelper.BuildTeamCityApiUrl(teamcityUrl, "agents");
+        var apiUrl = BuildApiUrl(teamcityUrl, "agents");
 
         try
         {
@@ -781,7 +786,7 @@ public class TeamCityService
                     LogHelper.LogSuccess($"Agent {agentName} authorized", 1);
                     authorizedCount++;
 
-                    var poolApiUrl = ApiUrlHelper.BuildTeamCityApiUrl(teamcityUrl, "agentPools/id:0/agents");
+                    var poolApiUrl = BuildApiUrl(teamcityUrl, "agentPools/id:0/agents");
                     var poolRequest = HttpRequestHelper.CreateWithBearerAuth(
                         HttpMethod.Post,
                         poolApiUrl,

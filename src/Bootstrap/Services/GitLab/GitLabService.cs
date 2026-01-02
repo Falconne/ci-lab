@@ -8,11 +8,16 @@ namespace Bootstrap.Services.GitLab;
 
 public class GitLabService
 {
+    private static string BuildApiUrl(string gitlabUrl, string endpoint)
+    {
+        return ApiUrlHelper.BuildUrl(gitlabUrl, "api/v4", endpoint);
+    }
+
     public async Task<bool> ValidateGitLabTokenAsync(HttpClient client, string gitlabUrl, string token)
     {
         try
         {
-            var apiUrl = ApiUrlHelper.BuildGitLabApiUrl(gitlabUrl, "user");
+            var apiUrl = BuildApiUrl(gitlabUrl, "user");
             var request = HttpRequestHelper.CreateWithPrivateToken(HttpMethod.Get, apiUrl, token);
 
             var response = await client.SendAsync(request);
@@ -50,12 +55,12 @@ public class GitLabService
         string token,
         string projectName)
     {
-        var apiUrl = ApiUrlHelper.BuildGitLabApiUrl(gitlabUrl, "projects");
+            var apiUrl = BuildApiUrl(gitlabUrl, "projects");
         LogHelper.Log($"Creating GitLab project '{projectName}' via {apiUrl}");
 
         try
         {
-            var checkUrl = ApiUrlHelper.BuildGitLabApiUrl(gitlabUrl, $"projects?search={projectName}");
+            var checkUrl = BuildApiUrl(gitlabUrl, $"projects?search={projectName}");
             var checkRequest = HttpRequestHelper.CreateWithPrivateToken(HttpMethod.Get, checkUrl, token);
 
             var checkResponse = await client.SendAsync(checkRequest);
@@ -278,7 +283,7 @@ public class GitLabService
     {
         try
         {
-            var apiUrl = ApiUrlHelper.BuildGitLabApiUrl(
+            var apiUrl = BuildApiUrl(
                 gitlabUrl,
                 $"projects/{projectId}/repository/commits");
 

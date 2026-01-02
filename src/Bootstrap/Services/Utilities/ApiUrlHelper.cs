@@ -14,13 +14,4 @@ public static class ApiUrlHelper
         return url;
     }
 
-    public static string BuildGitLabApiUrl(string gitlabUrl, string endpoint)
-    {
-        return BuildUrl(gitlabUrl, "api/v4", endpoint);
-    }
-
-    public static string BuildTeamCityApiUrl(string teamcityUrl, string endpoint)
-    {
-        return BuildUrl(teamcityUrl, "app/rest", endpoint);
-    }
 }
