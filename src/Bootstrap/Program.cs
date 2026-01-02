@@ -38,7 +38,7 @@ var gitLabService = new GitLabService();
 
 // Wait for TeamCity first (it's often available before GitLab)
 LogHelper.Log("Waiting for TeamCity to become available...");
-var teamcityReady = await HttpHelper.WaitForServiceAsync(httpClient, teamcityUrl, TimeSpan.FromMinutes(5), allow503: true);
+var teamcityReady = await HttpHelper.WaitForServiceAsync(httpClient, teamcityUrl, TimeSpan.FromMinutes(5), 503, 401);
 if (!teamcityReady)
 {
     LogHelper.LogError("TeamCity did not become available; exiting");

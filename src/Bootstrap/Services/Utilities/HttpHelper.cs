@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
 
@@ -6,7 +7,7 @@ namespace Bootstrap.Services.Utilities;
 
 public static class HttpHelper
 {
-    public static async Task<bool> WaitForServiceAsync(HttpClient client, string url, TimeSpan timeout, bool allow503 = false)
+    public static async Task<bool> WaitForServiceAsync(HttpClient client, string url, TimeSpan timeout, params int[] extraAllowedStatusCodes)
     {
         LogHelper.Log($"Waiting for {url} (timeout {timeout.TotalSeconds}s)");
         var startTime = DateTime.UtcNow;
@@ -23,10 +24,10 @@ public static class HttpHelper
                     return true;
                 }
 
-                // If 503 is allowed (e.g., TeamCity during initial setup), treat it as ready
-                if (allow503 && response.StatusCode == System.Net.HttpStatusCode.ServiceUnavailable)
+                // If extra allowed status codes were provided (e.g., TeamCity may return 503 or 401 during setup), treat them as ready
+                if (extraAllowedStatusCodes != null && extraAllowedStatusCodes.Contains((int)response.StatusCode))
                 {
-                    LogHelper.LogInfo($"{url} responded with 503 Service Unavailable but allow503=true; continuing", 1);
+                    LogHelper.LogInfo($"{url} responded with {(int)response.StatusCode} which is allowed during startup; continuing", 1);
                     return true;
                 }
 
