@@ -1,4 +1,3 @@
-using System;
 using System.Text.Json;
 using System.Xml.Linq;
 
@@ -9,21 +8,29 @@ public static class ResponseParser
     public static string? TryParseTokenFromResponse(string responseBody)
     {
         if (string.IsNullOrWhiteSpace(responseBody))
+        {
             return null;
+        }
 
         // Try JSON parsing
         var token = TryParseJsonToken(responseBody);
         if (!string.IsNullOrWhiteSpace(token))
+        {
             return token;
+        }
 
         // Try XML parsing
         token = TryParseXmlToken(responseBody);
         if (!string.IsNullOrWhiteSpace(token))
+        {
             return token;
+        }
 
         // If response is reasonably long, assume it's the token itself
         if (responseBody.Length > 20 && responseBody.Length < 500)
+        {
             return responseBody.Trim();
+        }
 
         return null;
     }
@@ -43,7 +50,9 @@ public static class ResponseParser
                 {
                     var value = element.GetString();
                     if (!string.IsNullOrWhiteSpace(value))
+                    {
                         return value;
+                    }
                 }
             }
         }
@@ -70,12 +79,16 @@ public static class ResponseParser
                 {
                     var attr = tokenElement.Attribute(attrName);
                     if (attr != null && !string.IsNullOrWhiteSpace(attr.Value))
+                    {
                         return attr.Value;
+                    }
                 }
 
                 // Try element value
                 if (!string.IsNullOrWhiteSpace(tokenElement.Value))
+                {
                     return tokenElement.Value.Trim();
+                }
             }
         }
         catch (Exception)

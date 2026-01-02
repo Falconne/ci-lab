@@ -1,13 +1,12 @@
-using System;
-using System.Linq;
-using System.Net.Http;
-using System.Threading.Tasks;
-
 namespace Bootstrap.Services.Utilities;
 
 public static class HttpHelper
 {
-    public static async Task<bool> WaitForServiceAsync(HttpClient client, string url, TimeSpan timeout, params int[] extraAllowedStatusCodes)
+    public static async Task<bool> WaitForServiceAsync(
+        HttpClient client,
+        string url,
+        TimeSpan timeout,
+        params int[] extraAllowedStatusCodes)
     {
         LogHelper.Log($"Waiting for {url} (timeout {timeout.TotalSeconds}s)");
         var startTime = DateTime.UtcNow;
@@ -25,14 +24,20 @@ public static class HttpHelper
                 }
 
                 // If extra allowed status codes were provided (e.g., TeamCity may return 503 or 401 during setup), treat them as ready
-                if (extraAllowedStatusCodes != null && extraAllowedStatusCodes.Contains((int)response.StatusCode))
+                if (extraAllowedStatusCodes != null
+                    && extraAllowedStatusCodes.Contains((int)response.StatusCode))
                 {
-                    LogHelper.LogInfo($"{url} responded with {(int)response.StatusCode} which is allowed during startup; continuing", 1);
+                    LogHelper.LogInfo(
+                        $"{url} responded with {(int)response.StatusCode} which is allowed during startup; continuing",
+                        1);
+
                     return true;
                 }
 
                 // Got a response but not successful - log and continue waiting
-                LogHelper.LogInfo($"{url} responded with {(int)response.StatusCode}, waiting for service to be fully ready...", 1);
+                LogHelper.LogInfo(
+                    $"{url} responded with {(int)response.StatusCode}, waiting for service to be fully ready...",
+                    1);
             }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
             {

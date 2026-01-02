@@ -1,6 +1,3 @@
-using System;
-using System.Threading.Tasks;
-
 namespace Bootstrap.Services.Utilities;
 
 public static class RetryHelper
@@ -15,7 +12,9 @@ public static class RetryHelper
         {
             var result = await operation();
             if (result != null)
+            {
                 return result;
+            }
 
             if (attempt < maxAttempts)
             {
@@ -41,7 +40,9 @@ public static class RetryHelper
         {
             var success = await operation();
             if (success)
+            {
                 return true;
+            }
 
             if (attempt < maxAttempts)
             {

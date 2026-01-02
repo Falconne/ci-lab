@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-
 namespace Bootstrap.Services.Utilities;
 
 public static class EnvHelper
@@ -20,7 +15,9 @@ public static class EnvHelper
         {
             var trimmed = line.Trim();
             if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith('#'))
+            {
                 continue;
+            }
 
             var parts = trimmed.Split('=', 2);
             if (parts.Length == 2)

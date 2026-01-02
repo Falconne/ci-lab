@@ -1,14 +1,8 @@
-using System;
-using System.IO;
-using System.Linq;
-using System.Net;
-using System.Net.Http;
-using System.Net.Http.Json;
-using System.Text;
-using System.Text.Json;
-using System.Threading.Tasks;
-using LibGit2Sharp;
 using Bootstrap.Services.Utilities;
+using LibGit2Sharp;
+using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
 
 namespace Bootstrap.Services.GitLab;
 
@@ -32,11 +26,15 @@ public class GitLabService
 
             // Log detailed error information when validation fails
             var responseBody = await response.Content.ReadAsStringAsync();
-            LogHelper.LogError($"GitLab token validation failed: {(int)response.StatusCode} {response.StatusCode}", 1);
+            LogHelper.LogError(
+                $"GitLab token validation failed: {(int)response.StatusCode} {response.StatusCode}",
+                1);
+
             if (!string.IsNullOrWhiteSpace(responseBody) && responseBody.Length < 500)
             {
                 LogHelper.LogError($"Response: {responseBody}", 1);
             }
+
             return false;
         }
         catch (Exception ex)
@@ -46,7 +44,11 @@ public class GitLabService
         }
     }
 
-    public async Task<JsonElement?> CreateGitLabProjectAsync(HttpClient client, string gitlabUrl, string token, string projectName)
+    public async Task<JsonElement?> CreateGitLabProjectAsync(
+        HttpClient client,
+        string gitlabUrl,
+        string token,
+        string projectName)
     {
         var apiUrl = ApiUrlHelper.BuildGitLabApiUrl(gitlabUrl, "projects");
         LogHelper.Log($"Creating GitLab project '{projectName}' via {apiUrl}");
@@ -95,7 +97,12 @@ public class GitLabService
         }
     }
 
-    public async Task<bool> CreateAndPopulateGitLabProjectAsync(HttpClient client, string gitlabUrl, string token, string projectName, int projectNumber)
+    public async Task<bool> CreateAndPopulateGitLabProjectAsync(
+        HttpClient client,
+        string gitlabUrl,
+        string token,
+        string projectName,
+        int projectNumber)
     {
         var project = await CreateGitLabProjectAsync(client, gitlabUrl, token, projectName);
         if (project is null || !project.HasValue)
@@ -108,7 +115,9 @@ public class GitLabService
 
         if (string.IsNullOrEmpty(httpUrlToRepo))
         {
-            Console.Error.WriteLine($"[bootstrap] ERROR: Could not get repository URL for project '{projectName}'");
+            Console.Error.WriteLine(
+                $"[bootstrap] ERROR: Could not get repository URL for project '{projectName}'");
+
             return false;
         }
 
@@ -128,63 +137,69 @@ public class GitLabService
             var sleepDuration = random.Next(10, 61);
 
             var buildShContent = $"""
-                #!/bin/bash
-                set -e
+                                  #!/bin/bash
+                                  set -e
 
-                echo "=========================================="
-                echo "Starting build for {projectName}"
-                echo "Build started at: $(date)"
-                echo "=========================================="
-                echo ""
-                echo "Running build steps..."
-                echo "- Preparing environment..."
-                echo "- Compiling sources..."
-                echo ""
+                                  echo "=========================================="
+                                  echo "Starting build for {projectName}"
+                                  echo "Build started at: $(date)"
+                                  echo "=========================================="
+                                  echo ""
+                                  echo "Running build steps..."
+                                  echo "- Preparing environment..."
+                                  echo "- Compiling sources..."
+                                  echo ""
 
-                # Simulated build time
-                sleep {sleepDuration}
+                                  # Simulated build time
+                                  sleep {sleepDuration}
 
-                echo ""
-                echo "=========================================="
-                echo "Build completed successfully!"
-                echo "Build finished at: $(date)"
-                echo "Total build time: {sleepDuration} seconds"
-                echo "=========================================="
+                                  echo ""
+                                  echo "=========================================="
+                                  echo "Build completed successfully!"
+                                  echo "Build finished at: $(date)"
+                                  echo "Total build time: {sleepDuration} seconds"
+                                  echo "=========================================="
 
-                """;
+                                  """;
 
             var buildShPath = Path.Combine(tempDir, "build.sh");
             File.WriteAllText(buildShPath, buildShContent);
 
             if (!OperatingSystem.IsWindows())
             {
-                File.SetUnixFileMode(buildShPath, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute |
-                                                  UnixFileMode.GroupRead | UnixFileMode.GroupExecute |
-                                                  UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
+                File.SetUnixFileMode(
+                    buildShPath,
+                    UnixFileMode.UserRead
+                    | UnixFileMode.UserWrite
+                    | UnixFileMode.UserExecute
+                    | UnixFileMode.GroupRead
+                    | UnixFileMode.GroupExecute
+                    | UnixFileMode.OtherRead
+                    | UnixFileMode.OtherExecute);
             }
 
             var readmeContent = $"""
-                # {projectName}
+                                 # {projectName}
 
-                This is test project #{projectNumber} for the CI lab environment.
+                                 This is test project #{projectNumber} for the CI lab environment.
 
-                ## Build
+                                 ## Build
 
-                To build this project, run:
+                                 To build this project, run:
 
-                ```bash
-                ./build.sh
-                ```
+                                 ```bash
+                                 ./build.sh
+                                 ```
 
-                The build simulates compilation and takes approximately {sleepDuration} seconds.
+                                 The build simulates compilation and takes approximately {sleepDuration} seconds.
 
-                ## Project Details
+                                 ## Project Details
 
-                - Project Name: {projectName}
-                - Project Number: {projectNumber}
-                - Build Duration: ~{sleepDuration}s
+                                 - Project Name: {projectName}
+                                 - Project Number: {projectNumber}
+                                 - Build Duration: ~{sleepDuration}s
 
-                """;
+                                 """;
 
             var readmePath = Path.Combine(tempDir, "README.md");
             File.WriteAllText(readmePath, readmeContent);
@@ -219,11 +234,13 @@ public class GitLabService
                 var refSpec = $"refs/heads/{localName}:refs/heads/{remoteName}";
                 repo.Network.Push(remote, refSpec, pushOptions);
 
-                repo.Branches.Update(localBranch, b =>
-                {
-                    b.Remote = "origin";
-                    b.UpstreamBranch = $"refs/heads/{remoteName}";
-                });
+                repo.Branches.Update(
+                    localBranch,
+                    b =>
+                    {
+                        b.Remote = "origin";
+                        b.UpstreamBranch = $"refs/heads/{remoteName}";
+                    });
             }
             catch (Exception ex)
             {
@@ -253,11 +270,18 @@ public class GitLabService
         }
     }
 
-    public async Task<bool> CheckGitLabProjectHasCommitsAsync(HttpClient client, string gitlabUrl, string token, int projectId)
+    public async Task<bool> CheckGitLabProjectHasCommitsAsync(
+        HttpClient client,
+        string gitlabUrl,
+        string token,
+        int projectId)
     {
         try
         {
-            var apiUrl = ApiUrlHelper.BuildGitLabApiUrl(gitlabUrl, $"projects/{projectId}/repository/commits");
+            var apiUrl = ApiUrlHelper.BuildGitLabApiUrl(
+                gitlabUrl,
+                $"projects/{projectId}/repository/commits");
+
             var request = HttpRequestHelper.CreateWithPrivateToken(HttpMethod.Get, apiUrl, token);
 
             var response = await client.SendAsync(request);

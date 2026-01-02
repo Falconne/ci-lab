@@ -1,5 +1,3 @@
-using System;
-
 namespace Bootstrap.Services.Utilities;
 
 public static class ApiUrlHelper
@@ -12,6 +10,7 @@ public static class ApiUrlHelper
             var trimmedSegment = segment.TrimStart('/');
             url = $"{url}/{trimmedSegment}";
         }
+
         return url;
     }
 

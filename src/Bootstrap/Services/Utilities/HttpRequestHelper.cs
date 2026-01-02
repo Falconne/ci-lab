@@ -1,5 +1,3 @@
-using System;
-using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 
@@ -14,7 +12,11 @@ public static class HttpRequestHelper
         return request;
     }
 
-    public static HttpRequestMessage CreateWithBasicAuth(HttpMethod method, string url, string username, string password)
+    public static HttpRequestMessage CreateWithBasicAuth(
+        HttpMethod method,
+        string url,
+        string username,
+        string password)
     {
         var request = new HttpRequestMessage(method, url);
         var auth = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{username}:{password}"));

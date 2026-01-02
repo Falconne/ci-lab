@@ -1,12 +1,13 @@
-using System;
-
 namespace Bootstrap.Services.Utilities;
 
 public static class LogHelper
 {
     private const string Prefix = "[bootstrap]";
 
-    public static void Log(string message) => Console.WriteLine($"{Prefix} {message}");
+    public static void Log(string message)
+    {
+        Console.WriteLine($"{Prefix} {message}");
+    }
 
     public static void LogError(string message, int indent = 0)
     {
