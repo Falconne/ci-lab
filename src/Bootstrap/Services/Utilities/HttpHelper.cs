@@ -8,7 +8,7 @@ public static class HttpHelper
         TimeSpan timeout,
         params int[] extraAllowedStatusCodes)
     {
-        LogHelper.Log($"Waiting for {url} (timeout {timeout.TotalSeconds}s)");
+        Logging.Log($"Waiting for {url} (timeout {timeout.TotalSeconds}s)");
         var startTime = DateTime.UtcNow;
         var interval = TimeSpan.FromSeconds(10);
 
@@ -19,7 +19,7 @@ public static class HttpHelper
                 var response = await client.GetAsync(url);
                 if (response.IsSuccessStatusCode)
                 {
-                    LogHelper.Log($"{url} is ready: {(int)response.StatusCode}");
+                    Logging.Log($"{url} is ready: {(int)response.StatusCode}");
                     return true;
                 }
 
@@ -27,7 +27,7 @@ public static class HttpHelper
                 if (extraAllowedStatusCodes != null
                     && extraAllowedStatusCodes.Contains((int)response.StatusCode))
                 {
-                    LogHelper.LogInfo(
+                    Logging.LogInfo(
                         $"{url} responded with {(int)response.StatusCode} which is allowed during startup; continuing",
                         1);
 
@@ -35,25 +35,25 @@ public static class HttpHelper
                 }
 
                 // Got a response but not successful - log and continue waiting
-                LogHelper.LogInfo(
+                Logging.LogInfo(
                     $"{url} responded with {(int)response.StatusCode}, waiting for service to be fully ready...",
                     1);
             }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
             {
-                LogHelper.LogInfo($"Connection failed: {ex.Message}", 1);
+                Logging.LogInfo($"Connection failed: {ex.Message}", 1);
             }
 
             var elapsed = DateTime.UtcNow - startTime;
             if (elapsed > timeout)
             {
-                LogHelper.LogError($"Timeout waiting for {url} after {(int)elapsed.TotalSeconds}s");
+                Logging.LogError($"Timeout waiting for {url} after {(int)elapsed.TotalSeconds}s");
                 return false;
             }
 
             if ((int)elapsed.TotalSeconds % 30 == 0)
             {
-                LogHelper.Log($"Still waiting for {url}... ({(int)elapsed.TotalSeconds}s elapsed)");
+                Logging.Log($"Still waiting for {url}... ({(int)elapsed.TotalSeconds}s elapsed)");
             }
 
             await Task.Delay(interval);

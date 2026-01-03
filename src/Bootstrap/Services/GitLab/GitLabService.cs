@@ -25,26 +25,26 @@ public class GitLabService
             {
                 var userData = await response.Content.ReadFromJsonAsync<JsonElement>();
                 var username = userData.GetProperty("username").GetString();
-                LogHelper.LogInfo($"Authenticated as: {username}", 1);
+                Logging.LogInfo($"Authenticated as: {username}", 1);
                 return true;
             }
 
             // Log detailed error information when validation fails
             var responseBody = await response.Content.ReadAsStringAsync();
-            LogHelper.LogError(
+            Logging.LogError(
                 $"GitLab token validation failed: {(int)response.StatusCode} {response.StatusCode}",
                 1);
 
             if (!string.IsNullOrWhiteSpace(responseBody) && responseBody.Length < 500)
             {
-                LogHelper.LogError($"Response: {responseBody}", 1);
+                Logging.LogError($"Response: {responseBody}", 1);
             }
 
             return false;
         }
         catch (Exception ex)
         {
-            LogHelper.LogError($"Validation error: {ex.Message}", 1);
+            Logging.LogError($"Validation error: {ex.Message}", 1);
             return false;
         }
     }
@@ -53,7 +53,7 @@ public class GitLabService
         
     {
             var apiUrl = BuildApiUrl(gitlabUrl, "projects");
-        LogHelper.Log($"Creating GitLab project '{projectName}' via {apiUrl}");
+        Logging.Log($"Creating GitLab project '{projectName}' via {apiUrl}");
 
         try
         {
@@ -70,7 +70,7 @@ public class GitLabService
                     {
                         if (proj.GetProperty("name").GetString() == projectName)
                         {
-                            LogHelper.LogInfo($"Project '{projectName}' already exists", 1);
+                            Logging.LogInfo($"Project '{projectName}' already exists", 1);
                             return proj;
                         }
                     }
@@ -85,16 +85,16 @@ public class GitLabService
 
             if (response.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created)
             {
-                LogHelper.LogSuccess($"Project '{projectName}' created", 1);
+                Logging.LogSuccess($"Project '{projectName}' created", 1);
                 return JsonSerializer.Deserialize<JsonElement>(content);
             }
 
-            LogHelper.LogError($"GitLab API error {(int)response.StatusCode}: {content}");
+            Logging.LogError($"GitLab API error {(int)response.StatusCode}: {content}");
             return null;
         }
         catch (Exception ex)
         {
-            LogHelper.LogError($"Failed to call GitLab API: {ex.Message}");
+            Logging.LogError($"Failed to call GitLab API: {ex.Message}");
             return null;
         }
     }
@@ -126,7 +126,7 @@ public class GitLabService
         var hasCommits = await CheckGitLabProjectHasCommits(client, gitlabUrl, token, projectId);
         if (hasCommits)
         {
-            LogHelper.LogInfo($"Project '{projectName}' already has commits, skipping repo population", 1);
+            Logging.LogInfo($"Project '{projectName}' already has commits, skipping repo population", 1);
             return true;
         }
 
@@ -249,12 +249,12 @@ public class GitLabService
                 throw new Exception($"Git push failed for branch '{localName}': {ex.Message}", ex);
             }
 
-            LogHelper.LogSuccess($"Repository populated and pushed to '{projectName}'", 1);
+            Logging.LogSuccess($"Repository populated and pushed to '{projectName}'", 1);
             return true;
         }
         catch (Exception ex)
         {
-            LogHelper.LogError($"Failed to populate project '{projectName}': {ex.Message}");
+            Logging.LogError($"Failed to populate project '{projectName}': {ex.Message}");
             return false;
         }
         finally
