@@ -13,7 +13,7 @@ public class GitLabService
         return ApiUrlHelper.BuildUrl(gitlabUrl, "api/v4", endpoint);
     }
 
-    public async Task<bool> ValidateGitLabToken(HttpClient client, string gitlabUrl, string token)
+    public static async Task<bool> ValidateGitLabToken(HttpClient client, string gitlabUrl, string token)
     {
         try
         {
@@ -49,10 +49,14 @@ public class GitLabService
         }
     }
 
-    public async Task<JsonElement?> CreateGitLabProject(HttpClient client, string gitlabUrl, string token, string projectName)
-        
+    public static async Task<JsonElement?> CreateGitLabProject(
+        HttpClient client,
+        string gitlabUrl,
+        string token,
+        string projectName)
+
     {
-            var apiUrl = BuildApiUrl(gitlabUrl, "projects");
+        var apiUrl = BuildApiUrl(gitlabUrl, "projects");
         Logging.Log($"Creating GitLab project '{projectName}' via {apiUrl}");
 
         try
@@ -107,7 +111,7 @@ public class GitLabService
         int projectNumber)
     {
         var project = await CreateGitLabProject(client, gitlabUrl, token, projectName);
-        if (project is null || !project.HasValue)
+        if (project is null)
         {
             return false;
         }
@@ -117,7 +121,7 @@ public class GitLabService
 
         if (string.IsNullOrEmpty(httpUrlToRepo))
         {
-            Console.Error.WriteLine(
+            await Console.Error.WriteLineAsync(
                 $"[bootstrap] ERROR: Could not get repository URL for project '{projectName}'");
 
             return false;
@@ -165,7 +169,7 @@ public class GitLabService
                                   """;
 
             var buildShPath = Path.Combine(tempDir, "build.sh");
-            File.WriteAllText(buildShPath, buildShContent);
+            await File.WriteAllTextAsync(buildShPath, buildShContent);
 
             if (!OperatingSystem.IsWindows())
             {
@@ -204,7 +208,7 @@ public class GitLabService
                                  """;
 
             var readmePath = Path.Combine(tempDir, "README.md");
-            File.WriteAllText(readmePath, readmeContent);
+            await File.WriteAllTextAsync(readmePath, readmeContent);
 
             Repository.Init(tempDir);
             using var repo = new Repository(tempDir);

@@ -161,7 +161,7 @@ var gitlabToken = await GetAndValidateTokenAsync(
     gitlabUrl,
     "GITLAB_TOKEN",
     envFullPath,
-    gitLabService.ValidateGitLabToken);
+    GitLabService.ValidateGitLabToken);
 
 if (string.IsNullOrEmpty(gitlabToken))
 {
