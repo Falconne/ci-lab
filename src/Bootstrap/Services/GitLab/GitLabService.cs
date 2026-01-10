@@ -3,6 +3,7 @@ using LibGit2Sharp;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Bootstrap.Services.GitLab.Entities;
 
 namespace Bootstrap.Services.GitLab;
 
@@ -23,8 +24,8 @@ public class GitLabService
             var response = await client.SendAsync(request);
             if (response.IsSuccessStatusCode)
             {
-                var userData = await response.Content.ReadFromJsonAsync<JsonElement>();
-                var username = userData.GetProperty("username").GetString();
+                var user = await response.Content.ReadFromJsonAsync<GitLabUser>();
+                var username = user?.Username;
                 Logging.LogInfo($"Authenticated as: {username}", 1);
                 return true;
             }
@@ -67,15 +68,17 @@ public class GitLabService
             var checkResponse = await client.SendAsync(checkRequest);
             if (checkResponse.IsSuccessStatusCode)
             {
-                var existingProjects = await checkResponse.Content.ReadFromJsonAsync<JsonElement[]>();
+                var existingProjects = await checkResponse.Content.ReadFromJsonAsync<GitLabProject[]>();
                 if (existingProjects is not null)
                 {
                     foreach (var proj in existingProjects)
                     {
-                        if (proj.GetProperty("name").GetString() == projectName)
+                        if (proj.Name == projectName)
                         {
                             Logging.LogInfo($"Project '{projectName}' already exists", 1);
-                            return proj;
+                            // Convert to JsonElement to preserve existing return contract
+                            var json = JsonSerializer.SerializeToElement(proj);
+                            return json;
                         }
                     }
                 }
@@ -90,7 +93,20 @@ public class GitLabService
             if (response.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created)
             {
                 Logging.LogSuccess($"Project '{projectName}' created", 1);
-                return JsonSerializer.Deserialize<JsonElement>(content);
+                // Deserialize to GitLabProject then return as JsonElement to keep caller expectations
+                try
+                {
+                    var proj = JsonSerializer.Deserialize<GitLabProject>(content);
+                    if (proj is not null)
+                    {
+                        return JsonSerializer.SerializeToElement(proj);
+                    }
+                }
+                catch
+                {
+                    return JsonSerializer.Deserialize<JsonElement>(content);
+                }
+                return null;
             }
 
             Logging.LogError($"GitLab API error {(int)response.StatusCode}: {content}");
@@ -118,6 +134,20 @@ public class GitLabService
 
         var projectId = project.Value.GetProperty("id").GetInt32();
         var httpUrlToRepo = project.Value.GetProperty("http_url_to_repo").GetString();
+
+        // If possible, map JsonElement to strong type for clarity
+        try
+        {
+            var mapped = JsonSerializer.Deserialize<GitLabProject>(project.Value.GetRawText());
+            if (mapped is not null)
+            {
+                projectId = mapped.Id;
+                httpUrlToRepo = mapped.HttpUrlToRepo ?? httpUrlToRepo;
+            }
+        }
+        catch
+        {
+        }
 
         if (string.IsNullOrEmpty(httpUrlToRepo))
         {
@@ -299,7 +329,7 @@ public class GitLabService
 
             if (response.IsSuccessStatusCode)
             {
-                var commits = await response.Content.ReadFromJsonAsync<JsonElement[]>();
+                var commits = await response.Content.ReadFromJsonAsync<GitLabCommit[]>();
                 return commits is not null && commits.Length > 0;
             }
 
