@@ -49,7 +49,7 @@ public class GitLabService
         }
     }
 
-    public static async Task<GitLabProject?> CreateGitLabProject(
+    public static async Task<GitLabProject> CreateGitLabProject(
         HttpClient client,
         string gitlabUrl,
         string token,
@@ -100,7 +100,7 @@ public class GitLabService
 
             var errorContent = await response.Content.ReadAsStringAsync();
             Log.Error($"GitLab API error {(int)response.StatusCode}: {errorContent}");
-            return null;
+            throw new InvalidOperationException($"Failed to create GitLab project '{projectName}': {(int)response.StatusCode} {response.StatusCode} - {errorContent}");
         }
         catch (Exception ex)
         {
@@ -117,10 +117,6 @@ public class GitLabService
         int projectNumber)
     {
         var project = await CreateGitLabProject(client, gitlabUrl, token, projectName);
-        if (project is null)
-        {
-            return false;
-        }
 
         var projectId = project.Id;
         var httpUrlToRepo = project.HttpUrlToRepo;
