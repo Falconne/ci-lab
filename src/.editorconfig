@@ -308,3 +308,7 @@ tab_width = 4
 indent_style = space
 indent_size = 4
 tab_width = 4
+# Markdown files: use 2 space indentation
+[*.md]
+indent_style = space
+indent_size = 2
