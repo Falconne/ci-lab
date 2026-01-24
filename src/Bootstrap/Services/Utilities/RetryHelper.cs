@@ -22,7 +22,7 @@ public static class RetryHelper
                     ? Math.Min(baseDelayMs * (int)Math.Pow(2, attempt - 1), 10000)
                     : baseDelayMs;
 
-                Logging.LogInfo($"Waiting {delay}ms before retry...", 1);
+                Logging.Log.Information($"Waiting {delay}ms before retry...");
                 await Task.Delay(delay);
             }
         }
