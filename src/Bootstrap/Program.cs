@@ -22,11 +22,13 @@ using var httpClient =
     new HttpClient(
         new HttpClientHandler
         {
-            ServerCertificateCustomValidationCallback = (_, _, _, _) => true, UseCookies = false
-        }) { Timeout = TimeSpan.FromSeconds(10) };
+            ServerCertificateCustomValidationCallback = (_, _, _, _) => true,
+            UseCookies = false
+        })
+    { Timeout = TimeSpan.FromSeconds(10) };
 
 // Create service instances
-using var browserService = new BrowserAutomationService();
+using var browserService = new PlaywrightService();
 var teamCityService = new TeamCityBootstrapService(browserService);
 var gitLabService = new GitLabService();
 

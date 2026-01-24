@@ -2,7 +2,7 @@ using Microsoft.Playwright;
 
 namespace Bootstrap.Services.Utilities;
 
-public class BrowserAutomationService : IDisposable
+public class PlaywrightService : IDisposable
 {
     private IBrowser? _browser;
 

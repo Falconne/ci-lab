@@ -1,5 +1,4 @@
 using Bootstrap.Services.Utilities;
-using Microsoft.Playwright;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text;
@@ -9,9 +8,9 @@ namespace Bootstrap.Services.TeamCity;
 
 public class TeamCityBootstrapService
 {
-    private readonly BrowserAutomationService _browserService;
+    private readonly PlaywrightService _browserService;
 
-    public TeamCityBootstrapService(BrowserAutomationService browserService)
+    public TeamCityBootstrapService(PlaywrightService browserService)
     {
         _browserService = browserService;
     }
@@ -92,7 +91,10 @@ public class TeamCityBootstrapService
             Logging.Log("Step 1: Checking for data directory configuration screen");
             await _browserService.TakeScreenshotAsync("02_before_data_directory");
 
-            var proceedButton = _browserService.GetLocator("button:has-text('Proceed'), input[value='Proceed']").First;
+            var proceedButton = _browserService
+                .GetLocator("button:has-text('Proceed'), input[value='Proceed']")
+                .First;
+
             if (await proceedButton.CountAsync() > 0)
             {
                 Logging.LogInfo("Found Proceed button, clicking...", 1);
@@ -106,7 +108,9 @@ public class TeamCityBootstrapService
             await Task.Delay(2000);
             await _browserService.TakeScreenshotAsync("04_before_database");
 
-            var dbProceedButton = _browserService.GetLocator("button:has-text('Proceed'), input[value='Proceed']");
+            var dbProceedButton =
+                _browserService.GetLocator("button:has-text('Proceed'), input[value='Proceed']");
+
             const int maxWaitForDb = 60; // Wait up to 60 seconds for DB initialization
             for (var i = 0; i < maxWaitForDb; i++)
             {
@@ -119,7 +123,9 @@ public class TeamCityBootstrapService
                     await _browserService.WaitForTextToDisappearAsync("Creating a new database");
 
                     // Also wait for server components initialization message to clear if present
-                    await _browserService.WaitForTextToDisappearAsync("Initializing TeamCity server components", 180);
+                    await _browserService.WaitForTextToDisappearAsync(
+                        "Initializing TeamCity server components",
+                        180);
 
                     await _browserService.TakeScreenshotAsync("05_after_database");
                     Logging.LogInfo("Database setup completed", 1);
@@ -169,7 +175,10 @@ public class TeamCityBootstrapService
                         await _browserService.TakeScreenshotAsync("07_after_license");
 
                         // Ensure license text disappeared
-                        await _browserService.WaitForTextToDisappearAsync("License Agreement for JetBrains", 30);
+                        await _browserService.WaitForTextToDisappearAsync(
+                            "License Agreement for JetBrains",
+                            30);
+
                         var postLicenseText = await _browserService.GetPageContentAsync();
                         if (postLicenseText.IndexOf(
                                 "License Agreement for JetBrains",
@@ -199,7 +208,9 @@ public class TeamCityBootstrapService
             await Task.Delay(2000);
             await _browserService.TakeScreenshotAsync("08_before_admin_creation");
 
-            var usernameField = _browserService.GetLocator("input[name='username'], input[id='input_teamcityUsername']");
+            var usernameField =
+                _browserService.GetLocator("input[name='username'], input[id='input_teamcityUsername']");
+
             if (await usernameField.CountAsync() > 0)
             {
                 Logging.LogInfo("Found admin creation form, filling in details...", 1);
@@ -218,7 +229,11 @@ public class TeamCityBootstrapService
 
                 if (await confirmPasswordField.CountAsync() > 0)
                 {
-                    await _browserService.FillFormFieldAsync(confirmPasswordField, password, "confirm password");
+                    await _browserService.FillFormFieldAsync(
+                        confirmPasswordField,
+                        password,
+                        "confirm password");
+
                     await Task.Delay(300);
                 }
 
@@ -230,7 +245,11 @@ public class TeamCityBootstrapService
                 if (await createAccountButton.CountAsync() > 0)
                 {
                     Logging.LogInfo("Submitting admin account creation...", 1);
-                    await _browserService.ClickAndWaitAsync(createAccountButton, "Create Account button", 5000);
+                    await _browserService.ClickAndWaitAsync(
+                        createAccountButton,
+                        "Create Account button",
+                        5000);
+
                     await _browserService.TakeScreenshotAsync("10_after_admin_creation");
                     Logging.LogSuccess("Admin account created successfully", 1);
                 }
@@ -297,7 +316,9 @@ public class TeamCityBootstrapService
 
                 if (await tokenNameInput.CountAsync() == 0)
                 {
-                    var dialog = _browserService.GetLocator("[role='dialog'], div.modal, div[aria-modal='true']");
+                    var dialog =
+                        _browserService.GetLocator("[role='dialog'], div.modal, div[aria-modal='true']");
+
                     if (await dialog.CountAsync() > 0)
                     {
                         var innerInput = dialog.First.Locator("input, textarea, [contenteditable='true']");
@@ -312,7 +333,11 @@ public class TeamCityBootstrapService
                 {
                     try
                     {
-                        await _browserService.FillFormFieldAsync(tokenNameInput, "bootstrap-automation", "token name");
+                        await _browserService.FillFormFieldAsync(
+                            tokenNameInput,
+                            "bootstrap-automation",
+                            "token name");
+
                         await Task.Delay(500);
                         await _browserService.TakeScreenshotAsync("20b_token_name_filled");
 
@@ -321,7 +346,11 @@ public class TeamCityBootstrapService
 
                         if (await createButton.CountAsync() > 0)
                         {
-                            await _browserService.ClickAndWaitAsync(createButton, "Create/Generate button", 20);
+                            await _browserService.ClickAndWaitAsync(
+                                createButton,
+                                "Create/Generate button",
+                                20);
+
                             await Task.Delay(2000);
                             await _browserService.TakeScreenshotAsync("21_token_created");
                             // Wait for the created token element to appear (#createdToken) or the accessTokenValue row to be shown
@@ -336,11 +365,15 @@ public class TeamCityBootstrapService
 
                                 if (await createdTokenLocator.CountAsync() > 0)
                                 {
-                                    var token = await _browserService.GetTextContentAsync(createdTokenLocator);
+                                    var token =
+                                        await _browserService.GetTextContentAsync(createdTokenLocator);
+
                                     if (string.IsNullOrWhiteSpace(token))
                                     {
                                         // Sometimes the token may be in a child or as a value attribute
-                                        token = await _browserService.GetAttributeAsync(createdTokenLocator, "value");
+                                        token = await _browserService.GetAttributeAsync(
+                                            createdTokenLocator,
+                                            "value");
                                     }
 
                                     if (!string.IsNullOrWhiteSpace(token))
@@ -400,7 +433,11 @@ public class TeamCityBootstrapService
                         if (await fallbackSubmit.CountAsync() > 0)
                         {
                             Logging.LogInfo("Attempting fallback submit for token creation", 2);
-                            await _browserService.ClickAndWaitAsync(fallbackSubmit, "fallback submit button", 20);
+                            await _browserService.ClickAndWaitAsync(
+                                fallbackSubmit,
+                                "fallback submit button",
+                                20);
+
                             await Task.Delay(1500);
                             await _browserService.TakeScreenshotAsync("21_token_created_fallback");
                         }
