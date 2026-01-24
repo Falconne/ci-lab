@@ -132,8 +132,19 @@ public class GitLabService
             return false;
         }
 
-        var projectId = project.Value.GetProperty("id").GetInt32();
-        var httpUrlToRepo = project.Value.GetProperty("http_url_to_repo").GetString();
+        int projectId = 0;
+        string? httpUrlToRepo = null;
+
+        // Try to get properties safely
+        if (project.Value.TryGetProperty("id", out var idProp))
+        {
+            projectId = idProp.GetInt32();
+        }
+
+        if (project.Value.TryGetProperty("http_url_to_repo", out var urlProp))
+        {
+            httpUrlToRepo = urlProp.GetString();
+        }
 
         // If possible, map JsonElement to strong type for clarity
         try
