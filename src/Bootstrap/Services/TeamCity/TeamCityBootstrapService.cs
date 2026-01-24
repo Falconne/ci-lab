@@ -203,7 +203,7 @@ public class TeamCityBootstrapService
         await _browserService.TakeScreenshot("06_before_license");
 
         var pageText = await _browserService.GetPageContent();
-        if (pageText.IndexOf("License Agreement for JetBrains", StringComparison.OrdinalIgnoreCase) < 0)
+        if (!pageText.Contains("License Agreement for JetBrains", StringComparison.OrdinalIgnoreCase))
         {
             Logging.LogInfo("License page not detected, skipping license acceptance step", 1);
             return true;
@@ -251,10 +251,9 @@ public class TeamCityBootstrapService
         }
 
         var postLicenseText = await _browserService.GetPageContent();
-        if (postLicenseText.IndexOf(
+        if (postLicenseText.Contains(
                 "License Agreement for JetBrains",
-                StringComparison.OrdinalIgnoreCase)
-            >= 0)
+                StringComparison.OrdinalIgnoreCase))
         {
             Logging.LogError("License acceptance did not complete successfully");
             await _browserService.TakeScreenshot("error_license_still_present");

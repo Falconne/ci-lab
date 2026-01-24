@@ -107,7 +107,7 @@ public class PlaywrightService : IDisposable
             try
             {
                 var pageContent = await Page.ContentAsync();
-                if (pageContent.IndexOf(text, StringComparison.OrdinalIgnoreCase) < 0)
+                if (!pageContent.Contains(text, StringComparison.OrdinalIgnoreCase))
                 {
                     return true;
                 }
