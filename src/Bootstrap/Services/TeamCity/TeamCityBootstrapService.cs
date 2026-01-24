@@ -153,7 +153,6 @@ public class TeamCityBootstrapService
     private async Task<bool> HandleDatabaseSetup()
     {
         Logging.Log("Step 2: Checking for database setup screen");
-        await Task.Delay(2000);
         await _browserService.TakeScreenshot("04_before_database");
 
         var dbProceedButton =
@@ -201,7 +200,6 @@ public class TeamCityBootstrapService
     private async Task<bool> HandleLicenseAgreement()
     {
         Logging.Log("Step 3: Checking for license agreement");
-        await Task.Delay(2000);
         await _browserService.TakeScreenshot("06_before_license");
 
         var pageText = await _browserService.GetPageContent();
@@ -270,7 +268,6 @@ public class TeamCityBootstrapService
     private async Task HandleAdminAccountCreation(string username, string password)
     {
         Logging.Log("Step 4: Checking for admin account creation");
-        await Task.Delay(2000);
         await _browserService.TakeScreenshot("08_before_admin_creation");
 
         var usernameField =
