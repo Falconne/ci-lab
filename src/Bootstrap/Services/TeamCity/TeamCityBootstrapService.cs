@@ -44,20 +44,19 @@ public class TeamCityBootstrapService
                 return false;
             }
 
-            if (await HandleAlreadyConfiguredLogin(username, password))
+            if (!await IsAccountAlreadyCreated(username, password))
             {
-                return true;
+                await HandleDataDirectoryConfiguration();
+                await HandleDatabaseSetup();
+
+                if (!await HandleLicenseAgreement())
+                {
+                    return false;
+                }
+
+                await HandleAdminAccountCreation(username, password);
             }
 
-            await HandleDataDirectoryConfiguration();
-            await HandleDatabaseSetup();
-
-            if (!await HandleLicenseAgreement())
-            {
-                return false;
-            }
-
-            await HandleAdminAccountCreation(username, password);
             await HandleTokenCreation(teamcityUrl);
 
             await _browserService.TakeScreenshot("22_final_state");
@@ -94,7 +93,7 @@ public class TeamCityBootstrapService
         return false;
     }
 
-    private async Task<bool> HandleAlreadyConfiguredLogin(string username, string password)
+    private async Task<bool> IsAccountAlreadyCreated(string username, string password)
     {
         var pageContent = await _browserService.GetPageContent();
         if (!pageContent.Contains("Log in to TeamCity", StringComparison.OrdinalIgnoreCase))
