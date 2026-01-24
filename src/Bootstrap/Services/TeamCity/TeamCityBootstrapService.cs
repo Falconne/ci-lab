@@ -1,4 +1,5 @@
 using Bootstrap.Services.Utilities;
+using Bootstrap.Entities.TeamCity;
 using Serilog;
 using System.Net;
 using System.Net.Http.Json;
@@ -710,20 +711,18 @@ public class TeamCityBootstrapService
                 return false;
             }
 
-            var agentsData = await listResponse.Content.ReadFromJsonAsync<JsonElement>();
-            if (!agentsData.TryGetProperty("agent", out var agents))
+            var agentsResponse = await listResponse.Content.ReadFromJsonAsync<TeamCityAgentsResponse>();
+            if (agentsResponse?.Agent is null || agentsResponse.Agent.Length == 0)
             {
                 Log.Information("No unauthorized agents found");
                 return true;
             }
 
             var authorizedCount = 0;
-            foreach (var agent in agents.EnumerateArray())
+            foreach (var agent in agentsResponse.Agent)
             {
-                var agentId = agent.GetProperty("id").GetInt32();
-                var agentName = agent.TryGetProperty("name", out var name)
-                    ? name.GetString()
-                    : $"agent-{agentId}";
+                var agentId = agent.Id;
+                var agentName = agent.Name ?? $"agent-{agentId}";
 
                 Log.Information($"Authorizing agent: {agentName} (ID: {agentId})");
 
@@ -772,7 +771,7 @@ public class TeamCityBootstrapService
         catch (Exception ex)
         {
             Log.Error($"Failed to authorize agents: {ex.Message}");
-            return false;
+            throw;
         }
     }
 }

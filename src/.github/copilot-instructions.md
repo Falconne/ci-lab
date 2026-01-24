@@ -14,7 +14,9 @@
   - If creating async methods due to library calls that are async only, do not suffix the method name with "Async".
 - Use dependency injection for services.
 - Prefer `HttpClientFactory` for HTTP calls.
-- When parsing JSON returned from an API, use model classes to deserialize responses in a typesafe way. Place model files in a directory called `Entities` and only include properties that are used.
+- When parsing JSON returned from an API, use model classes to deserialize responses in a typesafe way. Place model files in a directory called `Entities` at the root and only include properties that are used.
+- Do not use JsonElement or dynamic types for JSON parsing.
+- When deserialisation fails, throw an exception and abort.
 - Use nullable reference types and top-level statements.
 - Use var, new() and pattern matching where appropriate.
 - Do not use inner classes. Organise code into Services and Models (in appropriate folder structure).

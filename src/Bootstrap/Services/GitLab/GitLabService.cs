@@ -3,7 +3,6 @@ using LibGit2Sharp;
 using Serilog;
 using System.Net;
 using System.Net.Http.Json;
-using System.Text.Json;
 using Bootstrap.Entities.GitLab;
 
 namespace Bootstrap.Services.GitLab;
@@ -50,7 +49,7 @@ public class GitLabService
         }
     }
 
-    public static async Task<JsonElement?> CreateGitLabProject(
+    public static async Task<GitLabProject?> CreateGitLabProject(
         HttpClient client,
         string gitlabUrl,
         string token,
@@ -76,9 +75,7 @@ public class GitLabService
                         if (proj.Name == projectName)
                         {
                             Log.Information($"Project '{projectName}' already exists");
-                            // Convert to JsonElement to preserve existing return contract
-                            var json = JsonSerializer.SerializeToElement(proj);
-                            return json;
+                            return proj;
                         }
                     }
                 }
@@ -88,34 +85,27 @@ public class GitLabService
             request.Content = JsonContent.Create(new { name = projectName, initialize_with_readme = false });
 
             var response = await client.SendAsync(request);
-            var content = await response.Content.ReadAsStringAsync();
 
             if (response.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created)
             {
                 Log.Information($"Project '{projectName}' created");
-                // Deserialize to GitLabProject then return as JsonElement to keep caller expectations
-                try
+                var project = await response.Content.ReadFromJsonAsync<GitLabProject>();
+                if (project is null)
                 {
-                    var proj = JsonSerializer.Deserialize<GitLabProject>(content);
-                    if (proj is not null)
-                    {
-                        return JsonSerializer.SerializeToElement(proj);
-                    }
+                    var content = await response.Content.ReadAsStringAsync();
+                    throw new InvalidOperationException($"Failed to deserialize GitLab project response: {content}");
                 }
-                catch
-                {
-                    return JsonSerializer.Deserialize<JsonElement>(content);
-                }
-                return null;
+                return project;
             }
 
-            Log.Error($"GitLab API error {(int)response.StatusCode}: {content}");
+            var errorContent = await response.Content.ReadAsStringAsync();
+            Log.Error($"GitLab API error {(int)response.StatusCode}: {errorContent}");
             return null;
         }
         catch (Exception ex)
         {
             Log.Error($"Failed to call GitLab API: {ex.Message}");
-            return null;
+            throw;
         }
     }
 
@@ -132,40 +122,12 @@ public class GitLabService
             return false;
         }
 
-        int projectId = 0;
-        string? httpUrlToRepo = null;
-
-        // Try to get properties safely
-        if (project.Value.TryGetProperty("id", out var idProp))
-        {
-            projectId = idProp.GetInt32();
-        }
-
-        if (project.Value.TryGetProperty("http_url_to_repo", out var urlProp))
-        {
-            httpUrlToRepo = urlProp.GetString();
-        }
-
-        // If possible, map JsonElement to strong type for clarity
-        try
-        {
-            var mapped = JsonSerializer.Deserialize<GitLabProject>(project.Value.GetRawText());
-            if (mapped is not null)
-            {
-                projectId = mapped.Id;
-                httpUrlToRepo = mapped.HttpUrlToRepo ?? httpUrlToRepo;
-            }
-        }
-        catch
-        {
-        }
+        var projectId = project.Id;
+        var httpUrlToRepo = project.HttpUrlToRepo;
 
         if (string.IsNullOrEmpty(httpUrlToRepo))
         {
-            await Console.Error.WriteLineAsync(
-                $"[bootstrap] ERROR: Could not get repository URL for project '{projectName}'");
-
-            return false;
+            throw new InvalidOperationException($"Could not get repository URL for project '{projectName}'");
         }
 
         var hasCommits = await CheckGitLabProjectHasCommits(client, gitlabUrl, token, projectId);
