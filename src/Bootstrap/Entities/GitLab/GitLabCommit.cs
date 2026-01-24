@@ -1,4 +1,4 @@
-namespace Bootstrap.Services.GitLab.Entities;
+namespace Bootstrap.Entities.GitLab;
 
 public sealed class GitLabCommit
 {

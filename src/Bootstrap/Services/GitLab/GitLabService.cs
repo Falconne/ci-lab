@@ -4,7 +4,7 @@ using Serilog;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Bootstrap.Services.GitLab.Entities;
+using Bootstrap.Entities.GitLab;
 
 namespace Bootstrap.Services.GitLab;
 
