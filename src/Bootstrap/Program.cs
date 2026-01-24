@@ -26,7 +26,8 @@ using var httpClient =
         }) { Timeout = TimeSpan.FromSeconds(10) };
 
 // Create service instances
-var teamCityService = new TeamCityBootstrapService();
+using var browserService = new BrowserAutomationService();
+var teamCityService = new TeamCityBootstrapService(browserService);
 var gitLabService = new GitLabService();
 
 // Wait for TeamCity first (it's often available before GitLab)

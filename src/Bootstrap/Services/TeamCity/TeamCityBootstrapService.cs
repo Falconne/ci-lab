@@ -9,9 +9,12 @@ namespace Bootstrap.Services.TeamCity;
 
 public class TeamCityBootstrapService
 {
-    private int _screenshotCounter;
+    private readonly BrowserAutomationService _browserService;
 
-    private string _screenshotDir = string.Empty;
+    public TeamCityBootstrapService(BrowserAutomationService browserService)
+    {
+        _browserService = browserService;
+    }
 
     private static string BuildApiUrl(string teamcityUrl, string endpoint)
     {
@@ -24,74 +27,50 @@ public class TeamCityBootstrapService
         string username,
         string password)
     {
-        _screenshotDir = Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "data", "screenshots");
-        _screenshotCounter = 0;
-
-        if (Directory.Exists(_screenshotDir))
-        {
-            Directory.Delete(_screenshotDir, true);
-        }
-
-        Directory.CreateDirectory(_screenshotDir);
-        Logging.Log($"Screenshot directory created: {_screenshotDir}");
+        var screenshotDir = Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "data", "screenshots");
 
         try
         {
             Logging.Log("Starting automated TeamCity initial setup using Playwright...");
 
-            var exitCode = Microsoft.Playwright.Program.Main(["install", "chromium"]);
-            if (exitCode != 0)
+            if (!await _browserService.InitializeAsync(screenshotDir))
             {
-                Logging.LogWarning(
-                    "Playwright browser installation returned non-zero exit code, continuing anyway...");
+                return false;
             }
 
-            using var playwright = await Playwright.CreateAsync();
-            await using var browser = await playwright.Chromium.LaunchAsync(
-                new BrowserTypeLaunchOptions { Headless = true, Timeout = 60000 });
-
-            var context =
-                await browser.NewContextAsync(new BrowserNewContextOptions { IgnoreHTTPSErrors = true });
-
-            var page = await context.NewPageAsync();
-            page.SetDefaultTimeout(60000);
-
-            Logging.Log($"Navigating to {teamcityUrl}");
-            await page.GotoAsync(teamcityUrl, new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle });
+            await _browserService.NavigateAsync(teamcityUrl);
             await Task.Delay(3000);
-            await TakeScreenshot(page, "01_initial_page");
+            await _browserService.TakeScreenshotAsync("01_initial_page");
 
             // Check for maintenance/admin limit error early
-            if (await CheckForMaintenanceError(page))
+            if (await CheckForMaintenanceErrorAsync())
             {
                 return false;
             }
 
             // Check if TeamCity is already configured (login page present)
-            var pageContent = await page.ContentAsync();
+            var pageContent = await _browserService.GetPageContentAsync();
             if (pageContent.Contains("Log in to TeamCity", StringComparison.OrdinalIgnoreCase))
             {
                 Logging.Log("TeamCity appears to be already configured (login page detected)");
-                await TakeScreenshot(page, "already_configured_login");
+                await _browserService.TakeScreenshotAsync("already_configured_login");
 
                 // Log in with the provided credentials
                 Logging.LogInfo("Logging in with provided credentials...", 1);
-                var loginUsernameField = page.Locator("input[id='username']");
-                var loginPasswordField = page.Locator("input[id='password']");
-                var loginButton = page.Locator("input[type='submit'][name='submitLogin']");
+                var loginUsernameField = _browserService.GetLocator("input[id='username']");
+                var loginPasswordField = _browserService.GetLocator("input[id='password']");
+                var loginButton = _browserService.GetLocator("input[type='submit'][name='submitLogin']");
 
                 if (await loginUsernameField.CountAsync() > 0
                     && await loginPasswordField.CountAsync() > 0
                     && await loginButton.CountAsync() > 0)
                 {
-                    await loginUsernameField.FillAsync(username);
-                    await loginPasswordField.FillAsync(password);
-                    await TakeScreenshot(page, "login_form_filled");
+                    await _browserService.FillFormFieldAsync(loginUsernameField, username, "username");
+                    await _browserService.FillFormFieldAsync(loginPasswordField, password, "password");
+                    await _browserService.TakeScreenshotAsync("login_form_filled");
 
-                    await loginButton.ClickAsync();
-                    await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-                    await Task.Delay(2000);
-                    await TakeScreenshot(page, "after_login");
+                    await _browserService.ClickAndWaitAsync(loginButton, "login button");
+                    await _browserService.TakeScreenshotAsync("after_login");
 
                     Logging.LogSuccess("Successfully logged in to already-configured TeamCity", 1);
 
@@ -111,43 +90,38 @@ public class TeamCityBootstrapService
 
             // Step 1: Data Directory - Click Proceed
             Logging.Log("Step 1: Checking for data directory configuration screen");
-            await TakeScreenshot(page, "02_before_data_directory");
+            await _browserService.TakeScreenshotAsync("02_before_data_directory");
 
-            var proceedButton = page.Locator("button:has-text('Proceed'), input[value='Proceed']").First;
+            var proceedButton = _browserService.GetLocator("button:has-text('Proceed'), input[value='Proceed']").First;
             if (await proceedButton.CountAsync() > 0)
             {
                 Logging.LogInfo("Found Proceed button, clicking...", 1);
-                await proceedButton.ClickAsync();
-                Logging.LogInfo("Waiting for navigation...", 1);
-                await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-                await Task.Delay(3000);
-                await TakeScreenshot(page, "03_after_data_directory");
+                await _browserService.ClickAndWaitAsync(proceedButton, "Proceed button", 3000);
+                await _browserService.TakeScreenshotAsync("03_after_data_directory");
                 Logging.LogInfo("Data directory step completed", 1);
             }
 
             // Step 2: Database Setup - Wait and Proceed
             Logging.Log("Step 2: Checking for database setup screen");
             await Task.Delay(2000);
-            await TakeScreenshot(page, "04_before_database");
+            await _browserService.TakeScreenshotAsync("04_before_database");
 
-            var dbProceedButton = page.Locator("button:has-text('Proceed'), input[value='Proceed']");
+            var dbProceedButton = _browserService.GetLocator("button:has-text('Proceed'), input[value='Proceed']");
             const int maxWaitForDb = 60; // Wait up to 60 seconds for DB initialization
             for (var i = 0; i < maxWaitForDb; i++)
             {
                 if (await dbProceedButton.CountAsync() > 0)
                 {
                     Logging.LogInfo("Database setup ready, clicking Proceed...", 1);
-                    await dbProceedButton.First.ClickAsync();
-                    await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-                    await Task.Delay(3000);
+                    await _browserService.ClickAndWaitAsync(dbProceedButton, "Database Proceed button", 3000);
 
                     // Wait for TeamCity database initialization message to clear
-                    await WaitForTextToDisappear(page, "Creating a new database");
+                    await _browserService.WaitForTextToDisappearAsync("Creating a new database");
 
                     // Also wait for server components initialization message to clear if present
-                    await WaitForTextToDisappear(page, "Initializing TeamCity server components", 180);
+                    await _browserService.WaitForTextToDisappearAsync("Initializing TeamCity server components", 180);
 
-                    await TakeScreenshot(page, "05_after_database");
+                    await _browserService.TakeScreenshotAsync("05_after_database");
                     Logging.LogInfo("Database setup completed", 1);
                     break;
                 }
@@ -162,66 +136,53 @@ public class TeamCityBootstrapService
             // Step 3: License Agreement - Accept
             Logging.Log("Step 3: Checking for license agreement");
             await Task.Delay(2000);
-            await TakeScreenshot(page, "06_before_license");
+            await _browserService.TakeScreenshotAsync("06_before_license");
 
-            var pageText = await page.ContentAsync();
+            var pageText = await _browserService.GetPageContentAsync();
             if (pageText.IndexOf("License Agreement for JetBrains", StringComparison.OrdinalIgnoreCase) >= 0)
             {
-                var acceptCheckbox = page.Locator(
+                var acceptCheckbox = _browserService.GetLocator(
                     "input[type='checkbox'][name='accept'], input[id='accept'], input[name='acceptLicense']");
 
                 if (await acceptCheckbox.CountAsync() > 0)
                 {
-                    Logging.LogInfo("Found license checkbox, checking it...", 1);
-                    await acceptCheckbox.First.CheckAsync();
-                    await Task.Delay(1000); // Wait for JavaScript to enable the button
-
-                    var continueButton = page.Locator(
-                        "input[type='submit'][name='Continue'], input[type='submit'].submitButton, button:has-text('Continue'), input[value*='Continue']");
-
-                    if (await continueButton.CountAsync() == 0)
+                    if (await _browserService.CheckCheckboxAsync(acceptCheckbox, "license acceptance"))
                     {
-                        Logging.LogError("Continue button not found on license page");
-                        await TakeScreenshot(page, "error_license_no_continue");
-                        return false;
-                    }
+                        await Task.Delay(1000); // Wait for JavaScript to enable the button
 
-                    // Wait for button to be enabled (JavaScript enables it after checkbox is checked)
-                    Logging.LogInfo("Waiting for Continue button to be enabled...", 1);
-                    try
-                    {
-                        await continueButton.First.WaitForAsync(
-                            new LocatorWaitForOptions
-                            {
-                                State = WaitForSelectorState.Visible,
-                                Timeout = 5000
-                            });
-                    }
-                    catch (Exception ex)
-                    {
-                        Logging.LogWarning($"Could not wait for button visibility: {ex.Message}", 1);
-                    }
+                        var continueButton = _browserService.GetLocator(
+                            "input[type='submit'][name='Continue'], input[type='submit'].submitButton, button:has-text('Continue'), input[value*='Continue']");
 
-                    Logging.LogInfo("Clicking Continue after license acceptance...", 1);
-                    await continueButton.First.ClickAsync();
-                    await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-                    await Task.Delay(3000);
-                    await TakeScreenshot(page, "07_after_license");
+                        if (await continueButton.CountAsync() == 0)
+                        {
+                            Logging.LogError("Continue button not found on license page");
+                            await _browserService.TakeScreenshotAsync("error_license_no_continue");
+                            return false;
+                        }
 
-                    // Ensure license text disappeared
-                    await WaitForTextToDisappear(page, "License Agreement for JetBrains", 30);
-                    var postLicenseText = await page.ContentAsync();
-                    if (postLicenseText.IndexOf(
-                            "License Agreement for JetBrains",
-                            StringComparison.OrdinalIgnoreCase)
-                        >= 0)
-                    {
-                        Logging.LogError("License acceptance did not complete successfully");
-                        await TakeScreenshot(page, "error_license_still_present");
-                        return false;
+                        // Wait for button to be enabled (JavaScript enables it after checkbox is checked)
+                        Logging.LogInfo("Waiting for Continue button to be enabled...", 1);
+                        await _browserService.WaitForElementAsync(continueButton);
+
+                        Logging.LogInfo("Clicking Continue after license acceptance...", 1);
+                        await _browserService.ClickAndWaitAsync(continueButton, "Continue button", 3000);
+                        await _browserService.TakeScreenshotAsync("07_after_license");
+
+                        // Ensure license text disappeared
+                        await _browserService.WaitForTextToDisappearAsync("License Agreement for JetBrains", 30);
+                        var postLicenseText = await _browserService.GetPageContentAsync();
+                        if (postLicenseText.IndexOf(
+                                "License Agreement for JetBrains",
+                                StringComparison.OrdinalIgnoreCase)
+                            >= 0)
+                        {
+                            Logging.LogError("License acceptance did not complete successfully");
+                            await _browserService.TakeScreenshotAsync("error_license_still_present");
+                            return false;
+                        }
+
+                        Logging.LogInfo("License accepted", 1);
                     }
-
-                    Logging.LogInfo("License accepted", 1);
                 }
                 else
                 {
@@ -236,43 +197,41 @@ public class TeamCityBootstrapService
             // Step 4: Create Administrator Account
             Logging.Log("Step 4: Checking for admin account creation");
             await Task.Delay(2000);
-            await TakeScreenshot(page, "08_before_admin_creation");
+            await _browserService.TakeScreenshotAsync("08_before_admin_creation");
 
-            var usernameField = page.Locator("input[name='username'], input[id='input_teamcityUsername']");
+            var usernameField = _browserService.GetLocator("input[name='username'], input[id='input_teamcityUsername']");
             if (await usernameField.CountAsync() > 0)
             {
                 Logging.LogInfo("Found admin creation form, filling in details...", 1);
-                await usernameField.First.FillAsync(username);
+                await _browserService.FillFormFieldAsync(usernameField, username, "username");
                 await Task.Delay(300);
 
-                var passwordField = page.Locator(
+                var passwordField = _browserService.GetLocator(
                         "input[name='password'], input[id='password1'], input[type='password']")
                     .First;
 
-                await passwordField.FillAsync(password);
+                await _browserService.FillFormFieldAsync(passwordField, password, "password");
                 await Task.Delay(300);
 
-                var confirmPasswordField = page.Locator(
+                var confirmPasswordField = _browserService.GetLocator(
                     "input[name='confirmPassword'], input[id='password2'], input[name='retypedPassword']");
 
                 if (await confirmPasswordField.CountAsync() > 0)
                 {
-                    await confirmPasswordField.First.FillAsync(password);
+                    await _browserService.FillFormFieldAsync(confirmPasswordField, password, "confirm password");
                     await Task.Delay(300);
                 }
 
-                await TakeScreenshot(page, "09_admin_form_filled");
+                await _browserService.TakeScreenshotAsync("09_admin_form_filled");
 
-                var createAccountButton = page.Locator(
+                var createAccountButton = _browserService.GetLocator(
                     "button:has-text('Create Account'), input[value='Create Account'], button[type='submit']");
 
                 if (await createAccountButton.CountAsync() > 0)
                 {
                     Logging.LogInfo("Submitting admin account creation...", 1);
-                    await createAccountButton.First.ClickAsync();
-                    await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-                    await Task.Delay(5000); // Give TeamCity time to fully initialize
-                    await TakeScreenshot(page, "10_after_admin_creation");
+                    await _browserService.ClickAndWaitAsync(createAccountButton, "Create Account button", 5000);
+                    await _browserService.TakeScreenshotAsync("10_after_admin_creation");
                     Logging.LogSuccess("Admin account created successfully", 1);
                 }
             }
@@ -285,21 +244,18 @@ public class TeamCityBootstrapService
             Logging.Log("Step 5: Creating access token (UI)");
             try
             {
-                await page.GotoAsync(
-                    $"{teamcityUrl}/profile.html?item=accessTokens",
-                    new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle, Timeout = 30000 });
-
+                await _browserService.NavigateAsync($"{teamcityUrl}/profile.html?item=accessTokens");
                 await Task.Delay(2000);
-                await TakeScreenshot(page, "19_token_page");
+                await _browserService.TakeScreenshotAsync("19_token_page");
             }
             catch (Exception ex)
             {
                 Logging.LogWarning($"Could not navigate to token page: {ex.Message}", 1);
-                await TakeScreenshot(page, "19_token_page_error");
+                await _browserService.TakeScreenshotAsync("19_token_page_error");
             }
 
             // Try to find existing token
-            var existingToken = page.Locator(
+            var existingToken = _browserService.GetLocator(
                 "td:has-text('bootstrap-automation'), span:has-text('bootstrap-automation'), div:has-text('bootstrap-automation')");
 
             if (await existingToken.CountAsync() > 0)
@@ -308,12 +264,12 @@ public class TeamCityBootstrapService
                     "TeamCity token 'bootstrap-automation' already exists - skipping creation",
                     1);
 
-                await TakeScreenshot(page, "19_token_already_exists");
+                await _browserService.TakeScreenshotAsync("19_token_already_exists");
                 return true;
             }
 
             // Try to create token using UI
-            var createTokenButton = page.Locator(
+            var createTokenButton = _browserService.GetLocator(
                 "button:has-text('Create access token'), "
                 + "a:has-text('Create access token'), "
                 + "input[value='Create access token'], "
@@ -329,11 +285,11 @@ public class TeamCityBootstrapService
                     $"Found create token button (matched {await createTokenButton.CountAsync()} elements)",
                     1);
 
-                await createTokenButton.First.ClickAsync();
+                await _browserService.ClickAndWaitAsync(createTokenButton, "Create token button", 20);
                 await Task.Delay(1000);
-                await TakeScreenshot(page, "20_token_creation_dialog");
+                await _browserService.TakeScreenshotAsync("20_token_creation_dialog");
 
-                var tokenNameInput = page.Locator(
+                var tokenNameInput = _browserService.GetLocator(
                     "input[name='tokenName'], input[id='tokenName'], input[name='name'], "
                     + "input[placeholder*='name'], input[placeholder*='Token'], input[aria-label*='name'], textarea[name='name'], "
                     + "input#input_accessTokenName, input[name='prop:accessTokenName']"
@@ -341,7 +297,7 @@ public class TeamCityBootstrapService
 
                 if (await tokenNameInput.CountAsync() == 0)
                 {
-                    var dialog = page.Locator("[role='dialog'], div.modal, div[aria-modal='true']");
+                    var dialog = _browserService.GetLocator("[role='dialog'], div.modal, div[aria-modal='true']");
                     if (await dialog.CountAsync() > 0)
                     {
                         var innerInput = dialog.First.Locator("input, textarea, [contenteditable='true']");
@@ -356,44 +312,35 @@ public class TeamCityBootstrapService
                 {
                     try
                     {
-                        Logging.LogInfo("Filling token name 'bootstrap-automation'", 2);
-                        await tokenNameInput.First.FillAsync("bootstrap-automation");
+                        await _browserService.FillFormFieldAsync(tokenNameInput, "bootstrap-automation", "token name");
                         await Task.Delay(500);
-                        await TakeScreenshot(page, "20b_token_name_filled");
+                        await _browserService.TakeScreenshotAsync("20b_token_name_filled");
 
-                        var createButton = page.Locator(
+                        var createButton = _browserService.GetLocator(
                             "button:has-text('Create'), input[value='Create'], button[type='submit'], button:has-text('Generate')");
 
                         if (await createButton.CountAsync() > 0)
                         {
-                            Logging.LogInfo("Clicking Create/Generate button", 2);
-                            await createButton.First.ClickAsync();
+                            await _browserService.ClickAndWaitAsync(createButton, "Create/Generate button", 20);
                             await Task.Delay(2000);
-                            await TakeScreenshot(page, "21_token_created");
+                            await _browserService.TakeScreenshotAsync("21_token_created");
                             // Wait for the created token element to appear (#createdToken) or the accessTokenValue row to be shown
                             try
                             {
-                                var createdTokenLocator = page.Locator("#createdToken");
-                                var accessTokenRow = page.Locator("#accessTokenValue");
+                                var createdTokenLocator = _browserService.GetLocator("#createdToken");
+                                var accessTokenRow = _browserService.GetLocator("#accessTokenValue");
                                 if (await accessTokenRow.CountAsync() > 0)
                                 {
-                                    // Wait for the row to become visible
-                                    await accessTokenRow.First.WaitForAsync(
-                                        new LocatorWaitForOptions
-                                        {
-                                            State = WaitForSelectorState.Visible,
-                                            Timeout = 5000
-                                        });
+                                    await _browserService.WaitForElementAsync(accessTokenRow);
                                 }
 
                                 if (await createdTokenLocator.CountAsync() > 0)
                                 {
-                                    var token = (await createdTokenLocator.First.TextContentAsync())?.Trim();
+                                    var token = await _browserService.GetTextContentAsync(createdTokenLocator);
                                     if (string.IsNullOrWhiteSpace(token))
                                     {
                                         // Sometimes the token may be in a child or as a value attribute
-                                        token = (await createdTokenLocator.First.GetAttributeAsync("value"))
-                                            ?.Trim();
+                                        token = await _browserService.GetAttributeAsync(createdTokenLocator, "value");
                                     }
 
                                     if (!string.IsNullOrWhiteSpace(token))
@@ -447,15 +394,15 @@ public class TeamCityBootstrapService
 
                     try
                     {
-                        var fallbackSubmit = page.Locator(
+                        var fallbackSubmit = _browserService.GetLocator(
                             "button:has-text('Create'), button:has-text('Generate'), input[type='submit']");
 
                         if (await fallbackSubmit.CountAsync() > 0)
                         {
                             Logging.LogInfo("Attempting fallback submit for token creation", 2);
-                            await fallbackSubmit.First.ClickAsync();
+                            await _browserService.ClickAndWaitAsync(fallbackSubmit, "fallback submit button", 20);
                             await Task.Delay(1500);
-                            await TakeScreenshot(page, "21_token_created_fallback");
+                            await _browserService.TakeScreenshotAsync("21_token_created_fallback");
                         }
                     }
                     catch { }
@@ -464,11 +411,11 @@ public class TeamCityBootstrapService
             else
             {
                 Logging.LogWarning("Could not find 'Create access token' button", 1);
-                var currentUrl = page.Url;
+                var currentUrl = _browserService.Page.Url;
                 Logging.LogInfo($"Current URL: {currentUrl}", 1);
             }
 
-            await TakeScreenshot(page, "22_final_state");
+            await _browserService.TakeScreenshotAsync("22_final_state");
             Logging.LogSuccess("TeamCity automated setup completed successfully");
             return true;
         }
@@ -480,33 +427,16 @@ public class TeamCityBootstrapService
         }
     }
 
-    private async Task TakeScreenshot(IPage page, string description)
+    private async Task<bool> CheckForMaintenanceErrorAsync()
     {
         try
         {
-            _screenshotCounter++;
-            var timestamp = DateTime.UtcNow.ToString("HHmmss");
-            var filename = $"{_screenshotCounter:D3}_{timestamp}_{description}.png";
-            var path = Path.Combine(_screenshotDir, filename);
-            await page.ScreenshotAsync(new PageScreenshotOptions { Path = path, FullPage = true });
-            Logging.LogInfo($"📸 Screenshot saved: {filename}", 1);
-        }
-        catch (Exception ex)
-        {
-            Logging.LogWarning($"Could not save screenshot: {ex.Message}", 1);
-        }
-    }
-
-    private async Task<bool> CheckForMaintenanceError(IPage page)
-    {
-        try
-        {
-            var pageContent = await page.ContentAsync();
+            var pageContent = await _browserService.GetPageContentAsync();
             if (pageContent.Contains("TeamCity server requires technical maintenance")
                 && pageContent.Contains("already logged in"))
             {
                 Logging.LogError("TeamCity server is in maintenance mode");
-                await TakeScreenshot(page, "error_maintenance_mode");
+                await _browserService.TakeScreenshotAsync("error_maintenance_mode");
                 return true;
             }
         }
@@ -516,48 +446,6 @@ public class TeamCityBootstrapService
         }
 
         return false;
-    }
-
-    private async Task WaitForTextToDisappear(
-        IPage page,
-        string text,
-        int timeoutSeconds = 120,
-        int pollMs = 1000)
-    {
-        var found = false;
-        for (var s = 0; s < timeoutSeconds; s++)
-        {
-            try
-            {
-                var pageContent = await page.ContentAsync();
-                if (pageContent.IndexOf(text, StringComparison.OrdinalIgnoreCase) >= 0)
-                {
-                    found = true;
-                    if (s % 5 == 0)
-                    {
-                        Logging.LogInfo($"Waiting for '{text}' to disappear... waited {s}s", 1);
-                    }
-
-                    await Task.Delay(pollMs);
-                    continue;
-                }
-
-                break;
-            }
-            catch (Exception ex)
-            {
-                Logging.LogWarning(
-                    $"Warning reading page content while waiting for '{text}': {ex.Message}",
-                    1);
-
-                await Task.Delay(pollMs);
-            }
-        }
-
-        if (found)
-        {
-            Logging.LogInfo($"'{text}' no longer present (or timed out waiting)", 1);
-        }
     }
 
     public async Task<string?> TryCreateTokenViaApi(
