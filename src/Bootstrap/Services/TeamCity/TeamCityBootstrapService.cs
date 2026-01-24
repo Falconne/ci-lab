@@ -26,7 +26,7 @@ public class TeamCityBootstrapService
         string username,
         string password)
     {
-        Logging.Log("Starting automated TeamCity initial setup using Playwright...");
+        Logging.Log("Starting automated TeamCity initial setup");
         var screenshotDir = Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "data", "screenshots");
         if (!await _browserService.Initialize(screenshotDir))
         {
@@ -39,7 +39,7 @@ public class TeamCityBootstrapService
             await Task.Delay(3000);
             await _browserService.TakeScreenshot("01_initial_page");
 
-            if (await CheckForMaintenanceError())
+            if (await IsInMaintenanceErrorState())
             {
                 return false;
             }
@@ -72,13 +72,13 @@ public class TeamCityBootstrapService
         }
     }
 
-    private async Task<bool> CheckForMaintenanceError()
+    private async Task<bool> IsInMaintenanceErrorState()
     {
         try
         {
             var pageContent = await _browserService.GetPageContent();
-            if (pageContent.Contains("TeamCity server requires technical maintenance")
-                && pageContent.Contains("already logged in"))
+            if (pageContent.Contains("TeamCity server requires technical maintenance"))
+            //&& pageContent.Contains("already logged in"))
             {
                 Logging.LogError("TeamCity server is in maintenance mode");
                 await _browserService.TakeScreenshot("error_maintenance_mode");
@@ -88,6 +88,7 @@ public class TeamCityBootstrapService
         catch (Exception ex)
         {
             Logging.LogWarning($"Could not check for maintenance message: {ex.Message}");
+            return true;
         }
 
         return false;
@@ -470,6 +471,7 @@ public class TeamCityBootstrapService
                 Logging.LogWarning(
                     "Token created but '#createdToken' element not found",
                     3);
+
                 return;
             }
 
