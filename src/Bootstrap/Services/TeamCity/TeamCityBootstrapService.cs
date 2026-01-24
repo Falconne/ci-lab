@@ -167,11 +167,19 @@ public class TeamCityBootstrapService
                 Logging.LogInfo("Database setup ready, clicking Proceed...", 1);
                 await _browserService.ClickAndWait(dbProceedButton, "Database Proceed button", 3000);
 
-                await _browserService.WaitForTextToDisappear("Creating a new database");
+                if (!await _browserService.WaitForTextToDisappear("Creating a new database"))
+                {
+                    await _browserService.TakeScreenshot("error_database_creation_still_present");
+                    return false;
+                }
 
-                await _browserService.WaitForTextToDisappear(
-                    "Initializing TeamCity server components",
-                    180);
+                if (!await _browserService.WaitForTextToDisappear(
+                        "Initializing TeamCity server components",
+                        180))
+                {
+                    await _browserService.TakeScreenshot("error_database_initialization_still_present");
+                    return false;
+                }
 
                 await _browserService.TakeScreenshot("05_after_database");
                 Logging.LogInfo("Database setup completed", 1);
@@ -236,9 +244,13 @@ public class TeamCityBootstrapService
         await _browserService.ClickAndWait(continueButton, "Continue button", 3000);
         await _browserService.TakeScreenshot("07_after_license");
 
-        await _browserService.WaitForTextToDisappear(
-            "License Agreement for JetBrains",
-            30);
+        if (!await _browserService.WaitForTextToDisappear(
+                "License Agreement for JetBrains",
+                30))
+        {
+            await _browserService.TakeScreenshot("error_license_still_present");
+            return false;
+        }
 
         var postLicenseText = await _browserService.GetPageContent();
         if (postLicenseText.IndexOf(
