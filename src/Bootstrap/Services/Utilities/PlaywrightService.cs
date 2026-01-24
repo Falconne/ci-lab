@@ -1,4 +1,5 @@
 using Microsoft.Playwright;
+using Serilog;
 
 namespace Bootstrap.Services.Utilities;
 
@@ -41,12 +42,12 @@ public class PlaywrightService : IDisposable
             }
 
             Directory.CreateDirectory(_screenshotDir);
-            Logging.Log.Information($"Screenshot directory created: {_screenshotDir}");
+            Log.Information($"Screenshot directory created: {_screenshotDir}");
 
             var exitCode = Microsoft.Playwright.Program.Main(["install", "chromium"]);
             if (exitCode != 0)
             {
-                Logging.Log.Error("Playwright browser installation returned non-zero exit code");
+                Log.Error("Playwright browser installation returned non-zero exit code");
                 return false;
             }
 
@@ -64,14 +65,14 @@ public class PlaywrightService : IDisposable
         }
         catch (Exception ex)
         {
-            Logging.Log.Error($"Failed to initialize browser: {ex.Message}");
+            Log.Error($"Failed to initialize browser: {ex.Message}");
             return false;
         }
     }
 
     public async Task Navigate(string url, WaitUntilState waitUntil = WaitUntilState.NetworkIdle)
     {
-        Logging.Log.Information($"Navigating to {url}");
+        Log.Information($"Navigating to {url}");
         await Page.GotoAsync(url, new PageGotoOptions { WaitUntil = waitUntil });
     }
 
@@ -89,11 +90,11 @@ public class PlaywrightService : IDisposable
             var filename = $"{_screenshotCounter:D3}_{timestamp}_{description}.png";
             var path = Path.Combine(_screenshotDir, filename);
             await Page.ScreenshotAsync(new PageScreenshotOptions { Path = path, FullPage = true });
-            Logging.Log.Information($"Screenshot saved: {filename}");
+            Log.Information($"Screenshot saved: {filename}");
         }
         catch (Exception ex)
         {
-            Logging.Log.Warning($"Could not save screenshot: {ex.Message}");
+            Log.Warning($"Could not save screenshot: {ex.Message}");
         }
     }
 
@@ -114,21 +115,21 @@ public class PlaywrightService : IDisposable
 
                 if (s % 5 == 0)
                 {
-                    Logging.Log.Information($"Waiting for '{text}' to disappear... waited {s}s");
+                    Log.Information($"Waiting for '{text}' to disappear... waited {s}s");
                 }
 
                 await Task.Delay(pollMs);
             }
             catch (Exception ex)
             {
-                Logging.Log.Warning(
+                Log.Warning(
                     $"Warning reading page content while waiting for '{text}': {ex.Message}");
 
                 await Task.Delay(pollMs);
             }
         }
 
-        Logging.Log.Information("Timed out waiting");
+        Log.Information("Timed out waiting");
         return false;
     }
 
@@ -136,12 +137,12 @@ public class PlaywrightService : IDisposable
     {
         if (await locator.CountAsync() > 0)
         {
-            Logging.Log.Information($"Filling {fieldName}...");
+            Log.Information($"Filling {fieldName}...");
             await locator.First.FillAsync(value);
             return true;
         }
 
-        Logging.Log.Warning($"{fieldName} field not found");
+        Log.Warning($"{fieldName} field not found");
         return false;
     }
 
@@ -149,12 +150,12 @@ public class PlaywrightService : IDisposable
     {
         if (await locator.CountAsync() > 0)
         {
-            Logging.Log.Information($"Clicking {buttonName}...");
+            Log.Information($"Clicking {buttonName}...");
             await locator.First.ClickAsync();
             return true;
         }
 
-        Logging.Log.Warning($"{buttonName} button not found");
+        Log.Warning($"{buttonName} button not found");
         return false;
     }
 
@@ -177,12 +178,12 @@ public class PlaywrightService : IDisposable
     {
         if (await locator.CountAsync() > 0)
         {
-            Logging.Log.Information($"Checking {checkboxName}...");
+            Log.Information($"Checking {checkboxName}...");
             await locator.First.CheckAsync();
             return true;
         }
 
-        Logging.Log.Warning($"{checkboxName} checkbox not found");
+        Log.Warning($"{checkboxName} checkbox not found");
         return false;
     }
 

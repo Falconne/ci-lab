@@ -1,5 +1,6 @@
 using Bootstrap.Services.Utilities;
 using LibGit2Sharp;
+using Serilog;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -26,25 +27,25 @@ public class GitLabService
             {
                 var user = await response.Content.ReadFromJsonAsync<GitLabUser>();
                 var username = user?.Username;
-                Logging.Log.Information($"Authenticated as: {username}");
+                Log.Information($"Authenticated as: {username}");
                 return true;
             }
 
             // Log detailed error information when validation fails
             var responseBody = await response.Content.ReadAsStringAsync();
-            Logging.Log.Error(
+            Log.Error(
                 $"GitLab token validation failed: {(int)response.StatusCode} {response.StatusCode}");
 
             if (!string.IsNullOrWhiteSpace(responseBody) && responseBody.Length < 500)
             {
-                Logging.Log.Error($"Response: {responseBody}");
+                Log.Error($"Response: {responseBody}");
             }
 
             return false;
         }
         catch (Exception ex)
         {
-            Logging.Log.Error($"Validation error: {ex.Message}");
+            Log.Error($"Validation error: {ex.Message}");
             return false;
         }
     }
@@ -57,7 +58,7 @@ public class GitLabService
 
     {
         var apiUrl = BuildApiUrl(gitlabUrl, "projects");
-        Logging.Log.Information($"Creating GitLab project '{projectName}' via {apiUrl}");
+        Log.Information($"Creating GitLab project '{projectName}' via {apiUrl}");
 
         try
         {
@@ -74,7 +75,7 @@ public class GitLabService
                     {
                         if (proj.Name == projectName)
                         {
-                            Logging.Log.Information($"Project '{projectName}' already exists");
+                            Log.Information($"Project '{projectName}' already exists");
                             // Convert to JsonElement to preserve existing return contract
                             var json = JsonSerializer.SerializeToElement(proj);
                             return json;
@@ -91,7 +92,7 @@ public class GitLabService
 
             if (response.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created)
             {
-                Logging.Log.Information($"Project '{projectName}' created");
+                Log.Information($"Project '{projectName}' created");
                 // Deserialize to GitLabProject then return as JsonElement to keep caller expectations
                 try
                 {
@@ -108,12 +109,12 @@ public class GitLabService
                 return null;
             }
 
-            Logging.Log.Error($"GitLab API error {(int)response.StatusCode}: {content}");
+            Log.Error($"GitLab API error {(int)response.StatusCode}: {content}");
             return null;
         }
         catch (Exception ex)
         {
-            Logging.Log.Error($"Failed to call GitLab API: {ex.Message}");
+            Log.Error($"Failed to call GitLab API: {ex.Message}");
             return null;
         }
     }
@@ -159,7 +160,7 @@ public class GitLabService
         var hasCommits = await CheckGitLabProjectHasCommits(client, gitlabUrl, token, projectId);
         if (hasCommits)
         {
-            Logging.Log.Information($"Project '{projectName}' already has commits, skipping repo population");
+            Log.Information($"Project '{projectName}' already has commits, skipping repo population");
             return true;
         }
 
@@ -282,12 +283,12 @@ public class GitLabService
                 throw new Exception($"Git push failed for branch '{localName}': {ex.Message}", ex);
             }
 
-            Logging.Log.Information($"Repository populated and pushed to '{projectName}'");
+            Log.Information($"Repository populated and pushed to '{projectName}'");
             return true;
         }
         catch (Exception ex)
         {
-            Logging.Log.Error($"Failed to populate project '{projectName}': {ex.Message}");
+            Log.Error($"Failed to populate project '{projectName}': {ex.Message}");
             return false;
         }
         finally

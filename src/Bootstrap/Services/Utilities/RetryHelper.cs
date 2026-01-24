@@ -1,3 +1,5 @@
+using Serilog;
+
 namespace Bootstrap.Services.Utilities;
 
 public static class RetryHelper
@@ -22,7 +24,7 @@ public static class RetryHelper
                     ? Math.Min(baseDelayMs * (int)Math.Pow(2, attempt - 1), 10000)
                     : baseDelayMs;
 
-                Logging.Log.Information($"Waiting {delay}ms before retry...");
+                Log.Information($"Waiting {delay}ms before retry...");
                 await Task.Delay(delay);
             }
         }

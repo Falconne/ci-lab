@@ -1,9 +1,12 @@
 using Bootstrap.Services.GitLab;
 using Bootstrap.Services.TeamCity;
 using Bootstrap.Services.Utilities;
+using Serilog;
+
+Logging.Init();
 
 Logging.LogSeparator();
-Logging.Log.Information("CI Lab Bootstrap - Manual Setup (.NET 9)");
+Log.Information("CI Lab Bootstrap - Manual Setup (.NET 9)");
 Logging.LogSeparator();
 
 // Determine .env file path relative to the project directory
@@ -15,8 +18,8 @@ EnvHelper.LoadEnvFile(envFullPath);
 
 var gitlabUrl = Environment.GetEnvironmentVariable("GITLAB_URL") ?? "http://localhost:8081";
 var teamcityUrl = Environment.GetEnvironmentVariable("TEAMCITY_URL") ?? "http://localhost:8111";
-Logging.Log.Information($"GitLab URL:   {gitlabUrl}");
-Logging.Log.Information($"TeamCity URL: {teamcityUrl}");
+Log.Information($"GitLab URL:   {gitlabUrl}");
+Log.Information($"TeamCity URL: {teamcityUrl}");
 
 using var httpClient =
     new HttpClient(
@@ -33,7 +36,7 @@ var teamCityService = new TeamCityBootstrapService(browserService);
 var gitLabService = new GitLabService();
 
 // Wait for TeamCity first (it's often available before GitLab)
-Logging.Log.Information("Waiting for TeamCity to become available...");
+Log.Information("Waiting for TeamCity to become available...");
 var teamcityReady = await HttpHelper.WaitForService(
     httpClient,
     teamcityUrl,
@@ -43,7 +46,7 @@ var teamcityReady = await HttpHelper.WaitForService(
 
 if (!teamcityReady)
 {
-    Logging.Log.Error("TeamCity did not become available; exiting");
+    Log.Error("TeamCity did not become available; exiting");
     return 1;
 }
 
@@ -59,19 +62,19 @@ var teamcitySetupSuccess = await teamCityService.Execute(
 
 if (!teamcitySetupSuccess)
 {
-    Logging.Log.Error("TeamCity automated setup failed");
-    Logging.Log.Error("Check screenshots in data/screenshots/ directory for details");
+    Log.Error("TeamCity automated setup failed");
+    Log.Error("Check screenshots in data/screenshots/ directory for details");
     return 1;
 }
 
-Logging.Log.Information("TeamCity initial setup completed");
+Log.Information("TeamCity initial setup completed");
 
 // Ensure TEAMCITY_TOKEN is present and valid; if missing or invalid, attempt API creation
 var existingTeamcityToken = Environment.GetEnvironmentVariable("TEAMCITY_TOKEN");
 var needCreateToken = string.IsNullOrEmpty(existingTeamcityToken);
 if (!needCreateToken && existingTeamcityToken != null)
 {
-    Logging.Log.Information("Validating existing TEAMCITY_TOKEN...");
+    Log.Information("Validating existing TEAMCITY_TOKEN...");
     try
     {
         var valid = await teamCityService.ValidateTeamCityToken(
@@ -81,26 +84,26 @@ if (!needCreateToken && existingTeamcityToken != null)
 
         if (!valid)
         {
-            Logging.Log.Information(
+            Log.Information(
                 "Existing TEAMCITY_TOKEN is invalid or insufficient permissions; will attempt to create a new token via API");
 
             needCreateToken = true;
         }
         else
         {
-            Logging.Log.Information("Existing TEAMCITY_TOKEN is valid");
+            Log.Information("Existing TEAMCITY_TOKEN is valid");
         }
     }
     catch (Exception ex)
     {
-        Logging.Log.Warning($"Error validating existing TEAMCITY_TOKEN: {ex.Message}");
+        Log.Warning($"Error validating existing TEAMCITY_TOKEN: {ex.Message}");
         needCreateToken = true;
     }
 }
 
 if (needCreateToken)
 {
-    Logging.Log.Information("Attempting to create TeamCity token via REST API...");
+    Log.Information("Attempting to create TeamCity token via REST API...");
     try
     {
         var createdToken = await teamCityService.TryCreateTokenViaApi(
@@ -113,11 +116,11 @@ if (needCreateToken)
         if (!string.IsNullOrEmpty(createdToken))
         {
             EnvHelper.SaveOrUpdateEnvFile(envFullPath, "TEAMCITY_TOKEN", createdToken);
-            Logging.Log.Information("TeamCity token created via API and saved to .env");
+            Log.Information("TeamCity token created via API and saved to .env");
         }
         else
         {
-            Logging.Log.Error(
+            Log.Error(
                 "Could not create TeamCity token via API; cannot continue without TEAMCITY_TOKEN");
 
             return 1;
@@ -125,7 +128,7 @@ if (needCreateToken)
     }
     catch (Exception ex)
     {
-        Logging.Log.Error($"TeamCity API token creation failed: {ex.Message}");
+        Log.Error($"TeamCity API token creation failed: {ex.Message}");
         return 1;
     }
 }
@@ -143,16 +146,16 @@ var teamcityToken = await GetAndValidateTokenAsync(
 
 if (string.IsNullOrEmpty(teamcityToken))
 {
-    Logging.Log.Error("Failed to obtain valid TeamCity token; exiting");
+    Log.Error("Failed to obtain valid TeamCity token; exiting");
     return 1;
 }
 
 // Ensure GitLab is available before attempting token operations
-Logging.Log.Information("Waiting for GitLab to become available...");
+Log.Information("Waiting for GitLab to become available...");
 var gitlabReady = await HttpHelper.WaitForService(httpClient, gitlabUrl, TimeSpan.FromMinutes(5));
 if (!gitlabReady)
 {
-    Logging.Log.Error("GitLab did not become available; exiting");
+    Log.Error("GitLab did not become available; exiting");
     return 1;
 }
 
@@ -166,7 +169,7 @@ var gitlabToken = await GetAndValidateTokenAsync(
 
 if (string.IsNullOrEmpty(gitlabToken))
 {
-    Logging.Log.Error("Failed to obtain valid GitLab token; exiting");
+    Log.Error("Failed to obtain valid GitLab token; exiting");
     return 1;
 }
 
@@ -192,7 +195,7 @@ if (!string.IsNullOrEmpty(gitlabToken))
         }
     }
 
-    Logging.Log.Information($"{projectsCreated} GitLab test project(s) ready");
+    Log.Information($"{projectsCreated} GitLab test project(s) ready");
 }
 
 // Create TeamCity projects
@@ -202,26 +205,26 @@ if (!string.IsNullOrEmpty(teamcityToken))
     var success = await teamCityService.CreateProject(httpClient, teamcityUrl, teamcityToken);
     if (success)
     {
-        Logging.Log.Information("TeamCity project created");
+        Log.Information("TeamCity project created");
     }
 
     // Authorize agents
-    Logging.Log.Information("Authorizing TeamCity agents...");
+    Log.Information("Authorizing TeamCity agents...");
     var agentsAuthorized = await teamCityService.AuthorizeAgents(httpClient, teamcityUrl, teamcityToken);
     if (agentsAuthorized)
     {
-        Logging.Log.Information("TeamCity agents authorized");
+        Log.Information("TeamCity agents authorized");
     }
     else
     {
-        Logging.Log.Warning("Agent authorization incomplete - some agents may need manual approval");
+        Log.Warning("Agent authorization incomplete - some agents may need manual approval");
     }
 }
 
 Logging.LogSection("Bootstrap complete!");
-Logging.Log.Information("Services available at:");
-Logging.Log.Information($"  GitLab:   {gitlabUrl}");
-Logging.Log.Information($"  TeamCity: {teamcityUrl}");
+Log.Information("Services available at:");
+Log.Information($"  GitLab:   {gitlabUrl}");
+Log.Information($"  TeamCity: {teamcityUrl}");
 Logging.LogSeparator();
 
 return 0;
@@ -243,7 +246,7 @@ static async Task<string?> GetAndValidateTokenAsync(
         var deadline = DateTime.UtcNow + timeout;
         var pollInterval = TimeSpan.FromSeconds(5);
 
-        Logging.Log.Information($"Waiting up to {timeout.TotalMinutes} minutes for GITLAB_TOKEN in .env...");
+        Log.Information($"Waiting up to {timeout.TotalMinutes} minutes for GITLAB_TOKEN in .env...");
 
         while (DateTime.UtcNow < deadline)
         {
@@ -253,34 +256,34 @@ static async Task<string?> GetAndValidateTokenAsync(
 
             if (!string.IsNullOrEmpty(token))
             {
-                Logging.Log.Information("Found GITLAB_TOKEN in .env; validating...");
+                Log.Information("Found GITLAB_TOKEN in .env; validating...");
                 try
                 {
                     var isValid = await validator(client, serviceUrl, token);
                     if (isValid)
                     {
-                        Logging.Log.Information("GitLab token is valid");
+                        Log.Information("GitLab token is valid");
                         // Ensure the .env is updated consistently
                         EnvHelper.SaveOrUpdateEnvFile(envFilePath, envVarName, token);
                         return token;
                     }
 
-                    Logging.Log.Information("GITLAB_TOKEN present but not valid yet; will retry until timeout");
+                    Log.Information("GITLAB_TOKEN present but not valid yet; will retry until timeout");
                 }
                 catch (Exception ex)
                 {
-                    Logging.Log.Warning($"Error validating GitLab token: {ex.Message}");
+                    Log.Warning($"Error validating GitLab token: {ex.Message}");
                 }
             }
             else
             {
-                Logging.Log.Information("No GITLAB_TOKEN found yet; polling .env...");
+                Log.Information("No GITLAB_TOKEN found yet; polling .env...");
             }
 
             await Task.Delay(pollInterval);
         }
 
-        Logging.Log.Error(
+        Log.Error(
             $"Timed out waiting for a valid GITLAB_TOKEN after {timeout.TotalMinutes} minutes");
 
         return null;
@@ -295,18 +298,18 @@ static async Task<string?> GetAndValidateTokenAsync(
         {
             if (serviceName == "TeamCity")
             {
-                Logging.Log.Error(
+                Log.Error(
                     "TeamCity token missing and could not be created automatically; cannot proceed.");
 
                 return null;
             }
 
-            Logging.Log.Information($"\n{serviceName} token not found in environment or .env file");
-            Logging.Log.Information($"Please create a token in {serviceName}:");
+            Log.Information($"\n{serviceName} token not found in environment or .env file");
+            Log.Information($"Please create a token in {serviceName}:");
             if (serviceName == "GitLab")
             {
-                Logging.Log.Information($"  1. Visit {serviceUrl}/-/profile/personal_access_tokens");
-                Logging.Log.Information("  2. Create a token with 'api', 'read_api', 'write_repository' scopes");
+                Log.Information($"  1. Visit {serviceUrl}/-/profile/personal_access_tokens");
+                Log.Information("  2. Create a token with 'api', 'read_api', 'write_repository' scopes");
             }
 
             Console.Write($"Enter {serviceName} token: ");
@@ -314,22 +317,22 @@ static async Task<string?> GetAndValidateTokenAsync(
 
             if (string.IsNullOrEmpty(tokenInteractive))
             {
-                Logging.Log.Error("Token cannot be empty");
+                Log.Error("Token cannot be empty");
                 continue;
             }
         }
 
-        Logging.Log.Information($"Validating {serviceName} token...");
+        Log.Information($"Validating {serviceName} token...");
         var isValidInteractive = await validator(client, serviceUrl, tokenInteractive);
 
         if (isValidInteractive)
         {
-            Logging.Log.Information($"{serviceName} token is valid");
+            Log.Information($"{serviceName} token is valid");
             EnvHelper.SaveOrUpdateEnvFile(envFilePath, envVarName, tokenInteractive);
             return tokenInteractive;
         }
 
-        Logging.Log.Error($"{serviceName} token is invalid or insufficient permissions");
+        Log.Error($"{serviceName} token is invalid or insufficient permissions");
         tokenInteractive = null; // Force re-prompt
     }
 }

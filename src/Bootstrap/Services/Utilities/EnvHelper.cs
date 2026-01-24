@@ -1,3 +1,5 @@
+using Serilog;
+
 namespace Bootstrap.Services.Utilities;
 
 public static class EnvHelper
@@ -6,11 +8,11 @@ public static class EnvHelper
     {
         if (!File.Exists(envPath))
         {
-            Logging.Log.Information($"No .env file found at {envPath}");
+            Log.Information($"No .env file found at {envPath}");
             return;
         }
 
-        Logging.Log.Information($"Loading environment from {envPath}");
+        Log.Information($"Loading environment from {envPath}");
         foreach (var line in File.ReadAllLines(envPath))
         {
             var trimmed = line.Trim();
@@ -40,12 +42,12 @@ public static class EnvHelper
             if (lineIndex >= 0)
             {
                 lines[lineIndex] = newLine;
-                Logging.Log.Information($"Updated {key} in .env file");
+                Log.Information($"Updated {key} in .env file");
             }
             else
             {
                 lines.Add(newLine);
-                Logging.Log.Information($"Added {key} to .env file");
+                Log.Information($"Added {key} to .env file");
             }
 
         File.WriteAllLines(envPath, lines);

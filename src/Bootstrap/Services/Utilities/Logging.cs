@@ -4,14 +4,12 @@ namespace Bootstrap.Services.Utilities;
 
 public static class Logging
 {
-    public static readonly ILogger Log;
-
-    static Logging()
+    public static void Init()
     {
         var logDir = Directory.GetCurrentDirectory();
         var logPath = Path.Combine(logDir, "f.log");
 
-        Log = new LoggerConfiguration()
+        Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Debug()
             .Enrich.FromLogContext()
             .WriteTo.Console()

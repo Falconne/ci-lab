@@ -1,4 +1,5 @@
 using Bootstrap.Services.Utilities;
+using Serilog;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text;
@@ -26,7 +27,7 @@ public class TeamCityBootstrapService
         string username,
         string password)
     {
-        Logging.Log.Information("Starting automated TeamCity initial setup");
+        Log.Information("Starting automated TeamCity initial setup");
         var screenshotDir = Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "data", "screenshots");
         if (!await _browserService.Initialize(screenshotDir))
         {
@@ -49,7 +50,7 @@ public class TeamCityBootstrapService
                 await HandleDataDirectoryConfiguration();
                 if (!await HandleDatabaseSetup())
                 {
-                    Logging.Log.Error("Database setup did not complete in time");
+                    Log.Error("Database setup did not complete in time");
                     return false;
                 }
 
@@ -64,13 +65,13 @@ public class TeamCityBootstrapService
             await HandleTokenCreation(teamcityUrl);
 
             await _browserService.TakeScreenshot("22_final_state");
-            Logging.Log.Information("TeamCity automated setup completed successfully");
+            Log.Information("TeamCity automated setup completed successfully");
             return true;
         }
         catch (Exception ex)
         {
-            Logging.Log.Error($"TeamCity automated setup failed: {ex.Message}");
-            Logging.Log.Error($"Stack trace: {ex.StackTrace}");
+            Log.Error($"TeamCity automated setup failed: {ex.Message}");
+            Log.Error($"Stack trace: {ex.StackTrace}");
             return false;
         }
     }
@@ -83,14 +84,14 @@ public class TeamCityBootstrapService
             if (pageContent.Contains("TeamCity server requires technical maintenance"))
             //&& pageContent.Contains("already logged in"))
             {
-                Logging.Log.Error("TeamCity server is in maintenance mode");
+                Log.Error("TeamCity server is in maintenance mode");
                 await _browserService.TakeScreenshot("error_maintenance_mode");
                 return true;
             }
         }
         catch (Exception ex)
         {
-            Logging.Log.Warning($"Could not check for maintenance message: {ex.Message}");
+            Log.Warning($"Could not check for maintenance message: {ex.Message}");
             return true;
         }
 
@@ -105,10 +106,10 @@ public class TeamCityBootstrapService
             return false;
         }
 
-        Logging.Log.Information("TeamCity appears to be already configured (login page detected)");
+        Log.Information("TeamCity appears to be already configured (login page detected)");
         await _browserService.TakeScreenshot("already_configured_login");
 
-        Logging.Log.Information("Logging in with provided credentials...");
+        Log.Information("Logging in with provided credentials...");
         var loginUsernameField = _browserService.GetLocator("input[id='username']");
         var loginPasswordField = _browserService.GetLocator("input[id='password']");
         var loginButton = _browserService.GetLocator("input[type='submit'][name='submitLogin']");
@@ -124,17 +125,17 @@ public class TeamCityBootstrapService
             await _browserService.ClickAndWait(loginButton, "login button");
             await _browserService.TakeScreenshot("after_login");
 
-            Logging.Log.Information("Successfully logged in to already-configured TeamCity");
+            Log.Information("Successfully logged in to already-configured TeamCity");
             return true;
         }
 
-        Logging.Log.Error("Login form fields not found despite detecting login page");
+        Log.Error("Login form fields not found despite detecting login page");
         throw new InvalidOperationException("Login form fields not found");
     }
 
     private async Task HandleDataDirectoryConfiguration()
     {
-        Logging.Log.Information("Step 1: Checking for data directory configuration screen");
+        Log.Information("Step 1: Checking for data directory configuration screen");
         await _browserService.TakeScreenshot("02_before_data_directory");
 
         var proceedButton = _browserService
@@ -143,16 +144,16 @@ public class TeamCityBootstrapService
 
         if (await proceedButton.CountAsync() > 0)
         {
-            Logging.Log.Information("Found Proceed button, clicking...");
+            Log.Information("Found Proceed button, clicking...");
             await _browserService.ClickAndWait(proceedButton, "Proceed button", 3000);
             await _browserService.TakeScreenshot("03_after_data_directory");
-            Logging.Log.Information("Data directory step completed");
+            Log.Information("Data directory step completed");
         }
     }
 
     private async Task<bool> HandleDatabaseSetup()
     {
-        Logging.Log.Information("Step 2: Checking for database setup screen");
+        Log.Information("Step 2: Checking for database setup screen");
         await _browserService.TakeScreenshot("04_before_database");
 
         var dbProceedButton =
@@ -163,7 +164,7 @@ public class TeamCityBootstrapService
         {
             if (await dbProceedButton.CountAsync() > 0)
             {
-                Logging.Log.Information("Database setup ready, clicking Proceed...");
+                Log.Information("Database setup ready, clicking Proceed...");
                 await _browserService.ClickAndWait(dbProceedButton, "Database Proceed button", 3000);
 
                 if (!await _browserService.WaitForTextToDisappear("Creating a new database"))
@@ -181,31 +182,31 @@ public class TeamCityBootstrapService
                 }
 
                 await _browserService.TakeScreenshot("05_after_database");
-                Logging.Log.Information("Database setup completed");
+                Log.Information("Database setup completed");
                 return true;
             }
 
             await Task.Delay(1000);
             if (i % 10 == 0 && i > 0)
             {
-                Logging.Log.Information($"Still waiting for database initialization... ({i}s)");
+                Log.Information($"Still waiting for database initialization... ({i}s)");
             }
         }
 
-        Logging.Log.Error("Timed out waiting for database initialization");
+        Log.Error("Timed out waiting for database initialization");
         await _browserService.TakeScreenshot("error_database_timeout");
         return false;
     }
 
     private async Task<bool> HandleLicenseAgreement()
     {
-        Logging.Log.Information("Step 3: Checking for license agreement");
+        Log.Information("Step 3: Checking for license agreement");
         await _browserService.TakeScreenshot("06_before_license");
 
         var pageText = await _browserService.GetPageContent();
         if (!pageText.Contains("License Agreement for JetBrains", StringComparison.OrdinalIgnoreCase))
         {
-            Logging.Log.Information("License page not detected, skipping license acceptance step");
+            Log.Information("License page not detected, skipping license acceptance step");
             return true;
         }
 
@@ -214,7 +215,7 @@ public class TeamCityBootstrapService
 
         if (await acceptCheckbox.CountAsync() == 0)
         {
-            Logging.Log.Error("License checkbox not found");
+            Log.Error("License checkbox not found");
             return false;
         }
 
@@ -230,15 +231,15 @@ public class TeamCityBootstrapService
 
         if (await continueButton.CountAsync() == 0)
         {
-            Logging.Log.Error("Continue button not found on license page");
+            Log.Error("Continue button not found on license page");
             await _browserService.TakeScreenshot("error_license_no_continue");
             return false;
         }
 
-        Logging.Log.Information("Waiting for Continue button to be enabled...");
+        Log.Information("Waiting for Continue button to be enabled...");
         await PlaywrightService.WaitForElement(continueButton);
 
-        Logging.Log.Information("Clicking Continue after license acceptance...");
+        Log.Information("Clicking Continue after license acceptance...");
         await _browserService.ClickAndWait(continueButton, "Continue button", 3000);
         await _browserService.TakeScreenshot("07_after_license");
 
@@ -255,18 +256,18 @@ public class TeamCityBootstrapService
                 "License Agreement for JetBrains",
                 StringComparison.OrdinalIgnoreCase))
         {
-            Logging.Log.Error("License acceptance did not complete successfully");
+            Log.Error("License acceptance did not complete successfully");
             await _browserService.TakeScreenshot("error_license_still_present");
             return false;
         }
 
-        Logging.Log.Information("License accepted");
+        Log.Information("License accepted");
         return true;
     }
 
     private async Task HandleAdminAccountCreation(string username, string password)
     {
-        Logging.Log.Information("Step 4: Checking for admin account creation");
+        Log.Information("Step 4: Checking for admin account creation");
         await _browserService.TakeScreenshot("08_before_admin_creation");
 
         var usernameField =
@@ -274,11 +275,11 @@ public class TeamCityBootstrapService
 
         if (await usernameField.CountAsync() == 0)
         {
-            Logging.Log.Information("Admin account may already exist, continuing...");
+            Log.Information("Admin account may already exist, continuing...");
             return;
         }
 
-        Logging.Log.Information("Found admin creation form, filling in details...");
+        Log.Information("Found admin creation form, filling in details...");
         await PlaywrightService.FillFormField(usernameField, username, "username");
         await Task.Delay(300);
 
@@ -309,20 +310,20 @@ public class TeamCityBootstrapService
 
         if (await createAccountButton.CountAsync() > 0)
         {
-            Logging.Log.Information("Submitting admin account creation...");
+            Log.Information("Submitting admin account creation...");
             await _browserService.ClickAndWait(
                 createAccountButton,
                 "Create Account button",
                 5000);
 
             await _browserService.TakeScreenshot("10_after_admin_creation");
-            Logging.Log.Information("Admin account created successfully");
+            Log.Information("Admin account created successfully");
         }
     }
 
     private async Task<bool> HandleTokenCreation(string teamcityUrl)
     {
-        Logging.Log.Information("Step 5: Creating access token (UI)");
+        Log.Information("Step 5: Creating access token (UI)");
         try
         {
             await _browserService.Navigate($"{teamcityUrl}/profile.html?item=accessTokens");
@@ -331,7 +332,7 @@ public class TeamCityBootstrapService
         }
         catch (Exception ex)
         {
-            Logging.Log.Warning($"Could not navigate to token page: {ex.Message}");
+            Log.Warning($"Could not navigate to token page: {ex.Message}");
             await _browserService.TakeScreenshot("19_token_page_error");
         }
 
@@ -340,7 +341,7 @@ public class TeamCityBootstrapService
 
         if (await existingToken.CountAsync() > 0)
         {
-            Logging.Log.Information(
+            Log.Information(
                 "TeamCity token 'bootstrap-automation' already exists - skipping creation");
 
             await _browserService.TakeScreenshot("19_token_already_exists");
@@ -359,13 +360,13 @@ public class TeamCityBootstrapService
 
         if (await createTokenButton.CountAsync() == 0)
         {
-            Logging.Log.Warning("Could not find 'Create access token' button");
+            Log.Warning("Could not find 'Create access token' button");
             var currentUrl = _browserService.Page.Url;
-            Logging.Log.Information($"Current URL: {currentUrl}");
+            Log.Information($"Current URL: {currentUrl}");
             return true;
         }
 
-        Logging.Log.Information(
+        Log.Information(
             $"Found create token button (matched {await createTokenButton.CountAsync()} elements)");
 
         await _browserService.ClickAndWait(createTokenButton, "Create token button", 20);
@@ -400,7 +401,7 @@ public class TeamCityBootstrapService
 
         if (await tokenNameInput.CountAsync() == 0)
         {
-            Logging.Log.Warning(
+            Log.Warning(
                 "Could not find token name input field (tried multiple selectors)");
 
             return await TryFallbackTokenSubmit();
@@ -421,7 +422,7 @@ public class TeamCityBootstrapService
 
             if (await createButton.CountAsync() == 0)
             {
-                Logging.Log.Warning("Could not find Create/Generate button in dialog");
+                Log.Warning("Could not find Create/Generate button in dialog");
                 return true;
             }
 
@@ -438,7 +439,7 @@ public class TeamCityBootstrapService
         }
         catch (Exception ex)
         {
-            Logging.Log.Warning($"Exception during token creation: {ex.Message}");
+            Log.Warning($"Exception during token creation: {ex.Message}");
             return true;
         }
     }
@@ -452,7 +453,7 @@ public class TeamCityBootstrapService
 
             if (await fallbackSubmit.CountAsync() > 0)
             {
-                Logging.Log.Information("Attempting fallback submit for token creation");
+                Log.Information("Attempting fallback submit for token creation");
                 await _browserService.ClickAndWait(
                     fallbackSubmit,
                     "fallback submit button",
@@ -480,7 +481,7 @@ public class TeamCityBootstrapService
 
             if (await createdTokenLocator.CountAsync() == 0)
             {
-                Logging.Log.Warning(
+                Log.Warning(
                     "Token created but '#createdToken' element not found");
 
                 return;
@@ -505,17 +506,17 @@ public class TeamCityBootstrapService
 
                 var envFullPath = Path.GetFullPath(envPath);
                 EnvHelper.SaveOrUpdateEnvFile(envFullPath, "TEAMCITY_TOKEN", token);
-                Logging.Log.Information("TeamCity token created and saved to .env");
+                Log.Information("TeamCity token created and saved to .env");
             }
             else
             {
-                Logging.Log.Warning(
+                Log.Warning(
                     "Token created but '#createdToken' was empty");
             }
         }
         catch (Exception ex)
         {
-            Logging.Log.Warning(
+            Log.Warning(
                 $"Exception while extracting created token: {ex.Message}");
         }
     }
@@ -527,7 +528,7 @@ public class TeamCityBootstrapService
         string password,
         string tokenName)
     {
-        Logging.Log.Information(
+        Log.Information(
             $"Attempting API token creation with username '{username}' and tokenName '{tokenName}'");
 
         var endpoints = new[]
@@ -543,7 +544,7 @@ public class TeamCityBootstrapService
             foreach (var endpoint in endpoints)
             {
                 var url = BuildApiUrl(teamcityUrl, endpoint);
-                Logging.Log.Information($"Trying endpoint: {url}");
+                Log.Information($"Trying endpoint: {url}");
 
                 // Try XML body first
                 var token = await TryCreateTokenWithBody(
@@ -551,7 +552,6 @@ public class TeamCityBootstrapService
                     url,
                     username,
                     password,
-                    tokenName,
                     "application/xml",
                     $"<token name=\"{WebUtility.HtmlEncode(tokenName)}\"/>");
 
@@ -561,13 +561,12 @@ public class TeamCityBootstrapService
                 }
 
                 // Try JSON body
-                Logging.Log.Information("Trying with JSON body...");
+                Log.Information("Trying with JSON body...");
                 token = await TryCreateTokenWithBody(
                     client,
                     url,
                     username,
                     password,
-                    tokenName,
                     "application/json",
                     JsonSerializer.Serialize(new { name = tokenName }));
 
@@ -586,7 +585,6 @@ public class TeamCityBootstrapService
         string url,
         string username,
         string password,
-        string tokenName,
         string contentType,
         string body)
     {
@@ -599,31 +597,31 @@ public class TeamCityBootstrapService
             var response = await client.SendAsync(request);
             var respText = await response.Content.ReadAsStringAsync();
 
-            Logging.Log.Information($"Response status: {(int)response.StatusCode} {response.StatusCode}");
+            Log.Information($"Response status: {(int)response.StatusCode} {response.StatusCode}");
 
             if (!response.IsSuccessStatusCode)
             {
-                Logging.Log.Information(
+                Log.Information(
                     $"Response body: {respText.Substring(0, Math.Min(200, respText.Length))}");
 
                 return null;
             }
 
-            Logging.Log.Information("Success! Parsing response...");
+            Log.Information("Success! Parsing response...");
             var token = ResponseParser.TryParseTokenFromResponse(respText);
 
             if (token != null)
             {
-                Logging.Log.Information($"Token extracted (length: {token.Length})");
+                Log.Information($"Token extracted (length: {token.Length})");
                 return token;
             }
 
-            Logging.Log.Warning("Success response but couldn't extract token");
+            Log.Warning("Success response but couldn't extract token");
             return null;
         }
         catch (Exception ex)
         {
-            Logging.Log.Information($"Exception: {ex.Message}");
+            Log.Information($"Exception: {ex.Message}");
             return null;
         }
     }
@@ -639,7 +637,7 @@ public class TeamCityBootstrapService
             if (response.IsSuccessStatusCode)
             {
                 var serverData = await response.Content.ReadAsStringAsync();
-                Logging.Log.Information("Token authentication successful");
+                Log.Information("Token authentication successful");
                 return true;
             }
 
@@ -647,7 +645,7 @@ public class TeamCityBootstrapService
         }
         catch (Exception ex)
         {
-            Logging.Log.Error($"Validation error: {ex.Message}");
+            Log.Error($"Validation error: {ex.Message}");
             return false;
         }
     }
@@ -656,7 +654,7 @@ public class TeamCityBootstrapService
     {
         var apiUrl = BuildApiUrl(teamcityUrl, "projects");
 
-        Logging.Log.Information($"Creating TeamCity project 'Sample Project' via {apiUrl}");
+        Log.Information($"Creating TeamCity project 'Sample Project' via {apiUrl}");
 
         try
         {
@@ -669,7 +667,7 @@ public class TeamCityBootstrapService
 
             if (response.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created)
             {
-                Logging.Log.Information("TeamCity project created successfully");
+                Log.Information("TeamCity project created successfully");
                 return true;
             }
 
@@ -678,16 +676,16 @@ public class TeamCityBootstrapService
                 || body.Contains("DuplicateProjectNameException")
                 || body.Contains("already exists"))
             {
-                Logging.Log.Information("TeamCity project already exists");
+                Log.Information("TeamCity project already exists");
                 return true;
             }
 
-            Logging.Log.Error($"TeamCity API error {(int)response.StatusCode}: {body}");
+            Log.Error($"TeamCity API error {(int)response.StatusCode}: {body}");
             return false;
         }
         catch (Exception ex)
         {
-            Logging.Log.Error($"Failed to call TeamCity API: {ex.Message}");
+            Log.Error($"Failed to call TeamCity API: {ex.Message}");
             return false;
         }
     }
@@ -708,14 +706,14 @@ public class TeamCityBootstrapService
             var listResponse = await client.SendAsync(listRequest);
             if (!listResponse.IsSuccessStatusCode)
             {
-                Logging.Log.Error($"Failed to get agents list: {(int)listResponse.StatusCode}");
+                Log.Error($"Failed to get agents list: {(int)listResponse.StatusCode}");
                 return false;
             }
 
             var agentsData = await listResponse.Content.ReadFromJsonAsync<JsonElement>();
             if (!agentsData.TryGetProperty("agent", out var agents))
             {
-                Logging.Log.Information("No unauthorized agents found");
+                Log.Information("No unauthorized agents found");
                 return true;
             }
 
@@ -727,7 +725,7 @@ public class TeamCityBootstrapService
                     ? name.GetString()
                     : $"agent-{agentId}";
 
-                Logging.Log.Information($"Authorizing agent: {agentName} (ID: {agentId})");
+                Log.Information($"Authorizing agent: {agentName} (ID: {agentId})");
 
                 var authRequest = HttpRequestHelper.CreateWithBearerAuth(
                     HttpMethod.Put,
@@ -739,7 +737,7 @@ public class TeamCityBootstrapService
                 var authResponse = await client.SendAsync(authRequest);
                 if (authResponse.IsSuccessStatusCode)
                 {
-                    Logging.Log.Information($"Agent {agentName} authorized");
+                    Log.Information($"Agent {agentName} authorized");
                     authorizedCount++;
 
                     var poolApiUrl = BuildApiUrl(teamcityUrl, "agentPools/id:0/agents");
@@ -753,27 +751,27 @@ public class TeamCityBootstrapService
                     var poolResponse = await client.SendAsync(poolRequest);
                     if (poolResponse.IsSuccessStatusCode)
                     {
-                        Logging.Log.Information($"Agent {agentName} added to default pool");
+                        Log.Information($"Agent {agentName} added to default pool");
                     }
                     else
                     {
-                        Logging.Log.Warning(
+                        Log.Warning(
                             $"Could not add agent {agentName} to pool: {(int)poolResponse.StatusCode}");
                     }
                 }
                 else
                 {
-                    Logging.Log.Warning(
+                    Log.Warning(
                         $"Failed to authorize agent {agentName}: {(int)authResponse.StatusCode}");
                 }
             }
 
-            Logging.Log.Information($"Authorized {authorizedCount} agent(s)");
+            Log.Information($"Authorized {authorizedCount} agent(s)");
             return authorizedCount > 0;
         }
         catch (Exception ex)
         {
-            Logging.Log.Error($"Failed to authorize agents: {ex.Message}");
+            Log.Error($"Failed to authorize agents: {ex.Message}");
             return false;
         }
     }
