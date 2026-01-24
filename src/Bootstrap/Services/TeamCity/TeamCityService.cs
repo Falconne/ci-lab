@@ -9,6 +9,10 @@ namespace Bootstrap.Services.TeamCity;
 
 public class TeamCityService
 {
+    private int _screenshotCounter;
+
+    private string _screenshotDir = string.Empty;
+
     private static string BuildApiUrl(string teamcityUrl, string endpoint)
     {
         return ApiUrlHelper.BuildUrl(teamcityUrl, "app/rest", endpoint);
@@ -20,103 +24,22 @@ public class TeamCityService
         string username,
         string password)
     {
-        var screenshotDir = Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "data", "screenshots");
-        var screenshotCounter = 0;
+        _screenshotDir = Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "data", "screenshots");
+        _screenshotCounter = 0;
 
-        if (Directory.Exists(screenshotDir))
+        if (Directory.Exists(_screenshotDir))
         {
-            Directory.Delete(screenshotDir, true);
+            Directory.Delete(_screenshotDir, true);
         }
 
-        Directory.CreateDirectory(screenshotDir);
-        Logging.Log($"Screenshot directory created: {screenshotDir}");
-
-        async Task TakeScreenshot(IPage page, string description)
-        {
-            try
-            {
-                screenshotCounter++;
-                var timestamp = DateTime.UtcNow.ToString("HHmmss");
-                var filename = $"{screenshotCounter:D3}_{timestamp}_{description}.png";
-                var path = Path.Combine(screenshotDir, filename);
-                await page.ScreenshotAsync(new PageScreenshotOptions { Path = path, FullPage = true });
-                Logging.LogInfo($"📸 Screenshot saved: {filename}", 1);
-            }
-            catch (Exception ex)
-            {
-                Logging.LogWarning($"Could not save screenshot: {ex.Message}", 1);
-            }
-        }
-
-        async Task<bool> CheckForMaintenanceError(IPage page)
-        {
-            try
-            {
-                var pageContent = await page.ContentAsync();
-                if (pageContent.Contains("TeamCity server requires technical maintenance")
-                    && pageContent.Contains("already logged in"))
-                {
-                    Logging.LogError("TeamCity server is in maintenance mode");
-                    await TakeScreenshot(page, "error_maintenance_mode");
-                    return true; // Error detected
-                }
-            }
-            catch (Exception ex)
-            {
-                Logging.LogWarning($"Could not check for maintenance message: {ex.Message}");
-            }
-
-            return false; // No error
-        }
-
-        async Task WaitForTextToDisappear(
-            IPage page,
-            string text,
-            int timeoutSeconds = 120,
-            int pollMs = 1000)
-        {
-            var found = false;
-            for (var s = 0; s < timeoutSeconds; s++)
-            {
-                try
-                {
-                    var pageContent = await page.ContentAsync();
-                    if (pageContent != null
-                        && pageContent.IndexOf(text, StringComparison.OrdinalIgnoreCase) >= 0)
-                    {
-                        found = true;
-                        if (s % 5 == 0)
-                        {
-                            Logging.LogInfo($"Waiting for '{text}' to disappear... waited {s}s", 1);
-                        }
-
-                        await Task.Delay(pollMs);
-                        continue;
-                    }
-
-                    break;
-                }
-                catch (Exception ex)
-                {
-                Logging.LogWarning(
-                    $"Warning reading page content while waiting for '{text}': {ex.Message}",
-                    1);
-
-                    await Task.Delay(pollMs);
-                }
-            }
-
-            if (found)
-            {
-                Logging.LogInfo($"'{text}' no longer present (or timed out waiting)", 1);
-            }
-        }
+        Directory.CreateDirectory(_screenshotDir);
+        Logging.Log($"Screenshot directory created: {_screenshotDir}");
 
         try
         {
             Logging.Log("Starting automated TeamCity initial setup using Playwright...");
 
-            var exitCode = Microsoft.Playwright.Program.Main(new[] { "install", "chromium" });
+            var exitCode = Microsoft.Playwright.Program.Main(["install", "chromium"]);
             if (exitCode != 0)
             {
                 Logging.LogWarning(
@@ -146,8 +69,7 @@ public class TeamCityService
 
             // Check if TeamCity is already configured (login page present)
             var pageContent = await page.ContentAsync();
-            if (pageContent != null
-                && pageContent.Contains("Log in to TeamCity", StringComparison.OrdinalIgnoreCase))
+            if (pageContent.Contains("Log in to TeamCity", StringComparison.OrdinalIgnoreCase))
             {
                 Logging.Log("TeamCity appears to be already configured (login page detected)");
                 await TakeScreenshot(page, "already_configured_login");
@@ -209,7 +131,7 @@ public class TeamCityService
             await TakeScreenshot(page, "04_before_database");
 
             var dbProceedButton = page.Locator("button:has-text('Proceed'), input[value='Proceed']");
-            var maxWaitForDb = 60; // Wait up to 60 seconds for DB initialization
+            const int maxWaitForDb = 60; // Wait up to 60 seconds for DB initialization
             for (var i = 0; i < maxWaitForDb; i++)
             {
                 if (await dbProceedButton.CountAsync() > 0)
@@ -243,9 +165,7 @@ public class TeamCityService
             await TakeScreenshot(page, "06_before_license");
 
             var pageText = await page.ContentAsync();
-            if (pageText != null
-                && pageText.IndexOf("License Agreement for JetBrains", StringComparison.OrdinalIgnoreCase)
-                >= 0)
+            if (pageText.IndexOf("License Agreement for JetBrains", StringComparison.OrdinalIgnoreCase) >= 0)
             {
                 var acceptCheckbox = page.Locator(
                     "input[type='checkbox'][name='accept'], input[id='accept'], input[name='acceptLicense']");
@@ -273,7 +193,8 @@ public class TeamCityService
                         await continueButton.First.WaitForAsync(
                             new LocatorWaitForOptions
                             {
-                                State = WaitForSelectorState.Visible, Timeout = 5000
+                                State = WaitForSelectorState.Visible,
+                                Timeout = 5000
                             });
                     }
                     catch (Exception ex)
@@ -290,8 +211,7 @@ public class TeamCityService
                     // Ensure license text disappeared
                     await WaitForTextToDisappear(page, "License Agreement for JetBrains", 30);
                     var postLicenseText = await page.ContentAsync();
-                    if (postLicenseText != null
-                        && postLicenseText.IndexOf(
+                    if (postLicenseText.IndexOf(
                             "License Agreement for JetBrains",
                             StringComparison.OrdinalIgnoreCase)
                         >= 0)
@@ -436,7 +356,7 @@ public class TeamCityService
                 {
                     try
                     {
-                            Logging.LogInfo("Filling token name 'bootstrap-automation'", 2);
+                        Logging.LogInfo("Filling token name 'bootstrap-automation'", 2);
                         await tokenNameInput.First.FillAsync("bootstrap-automation");
                         await Task.Delay(500);
                         await TakeScreenshot(page, "20b_token_name_filled");
@@ -461,7 +381,8 @@ public class TeamCityService
                                     await accessTokenRow.First.WaitForAsync(
                                         new LocatorWaitForOptions
                                         {
-                                            State = WaitForSelectorState.Visible, Timeout = 5000
+                                            State = WaitForSelectorState.Visible,
+                                            Timeout = 5000
                                         });
                                 }
 
@@ -496,33 +417,33 @@ public class TeamCityService
                                 }
                                 else
                                 {
-                Logging.LogWarning(
-                    "Token created but '#createdToken' element not found",
-                    3);
+                                    Logging.LogWarning(
+                                        "Token created but '#createdToken' element not found",
+                                        3);
                                 }
                             }
                             catch (Exception ex)
                             {
-                                    Logging.LogWarning(
-                                        $"Exception while extracting created token: {ex.Message}",
-                                        3);
+                                Logging.LogWarning(
+                                    $"Exception while extracting created token: {ex.Message}",
+                                    3);
                             }
                         }
                         else
                         {
-                        Logging.LogWarning("Could not find Create/Generate button in dialog", 2);
+                            Logging.LogWarning("Could not find Create/Generate button in dialog", 2);
                         }
                     }
-                catch (Exception ex)
+                    catch (Exception ex)
                     {
                         Logging.LogWarning($"Exception during token creation: {ex.Message}", 2);
                     }
                 }
                 else
                 {
-                        Logging.LogWarning(
-                            "Could not find token name input field (tried multiple selectors)",
-                            2);
+                    Logging.LogWarning(
+                        "Could not find token name input field (tried multiple selectors)",
+                        2);
 
                     try
                     {
@@ -542,7 +463,7 @@ public class TeamCityService
             }
             else
             {
-                            Logging.LogWarning("Could not find 'Create access token' button", 1);
+                Logging.LogWarning("Could not find 'Create access token' button", 1);
                 var currentUrl = page.Url;
                 Logging.LogInfo($"Current URL: {currentUrl}", 1);
             }
@@ -556,6 +477,86 @@ public class TeamCityService
             Logging.LogError($"TeamCity automated setup failed: {ex.Message}");
             Logging.LogError($"Stack trace: {ex.StackTrace}");
             return false;
+        }
+    }
+
+    private async Task TakeScreenshot(IPage page, string description)
+    {
+        try
+        {
+            _screenshotCounter++;
+            var timestamp = DateTime.UtcNow.ToString("HHmmss");
+            var filename = $"{_screenshotCounter:D3}_{timestamp}_{description}.png";
+            var path = Path.Combine(_screenshotDir, filename);
+            await page.ScreenshotAsync(new PageScreenshotOptions { Path = path, FullPage = true });
+            Logging.LogInfo($"📸 Screenshot saved: {filename}", 1);
+        }
+        catch (Exception ex)
+        {
+            Logging.LogWarning($"Could not save screenshot: {ex.Message}", 1);
+        }
+    }
+
+    private async Task<bool> CheckForMaintenanceError(IPage page)
+    {
+        try
+        {
+            var pageContent = await page.ContentAsync();
+            if (pageContent.Contains("TeamCity server requires technical maintenance")
+                && pageContent.Contains("already logged in"))
+            {
+                Logging.LogError("TeamCity server is in maintenance mode");
+                await TakeScreenshot(page, "error_maintenance_mode");
+                return true;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logging.LogWarning($"Could not check for maintenance message: {ex.Message}");
+        }
+
+        return false;
+    }
+
+    private async Task WaitForTextToDisappear(
+        IPage page,
+        string text,
+        int timeoutSeconds = 120,
+        int pollMs = 1000)
+    {
+        var found = false;
+        for (var s = 0; s < timeoutSeconds; s++)
+        {
+            try
+            {
+                var pageContent = await page.ContentAsync();
+                if (pageContent.IndexOf(text, StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    found = true;
+                    if (s % 5 == 0)
+                    {
+                        Logging.LogInfo($"Waiting for '{text}' to disappear... waited {s}s", 1);
+                    }
+
+                    await Task.Delay(pollMs);
+                    continue;
+                }
+
+                break;
+            }
+            catch (Exception ex)
+            {
+                Logging.LogWarning(
+                    $"Warning reading page content while waiting for '{text}': {ex.Message}",
+                    1);
+
+                await Task.Delay(pollMs);
+            }
+        }
+
+        if (found)
+        {
+            Logging.LogInfo($"'{text}' no longer present (or timed out waiting)", 1);
         }
     }
 
@@ -578,50 +579,47 @@ public class TeamCityService
             "users/current/tokens"
         };
 
-        return await RetryHelper.Retry(
-            async () =>
+        return await RetryHelper.Retry(async () =>
+        {
+            foreach (var endpoint in endpoints)
             {
-                foreach (var endpoint in endpoints)
-                {
                 var url = BuildApiUrl(teamcityUrl, endpoint);
-                    Logging.LogInfo($"Trying endpoint: {url}", 2);
+                Logging.LogInfo($"Trying endpoint: {url}", 2);
 
-                    // Try XML body first
-                    var token = await TryCreateTokenWithBody(
-                        client,
-                        url,
-                        username,
-                        password,
-                        tokenName,
-                        "application/xml",
-                        $"<token name=\"{WebUtility.HtmlEncode(tokenName)}\"/>");
+                // Try XML body first
+                var token = await TryCreateTokenWithBody(
+                    client,
+                    url,
+                    username,
+                    password,
+                    tokenName,
+                    "application/xml",
+                    $"<token name=\"{WebUtility.HtmlEncode(tokenName)}\"/>");
 
-                    if (token != null)
-                    {
-                        return token;
-                    }
-
-                    // Try JSON body
-                    Logging.LogInfo("Trying with JSON body...", 2);
-                    token = await TryCreateTokenWithBody(
-                        client,
-                        url,
-                        username,
-                        password,
-                        tokenName,
-                        "application/json",
-                        JsonSerializer.Serialize(new { name = tokenName }));
-
-                    if (token != null)
-                    {
-                        return token;
-                    }
+                if (token != null)
+                {
+                    return token;
                 }
 
-                return null;
-            },
-            maxAttempts: 3,
-            baseDelayMs: 2000);
+                // Try JSON body
+                Logging.LogInfo("Trying with JSON body...", 2);
+                token = await TryCreateTokenWithBody(
+                    client,
+                    url,
+                    username,
+                    password,
+                    tokenName,
+                    "application/json",
+                    JsonSerializer.Serialize(new { name = tokenName }));
+
+                if (token != null)
+                {
+                    return token;
+                }
+            }
+
+            return null;
+        });
     }
 
     private async Task<string?> TryCreateTokenWithBody(
@@ -725,6 +723,7 @@ public class TeamCityService
                 Logging.Log("TeamCity project already exists");
                 return true;
             }
+
             Logging.LogError($"TeamCity API error {(int)response.StatusCode}: {body}");
             return false;
         }
@@ -812,6 +811,7 @@ public class TeamCityService
                         1);
                 }
             }
+
             Logging.Log($"Authorized {authorizedCount} agent(s)");
             return authorizedCount > 0;
         }
