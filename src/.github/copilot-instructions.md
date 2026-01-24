@@ -11,6 +11,7 @@
 
  ## Coding Conventions
 - As these are console applications, do not use async/await anywhere, unless using a method that only has an async option.
+  - If creating async methods due to library calls that are async only, do not suffix the method name with "Async".
 - Use dependency injection for services.
 - Prefer `HttpClientFactory` for HTTP calls.
 - When parsing JSON returned from an API, use model classes to deserialize responses in a typesafe way. Place model files in a directory called `Entities` and only include properties that are used.

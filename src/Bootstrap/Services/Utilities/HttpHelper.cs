@@ -2,6 +2,7 @@ namespace Bootstrap.Services.Utilities;
 
 public static class HttpHelper
 {
+    // This method waits for a service to be ready by polling its status.
     public static async Task<bool> WaitForService(
         HttpClient client,
         string url,

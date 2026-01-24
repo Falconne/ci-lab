@@ -37,7 +37,7 @@ public class PlaywrightService : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    public async Task<bool> InitializeAsync(string screenshotDirectory, bool headless = true)
+    public async Task<bool> Initialize(string screenshotDirectory, bool headless = true)
     {
         try
         {
@@ -78,18 +78,18 @@ public class PlaywrightService : IDisposable
         }
     }
 
-    public async Task NavigateAsync(string url, WaitUntilState waitUntil = WaitUntilState.NetworkIdle)
+    public async Task Navigate(string url, WaitUntilState waitUntil = WaitUntilState.NetworkIdle)
     {
         Logging.Log($"Navigating to {url}");
         await Page.GotoAsync(url, new PageGotoOptions { WaitUntil = waitUntil });
     }
 
-    public async Task<string> GetPageContentAsync()
+    public async Task<string> GetPageContent()
     {
         return await Page.ContentAsync();
     }
 
-    public async Task TakeScreenshotAsync(string description)
+    public async Task TakeScreenshot(string description)
     {
         try
         {
@@ -106,7 +106,7 @@ public class PlaywrightService : IDisposable
         }
     }
 
-    public async Task<bool> WaitForTextToDisappearAsync(
+    public async Task<bool> WaitForTextToDisappear(
         string text,
         int timeoutSeconds = 120,
         int pollMs = 1000)
@@ -149,7 +149,7 @@ public class PlaywrightService : IDisposable
         return !found;
     }
 
-    public static async Task<bool> FillFormFieldAsync(ILocator locator, string value, string fieldName)
+    public static async Task<bool> FillFormField(ILocator locator, string value, string fieldName)
     {
         if (await locator.CountAsync() > 0)
         {
@@ -162,7 +162,7 @@ public class PlaywrightService : IDisposable
         return false;
     }
 
-    public static async Task<bool> ClickButtonAsync(ILocator locator, string buttonName)
+    public static async Task<bool> ClickButton(ILocator locator, string buttonName)
     {
         if (await locator.CountAsync() > 0)
         {
@@ -175,12 +175,12 @@ public class PlaywrightService : IDisposable
         return false;
     }
 
-    public async Task<bool> ClickAndWaitAsync(
+    public async Task<bool> ClickAndWait(
         ILocator locator,
         string buttonName,
         int delayMs = 2000)
     {
-        if (await PlaywrightService.ClickButtonAsync(locator, buttonName))
+        if (await PlaywrightService.ClickButton(locator, buttonName))
         {
             await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
             await Task.Delay(delayMs);
@@ -190,7 +190,7 @@ public class PlaywrightService : IDisposable
         return false;
     }
 
-    public static async Task<bool> CheckCheckboxAsync(ILocator locator, string checkboxName)
+    public static async Task<bool> CheckCheckbox(ILocator locator, string checkboxName)
     {
         if (await locator.CountAsync() > 0)
         {
@@ -203,7 +203,7 @@ public class PlaywrightService : IDisposable
         return false;
     }
 
-    public static async Task<string?> GetTextContentAsync(ILocator locator)
+    public static async Task<string?> GetTextContent(ILocator locator)
     {
         if (await locator.CountAsync() > 0)
         {
@@ -213,7 +213,7 @@ public class PlaywrightService : IDisposable
         return null;
     }
 
-    public static async Task<string?> GetAttributeAsync(ILocator locator, string attributeName)
+    public static async Task<string?> GetAttribute(ILocator locator, string attributeName)
     {
         if (await locator.CountAsync() > 0)
         {
@@ -223,7 +223,7 @@ public class PlaywrightService : IDisposable
         return null;
     }
 
-    public static async Task<bool> WaitForElementAsync(
+    public static async Task<bool> WaitForElement(
         ILocator locator,
         WaitForSelectorState state = WaitForSelectorState.Visible,
         int timeoutMs = 5000)
