@@ -26,23 +26,21 @@ public class TeamCityBootstrapService
         string username,
         string password)
     {
+        Logging.Log("Starting automated TeamCity initial setup using Playwright...");
         var screenshotDir = Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "data", "screenshots");
+        if (!await _browserService.Initialize(screenshotDir))
+        {
+            return false;
+        }
 
         try
         {
-            Logging.Log("Starting automated TeamCity initial setup using Playwright...");
-
-            if (!await _browserService.Initialize(screenshotDir))
-            {
-                return false;
-            }
-
             await _browserService.Navigate(teamcityUrl);
             await Task.Delay(3000);
             await _browserService.TakeScreenshot("01_initial_page");
 
             // Check for maintenance/admin limit error early
-            if (await CheckForMaintenanceErrorAsync())
+            if (await CheckForMaintenanceError())
             {
                 return false;
             }
@@ -127,7 +125,7 @@ public class TeamCityBootstrapService
                         "Initializing TeamCity server components",
                         180);
 
-                await _browserService.TakeScreenshot("05_after_database");
+                    await _browserService.TakeScreenshot("05_after_database");
                     Logging.LogInfo("Database setup completed", 1);
                     break;
                 }
@@ -464,7 +462,7 @@ public class TeamCityBootstrapService
         }
     }
 
-    private async Task<bool> CheckForMaintenanceErrorAsync()
+    private async Task<bool> CheckForMaintenanceError()
     {
         try
         {
