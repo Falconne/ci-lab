@@ -102,25 +102,22 @@ public class PlaywrightService : IDisposable
         int timeoutSeconds = 120,
         int pollMs = 1000)
     {
-        var found = false;
         for (var s = 0; s < timeoutSeconds; s++)
         {
             try
             {
                 var pageContent = await Page.ContentAsync();
-                if (pageContent.IndexOf(text, StringComparison.OrdinalIgnoreCase) >= 0)
+                if (pageContent.IndexOf(text, StringComparison.OrdinalIgnoreCase) < 0)
                 {
-                    found = true;
-                    if (s % 5 == 0)
-                    {
-                        Logging.LogInfo($"Waiting for '{text}' to disappear... waited {s}s", 1);
-                    }
-
-                    await Task.Delay(pollMs);
-                    continue;
+                    return true;
                 }
 
-                break;
+                if (s % 5 == 0)
+                {
+                    Logging.LogInfo($"Waiting for '{text}' to disappear... waited {s}s", 1);
+                }
+
+                await Task.Delay(pollMs);
             }
             catch (Exception ex)
             {
@@ -132,12 +129,8 @@ public class PlaywrightService : IDisposable
             }
         }
 
-        if (found)
-        {
-            Logging.LogInfo($"'{text}' no longer present (or timed out waiting)", 1);
-        }
-
-        return !found;
+        Logging.LogInfo("Timed out waiting", 1);
+        return false;
     }
 
     public static async Task<bool> FillFormField(ILocator locator, string value, string fieldName)
