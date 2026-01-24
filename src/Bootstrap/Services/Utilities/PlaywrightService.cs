@@ -18,18 +18,9 @@ public class PlaywrightService : IDisposable
 
     private string _screenshotDir = string.Empty;
 
-    public IPage Page
-    {
-        get
-        {
-            if (_page == null)
-            {
-                throw new InvalidOperationException("Browser not initialized. Call InitializeAsync first.");
-            }
-
-            return _page;
-        }
-    }
+    public IPage Page => _page
+                         ?? throw new InvalidOperationException(
+                             "Browser not initialized. Call InitializeAsync first.");
 
     public void Dispose()
     {
@@ -162,7 +153,7 @@ public class PlaywrightService : IDisposable
         return false;
     }
 
-    public static async Task<bool> ClickButton(ILocator locator, string buttonName)
+    private static async Task<bool> ClickButton(ILocator locator, string buttonName)
     {
         if (await locator.CountAsync() > 0)
         {
@@ -180,14 +171,14 @@ public class PlaywrightService : IDisposable
         string buttonName,
         int delayMs = 2000)
     {
-        if (await PlaywrightService.ClickButton(locator, buttonName))
+        if (!await ClickButton(locator, buttonName))
         {
-            await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-            await Task.Delay(delayMs);
-            return true;
+            return false;
         }
 
-        return false;
+        await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await Task.Delay(delayMs);
+        return true;
     }
 
     public static async Task<bool> CheckCheckbox(ILocator locator, string checkboxName)
