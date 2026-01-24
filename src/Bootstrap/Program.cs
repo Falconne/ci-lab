@@ -22,13 +22,11 @@ using var httpClient =
     new HttpClient(
         new HttpClientHandler
         {
-            ServerCertificateCustomValidationCallback = (_, _, _, _) => true,
-            UseCookies = false
-        })
-    { Timeout = TimeSpan.FromSeconds(10) };
+            ServerCertificateCustomValidationCallback = (_, _, _, _) => true, UseCookies = false
+        }) { Timeout = TimeSpan.FromSeconds(10) };
 
 // Create service instances
-var teamCityService = new TeamCityService();
+var teamCityService = new TeamCityBootstrapService();
 var gitLabService = new GitLabService();
 
 // Wait for TeamCity first (it's often available before GitLab)
@@ -50,7 +48,7 @@ if (!teamcityReady)
 Logging.LogSection("TeamCity Automated Initial Setup");
 
 var gitlabRootPassword = Environment.GetEnvironmentVariable("GITLAB_ROOT_PASSWORD") ?? "changeme123";
-var teamcitySetupSuccess = await teamCityService.AutomateTeamCitySetup(
+var teamcitySetupSuccess = await teamCityService.Execute(
     httpClient,
     teamcityUrl,
     "root",

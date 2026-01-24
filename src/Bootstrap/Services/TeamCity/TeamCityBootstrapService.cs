@@ -7,7 +7,7 @@ using System.Text.Json;
 
 namespace Bootstrap.Services.TeamCity;
 
-public class TeamCityService
+public class TeamCityBootstrapService
 {
     private int _screenshotCounter;
 
@@ -18,7 +18,7 @@ public class TeamCityService
         return ApiUrlHelper.BuildUrl(teamcityUrl, "app/rest", endpoint);
     }
 
-    public async Task<bool> AutomateTeamCitySetup(
+    public async Task<bool> Execute(
         HttpClient client,
         string teamcityUrl,
         string username,
