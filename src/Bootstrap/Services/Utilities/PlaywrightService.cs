@@ -110,6 +110,7 @@ public class PlaywrightService : IDisposable
                 var pageContent = await Page.ContentAsync();
                 if (!pageContent.Contains(text, StringComparison.OrdinalIgnoreCase))
                 {
+                    Log.Information("Text has gone, continuing on...");
                     return true;
                 }
 
