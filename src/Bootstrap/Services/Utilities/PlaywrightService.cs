@@ -149,7 +149,7 @@ public class PlaywrightService : IDisposable
         return !found;
     }
 
-    public async Task<bool> FillFormFieldAsync(ILocator locator, string value, string fieldName)
+    public static async Task<bool> FillFormFieldAsync(ILocator locator, string value, string fieldName)
     {
         if (await locator.CountAsync() > 0)
         {
@@ -162,7 +162,7 @@ public class PlaywrightService : IDisposable
         return false;
     }
 
-    public async Task<bool> ClickButtonAsync(ILocator locator, string buttonName)
+    public static async Task<bool> ClickButtonAsync(ILocator locator, string buttonName)
     {
         if (await locator.CountAsync() > 0)
         {
@@ -180,7 +180,7 @@ public class PlaywrightService : IDisposable
         string buttonName,
         int delayMs = 2000)
     {
-        if (await ClickButtonAsync(locator, buttonName))
+        if (await PlaywrightService.ClickButtonAsync(locator, buttonName))
         {
             await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
             await Task.Delay(delayMs);
@@ -190,7 +190,7 @@ public class PlaywrightService : IDisposable
         return false;
     }
 
-    public async Task<bool> CheckCheckboxAsync(ILocator locator, string checkboxName)
+    public static async Task<bool> CheckCheckboxAsync(ILocator locator, string checkboxName)
     {
         if (await locator.CountAsync() > 0)
         {
@@ -203,7 +203,7 @@ public class PlaywrightService : IDisposable
         return false;
     }
 
-    public async Task<string?> GetTextContentAsync(ILocator locator)
+    public static async Task<string?> GetTextContentAsync(ILocator locator)
     {
         if (await locator.CountAsync() > 0)
         {
@@ -213,7 +213,7 @@ public class PlaywrightService : IDisposable
         return null;
     }
 
-    public async Task<string?> GetAttributeAsync(ILocator locator, string attributeName)
+    public static async Task<string?> GetAttributeAsync(ILocator locator, string attributeName)
     {
         if (await locator.CountAsync() > 0)
         {
@@ -223,7 +223,7 @@ public class PlaywrightService : IDisposable
         return null;
     }
 
-    public async Task<bool> WaitForElementAsync(
+    public static async Task<bool> WaitForElementAsync(
         ILocator locator,
         WaitForSelectorState state = WaitForSelectorState.Visible,
         int timeoutMs = 5000)

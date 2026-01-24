@@ -64,8 +64,8 @@ public class TeamCityBootstrapService
                     && await loginPasswordField.CountAsync() > 0
                     && await loginButton.CountAsync() > 0)
                 {
-                    await _browserService.FillFormFieldAsync(loginUsernameField, username, "username");
-                    await _browserService.FillFormFieldAsync(loginPasswordField, password, "password");
+                    await PlaywrightService.FillFormFieldAsync(loginUsernameField, username, "username");
+                    await PlaywrightService.FillFormFieldAsync(loginPasswordField, password, "password");
                     await _browserService.TakeScreenshotAsync("login_form_filled");
 
                     await _browserService.ClickAndWaitAsync(loginButton, "login button");
@@ -152,7 +152,7 @@ public class TeamCityBootstrapService
 
                 if (await acceptCheckbox.CountAsync() > 0)
                 {
-                    if (await _browserService.CheckCheckboxAsync(acceptCheckbox, "license acceptance"))
+                    if (await PlaywrightService.CheckCheckboxAsync(acceptCheckbox, "license acceptance"))
                     {
                         await Task.Delay(1000); // Wait for JavaScript to enable the button
 
@@ -168,7 +168,7 @@ public class TeamCityBootstrapService
 
                         // Wait for button to be enabled (JavaScript enables it after checkbox is checked)
                         Logging.LogInfo("Waiting for Continue button to be enabled...", 1);
-                        await _browserService.WaitForElementAsync(continueButton);
+                        await PlaywrightService.WaitForElementAsync(continueButton);
 
                         Logging.LogInfo("Clicking Continue after license acceptance...", 1);
                         await _browserService.ClickAndWaitAsync(continueButton, "Continue button", 3000);
@@ -214,14 +214,14 @@ public class TeamCityBootstrapService
             if (await usernameField.CountAsync() > 0)
             {
                 Logging.LogInfo("Found admin creation form, filling in details...", 1);
-                await _browserService.FillFormFieldAsync(usernameField, username, "username");
+                await PlaywrightService.FillFormFieldAsync(usernameField, username, "username");
                 await Task.Delay(300);
 
                 var passwordField = _browserService.GetLocator(
                         "input[name='password'], input[id='password1'], input[type='password']")
                     .First;
 
-                await _browserService.FillFormFieldAsync(passwordField, password, "password");
+                await PlaywrightService.FillFormFieldAsync(passwordField, password, "password");
                 await Task.Delay(300);
 
                 var confirmPasswordField = _browserService.GetLocator(
@@ -229,7 +229,7 @@ public class TeamCityBootstrapService
 
                 if (await confirmPasswordField.CountAsync() > 0)
                 {
-                    await _browserService.FillFormFieldAsync(
+                    await PlaywrightService.FillFormFieldAsync(
                         confirmPasswordField,
                         password,
                         "confirm password");
@@ -333,7 +333,7 @@ public class TeamCityBootstrapService
                 {
                     try
                     {
-                        await _browserService.FillFormFieldAsync(
+                        await PlaywrightService.FillFormFieldAsync(
                             tokenNameInput,
                             "bootstrap-automation",
                             "token name");
@@ -360,18 +360,18 @@ public class TeamCityBootstrapService
                                 var accessTokenRow = _browserService.GetLocator("#accessTokenValue");
                                 if (await accessTokenRow.CountAsync() > 0)
                                 {
-                                    await _browserService.WaitForElementAsync(accessTokenRow);
+                                    await PlaywrightService.WaitForElementAsync(accessTokenRow);
                                 }
 
                                 if (await createdTokenLocator.CountAsync() > 0)
                                 {
                                     var token =
-                                        await _browserService.GetTextContentAsync(createdTokenLocator);
+                                        await PlaywrightService.GetTextContentAsync(createdTokenLocator);
 
                                     if (string.IsNullOrWhiteSpace(token))
                                     {
                                         // Sometimes the token may be in a child or as a value attribute
-                                        token = await _browserService.GetAttributeAsync(
+                                        token = await PlaywrightService.GetAttributeAsync(
                                             createdTokenLocator,
                                             "value");
                                     }
