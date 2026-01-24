@@ -6,7 +6,7 @@ using Serilog;
 Logging.Init();
 
 Logging.LogSeparator();
-Log.Information("CI Lab Bootstrap - Manual Setup (.NET 9)");
+Log.Information("CI Lab Bootstrap");
 Logging.LogSeparator();
 
 // Determine .env file path relative to the project directory
