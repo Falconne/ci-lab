@@ -47,7 +47,11 @@ public class TeamCityBootstrapService
             if (!await IsAccountAlreadyCreated(username, password))
             {
                 await HandleDataDirectoryConfiguration();
-                await HandleDatabaseSetup();
+                if (!await HandleDatabaseSetup())
+                {
+                    Logging.LogError("Database setup did not complete in time");
+                    return false;
+                }
 
                 if (!await HandleLicenseAgreement())
                 {
@@ -146,7 +150,7 @@ public class TeamCityBootstrapService
         }
     }
 
-    private async Task HandleDatabaseSetup()
+    private async Task<bool> HandleDatabaseSetup()
     {
         Logging.Log("Step 2: Checking for database setup screen");
         await Task.Delay(2000);
@@ -155,7 +159,7 @@ public class TeamCityBootstrapService
         var dbProceedButton =
             _browserService.GetLocator("button:has-text('Proceed'), input[value='Proceed']");
 
-        const int maxWaitForDb = 60;
+        const int maxWaitForDb = 180;
         for (var i = 0; i < maxWaitForDb; i++)
         {
             if (await dbProceedButton.CountAsync() > 0)
@@ -171,7 +175,7 @@ public class TeamCityBootstrapService
 
                 await _browserService.TakeScreenshot("05_after_database");
                 Logging.LogInfo("Database setup completed", 1);
-                break;
+                return true;
             }
 
             await Task.Delay(1000);
@@ -180,6 +184,10 @@ public class TeamCityBootstrapService
                 Logging.LogInfo($"Still waiting for database initialization... ({i}s)", 1);
             }
         }
+
+        Logging.LogError("Timed out waiting for database initialization");
+        await _browserService.TakeScreenshot("error_database_timeout");
+        return false;
     }
 
     private async Task<bool> HandleLicenseAgreement()
