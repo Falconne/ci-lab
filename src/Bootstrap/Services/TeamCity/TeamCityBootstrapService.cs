@@ -214,8 +214,8 @@ public class TeamCityBootstrapService
 
         if (await acceptCheckbox.CountAsync() == 0)
         {
-            Logging.LogInfo("License checkbox not found, skipping license acceptance step", 1);
-            return true;
+            Logging.LogError("License checkbox not found", 1);
+            return false;
         }
 
         if (!await PlaywrightService.CheckCheckbox(acceptCheckbox, "license acceptance"))
