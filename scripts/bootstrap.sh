@@ -1,21 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Helper to run the bootstrapper (prefers local dotnet; falls back to Docker SDK image)
+# Helper to run the bootstrapper C# app
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 cd "$ROOT_DIR"
 
-if [ ! -d "src/Bootstrap" ]; then
-  echo "Error: src/Bootstrap directory not found. Run from repository root." >&2
-  exit 2
-fi
-
 # Run from the project directory so the bootstrapper finds ../../.env as expected
 cd src/Bootstrap
-
-echo "Local dotnet not found — running within .NET SDK Docker image with Playwright..."
 
 # Pass environment variables to container
 GITLAB_ROOT_PASSWORD="${GITLAB_ROOT_PASSWORD:-changeme123}"
