@@ -1,3 +1,4 @@
+using Bootstrap.Services.Utilities;
 using Microsoft.Playwright;
 using Serilog;
 
@@ -130,7 +131,7 @@ public class PlaywrightService : IDisposable
 
     public static async Task<bool> FillFormField(ILocator locator, string value, string fieldName)
     {
-        if (await CountWithRetry(locator) > 0)
+        if (await locator.CountWithRetry() > 0)
         {
             Log.Information($"Filling {fieldName}...");
             await locator.First.FillAsync(value);
@@ -158,7 +159,7 @@ public class PlaywrightService : IDisposable
 
     public static async Task<bool> CheckCheckbox(ILocator locator, string checkboxName)
     {
-        if (await CountWithRetry(locator) > 0)
+        if (await locator.CountWithRetry() > 0)
         {
             Log.Information($"Checking {checkboxName}...");
             await locator.First.CheckAsync();
@@ -171,7 +172,7 @@ public class PlaywrightService : IDisposable
 
     public static async Task<string?> GetTextContent(ILocator locator)
     {
-        if (await CountWithRetry(locator) > 0)
+        if (await locator.CountWithRetry() > 0)
         {
             return await locator.First.TextContentAsync();
         }
@@ -181,7 +182,7 @@ public class PlaywrightService : IDisposable
 
     public static async Task<string?> GetAttribute(ILocator locator, string attributeName)
     {
-        if (await CountWithRetry(locator) > 0)
+        if (await locator.CountWithRetry() > 0)
         {
             return await locator.First.GetAttributeAsync(attributeName);
         }
@@ -212,35 +213,9 @@ public class PlaywrightService : IDisposable
         return Page.Locator(selector);
     }
 
-    public static async Task<int> CountWithRetry(ILocator locator)
-    {
-        const int maxRetries = 2;
-        var attempt = 0;
-
-        while (true)
-        {
-            try
-            {
-                return await locator.CountAsync();
-            }
-            catch (Exception ex)
-            {
-                attempt++;
-                if (attempt > maxRetries)
-                {
-                    Log.Error($"CountAsync failed after {maxRetries} retries: {ex.Message}");
-                    throw;
-                }
-
-                Log.Warning($"CountAsync failed (attempt {attempt}/{maxRetries}), retrying: {ex.Message}");
-                await Task.Delay(500);
-            }
-        }
-    }
-
     private static async Task<bool> ClickButton(ILocator locator, string buttonName)
     {
-        if (await CountWithRetry(locator) > 0)
+        if (await locator.CountWithRetry() > 0)
         {
             Log.Information($"Clicking {buttonName}...");
             await locator.First.ClickAsync();

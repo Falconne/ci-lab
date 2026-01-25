@@ -130,9 +130,9 @@ public class TeamCityBootstrapService
         var loginPasswordField = _browserService.GetLocator("input[id='password']");
         var loginButton = _browserService.GetLocator("input[type='submit'][name='submitLogin']");
 
-        if (await PlaywrightService.CountWithRetry(loginUsernameField) > 0
-            && await PlaywrightService.CountWithRetry(loginPasswordField) > 0
-            && await PlaywrightService.CountWithRetry(loginButton) > 0)
+        if (await loginUsernameField.CountWithRetry() > 0
+            && await loginPasswordField.CountWithRetry() > 0
+            && await loginButton.CountWithRetry() > 0)
         {
             await PlaywrightService.FillFormField(loginUsernameField, _username, "username");
             await PlaywrightService.FillFormField(loginPasswordField, _password, "password");
@@ -158,7 +158,7 @@ public class TeamCityBootstrapService
             .GetLocator("button:has-text('Proceed'), input[value='Proceed']")
             .First;
 
-        if (await PlaywrightService.CountWithRetry(proceedButton) > 0)
+        if (await proceedButton.CountWithRetry() > 0)
         {
             Log.Information("Found Proceed button, clicking...");
             await _browserService.ClickAndWait(proceedButton, "Proceed button", 3000);
@@ -178,7 +178,7 @@ public class TeamCityBootstrapService
             var dbProceedButton =
                 _browserService.GetLocator("button:has-text('Proceed'), input[value='Proceed']");
 
-            if (await PlaywrightService.CountWithRetry(dbProceedButton) > 0)
+            if (await dbProceedButton.CountWithRetry() > 0)
             {
                 Log.Information("Database setup ready, clicking Proceed...");
                 await _browserService.ClickAndWait(dbProceedButton, "Database Proceed button", 3000);
@@ -229,7 +229,7 @@ public class TeamCityBootstrapService
         var acceptCheckbox = _browserService.GetLocator(
             "input[type='checkbox'][name='accept'], input[id='accept'], input[name='acceptLicense']");
 
-        if (await PlaywrightService.CountWithRetry(acceptCheckbox) == 0)
+        if (await acceptCheckbox.CountWithRetry() == 0)
         {
             Log.Error("License checkbox not found");
             return false;
@@ -245,7 +245,7 @@ public class TeamCityBootstrapService
         var continueButton = _browserService.GetLocator(
             "input[type='submit'][name='Continue'], input[type='submit'].submitButton, button:has-text('Continue'), input[value*='Continue']");
 
-        if (await PlaywrightService.CountWithRetry(continueButton) == 0)
+        if (await continueButton.CountWithRetry() == 0)
         {
             Log.Error("Continue button not found on license page");
             await _browserService.TakeScreenshot("error_license_no_continue");
@@ -289,7 +289,7 @@ public class TeamCityBootstrapService
         var usernameField =
             _browserService.GetLocator("input[name='username'], input[id='input_teamcityUsername']");
 
-        if (await PlaywrightService.CountWithRetry(usernameField) == 0)
+        if (await usernameField.CountWithRetry() == 0)
         {
             Log.Information("Admin account may already exist, continuing...");
             return;
@@ -309,7 +309,7 @@ public class TeamCityBootstrapService
         var confirmPasswordField = _browserService.GetLocator(
             "input[name='confirmPassword'], input[id='password2'], input[name='retypedPassword']");
 
-        if (await PlaywrightService.CountWithRetry(confirmPasswordField) > 0)
+        if (await confirmPasswordField.CountWithRetry() > 0)
         {
             await PlaywrightService.FillFormField(
                 confirmPasswordField,
@@ -324,7 +324,7 @@ public class TeamCityBootstrapService
         var createAccountButton = _browserService.GetLocator(
             "button:has-text('Create Account'), input[value='Create Account'], button[type='submit']");
 
-        if (await PlaywrightService.CountWithRetry(createAccountButton) > 0)
+        if (await createAccountButton.CountWithRetry() > 0)
         {
             Log.Information("Submitting admin account creation...");
             await _browserService.ClickAndWait(
