@@ -4,14 +4,14 @@ namespace Bootstrap.Services;
 
 public class EnvService
 {
-    public string EnvPath { get; }
-
     public EnvService(string envPath)
     {
         EnvPath = envPath;
     }
 
-    public void LoadEnvFile()
+    public string EnvPath { get; }
+
+    public void Load()
     {
         if (!File.Exists(EnvPath))
         {
@@ -46,16 +46,16 @@ public class EnvService
 
         var newLine = $"{key}=\"{value}\"";
 
-            if (lineIndex >= 0)
-            {
-                lines[lineIndex] = newLine;
-                Log.Information($"Updated {key} in .env file");
-            }
-            else
-            {
-                lines.Add(newLine);
-                Log.Information($"Added {key} to .env file");
-            }
+        if (lineIndex >= 0)
+        {
+            lines[lineIndex] = newLine;
+            Log.Information($"Updated {key} in .env file");
+        }
+        else
+        {
+            lines.Add(newLine);
+            Log.Information($"Added {key} to .env file");
+        }
 
         File.WriteAllLines(EnvPath, lines);
         Environment.SetEnvironmentVariable(key, value);

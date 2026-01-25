@@ -18,7 +18,7 @@ var envFullPath = Path.GetFullPath(envPath);
 var envService = new EnvService(envFullPath);
 
 // Load environment variables from .env file if it exists
-envService.LoadEnvFile();
+envService.Load();
 
 var gitlabUrl = Environment.GetEnvironmentVariable("GITLAB_URL") ?? "http://localhost:8081";
 var teamcityUrl = Environment.GetEnvironmentVariable("TEAMCITY_URL") ?? "http://localhost:8111";
@@ -38,7 +38,14 @@ httpClient.Timeout = TimeSpan.FromSeconds(10);
 // Create service instances
 using var browserService = new PlaywrightService();
 var gitlabRootPassword = Environment.GetEnvironmentVariable("GITLAB_ROOT_PASSWORD") ?? "changeme123";
-var teamCityBootstrapService = new TeamCityBootstrapService(browserService, envService, teamcityUrl, httpClient, "root", gitlabRootPassword);
+var teamCityBootstrapService = new TeamCityBootstrapService(
+    browserService,
+    envService,
+    teamcityUrl,
+    httpClient,
+    "root",
+    gitlabRootPassword);
+
 var gitlabService = new GitlabService(gitlabUrl);
 
 // Wait for TeamCity first (it will be available before GitLab)
@@ -182,7 +189,7 @@ static async Task<string?> GetAndValidateTokenAsync(
         while (DateTime.UtcNow < deadline)
         {
             // Reload .env to pick up tokens written by external processes
-            envService.LoadEnvFile();
+            envService.Load();
             var token = Environment.GetEnvironmentVariable(envVarName);
 
             if (!string.IsNullOrEmpty(token))
