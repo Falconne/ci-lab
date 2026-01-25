@@ -101,7 +101,7 @@ try
     for (var i = 1; i <= 5; i++)
     {
         var projectName = $"test-project-{i}";
-        var created = await gitlabProjectService.CreateAndPopulateProject(
+        var created = await gitlabProjectService.CreateTopLevelProject(
             projectName,
             i);
 
