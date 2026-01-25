@@ -75,142 +75,64 @@ public class GitlabService : IDisposable
         string projectName,
         int projectNumber)
     {
-        var project = await CreateProject(projectName);
-
-        var hasCommits = await CheckProjectHasCommits(project.Id);
-        if (hasCommits)
-        {
-            Log.Information($"Project '{projectName}' already has commits, skipping repo population");
-            return true;
-        }
-
-        var tempDir = CreateTempDirectory(projectName);
-
-        try
-        {
-            var random = new Random(projectNumber * 1000 + DateTime.UtcNow.Millisecond);
-            var sleepDuration = random.Next(10, 61);
-
-            var buildShContent = $"""
-                                  #!/bin/bash
-                                  set -e
-
-                                  echo "=========================================="
-                                  echo "Starting build for {projectName}"
-                                  echo "Build started at: $(date)"
-                                  echo "=========================================="
-                                  echo ""
-                                  echo "Running build steps..."
-                                  echo "- Preparing environment..."
-                                  echo "- Compiling sources..."
-                                  echo ""
-
-                                  # Simulated build time
-                                  sleep {sleepDuration}
-
-                                  echo ""
-                                  echo "=========================================="
-                                  echo "Build completed successfully!"
-                                  echo "Build finished at: $(date)"
-                                  echo "Total build time: {sleepDuration} seconds"
-                                  echo "=========================================="
-
-                                  """;
-
-            var buildShPath = Path.Combine(tempDir, "build.sh");
-            await File.WriteAllTextAsync(buildShPath, buildShContent);
-
-            if (!OperatingSystem.IsWindows())
+        return await CreateAndPopulateProjectInternal(
+            projectName,
+            async tempDir =>
             {
-                File.SetUnixFileMode(
-                    buildShPath,
-                    UnixFileMode.UserRead
-                    | UnixFileMode.UserWrite
-                    | UnixFileMode.UserExecute
-                    | UnixFileMode.GroupRead
-                    | UnixFileMode.GroupExecute
-                    | UnixFileMode.OtherRead
-                    | UnixFileMode.OtherExecute);
-            }
+                var random = new Random(projectNumber * 1000 + DateTime.UtcNow.Millisecond);
+                var sleepDuration = random.Next(10, 61);
 
-            var readmeContent = $"""
-                                 # {projectName}
+                var buildShContent = $"""
+                                      #!/bin/bash
+                                      set -e
 
-                                 This is test project #{projectNumber} for the CI lab environment.
+                                      echo "=========================================="
+                                      echo "Starting build for {projectName}"
+                                      echo "Build started at: $(date)"
+                                      echo "=========================================="
+                                      echo ""
+                                      echo "Running build steps..."
+                                      echo "- Preparing environment..."
+                                      echo "- Compiling sources..."
+                                      echo ""
 
-                                 ## Build
+                                      # Simulated build time
+                                      sleep {sleepDuration}
 
-                                 To build this project, run:
+                                      echo ""
+                                      echo "=========================================="
+                                      echo "Build completed successfully!"
+                                      echo "Build finished at: $(date)"
+                                      echo "Total build time: {sleepDuration} seconds"
+                                      echo "=========================================="
 
-                                 ```bash
-                                 ./build.sh
-                                 ```
+                                      """;
 
-                                 The build simulates compilation and takes approximately {sleepDuration} seconds.
+                var buildShPath = Path.Combine(tempDir, "build.sh");
+                await File.WriteAllTextAsync(buildShPath, buildShContent);
 
-                                 ## Project Details
-
-                                 - Project Name: {projectName}
-                                 - Project Number: {projectNumber}
-                                 - Build Duration: ~{sleepDuration}s
-
-                                 """;
-
-            var readmePath = Path.Combine(tempDir, "README.md");
-            await File.WriteAllTextAsync(readmePath, readmeContent);
-
-            InitializeAndPushRepository(tempDir, project, projectName);
-
-            Log.Information($"Repository populated and pushed to '{projectName}'");
-            return true;
-        }
-        finally
-        {
-            CleanupTempDirectory(tempDir);
-        }
+                if (!OperatingSystem.IsWindows())
+                {
+                    File.SetUnixFileMode(
+                        buildShPath,
+                        UnixFileMode.UserRead
+                        | UnixFileMode.UserWrite
+                        | UnixFileMode.UserExecute
+                        | UnixFileMode.GroupRead
+                        | UnixFileMode.GroupExecute
+                        | UnixFileMode.OtherRead
+                        | UnixFileMode.OtherExecute);
+                }
+            });
     }
 
     public async Task<bool> CreateSubProject(
         string projectName,
         int projectNumber)
     {
-        var project = await CreateProject(projectName);
-
-        var hasCommits = await CheckProjectHasCommits(project.Id);
-        if (hasCommits)
-        {
-            Log.Information($"Project '{projectName}' already has commits, skipping repo population");
-            return true;
-        }
-
-        var tempDir = CreateTempDirectory(projectName);
-
-        try
-        {
-            var readmeContent = $"""
-                                 # {projectName}
-
-                                 This is test sub-project #{projectNumber} for the CI lab environment.
-
-                                 ## Project Details
-
-                                 - Project Name: {projectName}
-                                 - Project Number: {projectNumber}
-
-                                 """;
-
-            var readmePath = Path.Combine(tempDir, "README.md");
-            await File.WriteAllTextAsync(readmePath, readmeContent);
-
-            InitializeAndPushRepository(tempDir, project, projectName);
-
-            Log.Information($"Sub-project repository populated and pushed to '{projectName}'");
-            return true;
-        }
-        finally
-        {
-            CleanupTempDirectory(tempDir);
-        }
+        return await CreateAndPopulateProjectInternal(
+            projectName,
+            _ => Task.CompletedTask);
     }
 
     private async Task<bool> CheckProjectHasCommits(int projectId)
@@ -225,6 +147,46 @@ public class GitlabService : IDisposable
         }
 
         return response is { IsSuccessful: true, Data.Length: > 0 };
+    }
+
+    private async Task<bool> CreateAndPopulateProjectInternal(
+        string projectName,
+        Func<string, Task> populateSpecificFiles)
+    {
+        var project = await CreateProject(projectName);
+
+        var hasCommits = await CheckProjectHasCommits(project.Id);
+        if (hasCommits)
+        {
+            Log.Information($"Project '{projectName}' already has commits, skipping repo population");
+            return true;
+        }
+
+        var tempDir = CreateTempDirectory(projectName);
+
+        try
+        {
+            await populateSpecificFiles(tempDir);
+
+            const string readmeContent = """
+                                         # Generic Readme
+
+                                         This is a test project for the CI lab environment.
+
+                                         """;
+
+            var readmePath = Path.Combine(tempDir, "README.md");
+            await File.WriteAllTextAsync(readmePath, readmeContent);
+
+            InitializeAndPushRepository(tempDir, project, projectName);
+
+            Log.Information($"Repository populated and pushed to '{projectName}'");
+            return true;
+        }
+        finally
+        {
+            CleanupTempDirectory(tempDir);
+        }
     }
 
     private string CreateTempDirectory(string projectName)
