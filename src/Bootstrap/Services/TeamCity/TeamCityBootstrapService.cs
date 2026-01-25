@@ -390,16 +390,8 @@ public class TeamCityBootstrapService : IDisposable
 
                 Log.Information($"No existing token found, creating new one at: {_teamcityUrl}/app/rest/{endpoint}");
 
-                // Try XML body first
-                var token = await TryCreateTokenWithXml(endpoint, tokenName);
-                if (token != null)
-                {
-                    return token;
-                }
-
-                // Try JSON body
-                Log.Information("Trying with JSON body...");
-                token = await TryCreateTokenWithJson(endpoint, tokenName);
+                // Create token with JSON body
+                var token = await TryCreateTokenWithJson(endpoint, tokenName);
                 if (token != null)
                 {
                     return token;
@@ -433,41 +425,6 @@ public class TeamCityBootstrapService : IDisposable
         }
     }
 
-    private async Task<string?> TryCreateTokenWithXml(string endpoint, string tokenName)
-    {
-        try
-        {
-            var request = new RestRequest(endpoint, Method.Post)
-                .AddHeader("Accept", "application/json")
-                .AddStringBody($"<token name=\"{WebUtility.HtmlEncode(tokenName)}\"/>", ContentType.Xml);
-
-            var response = await _client.ExecuteAsync(request);
-            Log.Information($"Response status: {(int)response.StatusCode} {response.StatusCode}");
-
-            if (!response.IsSuccessful)
-            {
-                Log.Information($"Response body: {response.Content?[..Math.Min(200, response.Content?.Length ?? 0)]}");
-                return null;
-            }
-
-            Log.Information("Success! Parsing response...");
-            var token = ResponseParser.TryParseTokenFromResponse(response.Content ?? "");
-
-            if (token != null)
-            {
-                Log.Information($"Token extracted (length: {token.Length})");
-                return token;
-            }
-
-            Log.Warning("Success response but couldn't extract token");
-            return null;
-        }
-        catch (Exception ex)
-        {
-            Log.Information($"Exception: {ex.Message}");
-            return null;
-        }
-    }
 
     private async Task<string?> TryCreateTokenWithJson(string endpoint, string tokenName)
     {
