@@ -504,6 +504,7 @@ public class TeamCityBootstrapService : IDisposable
     public async Task<bool> AuthorizeAgents(string token)
     {
         var listRequest = new RestRequest("agents")
+            .AddHeader("Accept", "application/json")
             .AddHeader("Authorization", $"Bearer {token}")
             .AddQueryParameter("locator", "authorized:false");
 
@@ -529,6 +530,7 @@ public class TeamCityBootstrapService : IDisposable
             Log.Information($"Authorizing agent: {agentName} (ID: {agentId})");
 
             var authRequest = new RestRequest($"agents/id:{agentId}/authorized", Method.Put)
+                .AddHeader("Accept", "text/plain")
                 .AddHeader("Authorization", $"Bearer {token}")
                 .AddStringBody("true", ContentType.Plain);
 
@@ -539,6 +541,7 @@ public class TeamCityBootstrapService : IDisposable
                 Log.Information($"Agent {agentName} authorized");
 
                 var poolRequest = new RestRequest("agentPools/id:0/agents", Method.Post)
+                    .AddHeader("Accept", "application/xml")
                     .AddHeader("Authorization", $"Bearer {token}")
                     .AddStringBody($"<agent id=\"{agentId}\" />", ContentType.Xml);
 
