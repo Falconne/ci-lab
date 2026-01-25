@@ -8,8 +8,10 @@
 - As this is a generated testing environment, it is fine to store secrets in source control.
 - Ensure automated, minimal-interaction bootstrapping. Generate secrets, passwords and tokens where possible.
 - Pin third-party images and versions in `docker-compose.yml` to ensure reproducibility.
-- This is not a user facing application so failing gracefully is not a concern. It is better to fail immediately with a clear exception.
+- This is not a user facing application, it is a developer tool, so failing gracefully is not a concern.
+  - It is more important to fail immediately with a clear exception, so it is eeasier to see what went wrong.
   - If an unexpected exception happens, let it throw and abort the application. Do not add catch blocks to try and fail gracefully.
+  - Howver when retrying is required or if using a library that may throw for states we do not consider unexpected, it is ok to catch exceptions.
 
  ## Coding Conventions
 - As these are console applications, do not use async/await anywhere, unless using a method that only has an async option.

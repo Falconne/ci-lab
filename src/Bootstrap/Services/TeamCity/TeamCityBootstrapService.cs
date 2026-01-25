@@ -59,66 +59,49 @@ public class TeamCityBootstrapService : IDisposable
             return false;
         }
 
-        try
+        await _browserService.Navigate(_teamcityUrl);
+        await Task.Delay(3000);
+        await _browserService.TakeScreenshot("01_initial_page");
+
+        if (await IsInMaintenanceErrorState())
         {
-            await _browserService.Navigate(_teamcityUrl);
-            await Task.Delay(3000);
-            await _browserService.TakeScreenshot("01_initial_page");
-
-            if (await IsInMaintenanceErrorState())
-            {
-                return false;
-            }
-
-            if (!await IsAccountAlreadyCreated())
-            {
-                await HandleDataDirectoryConfiguration();
-                if (!await HandleDatabaseSetup())
-                {
-                    Log.Error("Database setup did not complete in time");
-                    return false;
-                }
-
-                if (!await HandleLicenseAgreement())
-                {
-                    return false;
-                }
-
-                await HandleAdminAccountCreation();
-            }
-
-            if (!await HandleTokenCreation())
-            {
-                return false;
-            }
-
-            await _browserService.TakeScreenshot("22_final_state");
-            Log.Information("TeamCity automated setup completed successfully");
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Log.Error($"TeamCity automated setup failed: {ex.Message}");
-            Log.Error($"Stack trace: {ex.StackTrace}");
             return false;
         }
+
+        if (!await IsAccountAlreadyCreated())
+        {
+            await HandleDataDirectoryConfiguration();
+            if (!await HandleDatabaseSetup())
+            {
+                Log.Error("Database setup did not complete in time");
+                return false;
+            }
+
+            if (!await HandleLicenseAgreement())
+            {
+                return false;
+            }
+
+            await HandleAdminAccountCreation();
+        }
+
+        if (!await HandleTokenCreation())
+        {
+            return false;
+        }
+
+        await _browserService.TakeScreenshot("22_final_state");
+        Log.Information("TeamCity automated setup completed successfully");
+        return true;
     }
 
     private async Task<bool> IsInMaintenanceErrorState()
     {
-        try
+        var pageContent = await _browserService.GetPageContent();
+        if (pageContent.Contains("TeamCity server requires technical maintenance"))
         {
-            var pageContent = await _browserService.GetPageContent();
-            if (pageContent.Contains("TeamCity server requires technical maintenance"))
-            {
-                Log.Error("TeamCity server is in maintenance mode");
-                await _browserService.TakeScreenshot("error_maintenance_mode");
-                return true;
-            }
-        }
-        catch (Exception ex)
-        {
-            Log.Warning($"Could not check for maintenance message: {ex.Message}");
+            Log.Error("TeamCity server is in maintenance mode");
+            await _browserService.TakeScreenshot("error_maintenance_mode");
             return true;
         }
 
@@ -474,138 +457,113 @@ public class TeamCityBootstrapService : IDisposable
 
     public async Task<bool> ValidateTeamCityToken(string token)
     {
-        try
-        {
-            var request = new RestRequest("server")
-                .AddHeader("Authorization", $"Bearer {token}");
+        var request = new RestRequest("server")
+            .AddHeader("Authorization", $"Bearer {token}");
 
-            var response = await _client.ExecuteGetAsync(request);
-            if (response.IsSuccessful)
-            {
-                Log.Information("Token authentication successful");
-                return true;
-            }
-
-            return false;
-        }
-        catch (Exception ex)
+        var response = await _client.ExecuteGetAsync(request);
+        if (response.IsSuccessful)
         {
-            Log.Error($"Validation error: {ex.Message}");
-            return false;
+            Log.Information("Token authentication successful");
+            return true;
         }
+
+        return false;
     }
 
     public async Task<bool> CreateProject(string token)
     {
         Log.Information("Creating TeamCity project 'Sample Project'");
+        var request = new RestRequest("projects", Method.Post)
+            .AddHeader("Authorization", $"Bearer {token}")
+            .AddHeader("Accept", "application/json")
+            .AddStringBody(
+                """<newProjectDescription name="Sample Project" id="SampleProject" />""",
+                ContentType.Xml);
 
-        try
+        var response = await _client.ExecuteAsync(request);
+
+        if (response.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created)
         {
-            var request = new RestRequest("projects", Method.Post)
-                .AddHeader("Authorization", $"Bearer {token}")
-                .AddHeader("Accept", "application/json")
-                .AddStringBody(
-                    """<newProjectDescription name="Sample Project" id="SampleProject" />""",
-                    ContentType.Xml);
-
-            var response = await _client.ExecuteAsync(request);
-
-            if (response.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created)
-            {
-                Log.Information("TeamCity project created successfully");
-                return true;
-            }
-
-            var body = response.Content ?? "";
-            if (response.StatusCode == HttpStatusCode.Conflict
-                || body.Contains("DuplicateProjectNameException")
-                || body.Contains("already exists"))
-            {
-                Log.Information("TeamCity project already exists");
-                return true;
-            }
-
-            Log.Error($"TeamCity API error {(int)response.StatusCode}: {body}");
-            return false;
+            Log.Information("TeamCity project created successfully");
+            return true;
         }
-        catch (Exception ex)
+
+        var body = response.Content ?? "";
+        if (response.StatusCode == HttpStatusCode.Conflict
+            || body.Contains("DuplicateProjectNameException")
+            || body.Contains("already exists"))
         {
-            Log.Error($"Failed to call TeamCity API: {ex.Message}");
-            return false;
+            Log.Information("TeamCity project already exists");
+            return true;
         }
+
+        Log.Error($"TeamCity API error {(int)response.StatusCode}: {body}");
+        return false;
     }
 
     public async Task<bool> AuthorizeAgents(string token)
     {
-        try
+        var listRequest = new RestRequest("agents")
+            .AddHeader("Authorization", $"Bearer {token}")
+            .AddQueryParameter("locator", "authorized:false");
+
+        var listResponse = await _client.ExecuteGetAsync<TeamCityAgentsResponse>(listRequest);
+
+        if (!listResponse.IsSuccessful)
         {
-            var listRequest = new RestRequest("agents")
+            Log.Error($"Failed to get agents list: {(int)listResponse.StatusCode}");
+            return false;
+        }
+
+        if (listResponse.Data?.Agent is null || listResponse.Data.Agent.Length == 0)
+        {
+            Log.Information("No unauthorized agents found");
+            return true;
+        }
+
+        var authorizedCount = 0;
+        foreach (var agent in listResponse.Data.Agent)
+        {
+            var agentId = agent.Id;
+            var agentName = agent.Name;
+
+            Log.Information($"Authorizing agent: {agentName} (ID: {agentId})");
+
+            var authRequest = new RestRequest($"agents/id:{agentId}/authorized", Method.Put)
                 .AddHeader("Authorization", $"Bearer {token}")
-                .AddQueryParameter("locator", "authorized:false");
+                .AddStringBody("true", ContentType.Plain);
 
-            var listResponse = await _client.ExecuteGetAsync<TeamCityAgentsResponse>(listRequest);
+            var authResponse = await _client.ExecuteAsync(authRequest);
 
-            if (!listResponse.IsSuccessful)
+            if (authResponse.IsSuccessful)
             {
-                Log.Error($"Failed to get agents list: {(int)listResponse.StatusCode}");
-                return false;
-            }
+                Log.Information($"Agent {agentName} authorized");
+                authorizedCount++;
 
-            if (listResponse.Data?.Agent is null || listResponse.Data.Agent.Length == 0)
-            {
-                Log.Information("No unauthorized agents found");
-                return true;
-            }
-
-            var authorizedCount = 0;
-            foreach (var agent in listResponse.Data.Agent)
-            {
-                var agentId = agent.Id;
-                var agentName = agent.Name;
-
-                Log.Information($"Authorizing agent: {agentName} (ID: {agentId})");
-
-                var authRequest = new RestRequest($"agents/id:{agentId}/authorized", Method.Put)
+                var poolRequest = new RestRequest("agentPools/id:0/agents", Method.Post)
                     .AddHeader("Authorization", $"Bearer {token}")
-                    .AddStringBody("true", ContentType.Plain);
+                    .AddStringBody($"<agent id=\"{agentId}\" />", ContentType.Xml);
 
-                var authResponse = await _client.ExecuteAsync(authRequest);
+                var poolResponse = await _client.ExecuteAsync(poolRequest);
 
-                if (authResponse.IsSuccessful)
+                if (poolResponse.IsSuccessful)
                 {
-                    Log.Information($"Agent {agentName} authorized");
-                    authorizedCount++;
-
-                    var poolRequest = new RestRequest("agentPools/id:0/agents", Method.Post)
-                        .AddHeader("Authorization", $"Bearer {token}")
-                        .AddStringBody($"<agent id=\"{agentId}\" />", ContentType.Xml);
-
-                    var poolResponse = await _client.ExecuteAsync(poolRequest);
-
-                    if (poolResponse.IsSuccessful)
-                    {
-                        Log.Information($"Agent {agentName} added to default pool");
-                    }
-                    else
-                    {
-                        Log.Warning(
-                            $"Could not add agent {agentName} to pool: {(int)poolResponse.StatusCode}");
-                    }
+                    Log.Information($"Agent {agentName} added to default pool");
                 }
                 else
                 {
-                    Log.Warning($"Failed to authorize agent {agentName}: {(int)authResponse.StatusCode}");
+                    Log.Warning(
+                        $"Could not add agent {agentName} to pool: {(int)poolResponse.StatusCode}");
                 }
             }
+            else
+            {
+                Log.Warning($"Failed to authorize agent {agentName}: {(int)authResponse.StatusCode}");
+            }
+        }
 
-            Log.Information($"Authorized {authorizedCount} agent(s)");
-            return authorizedCount > 0;
-        }
-        catch (Exception ex)
-        {
-            Log.Error($"Failed to authorize agents: {ex.Message}");
-            throw;
-        }
+        Log.Information($"Authorized {authorizedCount} agent(s)");
+        return authorizedCount > 0;
     }
 
     public async Task<string?> EnsureValidToken()
@@ -643,25 +601,17 @@ public class TeamCityBootstrapService : IDisposable
         if (needCreateToken)
         {
             Log.Information("Attempting to create TeamCity token via REST API...");
-            try
-            {
-                var createdToken = await TryCreateTokenViaApi("bootstrap-automation");
+            var createdToken = await TryCreateTokenViaApi("bootstrap-automation");
 
-                if (!string.IsNullOrEmpty(createdToken))
-                {
-                    _envFileService.SaveOrUpdateEnvFile("TEAMCITY_TOKEN", createdToken);
-                    Log.Information("TeamCity token created via API and saved to .env");
-                    return createdToken;
-                }
-
-                Log.Error("Could not create TeamCity token via API; cannot continue without TEAMCITY_TOKEN");
-                return null;
-            }
-            catch (Exception ex)
+            if (!string.IsNullOrEmpty(createdToken))
             {
-                Log.Error($"TeamCity API token creation failed: {ex.Message}");
-                return null;
+                _envFileService.SaveOrUpdateEnvFile("TEAMCITY_TOKEN", createdToken);
+                Log.Information("TeamCity token created via API and saved to .env");
+                return createdToken;
             }
+
+            Log.Error("Could not create TeamCity token via API; cannot continue without TEAMCITY_TOKEN");
+            return null;
         }
 
         return existingToken;
