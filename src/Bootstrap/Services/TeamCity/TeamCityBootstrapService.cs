@@ -152,12 +152,12 @@ public class TeamCityBootstrapService
         Log.Information("Step 2: Checking for database setup screen");
         await _browserService.TakeScreenshot("04_before_database");
 
-        var dbProceedButton =
-            _browserService.GetLocator("button:has-text('Proceed'), input[value='Proceed']");
-
         const int maxWaitForDb = 180;
         for (var i = 0; i < maxWaitForDb; i++)
         {
+            var dbProceedButton =
+                _browserService.GetLocator("button:has-text('Proceed'), input[value='Proceed']");
+
             if (await dbProceedButton.CountAsync() > 0)
             {
                 Log.Information("Database setup ready, clicking Proceed...");
