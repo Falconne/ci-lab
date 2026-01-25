@@ -9,6 +9,7 @@ namespace Bootstrap.Services.Gitlab;
 public class GitlabBootstrapService : IDisposable
 {
     private readonly RestClient _client;
+
     private readonly string _token;
 
     public GitlabBootstrapService(string gitlabUrl, string token)
@@ -36,83 +37,67 @@ public class GitlabBootstrapService : IDisposable
 
     public async Task<bool> ValidateGitlabToken()
     {
-        try
+        var request = new RestRequest("user");
+        var fullUrl = _client.BuildUri(request);
+        Log.Debug($"Validating token at URL: {fullUrl}");
+        Log.Debug($"Using token: [{_token}] (length: {_token.Length})");
+
+        var response = await _client.ExecuteGetAsync<GitlabUser>(request);
+
+        if (response is { IsSuccessful: true, Data: not null })
         {
-            var request = new RestRequest("user");
-            var fullUrl = _client.BuildUri(request);
-            Log.Debug($"Validating token at URL: {fullUrl}");
-            Log.Debug($"Using token: [{_token}] (length: {_token.Length})");
-
-            var response = await _client.ExecuteGetAsync<GitlabUser>(request);
-
-            if (response is { IsSuccessful: true, Data: not null })
-            {
-                Log.Information($"Authenticated as: {response.Data.Username}");
-                return true;
-            }
-
-            Log.Error($"Gitlab token validation failed: {(int)response.StatusCode} {response.StatusCode}");
-            Log.Error($"Request URL: {response.ResponseUri}");
-            if (!string.IsNullOrWhiteSpace(response.Content) && response.Content.Length < 500)
-            {
-                Log.Error($"Response: {response.Content}");
-            }
-
-            return false;
+            Log.Information($"Authenticated as: {response.Data.Username}");
+            return true;
         }
-        catch (Exception ex)
+
+        Log.Error($"Gitlab token validation failed: {(int)response.StatusCode} {response.StatusCode}");
+        Log.Error($"Request URL: {response.ResponseUri}");
+        if (!string.IsNullOrWhiteSpace(response.Content) && response.Content.Length < 500)
         {
-            Log.Error($"Validation error: {ex.Message}");
-            return false;
+            Log.Error($"Response: {response.Content}");
         }
+
+        return false;
     }
 
     public async Task<GitlabProject> CreateGitlabProject(string projectName)
     {
         Log.Information($"Creating Gitlab project '{projectName}'");
 
-        try
+        // Check if project already exists
+        var searchRequest = new RestRequest("projects")
+            .AddQueryParameter("search", projectName);
+
+        var searchResponse = await _client.ExecuteGetAsync<GitlabProject[]>(searchRequest);
+
+        if (searchResponse is { IsSuccessful: true, Data: not null })
         {
-            // Check if project already exists
-            var searchRequest = new RestRequest("projects")
-                .AddQueryParameter("search", projectName);
-
-            var searchResponse = await _client.ExecuteGetAsync<GitlabProject[]>(searchRequest);
-
-            if (searchResponse.IsSuccessful && searchResponse.Data is not null)
+            foreach (var proj in searchResponse.Data)
             {
-                foreach (var proj in searchResponse.Data)
+                if (proj.Name == projectName)
                 {
-                    if (proj.Name == projectName)
-                    {
-                        Log.Information($"Project '{projectName}' already exists");
-                        return proj;
-                    }
+                    Log.Information($"Project '{projectName}' already exists");
+                    return proj;
                 }
             }
-
-            // Create new project
-            var createRequest = new RestRequest("projects", Method.Post)
-                .AddJsonBody(new { name = projectName, initialize_with_readme = false });
-
-            var createResponse = await _client.ExecutePostAsync<GitlabProject>(createRequest);
-
-            if (createResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created
-                && createResponse.Data is not null)
-            {
-                Log.Information($"Project '{projectName}' created");
-                return createResponse.Data;
-            }
-
-            Log.Error($"Gitlab API error {(int)createResponse.StatusCode}: {createResponse.Content}");
-            throw new InvalidOperationException(
-                $"Failed to create Gitlab project '{projectName}': {(int)createResponse.StatusCode} {createResponse.StatusCode} - {createResponse.Content}");
         }
-        catch (Exception ex) when (ex is not InvalidOperationException)
+
+        // Create new project
+        var createRequest = new RestRequest("projects", Method.Post)
+            .AddJsonBody(new { name = projectName, initialize_with_readme = false });
+
+        var createResponse = await _client.ExecutePostAsync<GitlabProject>(createRequest);
+
+        if (createResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created
+            && createResponse.Data is not null)
         {
-            Log.Error($"Failed to call Gitlab API: {ex.Message}");
-            throw;
+            Log.Information($"Project '{projectName}' created");
+            return createResponse.Data;
         }
+
+        Log.Error($"Gitlab API error {(int)createResponse.StatusCode}: {createResponse.Content}");
+        throw new InvalidOperationException(
+            $"Failed to create Gitlab project '{projectName}': {(int)createResponse.StatusCode} {createResponse.StatusCode} - {createResponse.Content}");
     }
 
     public async Task<bool> CreateAndPopulateGitlabProject(

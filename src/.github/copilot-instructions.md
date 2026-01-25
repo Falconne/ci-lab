@@ -8,15 +8,16 @@
 - As this is a generated testing environment, it is fine to store secrets in source control.
 - Ensure automated, minimal-interaction bootstrapping. Generate secrets, passwords and tokens where possible.
 - Pin third-party images and versions in `docker-compose.yml` to ensure reproducibility.
+- This is not a user facing application so failing gracefully is not a concern. It is better to fail immediately with a clear exception.
+  - If an unexpected exception happens, let it throw and abort the application. Do not add catch blocks to try and fail gracefully.
 
  ## Coding Conventions
 - As these are console applications, do not use async/await anywhere, unless using a method that only has an async option.
   - If creating async methods due to library calls that are async only, do not suffix the method name with "Async".
 - Use dependency injection for services.
-- Prefer `HttpClientFactory` for HTTP calls.
 - When parsing JSON returned from an API, use model classes to deserialize responses in a typesafe way. Place model files in a directory called `Entities` at the root and only include properties that are used.
 - Do not use JsonElement or dynamic types for JSON parsing.
-- When deserialisation fails, throw an exception and abort.
+  - When deserialisation fails, throw an exception and abort.
 - Use nullable reference types and top-level statements.
 - Use var, new() and pattern matching where appropriate.
 - Do not use inner classes. Organise code into Services and Models (in appropriate folder structure).
