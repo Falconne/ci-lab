@@ -92,17 +92,16 @@ try
         return 1;
     }
 
-    // Now create the GitLab service with the validated token
-    using var gitlabService = new GitlabBootstrapService(gitlabUrl, gitlabToken);
-
     // Create GitLab projects
     Logging.LogSection("Setting up Gitlab test projects...");
+
+    using var gitlabProjectService = new GitlabService(gitlabUrl, gitlabToken);
 
     var projectsCreated = 0;
     for (var i = 1; i <= 5; i++)
     {
         var projectName = $"test-project-{i}";
-        var created = await gitlabService.CreateAndPopulateGitlabProject(
+        var created = await gitlabProjectService.CreateAndPopulateProject(
             projectName,
             i);
 
