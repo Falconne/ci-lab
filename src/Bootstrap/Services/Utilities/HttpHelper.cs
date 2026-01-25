@@ -4,9 +4,10 @@ namespace Bootstrap.Services.Utilities;
 
 public static class HttpHelper
 {
-    // This method waits for a service to be ready by polling its status.
+    /// <summary>
+    /// Waits for a service to be ready by polling its status.
+    /// </summary>
     public static async Task<bool> WaitForService(
-        HttpClient client,
         string url,
         TimeSpan timeout,
         params int[] extraAllowedStatusCodes)
@@ -14,6 +15,15 @@ public static class HttpHelper
         Log.Information($"Waiting for {url} (timeout {timeout.TotalSeconds}s)");
         var startTime = DateTime.UtcNow;
         var interval = TimeSpan.FromSeconds(10);
+
+        using var handler = new HttpClientHandler
+        {
+            ServerCertificateCustomValidationCallback = (_, _, _, _) => true
+        };
+        using var client = new HttpClient(handler)
+        {
+            Timeout = TimeSpan.FromSeconds(10)
+        };
 
         while (true)
         {
@@ -26,17 +36,14 @@ public static class HttpHelper
                     return true;
                 }
 
-                // If extra allowed status codes were provided (e.g., TeamCity may return 503 or 401 during setup), treat them as ready
-                if (extraAllowedStatusCodes != null
-                    && extraAllowedStatusCodes.Contains((int)response.StatusCode))
+                // If extra allowed status codes were provided, treat them as ready
+                if (extraAllowedStatusCodes.Contains((int)response.StatusCode))
                 {
                     Log.Information(
                         $"{url} responded with {(int)response.StatusCode} which is allowed during startup; continuing");
-
                     return true;
                 }
 
-                // Got a response but not successful - log and continue waiting
                 Log.Information(
                     $"{url} responded with {(int)response.StatusCode}, waiting for service to be fully ready...");
             }

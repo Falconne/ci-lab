@@ -1,47 +1,53 @@
 using Bootstrap.Entities.Gitlab;
-using Bootstrap.Services.Utilities;
 using LibGit2Sharp;
+using RestSharp;
 using Serilog;
 using System.Net;
-using System.Net.Http.Json;
 
 namespace Bootstrap.Services.Gitlab;
 
-public class GitlabBootstrapService
+public class GitlabBootstrapService : IDisposable
 {
-    private readonly HttpClient _httpClient;
+    private readonly RestClient _client;
 
-    public GitlabBootstrapService(string gitlabUrl, HttpClient httpClient)
+    public GitlabBootstrapService(string gitlabUrl)
     {
-        GitlabUrl = gitlabUrl;
-        _httpClient = httpClient;
+        GitlabUrl = gitlabUrl.TrimEnd('/');
+        _client = new RestClient(new RestClientOptions($"{GitlabUrl}/api/v4")
+        {
+            ThrowOnAnyError = false,
+            RemoteCertificateValidationCallback = (_, _, _, _) => true,
+            Timeout = TimeSpan.FromSeconds(30)
+        });
     }
 
     public string GitlabUrl { get; }
+
+    public void Dispose()
+    {
+        _client.Dispose();
+        GC.SuppressFinalize(this);
+    }
 
     public async Task<bool> ValidateGitlabToken(string token)
     {
         try
         {
-            var apiUrl = BuildApiUrl("user");
-            var request = HttpRequestHelper.CreateWithPrivateToken(HttpMethod.Get, apiUrl, token);
+            var request = new RestRequest("user")
+                .AddHeader("PRIVATE-TOKEN", token);
 
-            var response = await _httpClient.SendAsync(request);
-            if (response.IsSuccessStatusCode)
+            var response = await _client.ExecuteGetAsync<GitlabUser>(request);
+
+            if (response.IsSuccessful && response.Data is not null)
             {
-                var user = await response.Content.ReadFromJsonAsync<GitlabUser>();
-                var username = user?.Username;
-                Log.Information($"Authenticated as: {username}");
+                Log.Information($"Authenticated as: {response.Data.Username}");
                 return true;
             }
 
-            var responseBody = await response.Content.ReadAsStringAsync();
-            Log.Error(
-                $"Gitlab token validation failed: {(int)response.StatusCode} {response.StatusCode}");
-
-            if (!string.IsNullOrWhiteSpace(responseBody) && responseBody.Length < 500)
+            Log.Error($"Gitlab token validation failed: {(int)response.StatusCode} {response.StatusCode}");
+            if (!string.IsNullOrWhiteSpace(response.Content) && response.Content.Length < 500)
             {
-                Log.Error($"Response: {responseBody}");
+                Log.Error($"Response: {response.Content}");
             }
 
             return false;
@@ -53,78 +59,61 @@ public class GitlabBootstrapService
         }
     }
 
-    public async Task<GitlabProject> CreateGitlabProject(
-        string token,
-        string projectName)
-
+    public async Task<GitlabProject> CreateGitlabProject(string token, string projectName)
     {
-        var apiUrl = BuildApiUrl("projects");
-        Log.Information($"Creating Gitlab project '{projectName}' via {apiUrl}");
+        Log.Information($"Creating Gitlab project '{projectName}'");
 
         try
         {
-            var checkUrl = BuildApiUrl($"projects?search={projectName}");
-            var checkRequest = HttpRequestHelper.CreateWithPrivateToken(HttpMethod.Get, checkUrl, token);
+            // Check if project already exists
+            var searchRequest = new RestRequest("projects")
+                .AddHeader("PRIVATE-TOKEN", token)
+                .AddQueryParameter("search", projectName);
 
-            var checkResponse = await _httpClient.SendAsync(checkRequest);
-            if (checkResponse.IsSuccessStatusCode)
+            var searchResponse = await _client.ExecuteGetAsync<GitlabProject[]>(searchRequest);
+
+            if (searchResponse.IsSuccessful && searchResponse.Data is not null)
             {
-                var existingProjects = await checkResponse.Content.ReadFromJsonAsync<GitlabProject[]>();
-                if (existingProjects is not null)
+                foreach (var proj in searchResponse.Data)
                 {
-                    foreach (var proj in existingProjects)
+                    if (proj.Name == projectName)
                     {
-                        if (proj.Name == projectName)
-                        {
-                            Log.Information($"Project '{projectName}' already exists");
-                            return proj;
-                        }
+                        Log.Information($"Project '{projectName}' already exists");
+                        return proj;
                     }
                 }
             }
 
-            var request = HttpRequestHelper.CreateWithPrivateToken(HttpMethod.Post, apiUrl, token);
-            request.Content = JsonContent.Create(new { name = projectName, initialize_with_readme = false });
+            // Create new project
+            var createRequest = new RestRequest("projects", Method.Post)
+                .AddHeader("PRIVATE-TOKEN", token)
+                .AddJsonBody(new { name = projectName, initialize_with_readme = false });
 
-            var response = await _httpClient.SendAsync(request);
+            var createResponse = await _client.ExecutePostAsync<GitlabProject>(createRequest);
 
-            if (response.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created)
+            if (createResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created
+                && createResponse.Data is not null)
             {
                 Log.Information($"Project '{projectName}' created");
-                var project = await response.Content.ReadFromJsonAsync<GitlabProject>();
-                if (project is null)
-                {
-                    var content = await response.Content.ReadAsStringAsync();
-                    throw new InvalidOperationException(
-                        $"Failed to deserialize Gitlab project response: {content}");
-                }
-
-                return project;
+                return createResponse.Data;
             }
 
-            var errorContent = await response.Content.ReadAsStringAsync();
-            Log.Error($"Gitlab API error {(int)response.StatusCode}: {errorContent}");
+            Log.Error($"Gitlab API error {(int)createResponse.StatusCode}: {createResponse.Content}");
             throw new InvalidOperationException(
-                $"Failed to create Gitlab project '{projectName}': {(int)response.StatusCode} {response.StatusCode} - {errorContent}");
+                $"Failed to create Gitlab project '{projectName}': {(int)createResponse.StatusCode} {createResponse.StatusCode} - {createResponse.Content}");
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not InvalidOperationException)
         {
             Log.Error($"Failed to call Gitlab API: {ex.Message}");
             throw;
         }
     }
 
-    public async Task<bool> CreateAndPopulateGitlabProject(
-        string token,
-        string projectName,
-        int projectNumber)
+    public async Task<bool> CreateAndPopulateGitlabProject(string token, string projectName, int projectNumber)
     {
         var project = await CreateGitlabProject(token, projectName);
 
-        var projectId = project.Id;
-        var httpUrlToRepo = project.HttpUrlToRepo;
-
-        var hasCommits = await CheckGitlabProjectHasCommits(token, projectId);
+        var hasCommits = await CheckGitlabProjectHasCommits(token, project.Id);
         if (hasCommits)
         {
             Log.Information($"Project '{projectName}' already has commits, skipping repo population");
@@ -215,12 +204,12 @@ public class GitlabBootstrapService
             var signature = new Signature("CI Lab Bootstrap", "bootstrap@cilab.local", DateTimeOffset.Now);
             repo.Commit($"Initial commit for {projectName}", signature, signature);
 
-            var repoUrl = httpUrlToRepo.Replace("http://", $"http://root:{token}@");
+            var repoUrl = project.HttpUrlToRepo.Replace("http://", $"http://root:{token}@");
             repo.Network.Remotes.Add("origin", repoUrl);
 
             var pushOptions = new PushOptions
             {
-                CredentialsProvider = (url, user, cred) => new UsernamePasswordCredentials
+                CredentialsProvider = (_, _, _) => new UsernamePasswordCredentials
                 {
                     Username = "root",
                     Password = token
@@ -269,43 +258,30 @@ public class GitlabBootstrapService
             }
             catch
             {
+                // Ignore cleanup errors
             }
         }
     }
 
-    public async Task<bool> CheckGitlabProjectHasCommits(
-        string token,
-        int projectId)
+    public async Task<bool> CheckGitlabProjectHasCommits(string token, int projectId)
     {
         try
         {
-            var apiUrl = BuildApiUrl($"projects/{projectId}/repository/commits");
+            var request = new RestRequest($"projects/{projectId}/repository/commits")
+                .AddHeader("PRIVATE-TOKEN", token);
 
-            var request = HttpRequestHelper.CreateWithPrivateToken(HttpMethod.Get, apiUrl, token);
-
-            var response = await _httpClient.SendAsync(request);
+            var response = await _client.ExecuteGetAsync<GitlabCommit[]>(request);
 
             if (response.StatusCode == HttpStatusCode.NotFound)
             {
                 return false;
             }
 
-            if (response.IsSuccessStatusCode)
-            {
-                var commits = await response.Content.ReadFromJsonAsync<GitlabCommit[]>();
-                return commits is not null && commits.Length > 0;
-            }
-
-            return false;
+            return response.IsSuccessful && response.Data is { Length: > 0 };
         }
         catch
         {
             return false;
         }
-    }
-
-    private string BuildApiUrl(string endpoint)
-    {
-        return ApiUrlHelper.BuildUrl(GitlabUrl, "api/v4", endpoint);
     }
 }
