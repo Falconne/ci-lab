@@ -417,27 +417,15 @@ public class TeamCityBootstrapService : IDisposable
             var request = new RestRequest(endpoint)
                 .AddHeader("Accept", "application/json");
 
-            var response = await _client.ExecuteGetAsync(request);
+            var response = await _client.ExecuteGetAsync<TeamCityTokensResponse>(request);
 
-            if (!response.IsSuccessful || string.IsNullOrWhiteSpace(response.Content))
+            if (!response.IsSuccessful || response.Data?.Token == null)
             {
                 return false;
             }
 
-            var tokensResponse = System.Text.Json.JsonSerializer.Deserialize<TeamCityTokensResponse>(
-                response.Content,
-                new System.Text.Json.JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true
-                });
-
-            if (tokensResponse?.Token == null)
-            {
-                return false;
-            }
-
-            return tokensResponse.Token.Any(token =>
-                string.Equals(token.Name, tokenName, StringComparison.OrdinalIgnoreCase));
+            return response.Data.Token.Any(t =>
+                string.Equals(t?.Name, tokenName, StringComparison.OrdinalIgnoreCase));
         }
         catch
         {
