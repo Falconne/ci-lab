@@ -1,6 +1,5 @@
-using Bootstrap.Services;
-using Bootstrap.Services.Utilities;
 using Bootstrap.Entities.TeamCity;
+using Bootstrap.Services.Utilities;
 using Serilog;
 using System.Net;
 using System.Net.Http.Json;
@@ -12,19 +11,34 @@ namespace Bootstrap.Services.TeamCity;
 public class TeamCityBootstrapService
 {
     private readonly PlaywrightService _browserService;
+
+    private readonly HttpClient _client;
+
     private readonly EnvService _envService;
 
-    public TeamCityBootstrapService(PlaywrightService browserService, EnvService envService)
+    private readonly string _password;
+
+    private readonly string _teamcityUrl;
+
+    private readonly string _username;
+
+    public TeamCityBootstrapService(
+        PlaywrightService browserService,
+        EnvService envService,
+        string teamcityUrl,
+        HttpClient client,
+        string username,
+        string password)
     {
         _browserService = browserService;
         _envService = envService;
+        _teamcityUrl = teamcityUrl;
+        _client = client;
+        _username = username;
+        _password = password;
     }
 
-    public async Task<bool> Execute(
-        HttpClient client,
-        string teamcityUrl,
-        string username,
-        string password)
+    public async Task<bool> Execute()
     {
         Log.Information("Starting automated TeamCity initial setup");
         var screenshotDir = Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "data", "screenshots");
@@ -35,7 +49,7 @@ public class TeamCityBootstrapService
 
         try
         {
-            await _browserService.Navigate(teamcityUrl);
+            await _browserService.Navigate(_teamcityUrl);
             await Task.Delay(3000);
             await _browserService.TakeScreenshot("01_initial_page");
 
@@ -44,7 +58,7 @@ public class TeamCityBootstrapService
                 return false;
             }
 
-            if (!await IsAccountAlreadyCreated(username, password))
+            if (!await IsAccountAlreadyCreated())
             {
                 await HandleDataDirectoryConfiguration();
                 if (!await HandleDatabaseSetup())
@@ -58,10 +72,13 @@ public class TeamCityBootstrapService
                     return false;
                 }
 
-                await HandleAdminAccountCreation(username, password);
+                await HandleAdminAccountCreation();
             }
 
-            await HandleTokenCreation(client, teamcityUrl, username, password);
+            if (!await HandleTokenCreation())
+            {
+                return false;
+            }
 
             await _browserService.TakeScreenshot("22_final_state");
             Log.Information("TeamCity automated setup completed successfully");
@@ -97,7 +114,7 @@ public class TeamCityBootstrapService
         return false;
     }
 
-    private async Task<bool> IsAccountAlreadyCreated(string username, string password)
+    private async Task<bool> IsAccountAlreadyCreated()
     {
         var pageContent = await _browserService.GetPageContent();
         if (!pageContent.Contains("Log in to TeamCity", StringComparison.OrdinalIgnoreCase))
@@ -117,8 +134,8 @@ public class TeamCityBootstrapService
             && await loginPasswordField.CountAsync() > 0
             && await loginButton.CountAsync() > 0)
         {
-            await PlaywrightService.FillFormField(loginUsernameField, username, "username");
-            await PlaywrightService.FillFormField(loginPasswordField, password, "password");
+            await PlaywrightService.FillFormField(loginUsernameField, _username, "username");
+            await PlaywrightService.FillFormField(loginPasswordField, _password, "password");
             await _browserService.TakeScreenshot("login_form_filled");
 
             await _browserService.ClickAndWait(loginButton, "login button");
@@ -264,7 +281,7 @@ public class TeamCityBootstrapService
         return true;
     }
 
-    private async Task HandleAdminAccountCreation(string username, string password)
+    private async Task HandleAdminAccountCreation()
     {
         Log.Information("Step 4: Checking for admin account creation");
         await _browserService.TakeScreenshot("08_before_admin_creation");
@@ -279,14 +296,14 @@ public class TeamCityBootstrapService
         }
 
         Log.Information("Found admin creation form, filling in details...");
-        await PlaywrightService.FillFormField(usernameField, username, "username");
+        await PlaywrightService.FillFormField(usernameField, _username, "username");
         await Task.Delay(300);
 
         var passwordField = _browserService.GetLocator(
                 "input[name='password'], input[id='password1'], input[type='password']")
             .First;
 
-        await PlaywrightService.FillFormField(passwordField, password, "password");
+        await PlaywrightService.FillFormField(passwordField, _password, "password");
         await Task.Delay(300);
 
         var confirmPasswordField = _browserService.GetLocator(
@@ -296,7 +313,7 @@ public class TeamCityBootstrapService
         {
             await PlaywrightService.FillFormField(
                 confirmPasswordField,
-                password,
+                _password,
                 "confirm password");
 
             await Task.Delay(300);
@@ -320,12 +337,12 @@ public class TeamCityBootstrapService
         }
     }
 
-    private async Task<bool> HandleTokenCreation(HttpClient client, string teamcityUrl, string username, string password)
+    private async Task<bool> HandleTokenCreation()
     {
         Log.Information("Step 5: Creating access token (API)");
 
-        var tokenName = "bootstrap-automation";
-        var token = await TryCreateTokenViaApi(client, teamcityUrl, username, password, tokenName);
+        const string tokenName = "bootstrap-automation";
+        var token = await TryCreateTokenViaApi(tokenName);
 
         if (token != null)
         {
@@ -338,20 +355,15 @@ public class TeamCityBootstrapService
         return false;
     }
 
-    public async Task<string?> TryCreateTokenViaApi(
-        HttpClient client,
-        string teamcityUrl,
-        string username,
-        string password,
-        string tokenName)
+    public async Task<string?> TryCreateTokenViaApi(string tokenName)
     {
         Log.Information(
-            $"Attempting API token creation with username '{username}' and tokenName '{tokenName}'");
+            $"Attempting API token creation with username '{_username}' and tokenName '{tokenName}'");
 
         var endpoints = new[]
         {
-            $"users/username:{username}/tokens",
-            $"users/{username}/tokens",
+            $"users/username:{_username}/tokens",
+            $"users/{_username}/tokens",
             "users/id:1/tokens",
             "users/current/tokens"
         };
@@ -360,15 +372,12 @@ public class TeamCityBootstrapService
         {
             foreach (var endpoint in endpoints)
             {
-                var url = BuildApiUrl(teamcityUrl, endpoint);
+                var url = BuildApiUrl(endpoint);
                 Log.Information($"Trying endpoint: {url}");
 
                 // Try XML body first
                 var token = await TryCreateTokenWithBody(
-                    client,
                     url,
-                    username,
-                    password,
                     "application/xml",
                     $"<token name=\"{WebUtility.HtmlEncode(tokenName)}\"/>");
 
@@ -380,10 +389,7 @@ public class TeamCityBootstrapService
                 // Try JSON body
                 Log.Information("Trying with JSON body...");
                 token = await TryCreateTokenWithBody(
-                    client,
                     url,
-                    username,
-                    password,
                     "application/json",
                     JsonSerializer.Serialize(new { name = tokenName }));
 
@@ -398,20 +404,17 @@ public class TeamCityBootstrapService
     }
 
     private async Task<string?> TryCreateTokenWithBody(
-        HttpClient client,
         string url,
-        string username,
-        string password,
         string contentType,
         string body)
     {
         try
         {
-            var request = HttpRequestHelper.CreateWithBasicAuth(HttpMethod.Post, url, username, password);
+            var request = HttpRequestHelper.CreateWithBasicAuth(HttpMethod.Post, url, _username, _password);
             request.AddJsonAccept();
             request.Content = new StringContent(body, Encoding.UTF8, contentType);
 
-            var response = await client.SendAsync(request);
+            var response = await _client.SendAsync(request);
             var respText = await response.Content.ReadAsStringAsync();
 
             Log.Information($"Response status: {(int)response.StatusCode} {response.StatusCode}");
@@ -443,17 +446,16 @@ public class TeamCityBootstrapService
         }
     }
 
-    public async Task<bool> ValidateTeamCityToken(HttpClient client, string teamcityUrl, string token)
+    public async Task<bool> ValidateTeamCityToken(string token)
     {
         try
         {
-            var apiUrl = BuildApiUrl(teamcityUrl, "server");
+            var apiUrl = BuildApiUrl("server");
             var request = HttpRequestHelper.CreateWithBearerAuth(HttpMethod.Get, apiUrl, token);
 
-            var response = await client.SendAsync(request);
+            var response = await _client.SendAsync(request);
             if (response.IsSuccessStatusCode)
             {
-                var serverData = await response.Content.ReadAsStringAsync();
                 Log.Information("Token authentication successful");
                 return true;
             }
@@ -467,9 +469,9 @@ public class TeamCityBootstrapService
         }
     }
 
-    public async Task<bool> CreateProject(HttpClient client, string teamcityUrl, string token)
+    public async Task<bool> CreateProject(string token)
     {
-        var apiUrl = BuildApiUrl(teamcityUrl, "projects");
+        var apiUrl = BuildApiUrl("projects");
 
         Log.Information($"Creating TeamCity project 'Sample Project' via {apiUrl}");
 
@@ -480,7 +482,7 @@ public class TeamCityBootstrapService
             request.AddJsonAccept();
             request.SetXmlContent(xml);
 
-            var response = await client.SendAsync(request);
+            var response = await _client.SendAsync(request);
 
             if (response.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created)
             {
@@ -507,9 +509,9 @@ public class TeamCityBootstrapService
         }
     }
 
-    public async Task<bool> AuthorizeAgents(HttpClient client, string teamcityUrl, string token)
+    public async Task<bool> AuthorizeAgents(string token)
     {
-        var apiUrl = BuildApiUrl(teamcityUrl, "agents");
+        var apiUrl = BuildApiUrl("agents");
 
         try
         {
@@ -520,7 +522,7 @@ public class TeamCityBootstrapService
 
             listRequest.AddJsonAccept();
 
-            var listResponse = await client.SendAsync(listRequest);
+            var listResponse = await _client.SendAsync(listRequest);
             if (!listResponse.IsSuccessStatusCode)
             {
                 Log.Error($"Failed to get agents list: {(int)listResponse.StatusCode}");
@@ -538,7 +540,7 @@ public class TeamCityBootstrapService
             foreach (var agent in agentsResponse.Agent)
             {
                 var agentId = agent.Id;
-                var agentName = agent.Name ?? $"agent-{agentId}";
+                var agentName = agent.Name;
 
                 Log.Information($"Authorizing agent: {agentName} (ID: {agentId})");
 
@@ -549,13 +551,13 @@ public class TeamCityBootstrapService
 
                 authRequest.Content = new StringContent("true", Encoding.UTF8, "text/plain");
 
-                var authResponse = await client.SendAsync(authRequest);
+                var authResponse = await _client.SendAsync(authRequest);
                 if (authResponse.IsSuccessStatusCode)
                 {
                     Log.Information($"Agent {agentName} authorized");
                     authorizedCount++;
 
-                    var poolApiUrl = BuildApiUrl(teamcityUrl, "agentPools/id:0/agents");
+                    var poolApiUrl = BuildApiUrl("agentPools/id:0/agents");
                     var poolRequest = HttpRequestHelper.CreateWithBearerAuth(
                         HttpMethod.Post,
                         poolApiUrl,
@@ -563,7 +565,7 @@ public class TeamCityBootstrapService
 
                     poolRequest.SetXmlContent($"<agent id=\"{agentId}\" />");
 
-                    var poolResponse = await client.SendAsync(poolRequest);
+                    var poolResponse = await _client.SendAsync(poolRequest);
                     if (poolResponse.IsSuccessStatusCode)
                     {
                         Log.Information($"Agent {agentName} added to default pool");
@@ -591,12 +593,7 @@ public class TeamCityBootstrapService
         }
     }
 
-    public async Task<string?> EnsureValidToken(
-        HttpClient client,
-        string teamcityUrl,
-        string username,
-        string password,
-        EnvService envService)
+    public async Task<string?> EnsureValidToken()
     {
         var existingToken = Environment.GetEnvironmentVariable("TEAMCITY_TOKEN");
         var needCreateToken = string.IsNullOrEmpty(existingToken);
@@ -606,7 +603,7 @@ public class TeamCityBootstrapService
             Log.Information("Validating existing TEAMCITY_TOKEN...");
             try
             {
-                var valid = await ValidateTeamCityToken(client, teamcityUrl, existingToken);
+                var valid = await ValidateTeamCityToken(existingToken);
 
                 if (!valid)
                 {
@@ -633,16 +630,11 @@ public class TeamCityBootstrapService
             Log.Information("Attempting to create TeamCity token via REST API...");
             try
             {
-                var createdToken = await TryCreateTokenViaApi(
-                    client,
-                    teamcityUrl,
-                    username,
-                    password,
-                    "bootstrap-automation");
+                var createdToken = await TryCreateTokenViaApi("bootstrap-automation");
 
                 if (!string.IsNullOrEmpty(createdToken))
                 {
-                    envService.SaveOrUpdateEnvFile("TEAMCITY_TOKEN", createdToken);
+                    _envService.SaveOrUpdateEnvFile("TEAMCITY_TOKEN", createdToken);
                     Log.Information("TeamCity token created via API and saved to .env");
                     return createdToken;
                 }
@@ -662,8 +654,8 @@ public class TeamCityBootstrapService
         return existingToken;
     }
 
-    private static string BuildApiUrl(string teamcityUrl, string endpoint)
+    private string BuildApiUrl(string endpoint)
     {
-        return ApiUrlHelper.BuildUrl(teamcityUrl, "app/rest", endpoint);
+        return ApiUrlHelper.BuildUrl(_teamcityUrl, "app/rest", endpoint);
     }
 }

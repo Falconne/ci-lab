@@ -1,6 +1,6 @@
+using Bootstrap.Services;
 using Bootstrap.Services.Gitlab;
 using Bootstrap.Services.TeamCity;
-using Bootstrap.Services;
 using Bootstrap.Services.Utilities;
 using Serilog;
 
@@ -37,7 +37,8 @@ httpClient.Timeout = TimeSpan.FromSeconds(10);
 
 // Create service instances
 using var browserService = new PlaywrightService();
-var teamCityBootstrapService = new TeamCityBootstrapService(browserService, envService);
+var gitlabRootPassword = Environment.GetEnvironmentVariable("GITLAB_ROOT_PASSWORD") ?? "changeme123";
+var teamCityBootstrapService = new TeamCityBootstrapService(browserService, envService, teamcityUrl, httpClient, "root", gitlabRootPassword);
 var gitlabService = new GitlabService(gitlabUrl);
 
 // Wait for TeamCity first (it will be available before GitLab)
@@ -57,12 +58,7 @@ if (!teamcityReady)
 
 Logging.LogSection("TeamCity Automated Initial Setup");
 
-var gitlabRootPassword = Environment.GetEnvironmentVariable("GITLAB_ROOT_PASSWORD") ?? "changeme123";
-var teamcitySetupSuccess = await teamCityBootstrapService.Execute(
-    httpClient,
-    teamcityUrl,
-    "root",
-    gitlabRootPassword);
+var teamcitySetupSuccess = await teamCityBootstrapService.Execute();
 
 if (!teamcitySetupSuccess)
 {
@@ -71,15 +67,10 @@ if (!teamcitySetupSuccess)
     return 1;
 }
 
-Log.Information("TeamCity initial setup completed");
+Logging.LogSection("Token Setup");
 
 // Ensure TEAMCITY_TOKEN is present and valid
-var teamcityTokenFromService = await teamCityBootstrapService.EnsureValidToken(
-    httpClient,
-    teamcityUrl,
-    "root",
-    gitlabRootPassword,
-    envService);
+var teamcityTokenFromService = await teamCityBootstrapService.EnsureValidToken();
 
 if (string.IsNullOrEmpty(teamcityTokenFromService))
 {
@@ -87,8 +78,7 @@ if (string.IsNullOrEmpty(teamcityTokenFromService))
     return 1;
 }
 
-// Get and validate tokens
-Logging.LogSection("Token Setup");
+Log.Information("TeamCity initial setup completed");
 
 // Ensure GitLab is available before attempting token operations
 Log.Information("Waiting for Gitlab to become available...");
@@ -100,12 +90,12 @@ if (!gitlabReady)
 }
 
 var gitlabToken = await GetAndValidateTokenAsync(
-httpClient,
-"Gitlab",
-gitlabUrl,
-"GITLAB_TOKEN",
-envService,
-(client, serviceUrl, token) => gitlabService.ValidateGitlabToken(client, token));
+    httpClient,
+    "Gitlab",
+    gitlabUrl,
+    "GITLAB_TOKEN",
+    envService,
+    (client, serviceUrl, token) => gitlabService.ValidateGitlabToken(client, token));
 
 if (string.IsNullOrEmpty(gitlabToken))
 {
@@ -141,10 +131,7 @@ if (!string.IsNullOrEmpty(gitlabToken))
 if (!string.IsNullOrEmpty(teamcityTokenFromService))
 {
     Logging.LogSection("Setting up TeamCity...");
-    var success = await teamCityBootstrapService.CreateProject(
-        httpClient,
-        teamcityUrl,
-        teamcityTokenFromService);
+    var success = await teamCityBootstrapService.CreateProject(teamcityTokenFromService);
 
     if (success)
     {
@@ -153,8 +140,7 @@ if (!string.IsNullOrEmpty(teamcityTokenFromService))
 
     // Authorize agents
     Log.Information("Authorizing TeamCity agents...");
-    var agentsAuthorized =
-        await teamCityBootstrapService.AuthorizeAgents(httpClient, teamcityUrl, teamcityTokenFromService);
+    var agentsAuthorized = await teamCityBootstrapService.AuthorizeAgents(teamcityTokenFromService);
 
     if (agentsAuthorized)
     {
@@ -177,12 +163,12 @@ return 0;
 // Helper methods
 
 static async Task<string?> GetAndValidateTokenAsync(
-HttpClient client,
-string serviceName,
-string serviceUrl,
-string envVarName,
-EnvService envService,
-Func<HttpClient, string, string, Task<bool>> validator)
+    HttpClient client,
+    string serviceName,
+    string serviceUrl,
+    string envVarName,
+    EnvService envService,
+    Func<HttpClient, string, string, Task<bool>> validator)
 {
     // Special handling for GitLab: poll the .env file for a token and validate it
     if (serviceName == "Gitlab")
