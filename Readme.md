@@ -16,7 +16,7 @@ This repo contains tools for creating a mock CI/CD environment using Gitlab for 
 
 2. **Run the bootstrap script** (partially automated):
    ```bash
-   ./bootstrap.sh
+   ./scripts/bootstrap.sh
    ```
 
    The bootstrap script will:

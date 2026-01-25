@@ -35,9 +35,9 @@ When acting in agent mode the assistant should follow these rules:
   - The Gitlab server should be accessible at `http://localhost:8080` after startup.
 
 ### Running the bootstrapper:
-  - Always use `./bootstrap.sh` to run the bootstrapper (not direct docker run commands).
+  - Always use `./scripts/bootstrap.sh` to run the bootstrapper (not direct docker run commands).
   - The bootstrap.sh script handles proper network configuration (--net=host) so the container can access localhost services.
-  - Test the bootstrapper with a timeout, as otherwise it will retry for a long time: `timeout 120 ./bootstrap.sh || true` (adjust timeout as needed).
+  - Test the bootstrapper with a timeout, as otherwise it will retry for a long time: `timeout 120 ./scripts/bootstrap.sh || true` (adjust timeout as needed).
   - The bootstrapper builds its own Docker image (ci-lab-bootstrap:latest) that includes .NET 9 SDK and Playwright with browser dependencies.
   - The user will ensure docker compose services (GitLab and TeamCity) are already running.
 

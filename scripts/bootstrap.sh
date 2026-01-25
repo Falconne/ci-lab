@@ -2,7 +2,8 @@
 set -euo pipefail
 
 # Helper to run the bootstrapper (prefers local dotnet; falls back to Docker SDK image)
-ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 cd "$ROOT_DIR"
 

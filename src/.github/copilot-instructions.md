@@ -1,4 +1,4 @@
-# GitHub Copilot — Agent Mode Instructions for this repository
+# GitHub Copilot ï¿½ Agent Mode Instructions for this repository
 ## Purpose
 - This repo creates a CI/CD testing environemnt, with GitLab (Omnibus) and TeamCity setup via docker compose plus an automated bootstrapper (C#/.NET 9) in `src/`.
 
@@ -35,7 +35,7 @@
 - When testing the docker compose or starting containers, note thaty Gitlab takes a long time to become healthy. Do not assume failure unless it takes more than 5 minutes.
 - The TeamCity server should be accessible at `http://localhost:8111` after startup.
 - The Gitlab server should be accessible at `http://localhost:8080` after startup.
-- When running the bootstrapper, either directly or via /bootstrap.sh, it can take up to 4 minutes to complete.
+- When running the bootstrapper, either directly or via scripts/bootstrap.sh, it can take up to 4 minutes to complete.
 
 ## Documentation & user-facing files:
 - Keep user-facing guidance in `Readme.md` and machine/agent guidance in `.github/copilot-instructions.md`.
