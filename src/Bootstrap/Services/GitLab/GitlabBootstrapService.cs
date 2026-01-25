@@ -22,7 +22,7 @@ public class GitlabBootstrapService : IDisposable
                 RemoteCertificateValidationCallback = (_, _, _, _) => true,
                 Timeout = TimeSpan.FromSeconds(30)
             });
-        
+
         _client.AddDefaultHeader("PRIVATE-TOKEN", token);
     }
 
@@ -39,6 +39,9 @@ public class GitlabBootstrapService : IDisposable
         try
         {
             var request = new RestRequest("user");
+            var fullUrl = _client.BuildUri(request);
+            Log.Debug($"Validating token at URL: {fullUrl}");
+            Log.Debug($"Using token: [{_token}] (length: {_token.Length})");
 
             var response = await _client.ExecuteGetAsync<GitlabUser>(request);
 
@@ -49,6 +52,7 @@ public class GitlabBootstrapService : IDisposable
             }
 
             Log.Error($"Gitlab token validation failed: {(int)response.StatusCode} {response.StatusCode}");
+            Log.Error($"Request URL: {response.ResponseUri}");
             if (!string.IsNullOrWhiteSpace(response.Content) && response.Content.Length < 500)
             {
                 Log.Error($"Response: {response.Content}");
