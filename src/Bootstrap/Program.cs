@@ -14,8 +14,8 @@ Logging.LogSeparator();
 var envPath = Path.Combine(Directory.GetCurrentDirectory(), "..", "..", ".env");
 var envFullPath = Path.GetFullPath(envPath);
 
-// Create EnvService instance
-var envService = new EnvService(envFullPath);
+// Create EnvFileService instance
+var envService = new EnvFileService(envFullPath);
 
 // Load environment variables from .env file if it exists
 envService.Load();
@@ -62,9 +62,7 @@ if (!teamcitySetupSuccess)
     return 1;
 }
 
-Logging.LogSection("Token Setup");
-
-// Ensure TEAMCITY_TOKEN is present and valid
+Log.Information("Setting up TeamCity token if needed");
 var teamcityTokenFromService = await teamCityBootstrapService.EnsureValidToken();
 
 if (string.IsNullOrEmpty(teamcityTokenFromService))
@@ -74,6 +72,8 @@ if (string.IsNullOrEmpty(teamcityTokenFromService))
 }
 
 Log.Information("TeamCity initial setup completed");
+
+Logging.LogSection("Gitlab Setup");
 
 // Ensure GitLab is available before attempting token operations
 Log.Information("Waiting for Gitlab to become available...");
@@ -145,7 +145,7 @@ return 0;
 // Helper method for GitLab token validation with polling
 static async Task<string?> GetAndValidateGitlabToken(
     GitlabBootstrapService gitlabService,
-    EnvService envService)
+    EnvFileService envFileService)
 {
     var timeout = TimeSpan.FromMinutes(7);
     var deadline = DateTime.UtcNow + timeout;
@@ -156,7 +156,7 @@ static async Task<string?> GetAndValidateGitlabToken(
     while (DateTime.UtcNow < deadline)
     {
         // Reload .env to pick up tokens written by external processes
-        envService.Load();
+        envFileService.Load();
         var token = Environment.GetEnvironmentVariable("GITLAB_TOKEN");
 
         if (!string.IsNullOrEmpty(token))
@@ -168,7 +168,7 @@ static async Task<string?> GetAndValidateGitlabToken(
                 if (isValid)
                 {
                     Log.Information("Gitlab token is valid");
-                    envService.SaveOrUpdateEnvFile("GITLAB_TOKEN", token);
+                    envFileService.SaveOrUpdateEnvFile("GITLAB_TOKEN", token);
                     return token;
                 }
 

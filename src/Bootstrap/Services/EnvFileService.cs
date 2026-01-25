@@ -2,9 +2,9 @@ using Serilog;
 
 namespace Bootstrap.Services;
 
-public class EnvService
+public class EnvFileService
 {
-    public EnvService(string envPath)
+    public EnvFileService(string envPath)
     {
         EnvPath = envPath;
     }

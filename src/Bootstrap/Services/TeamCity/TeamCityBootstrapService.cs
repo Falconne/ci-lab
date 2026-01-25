@@ -10,32 +10,38 @@ namespace Bootstrap.Services.TeamCity;
 public class TeamCityBootstrapService : IDisposable
 {
     private readonly PlaywrightService _browserService;
+
     private readonly RestClient _client;
-    private readonly EnvService _envService;
+
+    private readonly EnvFileService _envFileService;
+
     private readonly string _password;
+
     private readonly string _teamcityUrl;
+
     private readonly string _username;
 
     public TeamCityBootstrapService(
         PlaywrightService browserService,
-        EnvService envService,
+        EnvFileService envFileService,
         string teamcityUrl,
         string username,
         string password)
     {
         _browserService = browserService;
-        _envService = envService;
+        _envFileService = envFileService;
         _teamcityUrl = teamcityUrl.TrimEnd('/');
         _username = username;
         _password = password;
 
-        _client = new RestClient(new RestClientOptions($"{_teamcityUrl}/app/rest")
-        {
-            ThrowOnAnyError = false,
-            RemoteCertificateValidationCallback = (_, _, _, _) => true,
-            Timeout = TimeSpan.FromSeconds(30),
-            Authenticator = new HttpBasicAuthenticator(username, password)
-        });
+        _client = new RestClient(
+            new RestClientOptions($"{_teamcityUrl}/app/rest")
+            {
+                ThrowOnAnyError = false,
+                RemoteCertificateValidationCallback = (_, _, _, _) => true,
+                Timeout = TimeSpan.FromSeconds(30),
+                Authenticator = new HttpBasicAuthenticator(username, password)
+            });
     }
 
     public void Dispose()
@@ -340,7 +346,7 @@ public class TeamCityBootstrapService : IDisposable
         if (token != null)
         {
             Log.Information($"Successfully created token '{tokenName}' via API");
-            _envService.SaveOrUpdateEnvFile("TEAMCITY_TOKEN", token);
+            _envFileService.SaveOrUpdateEnvFile("TEAMCITY_TOKEN", token);
             return true;
         }
 
@@ -350,7 +356,8 @@ public class TeamCityBootstrapService : IDisposable
 
     public async Task<string?> TryCreateTokenViaApi(string tokenName)
     {
-        Log.Information($"Attempting API token creation with username '{_username}' and tokenName '{tokenName}'");
+        Log.Information(
+            $"Attempting API token creation with username '{_username}' and tokenName '{tokenName}'");
 
         var endpoints = new[]
         {
@@ -378,19 +385,21 @@ public class TeamCityBootstrapService : IDisposable
                         // Validate that this token actually works
                         if (await ValidateTeamCityToken(existingToken))
                         {
-                            Log.Information($"Using existing TEAMCITY_TOKEN from environment");
+                            Log.Information("Using existing TEAMCITY_TOKEN from environment");
                             return existingToken;
                         }
                     }
 
                     Log.Warning($"Token '{tokenName}' exists but we don't have a valid value stored");
-                    Log.Warning("Cannot retrieve existing token value via API - TeamCity only returns values on creation");
+                    Log.Warning(
+                        "Cannot retrieve existing token value via API - TeamCity only returns values on creation");
+
                     return null;
                 }
 
-                Log.Information($"No existing token found, creating new one at: {_teamcityUrl}/app/rest/{endpoint}");
+                Log.Information(
+                    $"No existing token found, creating new one at: {_teamcityUrl}/app/rest/{endpoint}");
 
-                // Create token with JSON body
                 var token = await TryCreateTokenWithJson(endpoint, tokenName);
                 if (token != null)
                 {
@@ -425,7 +434,6 @@ public class TeamCityBootstrapService : IDisposable
         }
     }
 
-
     private async Task<string?> TryCreateTokenWithJson(string endpoint, string tokenName)
     {
         try
@@ -439,7 +447,9 @@ public class TeamCityBootstrapService : IDisposable
 
             if (!response.IsSuccessful)
             {
-                Log.Information($"Response body: {response.Content?[..Math.Min(200, response.Content?.Length ?? 0)]}");
+                Log.Information(
+                    $"Response body: {response.Content?[..Math.Min(200, response.Content?.Length ?? 0)]}");
+
                 return null;
             }
 
@@ -494,7 +504,9 @@ public class TeamCityBootstrapService : IDisposable
             var request = new RestRequest("projects", Method.Post)
                 .AddHeader("Authorization", $"Bearer {token}")
                 .AddHeader("Accept", "application/json")
-                .AddStringBody("""<newProjectDescription name="Sample Project" id="SampleProject" />""", ContentType.Xml);
+                .AddStringBody(
+                    """<newProjectDescription name="Sample Project" id="SampleProject" />""",
+                    ContentType.Xml);
 
             var response = await _client.ExecuteAsync(request);
 
@@ -576,7 +588,8 @@ public class TeamCityBootstrapService : IDisposable
                     }
                     else
                     {
-                        Log.Warning($"Could not add agent {agentName} to pool: {(int)poolResponse.StatusCode}");
+                        Log.Warning(
+                            $"Could not add agent {agentName} to pool: {(int)poolResponse.StatusCode}");
                     }
                 }
                 else
@@ -611,6 +624,7 @@ public class TeamCityBootstrapService : IDisposable
                 {
                     Log.Information(
                         "Existing TEAMCITY_TOKEN is invalid or insufficient permissions; will attempt to create a new token via API");
+
                     needCreateToken = true;
                 }
                 else
@@ -635,7 +649,7 @@ public class TeamCityBootstrapService : IDisposable
 
                 if (!string.IsNullOrEmpty(createdToken))
                 {
-                    _envService.SaveOrUpdateEnvFile("TEAMCITY_TOKEN", createdToken);
+                    _envFileService.SaveOrUpdateEnvFile("TEAMCITY_TOKEN", createdToken);
                     Log.Information("TeamCity token created via API and saved to .env");
                     return createdToken;
                 }

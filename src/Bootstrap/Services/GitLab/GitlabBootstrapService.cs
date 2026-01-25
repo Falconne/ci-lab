@@ -13,12 +13,13 @@ public class GitlabBootstrapService : IDisposable
     public GitlabBootstrapService(string gitlabUrl)
     {
         GitlabUrl = gitlabUrl.TrimEnd('/');
-        _client = new RestClient(new RestClientOptions($"{GitlabUrl}/api/v4")
-        {
-            ThrowOnAnyError = false,
-            RemoteCertificateValidationCallback = (_, _, _, _) => true,
-            Timeout = TimeSpan.FromSeconds(30)
-        });
+        _client = new RestClient(
+            new RestClientOptions($"{GitlabUrl}/api/v4")
+            {
+                ThrowOnAnyError = false,
+                RemoteCertificateValidationCallback = (_, _, _, _) => true,
+                Timeout = TimeSpan.FromSeconds(30)
+            });
     }
 
     public string GitlabUrl { get; }
@@ -38,7 +39,7 @@ public class GitlabBootstrapService : IDisposable
 
             var response = await _client.ExecuteGetAsync<GitlabUser>(request);
 
-            if (response.IsSuccessful && response.Data is not null)
+            if (response is { IsSuccessful: true, Data: not null })
             {
                 Log.Information($"Authenticated as: {response.Data.Username}");
                 return true;
@@ -109,7 +110,10 @@ public class GitlabBootstrapService : IDisposable
         }
     }
 
-    public async Task<bool> CreateAndPopulateGitlabProject(string token, string projectName, int projectNumber)
+    public async Task<bool> CreateAndPopulateGitlabProject(
+        string token,
+        string projectName,
+        int projectNumber)
     {
         var project = await CreateGitlabProject(token, projectName);
 
