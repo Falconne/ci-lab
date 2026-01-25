@@ -17,11 +17,6 @@ public class TeamCityBootstrapService
         _browserService = browserService;
     }
 
-    private static string BuildApiUrl(string teamcityUrl, string endpoint)
-    {
-        return ApiUrlHelper.BuildUrl(teamcityUrl, "app/rest", endpoint);
-    }
-
     public async Task<bool> Execute(
         HttpClient client,
         string teamcityUrl,
@@ -773,5 +768,10 @@ public class TeamCityBootstrapService
             Log.Error($"Failed to authorize agents: {ex.Message}");
             throw;
         }
+    }
+
+    private static string BuildApiUrl(string teamcityUrl, string endpoint)
+    {
+        return ApiUrlHelper.BuildUrl(teamcityUrl, "app/rest", endpoint);
     }
 }

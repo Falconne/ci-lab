@@ -6,17 +6,11 @@ namespace Bootstrap.Services.Utilities;
 public class PlaywrightService : IDisposable
 {
     private IBrowser? _browser;
-
     private IBrowserContext? _context;
-
     private bool _disposed;
-
     private IPage? _page;
-
     private IPlaywright? _playwright;
-
     private int _screenshotCounter;
-
     private string _screenshotDir = string.Empty;
 
     public IPage Page => _page
@@ -147,19 +141,6 @@ public class PlaywrightService : IDisposable
         return false;
     }
 
-    private static async Task<bool> ClickButton(ILocator locator, string buttonName)
-    {
-        if (await locator.CountAsync() > 0)
-        {
-            Log.Information($"Clicking {buttonName}...");
-            await locator.First.ClickAsync();
-            return true;
-        }
-
-        Log.Warning($"{buttonName} button not found");
-        return false;
-    }
-
     public async Task<bool> ClickAndWait(
         ILocator locator,
         string buttonName,
@@ -229,6 +210,19 @@ public class PlaywrightService : IDisposable
     public ILocator GetLocator(string selector)
     {
         return Page.Locator(selector);
+    }
+
+    private static async Task<bool> ClickButton(ILocator locator, string buttonName)
+    {
+        if (await locator.CountAsync() > 0)
+        {
+            Log.Information($"Clicking {buttonName}...");
+            await locator.First.ClickAsync();
+            return true;
+        }
+
+        Log.Warning($"{buttonName} button not found");
+        return false;
     }
 
     protected virtual void Dispose(bool disposing)

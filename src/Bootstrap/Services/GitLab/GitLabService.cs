@@ -16,11 +16,6 @@ public class GitlabService
 
     public string GitlabUrl { get; }
 
-    private string BuildApiUrl(string endpoint)
-    {
-        return ApiUrlHelper.BuildUrl(GitlabUrl, "api/v4", endpoint);
-    }
-
     public async Task<bool> ValidateGitlabToken(HttpClient client, string token)
     {
         try
@@ -312,5 +307,10 @@ public class GitlabService
         {
             return false;
         }
+    }
+
+    private string BuildApiUrl(string endpoint)
+    {
+        return ApiUrlHelper.BuildUrl(GitlabUrl, "api/v4", endpoint);
     }
 }
