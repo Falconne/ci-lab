@@ -1,3 +1,4 @@
+using Bootstrap.Services;
 using Bootstrap.Services.Utilities;
 using Bootstrap.Entities.TeamCity;
 using Serilog;
@@ -11,12 +12,12 @@ namespace Bootstrap.Services.TeamCity;
 public class TeamCityBootstrapService
 {
     private readonly PlaywrightService _browserService;
-    private readonly EnvHelper _envHelper;
+    private readonly EnvService _envService;
 
-    public TeamCityBootstrapService(PlaywrightService browserService, EnvHelper envHelper)
+    public TeamCityBootstrapService(PlaywrightService browserService, EnvService envService)
     {
         _browserService = browserService;
-        _envHelper = envHelper;
+        _envService = envService;
     }
 
     public async Task<bool> Execute(
@@ -496,7 +497,7 @@ public class TeamCityBootstrapService
 
             if (!string.IsNullOrWhiteSpace(token))
             {
-                _envHelper.SaveOrUpdateEnvFile("TEAMCITY_TOKEN", token);
+                _envService.SaveOrUpdateEnvFile("TEAMCITY_TOKEN", token);
                 Log.Information("TeamCity token created and saved to .env");
             }
             else
@@ -770,7 +771,7 @@ public class TeamCityBootstrapService
         string teamcityUrl,
         string username,
         string password,
-        EnvHelper envHelper)
+        EnvService envService)
     {
         var existingToken = Environment.GetEnvironmentVariable("TEAMCITY_TOKEN");
         var needCreateToken = string.IsNullOrEmpty(existingToken);
@@ -816,7 +817,7 @@ public class TeamCityBootstrapService
 
                 if (!string.IsNullOrEmpty(createdToken))
                 {
-                    envHelper.SaveOrUpdateEnvFile("TEAMCITY_TOKEN", createdToken);
+                    envService.SaveOrUpdateEnvFile("TEAMCITY_TOKEN", createdToken);
                     Log.Information("TeamCity token created via API and saved to .env");
                     return createdToken;
                 }

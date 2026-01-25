@@ -1,12 +1,12 @@
 using Serilog;
 
-namespace Bootstrap.Services.Utilities;
+namespace Bootstrap.Services;
 
-public class EnvHelper
+public class EnvService
 {
     public string EnvPath { get; }
 
-    public EnvHelper(string envPath)
+    public EnvService(string envPath)
     {
         EnvPath = envPath;
     }

@@ -1,7 +1,7 @@
 using Microsoft.Playwright;
 using Serilog;
 
-namespace Bootstrap.Services.Utilities;
+namespace Bootstrap.Services;
 
 public class PlaywrightService : IDisposable
 {

@@ -1,5 +1,6 @@
 using Bootstrap.Services.Gitlab;
 using Bootstrap.Services.TeamCity;
+using Bootstrap.Services;
 using Bootstrap.Services.Utilities;
 using Serilog;
 
@@ -13,11 +14,11 @@ Logging.LogSeparator();
 var envPath = Path.Combine(Directory.GetCurrentDirectory(), "..", "..", ".env");
 var envFullPath = Path.GetFullPath(envPath);
 
-// Create EnvHelper instance
-var envHelper = new EnvHelper(envFullPath);
+// Create EnvService instance
+var envService = new EnvService(envFullPath);
 
 // Load environment variables from .env file if it exists
-envHelper.LoadEnvFile();
+envService.LoadEnvFile();
 
 var gitlabUrl = Environment.GetEnvironmentVariable("GITLAB_URL") ?? "http://localhost:8081";
 var teamcityUrl = Environment.GetEnvironmentVariable("TEAMCITY_URL") ?? "http://localhost:8111";
@@ -36,7 +37,7 @@ httpClient.Timeout = TimeSpan.FromSeconds(10);
 
 // Create service instances
 using var browserService = new PlaywrightService();
-var teamCityBootstrapService = new TeamCityBootstrapService(browserService, envHelper);
+var teamCityBootstrapService = new TeamCityBootstrapService(browserService, envService);
 var gitlabService = new GitlabService(gitlabUrl);
 
 // Wait for TeamCity first (it will be available before GitLab)
@@ -78,7 +79,7 @@ var teamcityTokenFromService = await teamCityBootstrapService.EnsureValidToken(
     teamcityUrl,
     "root",
     gitlabRootPassword,
-    envHelper);
+    envService);
 
 if (string.IsNullOrEmpty(teamcityTokenFromService))
 {
@@ -103,7 +104,7 @@ httpClient,
 "Gitlab",
 gitlabUrl,
 "GITLAB_TOKEN",
-envHelper,
+envService,
 (client, serviceUrl, token) => gitlabService.ValidateGitlabToken(client, token));
 
 if (string.IsNullOrEmpty(gitlabToken))
@@ -180,7 +181,7 @@ HttpClient client,
 string serviceName,
 string serviceUrl,
 string envVarName,
-EnvHelper envHelper,
+EnvService envService,
 Func<HttpClient, string, string, Task<bool>> validator)
 {
     // Special handling for GitLab: poll the .env file for a token and validate it
@@ -195,7 +196,7 @@ Func<HttpClient, string, string, Task<bool>> validator)
         while (DateTime.UtcNow < deadline)
         {
             // Reload .env to pick up tokens written by external processes
-            envHelper.LoadEnvFile();
+            envService.LoadEnvFile();
             var token = Environment.GetEnvironmentVariable(envVarName);
 
             if (!string.IsNullOrEmpty(token))
@@ -208,7 +209,7 @@ Func<HttpClient, string, string, Task<bool>> validator)
                     {
                         Log.Information("Gitlab token is valid");
                         // Ensure the .env is updated consistently
-                        envHelper.SaveOrUpdateEnvFile(envVarName, token);
+                        envService.SaveOrUpdateEnvFile(envVarName, token);
                         return token;
                     }
 
@@ -272,7 +273,7 @@ Func<HttpClient, string, string, Task<bool>> validator)
         if (isValidInteractive)
         {
             Log.Information($"{serviceName} token is valid");
-            envHelper.SaveOrUpdateEnvFile(envVarName, tokenInteractive);
+            envService.SaveOrUpdateEnvFile(envVarName, tokenInteractive);
             return tokenInteractive;
         }
 
