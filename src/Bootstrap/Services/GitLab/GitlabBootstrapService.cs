@@ -9,12 +9,12 @@ namespace Bootstrap.Services.Gitlab;
 
 public class GitlabBootstrapService
 {
-    private readonly HttpClient _client;
+    private readonly HttpClient _httpClient;
 
-    public GitlabBootstrapService(string gitlabUrl, HttpClient client)
+    public GitlabBootstrapService(string gitlabUrl, HttpClient httpClient)
     {
         GitlabUrl = gitlabUrl;
-        _client = client;
+        _httpClient = httpClient;
     }
 
     public string GitlabUrl { get; }
@@ -26,7 +26,7 @@ public class GitlabBootstrapService
             var apiUrl = BuildApiUrl("user");
             var request = HttpRequestHelper.CreateWithPrivateToken(HttpMethod.Get, apiUrl, token);
 
-            var response = await _client.SendAsync(request);
+            var response = await _httpClient.SendAsync(request);
             if (response.IsSuccessStatusCode)
             {
                 var user = await response.Content.ReadFromJsonAsync<GitlabUser>();
@@ -66,7 +66,7 @@ public class GitlabBootstrapService
             var checkUrl = BuildApiUrl($"projects?search={projectName}");
             var checkRequest = HttpRequestHelper.CreateWithPrivateToken(HttpMethod.Get, checkUrl, token);
 
-            var checkResponse = await _client.SendAsync(checkRequest);
+            var checkResponse = await _httpClient.SendAsync(checkRequest);
             if (checkResponse.IsSuccessStatusCode)
             {
                 var existingProjects = await checkResponse.Content.ReadFromJsonAsync<GitlabProject[]>();
@@ -86,7 +86,7 @@ public class GitlabBootstrapService
             var request = HttpRequestHelper.CreateWithPrivateToken(HttpMethod.Post, apiUrl, token);
             request.Content = JsonContent.Create(new { name = projectName, initialize_with_readme = false });
 
-            var response = await _client.SendAsync(request);
+            var response = await _httpClient.SendAsync(request);
 
             if (response.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created)
             {
@@ -283,7 +283,7 @@ public class GitlabBootstrapService
 
             var request = HttpRequestHelper.CreateWithPrivateToken(HttpMethod.Get, apiUrl, token);
 
-            var response = await _client.SendAsync(request);
+            var response = await _httpClient.SendAsync(request);
 
             if (response.StatusCode == HttpStatusCode.NotFound)
             {
