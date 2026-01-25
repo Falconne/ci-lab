@@ -10,137 +10,159 @@ Logging.LogSeparator();
 Log.Information("CI Lab Bootstrap");
 Logging.LogSeparator();
 
-// Determine .env file path relative to the project directory
-var envPath = Path.Combine(Directory.GetCurrentDirectory(), "..", "..", ".env");
-var envFullPath = Path.GetFullPath(envPath);
-
-// Create EnvFileService instance
-var envService = new EnvFileService(envFullPath);
-
-// Load environment variables from .env file if it exists
-envService.Load();
-
-var gitlabUrl = envService.GetValue("GITLAB_URL") ?? "http://localhost:8081";
-var teamcityUrl = envService.GetValue("TEAMCITY_URL") ?? "http://localhost:8111";
-Log.Information($"Gitlab URL:   {gitlabUrl}");
-Log.Information($"TeamCity URL: {teamcityUrl}");
-
-// Create service instances
-using var browserService = new PlaywrightService();
-var gitlabRootPassword = envService.GetValue("GITLAB_ROOT_PASSWORD") ?? "changeme123";
-using var teamCityBootstrapService = new TeamCityBootstrapService(
-    browserService,
-    envService,
-    teamcityUrl,
-    "root",
-    gitlabRootPassword);
-
-// Wait for TeamCity first (it will be available before GitLab)
-Log.Information("Waiting for TeamCity to become available...");
-var teamcityReady = await HttpHelper.WaitForService(
-    teamcityUrl,
-    TimeSpan.FromMinutes(5),
-    503,
-    401);
-
-if (!teamcityReady)
+try
 {
-    Log.Error("TeamCity did not become available; exiting");
-    return 1;
-}
+    // Determine .env file path relative to the project directory
+    var envPath = Path.Combine(Directory.GetCurrentDirectory(), "..", "..", ".env");
+    var envFullPath = Path.GetFullPath(envPath);
 
-Logging.LogSection("TeamCity Automated Initial Setup");
+    // Create EnvFileService instance
+    var envService = new EnvFileService(envFullPath);
 
-var teamcitySetupSuccess = await teamCityBootstrapService.Execute();
+    // Load environment variables from .env file if it exists
+    envService.Load();
 
-if (!teamcitySetupSuccess)
-{
-    Log.Error("TeamCity automated setup failed");
-    Log.Error("Check screenshots in data/screenshots/ directory for details");
-    return 1;
-}
+    var gitlabUrl = envService.GetValue("GITLAB_URL") ?? "http://localhost:8081";
+    var teamcityUrl = envService.GetValue("TEAMCITY_URL") ?? "http://localhost:8111";
+    Log.Information($"Gitlab URL:   {gitlabUrl}");
+    Log.Information($"TeamCity URL: {teamcityUrl}");
 
-Log.Information("Setting up TeamCity token if needed");
-var teamcityTokenFromService = await teamCityBootstrapService.EnsureValidToken();
+    // Create service instances
+    using var browserService = new PlaywrightService();
+    var gitlabRootPassword = envService.GetValue("GITLAB_ROOT_PASSWORD") ?? "changeme123";
+    using var teamCityBootstrapService = new TeamCityBootstrapService(
+        browserService,
+        envService,
+        teamcityUrl,
+        "root",
+        gitlabRootPassword);
 
-if (string.IsNullOrEmpty(teamcityTokenFromService))
-{
-    Log.Error("Failed to obtain or validate TeamCity token; exiting");
-    return 1;
-}
+    // Wait for TeamCity first (it will be available before GitLab)
+    Log.Information("Waiting for TeamCity to become available...");
+    var teamcityReady = await HttpHelper.WaitForService(
+        teamcityUrl,
+        TimeSpan.FromMinutes(5),
+        503,
+        401);
 
-Log.Information("TeamCity initial setup completed");
-
-Logging.LogSection("Gitlab Setup");
-
-// Ensure GitLab is available before attempting token operations
-Log.Information("Waiting for Gitlab to become available...");
-var gitlabReady = await HttpHelper.WaitForService(gitlabUrl, TimeSpan.FromMinutes(5));
-if (!gitlabReady)
-{
-    Log.Error("GitLab did not become available; exiting");
-    return 1;
-}
-
-var gitlabToken = await GetAndValidateGitlabToken(gitlabUrl, envService);
-
-if (string.IsNullOrEmpty(gitlabToken))
-{
-    Log.Error("Failed to obtain valid GitLab token; exiting");
-    return 1;
-}
-
-// Now create the GitLab service with the validated token
-using var gitlabService = new GitlabBootstrapService(gitlabUrl, gitlabToken);
-
-// Create GitLab projects
-Logging.LogSection("Setting up Gitlab test projects...");
-
-var projectsCreated = 0;
-for (var i = 1; i <= 5; i++)
-{
-    var projectName = $"test-project-{i}";
-    var created = await gitlabService.CreateAndPopulateGitlabProject(
-        projectName,
-        i);
-
-    if (created)
+    if (!teamcityReady)
     {
-        projectsCreated++;
+        Log.Error("TeamCity did not become available; exiting");
+        return 1;
+    }
+
+    Logging.LogSection("TeamCity Automated Initial Setup");
+
+    var teamcitySetupSuccess = await teamCityBootstrapService.Execute();
+
+    if (!teamcitySetupSuccess)
+    {
+        Log.Error("TeamCity automated setup failed");
+        Log.Error("Check screenshots in data/screenshots/ directory for details");
+        return 1;
+    }
+
+    Log.Information("Setting up TeamCity token if needed");
+    var teamcityTokenFromService = await teamCityBootstrapService.EnsureValidToken();
+
+    if (string.IsNullOrEmpty(teamcityTokenFromService))
+    {
+        Log.Error("Failed to obtain or validate TeamCity token; exiting");
+        return 1;
+    }
+
+    Log.Information("TeamCity initial setup completed");
+
+    Logging.LogSection("Gitlab Setup");
+
+    // Ensure GitLab is available before attempting token operations
+    Log.Information("Waiting for Gitlab to become available...");
+    var gitlabReady = await HttpHelper.WaitForService(gitlabUrl, TimeSpan.FromMinutes(5));
+    if (!gitlabReady)
+    {
+        Log.Error("GitLab did not become available; exiting");
+        return 1;
+    }
+
+    var gitlabToken = await GetAndValidateGitlabToken(gitlabUrl, envService);
+
+    if (string.IsNullOrEmpty(gitlabToken))
+    {
+        Log.Error("Failed to obtain valid GitLab token; exiting");
+        return 1;
+    }
+
+    // Now create the GitLab service with the validated token
+    using var gitlabService = new GitlabBootstrapService(gitlabUrl, gitlabToken);
+
+    // Create GitLab projects
+    Logging.LogSection("Setting up Gitlab test projects...");
+
+    var projectsCreated = 0;
+    for (var i = 1; i <= 5; i++)
+    {
+        var projectName = $"test-project-{i}";
+        var created = await gitlabService.CreateAndPopulateGitlabProject(
+            projectName,
+            i);
+
+        if (created)
+        {
+            projectsCreated++;
+        }
+    }
+
+    Log.Information($"{projectsCreated} Gitlab test project(s) ready");
+
+    // Create TeamCity projects
+    Logging.LogSection("Setting up TeamCity...");
+    var success = await teamCityBootstrapService.CreateProject(teamcityTokenFromService);
+
+    if (success)
+    {
+        Log.Information("TeamCity project created");
+    }
+
+    // Authorize agents
+    Log.Information("Authorizing TeamCity agents...");
+    var agentsAuthorized = await teamCityBootstrapService.AuthorizeAgents(teamcityTokenFromService);
+
+    if (agentsAuthorized)
+    {
+        Log.Information("TeamCity agents authorized");
+    }
+    else
+    {
+        Log.Warning("Agent authorization incomplete - some agents may need manual approval");
+    }
+
+    Logging.LogSection("Bootstrap complete!");
+    Log.Information("Services available at:");
+    Log.Information($"  GitLab:   {gitlabUrl}");
+    Log.Information($"  TeamCity: {teamcityUrl}");
+    Logging.LogSeparator();
+
+    return 0;
+}
+catch (Exception ex)
+{
+    // Log unexpected exceptions to the logfile before aborting
+    Log.Fatal(ex, "Unexpected exception during bootstrap");
+    Logging.LogSeparator();
+    return 1;
+}
+finally
+{
+    // Ensure any buffered logs are written out
+    try
+    {
+        Log.CloseAndFlush();
+    }
+    catch
+    {
+        // Swallow any errors during log shutdown to avoid masking original exception
     }
 }
-
-Log.Information($"{projectsCreated} Gitlab test project(s) ready");
-
-// Create TeamCity projects
-Logging.LogSection("Setting up TeamCity...");
-var success = await teamCityBootstrapService.CreateProject(teamcityTokenFromService);
-
-if (success)
-{
-    Log.Information("TeamCity project created");
-}
-
-// Authorize agents
-Log.Information("Authorizing TeamCity agents...");
-var agentsAuthorized = await teamCityBootstrapService.AuthorizeAgents(teamcityTokenFromService);
-
-if (agentsAuthorized)
-{
-    Log.Information("TeamCity agents authorized");
-}
-else
-{
-    Log.Warning("Agent authorization incomplete - some agents may need manual approval");
-}
-
-Logging.LogSection("Bootstrap complete!");
-Log.Information("Services available at:");
-Log.Information($"  GitLab:   {gitlabUrl}");
-Log.Information($"  TeamCity: {teamcityUrl}");
-Logging.LogSeparator();
-
-return 0;
 
 // Helper method for GitLab token validation with polling
 static async Task<string?> GetAndValidateGitlabToken(
