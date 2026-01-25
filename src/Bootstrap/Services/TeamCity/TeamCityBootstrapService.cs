@@ -424,35 +424,20 @@ public class TeamCityBootstrapService : IDisposable
                 return false;
             }
 
-            // Parse JSON response
-            using var doc = System.Text.Json.JsonDocument.Parse(response.Content);
-            var root = doc.RootElement;
-
-            // TeamCity API wraps the token array in an object: {"count":1,"token":[...]}
-            if (!root.TryGetProperty("token", out var tokensArray))
-            {
-                return false;
-            }
-
-            if (tokensArray.ValueKind != System.Text.Json.JsonValueKind.Array)
-            {
-                return false;
-            }
-
-            // Check if any token in the list has the matching name
-            foreach (var tokenElement in tokensArray.EnumerateArray())
-            {
-                if (tokenElement.TryGetProperty("name", out var nameElement))
+            var tokensResponse = System.Text.Json.JsonSerializer.Deserialize<TeamCityTokensResponse>(
+                response.Content,
+                new System.Text.Json.JsonSerializerOptions
                 {
-                    var name = nameElement.GetString();
-                    if (string.Equals(name, tokenName, StringComparison.OrdinalIgnoreCase))
-                    {
-                        return true;
-                    }
-                }
+                    PropertyNameCaseInsensitive = true
+                });
+
+            if (tokensResponse?.Token == null)
+            {
+                return false;
             }
 
-            return false;
+            return tokensResponse.Token.Any(token =>
+                string.Equals(token.Name, tokenName, StringComparison.OrdinalIgnoreCase));
         }
         catch
         {
