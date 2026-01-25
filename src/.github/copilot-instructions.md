@@ -12,6 +12,7 @@
   - It is more important to fail immediately with a clear exception, so it is eeasier to see what went wrong.
   - If an unexpected exception happens, let it throw and abort the application. Do not add catch blocks to try and fail gracefully.
   - Howver when retrying is required or if using a library that may throw for states we do not consider unexpected, it is ok to catch exceptions.
+  - It is also ok to catch exceptions in finally blocks.
 
  ## Coding Conventions
 - As these are console applications, do not use async/await anywhere, unless using a method that only has an async option.

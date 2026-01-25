@@ -262,6 +262,6 @@ public class GitlabBootstrapService : IDisposable
             return false;
         }
 
-        return response.IsSuccessful && response.Data is { Length: > 0 };
+        return response is { IsSuccessful: true, Data.Length: > 0 };
     }
 }
