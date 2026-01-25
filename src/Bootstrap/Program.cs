@@ -35,8 +35,6 @@ using var teamCityBootstrapService = new TeamCityBootstrapService(
     "root",
     gitlabRootPassword);
 
-using var gitlabService = new GitlabBootstrapService(gitlabUrl);
-
 // Wait for TeamCity first (it will be available before GitLab)
 Log.Information("Waiting for TeamCity to become available...");
 var teamcityReady = await HttpHelper.WaitForService(
@@ -84,13 +82,16 @@ if (!gitlabReady)
     return 1;
 }
 
-var gitlabToken = await GetAndValidateGitlabToken(gitlabService, envService);
+var gitlabToken = await GetAndValidateGitlabToken(gitlabUrl, envService);
 
 if (string.IsNullOrEmpty(gitlabToken))
 {
     Log.Error("Failed to obtain valid GitLab token; exiting");
     return 1;
 }
+
+// Now create the GitLab service with the validated token
+using var gitlabService = new GitlabBootstrapService(gitlabUrl, gitlabToken);
 
 // Create GitLab projects
 Logging.LogSection("Setting up Gitlab test projects...");
@@ -100,7 +101,6 @@ for (var i = 1; i <= 5; i++)
 {
     var projectName = $"test-project-{i}";
     var created = await gitlabService.CreateAndPopulateGitlabProject(
-        gitlabToken,
         projectName,
         i);
 
@@ -144,7 +144,7 @@ return 0;
 
 // Helper method for GitLab token validation with polling
 static async Task<string?> GetAndValidateGitlabToken(
-    GitlabBootstrapService gitlabService,
+    string gitlabUrl,
     EnvFileService envFileService)
 {
     var timeout = TimeSpan.FromMinutes(7);
@@ -164,7 +164,8 @@ static async Task<string?> GetAndValidateGitlabToken(
             Log.Information("Found GITLAB_TOKEN in .env; validating...");
             try
             {
-                var isValid = await gitlabService.ValidateGitlabToken(token);
+                using var tempGitlabService = new GitlabBootstrapService(gitlabUrl, token);
+                var isValid = await tempGitlabService.ValidateGitlabToken();
                 if (isValid)
                 {
                     Log.Information("Gitlab token is valid");

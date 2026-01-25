@@ -9,10 +9,12 @@ namespace Bootstrap.Services.Gitlab;
 public class GitlabBootstrapService : IDisposable
 {
     private readonly RestClient _client;
+    private readonly string _token;
 
-    public GitlabBootstrapService(string gitlabUrl)
+    public GitlabBootstrapService(string gitlabUrl, string token)
     {
         GitlabUrl = gitlabUrl.TrimEnd('/');
+        _token = token;
         _client = new RestClient(
             new RestClientOptions($"{GitlabUrl}/api/v4")
             {
@@ -20,6 +22,8 @@ public class GitlabBootstrapService : IDisposable
                 RemoteCertificateValidationCallback = (_, _, _, _) => true,
                 Timeout = TimeSpan.FromSeconds(30)
             });
+        
+        _client.AddDefaultHeader("PRIVATE-TOKEN", token);
     }
 
     public string GitlabUrl { get; }
@@ -30,12 +34,11 @@ public class GitlabBootstrapService : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    public async Task<bool> ValidateGitlabToken(string token)
+    public async Task<bool> ValidateGitlabToken()
     {
         try
         {
-            var request = new RestRequest("user")
-                .AddHeader("PRIVATE-TOKEN", token);
+            var request = new RestRequest("user");
 
             var response = await _client.ExecuteGetAsync<GitlabUser>(request);
 
@@ -60,7 +63,7 @@ public class GitlabBootstrapService : IDisposable
         }
     }
 
-    public async Task<GitlabProject> CreateGitlabProject(string token, string projectName)
+    public async Task<GitlabProject> CreateGitlabProject(string projectName)
     {
         Log.Information($"Creating Gitlab project '{projectName}'");
 
@@ -68,7 +71,6 @@ public class GitlabBootstrapService : IDisposable
         {
             // Check if project already exists
             var searchRequest = new RestRequest("projects")
-                .AddHeader("PRIVATE-TOKEN", token)
                 .AddQueryParameter("search", projectName);
 
             var searchResponse = await _client.ExecuteGetAsync<GitlabProject[]>(searchRequest);
@@ -87,7 +89,6 @@ public class GitlabBootstrapService : IDisposable
 
             // Create new project
             var createRequest = new RestRequest("projects", Method.Post)
-                .AddHeader("PRIVATE-TOKEN", token)
                 .AddJsonBody(new { name = projectName, initialize_with_readme = false });
 
             var createResponse = await _client.ExecutePostAsync<GitlabProject>(createRequest);
@@ -111,13 +112,12 @@ public class GitlabBootstrapService : IDisposable
     }
 
     public async Task<bool> CreateAndPopulateGitlabProject(
-        string token,
         string projectName,
         int projectNumber)
     {
-        var project = await CreateGitlabProject(token, projectName);
+        var project = await CreateGitlabProject(projectName);
 
-        var hasCommits = await CheckGitlabProjectHasCommits(token, project.Id);
+        var hasCommits = await CheckGitlabProjectHasCommits(project.Id);
         if (hasCommits)
         {
             Log.Information($"Project '{projectName}' already has commits, skipping repo population");
@@ -208,7 +208,7 @@ public class GitlabBootstrapService : IDisposable
             var signature = new Signature("CI Lab Bootstrap", "bootstrap@cilab.local", DateTimeOffset.Now);
             repo.Commit($"Initial commit for {projectName}", signature, signature);
 
-            var repoUrl = project.HttpUrlToRepo.Replace("http://", $"http://root:{token}@");
+            var repoUrl = project.HttpUrlToRepo.Replace("http://", $"http://root:{_token}@");
             repo.Network.Remotes.Add("origin", repoUrl);
 
             var pushOptions = new PushOptions
@@ -216,7 +216,7 @@ public class GitlabBootstrapService : IDisposable
                 CredentialsProvider = (_, _, _) => new UsernamePasswordCredentials
                 {
                     Username = "root",
-                    Password = token
+                    Password = _token
                 }
             };
 
@@ -267,12 +267,11 @@ public class GitlabBootstrapService : IDisposable
         }
     }
 
-    public async Task<bool> CheckGitlabProjectHasCommits(string token, int projectId)
+    public async Task<bool> CheckGitlabProjectHasCommits(int projectId)
     {
         try
         {
-            var request = new RestRequest($"projects/{projectId}/repository/commits")
-                .AddHeader("PRIVATE-TOKEN", token);
+            var request = new RestRequest($"projects/{projectId}/repository/commits");
 
             var response = await _client.ExecuteGetAsync<GitlabCommit[]>(request);
 
