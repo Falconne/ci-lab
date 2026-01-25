@@ -1,27 +1,27 @@
-using Bootstrap.Entities.GitLab;
+using Bootstrap.Entities.Gitlab;
 using Bootstrap.Services.Utilities;
 using LibGit2Sharp;
 using Serilog;
 using System.Net;
 using System.Net.Http.Json;
 
-namespace Bootstrap.Services.GitLab;
+namespace Bootstrap.Services.Gitlab;
 
-public class GitLabService
+public class GitlabService
 {
-    public GitLabService(string gitLabUrl)
+    public GitlabService(string gitlabUrl)
     {
-        GitLabUrl = gitLabUrl;
+        GitlabUrl = gitlabUrl;
     }
 
-    public string GitLabUrl { get; }
+    public string GitlabUrl { get; }
 
     private string BuildApiUrl(string endpoint)
     {
-        return ApiUrlHelper.BuildUrl(GitLabUrl, "api/v4", endpoint);
+        return ApiUrlHelper.BuildUrl(GitlabUrl, "api/v4", endpoint);
     }
 
-    public async Task<bool> ValidateGitLabToken(HttpClient client, string token)
+    public async Task<bool> ValidateGitlabToken(HttpClient client, string token)
     {
         try
         {
@@ -31,16 +31,15 @@ public class GitLabService
             var response = await client.SendAsync(request);
             if (response.IsSuccessStatusCode)
             {
-                var user = await response.Content.ReadFromJsonAsync<GitLabUser>();
+                var user = await response.Content.ReadFromJsonAsync<GitlabUser>();
                 var username = user?.Username;
                 Log.Information($"Authenticated as: {username}");
                 return true;
             }
 
-            // Log detailed error information when validation fails
             var responseBody = await response.Content.ReadAsStringAsync();
             Log.Error(
-                $"GitLab token validation failed: {(int)response.StatusCode} {response.StatusCode}");
+                $"Gitlab token validation failed: {(int)response.StatusCode} {response.StatusCode}");
 
             if (!string.IsNullOrWhiteSpace(responseBody) && responseBody.Length < 500)
             {
@@ -56,14 +55,14 @@ public class GitLabService
         }
     }
 
-    public async Task<GitLabProject> CreateGitLabProject(
+    public async Task<GitlabProject> CreateGitlabProject(
         HttpClient client,
         string token,
         string projectName)
 
     {
         var apiUrl = BuildApiUrl("projects");
-        Log.Information($"Creating GitLab project '{projectName}' via {apiUrl}");
+        Log.Information($"Creating Gitlab project '{projectName}' via {apiUrl}");
 
         try
         {
@@ -73,7 +72,7 @@ public class GitLabService
             var checkResponse = await client.SendAsync(checkRequest);
             if (checkResponse.IsSuccessStatusCode)
             {
-                var existingProjects = await checkResponse.Content.ReadFromJsonAsync<GitLabProject[]>();
+                var existingProjects = await checkResponse.Content.ReadFromJsonAsync<GitlabProject[]>();
                 if (existingProjects is not null)
                 {
                     foreach (var proj in existingProjects)
@@ -95,36 +94,36 @@ public class GitLabService
             if (response.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created)
             {
                 Log.Information($"Project '{projectName}' created");
-                var project = await response.Content.ReadFromJsonAsync<GitLabProject>();
+                var project = await response.Content.ReadFromJsonAsync<GitlabProject>();
                 if (project is null)
                 {
                     var content = await response.Content.ReadAsStringAsync();
                     throw new InvalidOperationException(
-                        $"Failed to deserialize GitLab project response: {content}");
+                        $"Failed to deserialize Gitlab project response: {content}");
                 }
 
                 return project;
             }
 
             var errorContent = await response.Content.ReadAsStringAsync();
-            Log.Error($"GitLab API error {(int)response.StatusCode}: {errorContent}");
+            Log.Error($"Gitlab API error {(int)response.StatusCode}: {errorContent}");
             throw new InvalidOperationException(
-                $"Failed to create GitLab project '{projectName}': {(int)response.StatusCode} {response.StatusCode} - {errorContent}");
+                $"Failed to create Gitlab project '{projectName}': {(int)response.StatusCode} {response.StatusCode} - {errorContent}");
         }
         catch (Exception ex)
         {
-            Log.Error($"Failed to call GitLab API: {ex.Message}");
+            Log.Error($"Failed to call Gitlab API: {ex.Message}");
             throw;
         }
     }
 
-    public async Task<bool> CreateAndPopulateGitLabProject(
+    public async Task<bool> CreateAndPopulateGitlabProject(
         HttpClient client,
         string token,
         string projectName,
         int projectNumber)
     {
-        var project = await CreateGitLabProject(client, token, projectName);
+        var project = await CreateGitlabProject(client, token, projectName);
 
         var projectId = project.Id;
         var httpUrlToRepo = project.HttpUrlToRepo;
@@ -134,7 +133,7 @@ public class GitLabService
             throw new InvalidOperationException($"Could not get repository URL for project '{projectName}'");
         }
 
-        var hasCommits = await CheckGitLabProjectHasCommits(client, token, projectId);
+        var hasCommits = await CheckGitlabProjectHasCommits(client, token, projectId);
         if (hasCommits)
         {
             Log.Information($"Project '{projectName}' already has commits, skipping repo population");
@@ -283,7 +282,7 @@ public class GitLabService
         }
     }
 
-    public async Task<bool> CheckGitLabProjectHasCommits(
+    public async Task<bool> CheckGitlabProjectHasCommits(
         HttpClient client,
         string token,
         int projectId)
@@ -303,7 +302,7 @@ public class GitLabService
 
             if (response.IsSuccessStatusCode)
             {
-                var commits = await response.Content.ReadFromJsonAsync<GitLabCommit[]>();
+                var commits = await response.Content.ReadFromJsonAsync<GitlabCommit[]>();
                 return commits is not null && commits.Length > 0;
             }
 

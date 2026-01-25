@@ -1,4 +1,4 @@
-using Bootstrap.Services.GitLab;
+using Bootstrap.Services.Gitlab;
 using Bootstrap.Services.TeamCity;
 using Bootstrap.Services.Utilities;
 using Serilog;
@@ -18,7 +18,7 @@ EnvHelper.LoadEnvFile(envFullPath);
 
 var gitlabUrl = Environment.GetEnvironmentVariable("GITLAB_URL") ?? "http://localhost:8081";
 var teamcityUrl = Environment.GetEnvironmentVariable("TEAMCITY_URL") ?? "http://localhost:8111";
-Log.Information($"GitLab URL:   {gitlabUrl}");
+Log.Information($"Gitlab URL:   {gitlabUrl}");
 Log.Information($"TeamCity URL: {teamcityUrl}");
 
 using var httpClient =
@@ -33,7 +33,7 @@ using var httpClient =
 // Create service instances
 using var browserService = new PlaywrightService();
 var teamCityService = new TeamCityBootstrapService(browserService);
-var gitLabService = new GitLabService(gitlabUrl);
+var gitlabService = new GitlabService(gitlabUrl);
 
 // Wait for TeamCity first (it's often available before GitLab)
 Log.Information("Waiting for TeamCity to become available...");
@@ -151,7 +151,7 @@ if (string.IsNullOrEmpty(teamcityToken))
 }
 
 // Ensure GitLab is available before attempting token operations
-Log.Information("Waiting for GitLab to become available...");
+Log.Information("Waiting for Gitlab to become available...");
 var gitlabReady = await HttpHelper.WaitForService(httpClient, gitlabUrl, TimeSpan.FromMinutes(5));
 if (!gitlabReady)
 {
@@ -161,11 +161,11 @@ if (!gitlabReady)
 
 var gitlabToken = await GetAndValidateTokenAsync(
     httpClient,
-    "GitLab",
+    "Gitlab",
     gitlabUrl,
     "GITLAB_TOKEN",
     envFullPath,
-    (client, serviceUrl, token) => gitLabService.ValidateGitLabToken(client, token));
+    (client, serviceUrl, token) => gitlabService.ValidateGitlabToken(client, token));
 
 if (string.IsNullOrEmpty(gitlabToken))
 {
@@ -176,13 +176,13 @@ if (string.IsNullOrEmpty(gitlabToken))
 // Create GitLab projects
 if (!string.IsNullOrEmpty(gitlabToken))
 {
-    Logging.LogSection("Setting up GitLab test projects...");
+    Logging.LogSection("Setting up Gitlab test projects...");
 
     var projectsCreated = 0;
     for (var i = 1; i <= 5; i++)
     {
         var projectName = $"test-project-{i}";
-        var created = await gitLabService.CreateAndPopulateGitLabProject(
+        var created = await gitlabService.CreateAndPopulateGitlabProject(
             httpClient,
             gitlabToken,
             projectName,
@@ -194,7 +194,7 @@ if (!string.IsNullOrEmpty(gitlabToken))
         }
     }
 
-    Log.Information($"{projectsCreated} GitLab test project(s) ready");
+    Log.Information($"{projectsCreated} Gitlab test project(s) ready");
 }
 
 // Create TeamCity projects
@@ -239,7 +239,7 @@ static async Task<string?> GetAndValidateTokenAsync(
     Func<HttpClient, string, string, Task<bool>> validator)
 {
     // Special handling for GitLab: poll the .env file for a token and validate it
-    if (serviceName == "GitLab")
+    if (serviceName == "Gitlab")
     {
         var timeout = TimeSpan.FromMinutes(7);
         var deadline = DateTime.UtcNow + timeout;
@@ -261,7 +261,7 @@ static async Task<string?> GetAndValidateTokenAsync(
                     var isValid = await validator(client, serviceUrl, token);
                     if (isValid)
                     {
-                        Log.Information("GitLab token is valid");
+                        Log.Information("Gitlab token is valid");
                         // Ensure the .env is updated consistently
                         EnvHelper.SaveOrUpdateEnvFile(envFilePath, envVarName, token);
                         return token;
@@ -271,7 +271,7 @@ static async Task<string?> GetAndValidateTokenAsync(
                 }
                 catch (Exception ex)
                 {
-                    Log.Warning($"Error validating GitLab token: {ex.Message}");
+                    Log.Warning($"Error validating Gitlab token: {ex.Message}");
                 }
             }
             else
@@ -305,7 +305,7 @@ static async Task<string?> GetAndValidateTokenAsync(
 
             Log.Information($"\n{serviceName} token not found in environment or .env file");
             Log.Information($"Please create a token in {serviceName}:");
-            if (serviceName == "GitLab")
+            if (serviceName == "Gitlab")
             {
                 Log.Information($"  1. Visit {serviceUrl}/-/profile/personal_access_tokens");
                 Log.Information("  2. Create a token with 'api', 'read_api', 'write_repository' scopes");
