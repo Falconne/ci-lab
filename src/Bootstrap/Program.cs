@@ -71,6 +71,12 @@ try
         return 1;
     }
 
+    Log.Information("Authorizing TeamCity agents...");
+    if (!await teamCityBootstrapService.AuthorizeAgents(teamcityTokenFromService))
+    {
+        return 1;
+    }
+
     Log.Information("TeamCity initial setup completed");
 
     Logging.LogSection("Gitlab Setup");
@@ -111,28 +117,6 @@ try
     }
 
     Log.Information($"{projectsCreated} Gitlab test project(s) ready");
-
-    // Create TeamCity projects
-    Logging.LogSection("Setting up TeamCity...");
-    var success = await teamCityBootstrapService.CreateProject(teamcityTokenFromService);
-
-    if (success)
-    {
-        Log.Information("TeamCity project created");
-    }
-
-    // Authorize agents
-    Log.Information("Authorizing TeamCity agents...");
-    var agentsAuthorized = await teamCityBootstrapService.AuthorizeAgents(teamcityTokenFromService);
-
-    if (agentsAuthorized)
-    {
-        Log.Information("TeamCity agents authorized");
-    }
-    else
-    {
-        Log.Warning("Agent authorization incomplete - some agents may need manual approval");
-    }
 
     Logging.LogSection("Bootstrap complete!");
     Log.Information("Services available at:");

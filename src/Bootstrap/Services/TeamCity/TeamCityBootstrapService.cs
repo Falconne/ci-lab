@@ -521,7 +521,6 @@ public class TeamCityBootstrapService : IDisposable
             return true;
         }
 
-        var authorizedCount = 0;
         foreach (var agent in listResponse.Data.Agent)
         {
             var agentId = agent.Id;
@@ -538,7 +537,6 @@ public class TeamCityBootstrapService : IDisposable
             if (authResponse.IsSuccessful)
             {
                 Log.Information($"Agent {agentName} authorized");
-                authorizedCount++;
 
                 var poolRequest = new RestRequest("agentPools/id:0/agents", Method.Post)
                     .AddHeader("Authorization", $"Bearer {token}")
@@ -559,11 +557,11 @@ public class TeamCityBootstrapService : IDisposable
             else
             {
                 Log.Warning($"Failed to authorize agent {agentName}: {(int)authResponse.StatusCode}");
+                return false;
             }
         }
 
-        Log.Information($"Authorized {authorizedCount} agent(s)");
-        return authorizedCount > 0;
+        return true;
     }
 
     public async Task<string?> EnsureValidToken()
