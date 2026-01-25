@@ -379,7 +379,7 @@ public class TeamCityBootstrapService : IDisposable
 
                     // Token exists in TeamCity but we can't retrieve its value via API
                     // Check if we have it stored in the environment
-                    var existingToken = Environment.GetEnvironmentVariable("TEAMCITY_TOKEN");
+                    var existingToken = _envFileService.GetValue("TEAMCITY_TOKEN");
                     if (!string.IsNullOrWhiteSpace(existingToken))
                     {
                         // Validate that this token actually works
@@ -610,7 +610,7 @@ public class TeamCityBootstrapService : IDisposable
 
     public async Task<string?> EnsureValidToken()
     {
-        var existingToken = Environment.GetEnvironmentVariable("TEAMCITY_TOKEN");
+        var existingToken = _envFileService.GetValue("TEAMCITY_TOKEN");
         var needCreateToken = string.IsNullOrEmpty(existingToken);
 
         if (!needCreateToken && existingToken != null)

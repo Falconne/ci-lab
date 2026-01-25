@@ -4,6 +4,8 @@ namespace Bootstrap.Services;
 
 public class EnvFileService
 {
+    private readonly Dictionary<string, string> _values = new();
+
     public EnvFileService(string envPath)
     {
         EnvPath = envPath;
@@ -33,7 +35,7 @@ public class EnvFileService
             {
                 var key = parts[0].Trim();
                 var value = parts[1].Trim().Trim('"');
-                Environment.SetEnvironmentVariable(key, value);
+                _values[key] = value;
             }
         }
     }
@@ -58,6 +60,11 @@ public class EnvFileService
         }
 
         File.WriteAllLines(EnvPath, lines);
-        Environment.SetEnvironmentVariable(key, value);
+        _values[key] = value;
+    }
+
+    public string? GetValue(string key)
+    {
+        return _values.GetValueOrDefault(key);
     }
 }
