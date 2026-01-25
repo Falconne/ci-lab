@@ -7,11 +7,17 @@ namespace Bootstrap.Services;
 public class PlaywrightService : IDisposable
 {
     private IBrowser? _browser;
+
     private IBrowserContext? _context;
+
     private bool _disposed;
+
     private IPage? _page;
+
     private IPlaywright? _playwright;
+
     private int _screenshotCounter;
+
     private string _screenshotDir = string.Empty;
 
     public IPage Page => _page
@@ -168,26 +174,6 @@ public class PlaywrightService : IDisposable
 
         Log.Warning($"{checkboxName} checkbox not found");
         return false;
-    }
-
-    public static async Task<string?> GetTextContent(ILocator locator)
-    {
-        if (await locator.CountWithRetry() > 0)
-        {
-            return await locator.First.TextContentAsync();
-        }
-
-        return null;
-    }
-
-    public static async Task<string?> GetAttribute(ILocator locator, string attributeName)
-    {
-        if (await locator.CountWithRetry() > 0)
-        {
-            return await locator.First.GetAttributeAsync(attributeName);
-        }
-
-        return null;
     }
 
     public static async Task<bool> WaitForElement(
