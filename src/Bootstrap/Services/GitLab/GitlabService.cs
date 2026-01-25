@@ -71,16 +71,14 @@ public class GitlabService : IDisposable
             $"Failed to create Gitlab project '{projectName}': {(int)createResponse.StatusCode} {createResponse.StatusCode} - {createResponse.Content}");
     }
 
-    public async Task<bool> CreateTopLevelProject(
-        string projectName,
-        int projectNumber)
+    public async Task<bool> CreateTopLevelProject(string projectName)
     {
-        return await CreateAndPopulateProjectInternal(
+        return await CreateAndPopulateProject(
             projectName,
             async tempDir =>
             {
-                var random = new Random(projectNumber * 1000 + DateTime.UtcNow.Millisecond);
-                var sleepDuration = random.Next(10, 61);
+                var random = new Random();
+                var sleepDuration = random.Next(60, 120);
 
                 var buildShContent = $"""
                                       #!/bin/bash
@@ -126,13 +124,9 @@ public class GitlabService : IDisposable
             });
     }
 
-    public async Task<bool> CreateSubProject(
-        string projectName,
-        int projectNumber)
+    public async Task<bool> CreateSubProject(string projectName)
     {
-        return await CreateAndPopulateProjectInternal(
-            projectName,
-            _ => Task.CompletedTask);
+        return await CreateAndPopulateProject(projectName);
     }
 
     private async Task<bool> CheckProjectHasCommits(int projectId)
@@ -149,9 +143,9 @@ public class GitlabService : IDisposable
         return response is { IsSuccessful: true, Data.Length: > 0 };
     }
 
-    private async Task<bool> CreateAndPopulateProjectInternal(
+    private async Task<bool> CreateAndPopulateProject(
         string projectName,
-        Func<string, Task> populateSpecificFiles)
+        Func<string, Task>? populateSpecificFiles = null)
     {
         var project = await CreateProject(projectName);
 
@@ -166,7 +160,10 @@ public class GitlabService : IDisposable
 
         try
         {
-            await populateSpecificFiles(tempDir);
+            if (populateSpecificFiles != null)
+            {
+                await populateSpecificFiles(tempDir);
+            }
 
             const string readmeContent = """
                                          # Generic Readme

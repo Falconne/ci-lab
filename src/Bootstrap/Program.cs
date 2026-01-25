@@ -102,8 +102,7 @@ try
     {
         var projectName = $"test-project-{i}";
         var created = await gitlabProjectService.CreateTopLevelProject(
-            projectName,
-            i);
+            projectName);
 
         if (created)
         {
