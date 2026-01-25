@@ -33,7 +33,7 @@ using var httpClient =
 // Create service instances
 using var browserService = new PlaywrightService();
 var teamCityService = new TeamCityBootstrapService(browserService);
-var gitLabService = new GitLabService();
+var gitLabService = new GitLabService(gitlabUrl);
 
 // Wait for TeamCity first (it's often available before GitLab)
 Log.Information("Waiting for TeamCity to become available...");
@@ -165,7 +165,7 @@ var gitlabToken = await GetAndValidateTokenAsync(
     gitlabUrl,
     "GITLAB_TOKEN",
     envFullPath,
-    GitLabService.ValidateGitLabToken);
+    (client, serviceUrl, token) => gitLabService.ValidateGitLabToken(client, token));
 
 if (string.IsNullOrEmpty(gitlabToken))
 {
@@ -184,7 +184,6 @@ if (!string.IsNullOrEmpty(gitlabToken))
         var projectName = $"test-project-{i}";
         var created = await gitLabService.CreateAndPopulateGitLabProject(
             httpClient,
-            gitlabUrl,
             gitlabToken,
             projectName,
             i);

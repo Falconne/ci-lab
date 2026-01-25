@@ -1,24 +1,31 @@
+using Bootstrap.Entities.GitLab;
 using Bootstrap.Services.Utilities;
 using LibGit2Sharp;
 using Serilog;
 using System.Net;
 using System.Net.Http.Json;
-using Bootstrap.Entities.GitLab;
 
 namespace Bootstrap.Services.GitLab;
 
 public class GitLabService
 {
-    private static string BuildApiUrl(string gitlabUrl, string endpoint)
+    public GitLabService(string gitLabUrl)
     {
-        return ApiUrlHelper.BuildUrl(gitlabUrl, "api/v4", endpoint);
+        GitLabUrl = gitLabUrl;
     }
 
-    public static async Task<bool> ValidateGitLabToken(HttpClient client, string gitlabUrl, string token)
+    public string GitLabUrl { get; }
+
+    private string BuildApiUrl(string endpoint)
+    {
+        return ApiUrlHelper.BuildUrl(GitLabUrl, "api/v4", endpoint);
+    }
+
+    public async Task<bool> ValidateGitLabToken(HttpClient client, string token)
     {
         try
         {
-            var apiUrl = BuildApiUrl(gitlabUrl, "user");
+            var apiUrl = BuildApiUrl("user");
             var request = HttpRequestHelper.CreateWithPrivateToken(HttpMethod.Get, apiUrl, token);
 
             var response = await client.SendAsync(request);
@@ -49,19 +56,18 @@ public class GitLabService
         }
     }
 
-    public static async Task<GitLabProject> CreateGitLabProject(
+    public async Task<GitLabProject> CreateGitLabProject(
         HttpClient client,
-        string gitlabUrl,
         string token,
         string projectName)
 
     {
-        var apiUrl = BuildApiUrl(gitlabUrl, "projects");
+        var apiUrl = BuildApiUrl("projects");
         Log.Information($"Creating GitLab project '{projectName}' via {apiUrl}");
 
         try
         {
-            var checkUrl = BuildApiUrl(gitlabUrl, $"projects?search={projectName}");
+            var checkUrl = BuildApiUrl($"projects?search={projectName}");
             var checkRequest = HttpRequestHelper.CreateWithPrivateToken(HttpMethod.Get, checkUrl, token);
 
             var checkResponse = await client.SendAsync(checkRequest);
@@ -93,14 +99,17 @@ public class GitLabService
                 if (project is null)
                 {
                     var content = await response.Content.ReadAsStringAsync();
-                    throw new InvalidOperationException($"Failed to deserialize GitLab project response: {content}");
+                    throw new InvalidOperationException(
+                        $"Failed to deserialize GitLab project response: {content}");
                 }
+
                 return project;
             }
 
             var errorContent = await response.Content.ReadAsStringAsync();
             Log.Error($"GitLab API error {(int)response.StatusCode}: {errorContent}");
-            throw new InvalidOperationException($"Failed to create GitLab project '{projectName}': {(int)response.StatusCode} {response.StatusCode} - {errorContent}");
+            throw new InvalidOperationException(
+                $"Failed to create GitLab project '{projectName}': {(int)response.StatusCode} {response.StatusCode} - {errorContent}");
         }
         catch (Exception ex)
         {
@@ -111,12 +120,11 @@ public class GitLabService
 
     public async Task<bool> CreateAndPopulateGitLabProject(
         HttpClient client,
-        string gitlabUrl,
         string token,
         string projectName,
         int projectNumber)
     {
-        var project = await CreateGitLabProject(client, gitlabUrl, token, projectName);
+        var project = await CreateGitLabProject(client, token, projectName);
 
         var projectId = project.Id;
         var httpUrlToRepo = project.HttpUrlToRepo;
@@ -126,7 +134,7 @@ public class GitLabService
             throw new InvalidOperationException($"Could not get repository URL for project '{projectName}'");
         }
 
-        var hasCommits = await CheckGitLabProjectHasCommits(client, gitlabUrl, token, projectId);
+        var hasCommits = await CheckGitLabProjectHasCommits(client, token, projectId);
         if (hasCommits)
         {
             Log.Information($"Project '{projectName}' already has commits, skipping repo population");
@@ -277,15 +285,12 @@ public class GitLabService
 
     public async Task<bool> CheckGitLabProjectHasCommits(
         HttpClient client,
-        string gitlabUrl,
         string token,
         int projectId)
     {
         try
         {
-            var apiUrl = BuildApiUrl(
-                gitlabUrl,
-                $"projects/{projectId}/repository/commits");
+            var apiUrl = BuildApiUrl($"projects/{projectId}/repository/commits");
 
             var request = HttpRequestHelper.CreateWithPrivateToken(HttpMethod.Get, apiUrl, token);
 
