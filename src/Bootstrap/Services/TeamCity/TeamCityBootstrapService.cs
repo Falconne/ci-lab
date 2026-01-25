@@ -61,7 +61,7 @@ public class TeamCityBootstrapService
                 await HandleAdminAccountCreation(username, password);
             }
 
-            await HandleTokenCreation(teamcityUrl);
+            await HandleTokenCreation(client, teamcityUrl, username, password);
 
             await _browserService.TakeScreenshot("22_final_state");
             Log.Information("TeamCity automated setup completed successfully");
@@ -320,197 +320,22 @@ public class TeamCityBootstrapService
         }
     }
 
-    private async Task<bool> HandleTokenCreation(string teamcityUrl)
+    private async Task<bool> HandleTokenCreation(HttpClient client, string teamcityUrl, string username, string password)
     {
-        Log.Information("Step 5: Creating access token (UI)");
-        try
-        {
-            await _browserService.Navigate($"{teamcityUrl}/profile.html?item=accessTokens");
-            await Task.Delay(2000);
-            await _browserService.TakeScreenshot("19_token_page");
-        }
-        catch (Exception ex)
-        {
-            Log.Warning($"Could not navigate to token page: {ex.Message}");
-            await _browserService.TakeScreenshot("19_token_page_error");
-        }
+        Log.Information("Step 5: Creating access token (API)");
 
-        var existingToken = _browserService.GetLocator(
-            "td:has-text('bootstrap-automation'), span:has-text('bootstrap-automation'), div:has-text('bootstrap-automation')");
+        var tokenName = "bootstrap-automation";
+        var token = await TryCreateTokenViaApi(client, teamcityUrl, username, password, tokenName);
 
-        if (await existingToken.CountAsync() > 0)
+        if (token != null)
         {
-            Log.Information(
-                "TeamCity token 'bootstrap-automation' already exists - skipping creation");
-
-            await _browserService.TakeScreenshot("19_token_already_exists");
+            Log.Information($"Successfully created token '{tokenName}' via API");
+            _envService.SaveOrUpdateEnvFile("TEAMCITY_TOKEN", token);
             return true;
         }
 
-        var createTokenButton = _browserService.GetLocator(
-            "button:has-text('Create access token'), "
-            + "a:has-text('Create access token'), "
-            + "input[value='Create access token'], "
-            + "button:has-text('Create token'), "
-            + "a:has-text('Create token'), "
-            + "button.btn:has-text('Create'), "
-            + "a.btn:has-text('Create')"
-        );
-
-        if (await createTokenButton.CountAsync() == 0)
-        {
-            Log.Warning("Could not find 'Create access token' button");
-            var currentUrl = _browserService.Page.Url;
-            Log.Information($"Current URL: {currentUrl}");
-            return true;
-        }
-
-        Log.Information(
-            $"Found create token button (matched {await createTokenButton.CountAsync()} elements)");
-
-        await _browserService.ClickAndWait(createTokenButton, "Create token button", 20);
-        await Task.Delay(1000);
-        await _browserService.TakeScreenshot("20_token_creation_dialog");
-
-        return await FillAndSubmitTokenForm();
-    }
-
-    private async Task<bool> FillAndSubmitTokenForm()
-    {
-        var tokenNameInput = _browserService.GetLocator(
-            "input[name='tokenName'], input[id='tokenName'], input[name='name'], "
-            + "input[placeholder*='name'], input[placeholder*='Token'], input[aria-label*='name'], textarea[name='name'], "
-            + "input#input_accessTokenName, input[name='prop:accessTokenName']"
-        );
-
-        if (await tokenNameInput.CountAsync() == 0)
-        {
-            var dialog =
-                _browserService.GetLocator("[role='dialog'], div.modal, div[aria-modal='true']");
-
-            if (await dialog.CountAsync() > 0)
-            {
-                var innerInput = dialog.First.Locator("input, textarea, [contenteditable='true']");
-                if (await innerInput.CountAsync() > 0)
-                {
-                    tokenNameInput = innerInput;
-                }
-            }
-        }
-
-        if (await tokenNameInput.CountAsync() == 0)
-        {
-            Log.Warning(
-                "Could not find token name input field (tried multiple selectors)");
-
-            return await TryFallbackTokenSubmit();
-        }
-
-        try
-        {
-            await PlaywrightService.FillFormField(
-                tokenNameInput,
-                "bootstrap-automation",
-                "token name");
-
-            await Task.Delay(500);
-            await _browserService.TakeScreenshot("20b_token_name_filled");
-
-            var createButton = _browserService.GetLocator(
-                "button:has-text('Create'), input[value='Create'], button[type='submit'], button:has-text('Generate')");
-
-            if (await createButton.CountAsync() == 0)
-            {
-                Log.Warning("Could not find Create/Generate button in dialog");
-                return true;
-            }
-
-            await _browserService.ClickAndWait(
-                createButton,
-                "Create/Generate button",
-                20);
-
-            await Task.Delay(2000);
-            await _browserService.TakeScreenshot("21_token_created");
-
-            await ExtractAndSaveToken();
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Log.Warning($"Exception during token creation: {ex.Message}");
-            return true;
-        }
-    }
-
-    private async Task<bool> TryFallbackTokenSubmit()
-    {
-        try
-        {
-            var fallbackSubmit = _browserService.GetLocator(
-                "button:has-text('Create'), button:has-text('Generate'), input[type='submit']");
-
-            if (await fallbackSubmit.CountAsync() > 0)
-            {
-                Log.Information("Attempting fallback submit for token creation");
-                await _browserService.ClickAndWait(
-                    fallbackSubmit,
-                    "fallback submit button",
-                    20);
-
-                await Task.Delay(1500);
-                await _browserService.TakeScreenshot("21_token_created_fallback");
-            }
-        }
-        catch { }
-
-        return true;
-    }
-
-    private async Task ExtractAndSaveToken()
-    {
-        try
-        {
-            var createdTokenLocator = _browserService.GetLocator("#createdToken");
-            var accessTokenRow = _browserService.GetLocator("#accessTokenValue");
-            if (await accessTokenRow.CountAsync() > 0)
-            {
-                await PlaywrightService.WaitForElement(accessTokenRow);
-            }
-
-            if (await createdTokenLocator.CountAsync() == 0)
-            {
-                Log.Warning(
-                    "Token created but '#createdToken' element not found");
-
-                return;
-            }
-
-            var token = await PlaywrightService.GetTextContent(createdTokenLocator);
-
-            if (string.IsNullOrWhiteSpace(token))
-            {
-                token = await PlaywrightService.GetAttribute(
-                    createdTokenLocator,
-                    "value");
-            }
-
-            if (!string.IsNullOrWhiteSpace(token))
-            {
-                _envService.SaveOrUpdateEnvFile("TEAMCITY_TOKEN", token);
-                Log.Information("TeamCity token created and saved to .env");
-            }
-            else
-            {
-                Log.Warning(
-                    "Token created but '#createdToken' was empty");
-            }
-        }
-        catch (Exception ex)
-        {
-            Log.Warning(
-                $"Exception while extracting created token: {ex.Message}");
-        }
+        Log.Warning("Failed to create token via API");
+        return false;
     }
 
     public async Task<string?> TryCreateTokenViaApi(
