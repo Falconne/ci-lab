@@ -235,11 +235,6 @@ public class GitlabBootstrapService : IDisposable
             Log.Information($"Repository populated and pushed to '{projectName}'");
             return true;
         }
-        catch (Exception ex)
-        {
-            Log.Error($"Failed to populate project '{projectName}': {ex.Message}");
-            return false;
-        }
         finally
         {
             try
@@ -258,22 +253,15 @@ public class GitlabBootstrapService : IDisposable
 
     public async Task<bool> CheckGitlabProjectHasCommits(int projectId)
     {
-        try
-        {
-            var request = new RestRequest($"projects/{projectId}/repository/commits");
+        var request = new RestRequest($"projects/{projectId}/repository/commits");
 
-            var response = await _client.ExecuteGetAsync<GitlabCommit[]>(request);
+        var response = await _client.ExecuteGetAsync<GitlabCommit[]>(request);
 
-            if (response.StatusCode == HttpStatusCode.NotFound)
-            {
-                return false;
-            }
-
-            return response.IsSuccessful && response.Data is { Length: > 0 };
-        }
-        catch
+        if (response.StatusCode == HttpStatusCode.NotFound)
         {
             return false;
         }
+
+        return response.IsSuccessful && response.Data is { Length: > 0 };
     }
 }
