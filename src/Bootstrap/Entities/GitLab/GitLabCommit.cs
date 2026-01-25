@@ -2,5 +2,5 @@ namespace Bootstrap.Entities.Gitlab;
 
 public sealed class GitlabCommit
 {
-    public string? Id { get; set; }
+    public required string Id { get; set; }
 }

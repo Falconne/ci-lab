@@ -123,11 +123,6 @@ public class GitlabService
         var projectId = project.Id;
         var httpUrlToRepo = project.HttpUrlToRepo;
 
-        if (string.IsNullOrEmpty(httpUrlToRepo))
-        {
-            throw new InvalidOperationException($"Could not get repository URL for project '{projectName}'");
-        }
-
         var hasCommits = await CheckGitlabProjectHasCommits(client, token, projectId);
         if (hasCommits)
         {

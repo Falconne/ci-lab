@@ -8,5 +8,5 @@ public sealed class TeamCityAgent
     public int Id { get; set; }
 
     [JsonPropertyName("name")]
-    public string? Name { get; set; }
+    public required string Name { get; set; }
 }
