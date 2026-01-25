@@ -46,7 +46,7 @@ var teamCityBootstrapService = new TeamCityBootstrapService(
     "root",
     gitlabRootPassword);
 
-var gitlabService = new GitlabService(gitlabUrl);
+var gitlabService = new GitlabBootstrapService(gitlabUrl, httpClient);
 
 // Wait for TeamCity first (it will be available before GitLab)
 Log.Information("Waiting for TeamCity to become available...");
@@ -102,7 +102,7 @@ var gitlabToken = await GetAndValidateToken(
     gitlabUrl,
     "GITLAB_TOKEN",
     envService,
-    (client, serviceUrl, token) => gitlabService.ValidateGitlabToken(client, token));
+    (client, serviceUrl, token) => gitlabService.ValidateGitlabToken(token));
 
 if (string.IsNullOrEmpty(gitlabToken))
 {
@@ -120,7 +120,6 @@ if (!string.IsNullOrEmpty(gitlabToken))
     {
         var projectName = $"test-project-{i}";
         var created = await gitlabService.CreateAndPopulateGitlabProject(
-            httpClient,
             gitlabToken,
             projectName,
             i);

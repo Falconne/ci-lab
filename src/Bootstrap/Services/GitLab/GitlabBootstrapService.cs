@@ -7,23 +7,26 @@ using System.Net.Http.Json;
 
 namespace Bootstrap.Services.Gitlab;
 
-public class GitlabService
+public class GitlabBootstrapService
 {
-    public GitlabService(string gitlabUrl)
+    private readonly HttpClient _client;
+
+    public GitlabBootstrapService(string gitlabUrl, HttpClient client)
     {
         GitlabUrl = gitlabUrl;
+        _client = client;
     }
 
     public string GitlabUrl { get; }
 
-    public async Task<bool> ValidateGitlabToken(HttpClient client, string token)
+    public async Task<bool> ValidateGitlabToken(string token)
     {
         try
         {
             var apiUrl = BuildApiUrl("user");
             var request = HttpRequestHelper.CreateWithPrivateToken(HttpMethod.Get, apiUrl, token);
 
-            var response = await client.SendAsync(request);
+            var response = await _client.SendAsync(request);
             if (response.IsSuccessStatusCode)
             {
                 var user = await response.Content.ReadFromJsonAsync<GitlabUser>();
@@ -51,7 +54,6 @@ public class GitlabService
     }
 
     public async Task<GitlabProject> CreateGitlabProject(
-        HttpClient client,
         string token,
         string projectName)
 
@@ -64,7 +66,7 @@ public class GitlabService
             var checkUrl = BuildApiUrl($"projects?search={projectName}");
             var checkRequest = HttpRequestHelper.CreateWithPrivateToken(HttpMethod.Get, checkUrl, token);
 
-            var checkResponse = await client.SendAsync(checkRequest);
+            var checkResponse = await _client.SendAsync(checkRequest);
             if (checkResponse.IsSuccessStatusCode)
             {
                 var existingProjects = await checkResponse.Content.ReadFromJsonAsync<GitlabProject[]>();
@@ -84,7 +86,7 @@ public class GitlabService
             var request = HttpRequestHelper.CreateWithPrivateToken(HttpMethod.Post, apiUrl, token);
             request.Content = JsonContent.Create(new { name = projectName, initialize_with_readme = false });
 
-            var response = await client.SendAsync(request);
+            var response = await _client.SendAsync(request);
 
             if (response.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created)
             {
@@ -113,17 +115,16 @@ public class GitlabService
     }
 
     public async Task<bool> CreateAndPopulateGitlabProject(
-        HttpClient client,
         string token,
         string projectName,
         int projectNumber)
     {
-        var project = await CreateGitlabProject(client, token, projectName);
+        var project = await CreateGitlabProject(token, projectName);
 
         var projectId = project.Id;
         var httpUrlToRepo = project.HttpUrlToRepo;
 
-        var hasCommits = await CheckGitlabProjectHasCommits(client, token, projectId);
+        var hasCommits = await CheckGitlabProjectHasCommits(token, projectId);
         if (hasCommits)
         {
             Log.Information($"Project '{projectName}' already has commits, skipping repo population");
@@ -273,7 +274,6 @@ public class GitlabService
     }
 
     public async Task<bool> CheckGitlabProjectHasCommits(
-        HttpClient client,
         string token,
         int projectId)
     {
@@ -283,7 +283,7 @@ public class GitlabService
 
             var request = HttpRequestHelper.CreateWithPrivateToken(HttpMethod.Get, apiUrl, token);
 
-            var response = await client.SendAsync(request);
+            var response = await _client.SendAsync(request);
 
             if (response.StatusCode == HttpStatusCode.NotFound)
             {
