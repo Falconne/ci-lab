@@ -96,7 +96,7 @@ if (!gitlabReady)
     return 1;
 }
 
-var gitlabToken = await GetAndValidateTokenAsync(
+var gitlabToken = await GetAndValidateToken(
     httpClient,
     "Gitlab",
     gitlabUrl,
@@ -169,7 +169,7 @@ return 0;
 
 // Helper methods
 
-static async Task<string?> GetAndValidateTokenAsync(
+static async Task<string?> GetAndValidateToken(
     HttpClient client,
     string serviceName,
     string serviceUrl,
