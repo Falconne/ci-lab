@@ -770,6 +770,77 @@ public class TeamCityBootstrapService
         }
     }
 
+    public async Task<string?> EnsureValidToken(
+        HttpClient client,
+        string teamcityUrl,
+        string username,
+        string password,
+        string envFilePath)
+    {
+        var existingToken = Environment.GetEnvironmentVariable("TEAMCITY_TOKEN");
+        var needCreateToken = string.IsNullOrEmpty(existingToken);
+
+        if (!needCreateToken && existingToken != null)
+        {
+            Log.Information("Validating existing TEAMCITY_TOKEN...");
+            try
+            {
+                var valid = await ValidateTeamCityToken(client, teamcityUrl, existingToken);
+
+                if (!valid)
+                {
+                    Log.Information(
+                        "Existing TEAMCITY_TOKEN is invalid or insufficient permissions; will attempt to create a new token via API");
+
+                    needCreateToken = true;
+                }
+                else
+                {
+                    Log.Information("Existing TEAMCITY_TOKEN is valid");
+                    return existingToken;
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Error validating existing TEAMCITY_TOKEN: {ex.Message}");
+                needCreateToken = true;
+            }
+        }
+
+        if (needCreateToken)
+        {
+            Log.Information("Attempting to create TeamCity token via REST API...");
+            try
+            {
+                var createdToken = await TryCreateTokenViaApi(
+                    client,
+                    teamcityUrl,
+                    username,
+                    password,
+                    "bootstrap-automation");
+
+                if (!string.IsNullOrEmpty(createdToken))
+                {
+                    EnvHelper.SaveOrUpdateEnvFile(envFilePath, "TEAMCITY_TOKEN", createdToken);
+                    Log.Information("TeamCity token created via API and saved to .env");
+                    return createdToken;
+                }
+
+                Log.Error(
+                    "Could not create TeamCity token via API; cannot continue without TEAMCITY_TOKEN");
+
+                return null;
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"TeamCity API token creation failed: {ex.Message}");
+                return null;
+            }
+        }
+
+        return existingToken;
+    }
+
     private static string BuildApiUrl(string teamcityUrl, string endpoint)
     {
         return ApiUrlHelper.BuildUrl(teamcityUrl, "app/rest", endpoint);

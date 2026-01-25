@@ -27,12 +27,13 @@ using var httpClient =
         {
             ServerCertificateCustomValidationCallback = (_, _, _, _) => true,
             UseCookies = false
-        })
-    { Timeout = TimeSpan.FromSeconds(10) };
+        });
+
+httpClient.Timeout = TimeSpan.FromSeconds(10);
 
 // Create service instances
 using var browserService = new PlaywrightService();
-var teamCityService = new TeamCityBootstrapService(browserService);
+var teamCityBootstrapService = new TeamCityBootstrapService(browserService);
 var gitlabService = new GitlabService(gitlabUrl);
 
 // Wait for TeamCity first (it's often available before GitLab)
@@ -50,11 +51,10 @@ if (!teamcityReady)
     return 1;
 }
 
-// Automated TeamCity initial setup (Playwright driven)
 Logging.LogSection("TeamCity Automated Initial Setup");
 
 var gitlabRootPassword = Environment.GetEnvironmentVariable("GITLAB_ROOT_PASSWORD") ?? "changeme123";
-var teamcitySetupSuccess = await teamCityService.Execute(
+var teamcitySetupSuccess = await teamCityBootstrapService.Execute(
     httpClient,
     teamcityUrl,
     "root",
@@ -69,86 +69,22 @@ if (!teamcitySetupSuccess)
 
 Log.Information("TeamCity initial setup completed");
 
-// Ensure TEAMCITY_TOKEN is present and valid; if missing or invalid, attempt API creation
-var existingTeamcityToken = Environment.GetEnvironmentVariable("TEAMCITY_TOKEN");
-var needCreateToken = string.IsNullOrEmpty(existingTeamcityToken);
-if (!needCreateToken && existingTeamcityToken != null)
+// Ensure TEAMCITY_TOKEN is present and valid
+var teamcityTokenFromService = await teamCityBootstrapService.EnsureValidToken(
+    httpClient,
+    teamcityUrl,
+    "root",
+    gitlabRootPassword,
+    envFullPath);
+
+if (string.IsNullOrEmpty(teamcityTokenFromService))
 {
-    Log.Information("Validating existing TEAMCITY_TOKEN...");
-    try
-    {
-        var valid = await teamCityService.ValidateTeamCityToken(
-            httpClient,
-            teamcityUrl,
-            existingTeamcityToken);
-
-        if (!valid)
-        {
-            Log.Information(
-                "Existing TEAMCITY_TOKEN is invalid or insufficient permissions; will attempt to create a new token via API");
-
-            needCreateToken = true;
-        }
-        else
-        {
-            Log.Information("Existing TEAMCITY_TOKEN is valid");
-        }
-    }
-    catch (Exception ex)
-    {
-        Log.Warning($"Error validating existing TEAMCITY_TOKEN: {ex.Message}");
-        needCreateToken = true;
-    }
-}
-
-if (needCreateToken)
-{
-    Log.Information("Attempting to create TeamCity token via REST API...");
-    try
-    {
-        var createdToken = await teamCityService.TryCreateTokenViaApi(
-            httpClient,
-            teamcityUrl,
-            "root",
-            gitlabRootPassword,
-            "bootstrap-automation");
-
-        if (!string.IsNullOrEmpty(createdToken))
-        {
-            EnvHelper.SaveOrUpdateEnvFile(envFullPath, "TEAMCITY_TOKEN", createdToken);
-            Log.Information("TeamCity token created via API and saved to .env");
-        }
-        else
-        {
-            Log.Error(
-                "Could not create TeamCity token via API; cannot continue without TEAMCITY_TOKEN");
-
-            return 1;
-        }
-    }
-    catch (Exception ex)
-    {
-        Log.Error($"TeamCity API token creation failed: {ex.Message}");
-        return 1;
-    }
+    Log.Error("Failed to obtain or validate TeamCity token; exiting");
+    return 1;
 }
 
 // Get and validate tokens
 Logging.LogSection("Token Setup");
-
-var teamcityToken = await GetAndValidateTokenAsync(
-    httpClient,
-    "TeamCity",
-    teamcityUrl,
-    "TEAMCITY_TOKEN",
-    envFullPath,
-    teamCityService.ValidateTeamCityToken);
-
-if (string.IsNullOrEmpty(teamcityToken))
-{
-    Log.Error("Failed to obtain valid TeamCity token; exiting");
-    return 1;
-}
 
 // Ensure GitLab is available before attempting token operations
 Log.Information("Waiting for Gitlab to become available...");
@@ -198,10 +134,10 @@ if (!string.IsNullOrEmpty(gitlabToken))
 }
 
 // Create TeamCity projects
-if (!string.IsNullOrEmpty(teamcityToken))
+if (!string.IsNullOrEmpty(teamcityTokenFromService))
 {
     Logging.LogSection("Setting up TeamCity...");
-    var success = await teamCityService.CreateProject(httpClient, teamcityUrl, teamcityToken);
+    var success = await teamCityBootstrapService.CreateProject(httpClient, teamcityUrl, teamcityTokenFromService);
     if (success)
     {
         Log.Information("TeamCity project created");
@@ -209,7 +145,9 @@ if (!string.IsNullOrEmpty(teamcityToken))
 
     // Authorize agents
     Log.Information("Authorizing TeamCity agents...");
-    var agentsAuthorized = await teamCityService.AuthorizeAgents(httpClient, teamcityUrl, teamcityToken);
+    var agentsAuthorized =
+        await teamCityBootstrapService.AuthorizeAgents(httpClient, teamcityUrl, teamcityTokenFromService);
+
     if (agentsAuthorized)
     {
         Log.Information("TeamCity agents authorized");
