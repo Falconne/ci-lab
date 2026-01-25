@@ -2,18 +2,25 @@ using Serilog;
 
 namespace Bootstrap.Services.Utilities;
 
-public static class EnvHelper
+public class EnvHelper
 {
-    public static void LoadEnvFile(string envPath)
+    public string EnvPath { get; }
+
+    public EnvHelper(string envPath)
     {
-        if (!File.Exists(envPath))
+        EnvPath = envPath;
+    }
+
+    public void LoadEnvFile()
+    {
+        if (!File.Exists(EnvPath))
         {
-            Log.Information($"No .env file found at {envPath}");
+            Log.Information($"No .env file found at {EnvPath}");
             return;
         }
 
-        Log.Information($"Loading environment from {envPath}");
-        foreach (var line in File.ReadAllLines(envPath))
+        Log.Information($"Loading environment from {EnvPath}");
+        foreach (var line in File.ReadAllLines(EnvPath))
         {
             var trimmed = line.Trim();
             if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith('#'))
@@ -31,9 +38,9 @@ public static class EnvHelper
         }
     }
 
-    public static void SaveOrUpdateEnvFile(string envPath, string key, string value)
+    public void SaveOrUpdateEnvFile(string key, string value)
     {
-        var lines = File.Exists(envPath) ? File.ReadAllLines(envPath).ToList() : new List<string>();
+        var lines = File.Exists(EnvPath) ? File.ReadAllLines(EnvPath).ToList() : new List<string>();
         var keyPrefix = $"{key}=";
         var lineIndex = lines.FindIndex(l => l.Trim().StartsWith(keyPrefix));
 
@@ -50,7 +57,7 @@ public static class EnvHelper
                 Log.Information($"Added {key} to .env file");
             }
 
-        File.WriteAllLines(envPath, lines);
+        File.WriteAllLines(EnvPath, lines);
         Environment.SetEnvironmentVariable(key, value);
     }
 }

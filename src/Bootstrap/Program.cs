@@ -13,8 +13,11 @@ Logging.LogSeparator();
 var envPath = Path.Combine(Directory.GetCurrentDirectory(), "..", "..", ".env");
 var envFullPath = Path.GetFullPath(envPath);
 
+// Create EnvHelper instance
+var envHelper = new EnvHelper(envFullPath);
+
 // Load environment variables from .env file if it exists
-EnvHelper.LoadEnvFile(envFullPath);
+envHelper.LoadEnvFile();
 
 var gitlabUrl = Environment.GetEnvironmentVariable("GITLAB_URL") ?? "http://localhost:8081";
 var teamcityUrl = Environment.GetEnvironmentVariable("TEAMCITY_URL") ?? "http://localhost:8111";
@@ -33,10 +36,10 @@ httpClient.Timeout = TimeSpan.FromSeconds(10);
 
 // Create service instances
 using var browserService = new PlaywrightService();
-var teamCityBootstrapService = new TeamCityBootstrapService(browserService);
+var teamCityBootstrapService = new TeamCityBootstrapService(browserService, envHelper);
 var gitlabService = new GitlabService(gitlabUrl);
 
-// Wait for TeamCity first (it's often available before GitLab)
+// Wait for TeamCity first (it will be available before GitLab)
 Log.Information("Waiting for TeamCity to become available...");
 var teamcityReady = await HttpHelper.WaitForService(
     httpClient,
@@ -75,7 +78,7 @@ var teamcityTokenFromService = await teamCityBootstrapService.EnsureValidToken(
     teamcityUrl,
     "root",
     gitlabRootPassword,
-    envFullPath);
+    envHelper);
 
 if (string.IsNullOrEmpty(teamcityTokenFromService))
 {
@@ -96,12 +99,12 @@ if (!gitlabReady)
 }
 
 var gitlabToken = await GetAndValidateTokenAsync(
-    httpClient,
-    "Gitlab",
-    gitlabUrl,
-    "GITLAB_TOKEN",
-    envFullPath,
-    (client, serviceUrl, token) => gitlabService.ValidateGitlabToken(client, token));
+httpClient,
+"Gitlab",
+gitlabUrl,
+"GITLAB_TOKEN",
+envHelper,
+(client, serviceUrl, token) => gitlabService.ValidateGitlabToken(client, token));
 
 if (string.IsNullOrEmpty(gitlabToken))
 {
@@ -137,7 +140,11 @@ if (!string.IsNullOrEmpty(gitlabToken))
 if (!string.IsNullOrEmpty(teamcityTokenFromService))
 {
     Logging.LogSection("Setting up TeamCity...");
-    var success = await teamCityBootstrapService.CreateProject(httpClient, teamcityUrl, teamcityTokenFromService);
+    var success = await teamCityBootstrapService.CreateProject(
+        httpClient,
+        teamcityUrl,
+        teamcityTokenFromService);
+
     if (success)
     {
         Log.Information("TeamCity project created");
@@ -169,12 +176,12 @@ return 0;
 // Helper methods
 
 static async Task<string?> GetAndValidateTokenAsync(
-    HttpClient client,
-    string serviceName,
-    string serviceUrl,
-    string envVarName,
-    string envFilePath,
-    Func<HttpClient, string, string, Task<bool>> validator)
+HttpClient client,
+string serviceName,
+string serviceUrl,
+string envVarName,
+EnvHelper envHelper,
+Func<HttpClient, string, string, Task<bool>> validator)
 {
     // Special handling for GitLab: poll the .env file for a token and validate it
     if (serviceName == "Gitlab")
@@ -188,7 +195,7 @@ static async Task<string?> GetAndValidateTokenAsync(
         while (DateTime.UtcNow < deadline)
         {
             // Reload .env to pick up tokens written by external processes
-            EnvHelper.LoadEnvFile(envFilePath);
+            envHelper.LoadEnvFile();
             var token = Environment.GetEnvironmentVariable(envVarName);
 
             if (!string.IsNullOrEmpty(token))
@@ -201,7 +208,7 @@ static async Task<string?> GetAndValidateTokenAsync(
                     {
                         Log.Information("Gitlab token is valid");
                         // Ensure the .env is updated consistently
-                        EnvHelper.SaveOrUpdateEnvFile(envFilePath, envVarName, token);
+                        envHelper.SaveOrUpdateEnvFile(envVarName, token);
                         return token;
                     }
 
@@ -265,7 +272,7 @@ static async Task<string?> GetAndValidateTokenAsync(
         if (isValidInteractive)
         {
             Log.Information($"{serviceName} token is valid");
-            EnvHelper.SaveOrUpdateEnvFile(envFilePath, envVarName, tokenInteractive);
+            envHelper.SaveOrUpdateEnvFile(envVarName, tokenInteractive);
             return tokenInteractive;
         }
 
