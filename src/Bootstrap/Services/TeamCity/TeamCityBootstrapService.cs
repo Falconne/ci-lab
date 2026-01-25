@@ -53,6 +53,12 @@ public class TeamCityBootstrapService : IDisposable
     public async Task<bool> Execute()
     {
         Log.Information("Starting automated TeamCity initial setup");
+
+        if (!await WaitForAvailability())
+        {
+            return false;
+        }
+
         var screenshotDir = Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "data", "screenshots");
         if (!await _browserService.Initialize(screenshotDir))
         {
@@ -499,6 +505,19 @@ public class TeamCityBootstrapService : IDisposable
 
         Log.Error($"TeamCity API error {(int)response.StatusCode}: {body}");
         return false;
+    }
+
+    private async Task<bool> WaitForAvailability()
+    {
+        Log.Information("Waiting for TeamCity to become available...");
+        var teamcityReady = await HttpHelper.WaitForService(_teamcityUrl, TimeSpan.FromMinutes(5), 503, 401);
+        if (!teamcityReady)
+        {
+            Log.Error("TeamCity did not become available; exiting");
+            return false;
+        }
+
+        return true;
     }
 
     public async Task<bool> AuthorizeAgents(string token)

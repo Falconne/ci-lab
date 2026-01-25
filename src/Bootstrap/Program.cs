@@ -37,20 +37,6 @@ try
         "root",
         gitlabRootPassword);
 
-    // Wait for TeamCity first (it will be available before GitLab)
-    Log.Information("Waiting for TeamCity to become available...");
-    var teamcityReady = await HttpHelper.WaitForService(
-        teamcityUrl,
-        TimeSpan.FromMinutes(5),
-        503,
-        401);
-
-    if (!teamcityReady)
-    {
-        Log.Error("TeamCity did not become available; exiting");
-        return 1;
-    }
-
     Logging.LogSection("TeamCity Automated Initial Setup");
 
     var teamcitySetupSuccess = await teamCityBootstrapService.Execute();
