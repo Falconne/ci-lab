@@ -13,6 +13,24 @@ cd src/Bootstrap
 # Pass environment variables to container
 GITLAB_ROOT_PASSWORD="${GITLAB_ROOT_PASSWORD:-changeme123}"
 
+# If a suitable dotnet SDK is available locally, run the bootstrapper natively.
+# Otherwise fall back to running inside Docker (existing behaviour).
+if command -v dotnet >/dev/null 2>&1; then
+  dotnet_version="$(dotnet --version 2>/dev/null || true)"
+  if [[ "$dotnet_version" =~ ^([0-9]+) ]]; then
+    major="${BASH_REMATCH[1]}"
+    if [ "$major" -ge 9 ]; then
+      echo "Found dotnet $dotnet_version — running bootstrapper natively."
+      export GITLAB_ROOT_PASSWORD
+      # Run from the project directory so local relative paths match expectations
+      cd "$ROOT_DIR/src/Bootstrap"
+      dotnet restore "$ROOT_DIR/src/Bootstrap/Bootstrap.csproj"
+      dotnet run --project "$ROOT_DIR/src/Bootstrap/Bootstrap.csproj" --configuration Release
+      exit $?
+    fi
+  fi
+fi
+
 # Build bootstrap image if it doesn't exist or Dockerfile changed
 if [ ! "$(docker images -q ci-lab-bootstrap:latest 2> /dev/null)" ] || [ "$ROOT_DIR/Dockerfile.bootstrap" -nt "$ROOT_DIR/.docker-bootstrap-build" ]; then
   echo "Building bootstrap Docker image with Playwright support..."
