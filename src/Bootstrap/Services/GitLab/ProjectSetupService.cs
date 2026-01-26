@@ -88,20 +88,12 @@ public class ProjectSetupService
         // Trigger TeamCity to commit current settings to VCS
         await _teamCityService.CommitCurrentSettingsToVcs();
 
-        // Wait and verify that settings.kts appears in the GitLab repo
-        var settingsAppeared = await _teamCityService.WaitForSettingsInRepo(
+        // Wait for settings.kts to appear in the GitLab repo (throws on failure)
+        await _teamCityService.WaitForSettingsInRepo(
             _gitlabUrl,
             _gitlabToken,
             configProject.Id);
 
-        if (settingsAppeared)
-        {
-            Log.Information("TeamCity configuration under source control setup complete!");
-        }
-        else
-        {
-            Log.Warning("TeamCity settings.kts file did not appear in the expected time.");
-            Log.Warning("Manual verification may be required.");
-        }
+        Log.Information("TeamCity configuration under source control setup complete!");
     }
 }

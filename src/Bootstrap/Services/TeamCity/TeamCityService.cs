@@ -415,8 +415,9 @@ public class TeamCityService : IDisposable
 
     /// <summary>
     /// Waits for the settings.kts file to appear in the GitLab repository.
+    /// Throws an exception if the file does not appear within the timeout.
     /// </summary>
-    public async Task<bool> WaitForSettingsInRepo(
+    public async Task WaitForSettingsInRepo(
         string gitlabUrl,
         string gitlabToken,
         int projectId,
@@ -450,7 +451,7 @@ public class TeamCityService : IDisposable
                 {
                     Log.Information($"Found TeamCity settings at path: {path}");
                     Log.Debug($"Repository tree response: {response.Content}");
-                    return true;
+                    return;
                 }
             }
 
@@ -458,7 +459,8 @@ public class TeamCityService : IDisposable
             await Task.Delay(5000);
         }
 
-        Log.Warning($"Timeout waiting for settings.kts to appear after {timeoutSeconds} seconds");
-        return false;
+        var msg = $"Timeout waiting for settings.kts to appear after {timeoutSeconds} seconds";
+        Log.Warning(msg);
+        throw new InvalidOperationException(msg);
     }
 }
