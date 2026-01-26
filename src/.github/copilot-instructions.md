@@ -1,8 +1,9 @@
-# GitHub Copilot � Agent Mode Instructions for this repository
-## Purpose
+# Purpose
 - This repo creates a CI/CD testing environemnt, with GitLab (Omnibus) and TeamCity setup via docker compose plus an automated bootstrapper (C#/.NET 9) in `src/`.
+- The intention is to spin up a test CI/CD environment with test data without the need for user interaction.
+  - There should be a guarantee that the bootstrapping script will produce a fully functional environment or fail with an exception.
 
-## Guidelines
+# Guidelines
 - Be idempotent, so the boot strapper can be re-run after interruption without duplicating entries, especially in the C# boostrapper.
 - Bring the lab up reproducibly via `docker compose up`.
 - As this is a generated testing environment, it is fine to store secrets in source control.
@@ -13,8 +14,9 @@
   - If an unexpected exception happens, let it throw and abort the application. Do not add catch blocks to try and fail gracefully.
   - Howver when retrying is required or if using a library that may throw for states we do not consider unexpected, it is ok to catch exceptions.
   - It is also ok to catch exceptions in finally blocks.
+- If any setup step fails or something it not configured as expected, immediately throw an exception and abort. There will be no possibility for manual configuration afterwards, so do not just log a warrning and continue. We need to ensure that either a fully functional environment is created or we abort early so the user can diagnose and fix the setup code.
 
- ## Coding Conventions
+# Coding Conventions
 - As these are console applications, do not use async/await anywhere, unless using a method that only has an async option.
   - If creating async methods due to library calls that are async only, do not suffix the method name with "Async".
 - Use dependency injection for services.
@@ -30,12 +32,12 @@
 - Performance is not a concern, prefer clarity and maintainability.
   - e.g., use string.Contains instead of IndexOf for readability.
 
-## Testing & verification:
+# Testing & verification:
 - Run `dotnet build` and `dotnet run` when modifying `src/` to verify behavior. Use a docker container with the .NET 9 SDK, do not install dotnet on this machine.
 - When testing the docker compose or starting containers, note thaty Gitlab takes a long time to become healthy. Do not assume failure unless it takes more than 5 minutes.
 - The TeamCity server should be accessible at `http://localhost:8111` after startup.
 - The Gitlab server should be accessible at `http://localhost:8080` after startup.
 - When running the bootstrapper, either directly or via scripts/bootstrap.sh, it can take up to 4 minutes to complete.
 
-## Documentation & user-facing files:
+# Documentation & user-facing files:
 - Keep user-facing guidance in `Readme.md` and machine/agent guidance in `.github/copilot-instructions.md`.
