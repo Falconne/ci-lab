@@ -52,7 +52,16 @@ try
         Log.Error("GitLab automated setup failed");
         return 1;
     }
-    Log.Information("GitLab initial setup completed");
+
+    Logging.LogSection("Running Initial Project Setup");
+    var gitlabToken = envService.GetValue("GITLAB_TOKEN");
+    using var gitlabService = new GitlabService(gitlabUrl, gitlabToken!);
+    var projectSetupService = new ProjectSetupService(gitlabService);
+    if (!await projectSetupService.Execute())
+    {
+        Log.Error("Project setup failed");
+        return 1;
+    }
 
     Logging.LogSection("Bootstrap complete!");
     Log.Information("Services available at:");

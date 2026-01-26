@@ -57,15 +57,7 @@ public class GitlabBootstrapService : IDisposable
         // Set token header for API calls
         _client.AddDefaultHeader("PRIVATE-TOKEN", _token);
 
-        // Create GitLab test projects
-        Log.Information("Setting up Gitlab test projects...");
-        var projectsReady = await CreateTestProjects();
-        if (!projectsReady)
-        {
-            return false;
-        }
-
-        Log.Information("Gitlab test projects ready");
+        Log.Information("GitLab initial setup completed");
         return true;
     }
 
@@ -112,35 +104,6 @@ public class GitlabBootstrapService : IDisposable
 
         Log.Error($"Timed out waiting for a valid GITLAB_TOKEN after {timeout.TotalMinutes} minutes");
         return null;
-    }
-
-    private async Task<bool> CreateTestProjects()
-    {
-        using var gitlabProjectService = new GitlabService(_gitlabUrl, _token!);
-
-        foreach (var i in Enumerable.Range(1, 3))
-        {
-            var projectName = $"top-level-project-{i}";
-            var created = await gitlabProjectService.CreateTopLevelProject(projectName);
-            if (!created)
-            {
-                Log.Error($"Failed to create GitLab project: {projectName}");
-                return false;
-            }
-        }
-
-        foreach (var i in Enumerable.Range(1, 4))
-        {
-            var projectName = $"sub-project-{i}";
-            var created = await gitlabProjectService.CreateSubProject("top-level-project-1");
-            if (!created)
-            {
-                Log.Error($"Failed to create GitLab sub-project: {projectName}");
-                return false;
-            }
-        }
-
-        return true;
     }
 
     private async Task<bool> ValidateGitlabToken(string token)
