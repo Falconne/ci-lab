@@ -29,7 +29,7 @@ public class ProjectSetupService
         foreach (var i in Enumerable.Range(1, 4))
         {
             var projectName = $"sub-project-{i}";
-            await gitlabProjectService.CreateSubProject(projectName, testGroup.Id);
+            await gitlabProjectService.CreateRegularProject(projectName, testGroup.Id);
         }
 
         Log.Information("GitLab test projects ready");

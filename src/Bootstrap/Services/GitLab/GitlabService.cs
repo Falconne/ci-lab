@@ -167,7 +167,7 @@ public class GitlabService : IDisposable
             });
     }
 
-    public async Task CreateSubProject(string projectName, int? namespaceId = null)
+    public async Task CreateRegularProject(string projectName, int? namespaceId = null)
     {
         await CreateAndPopulateProject(projectName, namespaceId);
     }
@@ -212,7 +212,7 @@ public class GitlabService : IDisposable
             const string readmeContent = """
                                          # Generic Readme
 
-                                         This is a test project for the CI lab environment.
+                                         This is a project for the CI lab environment.
 
                                          """;
 
