@@ -2,15 +2,19 @@ using RestSharp;
 using RestSharp.Authenticators;
 using Serilog;
 using System.Net;
+using System.Text.Json;
 
 namespace Bootstrap.Services.TeamCity;
 
 public class TeamCityService : IDisposable
 {
     private readonly RestClient _client;
-    private readonly string _teamcityUrl;
-    private readonly string _username;
+
     private readonly string _password;
+
+    private readonly string _teamcityUrl;
+
+    private readonly string _username;
 
     public TeamCityService(string teamcityUrl, string username, string password)
     {
@@ -39,8 +43,8 @@ public class TeamCityService : IDisposable
     }
 
     /// <summary>
-    /// Creates or updates a VCS root at the _Root project level.
-    /// Returns the VCS root ID and a flag indicating if it was updated.
+    ///     Creates or updates a VCS root at the _Root project level.
+    ///     Returns the VCS root ID and a flag indicating if it was updated.
     /// </summary>
     public async Task<(string vcsRootId, bool wasUpdated)> CreateOrUpdateVcsRoot(
         string vcsRootName,
@@ -66,12 +70,15 @@ public class TeamCityService : IDisposable
 
                 // First, we need to disable versioned settings to allow VCS root modification
                 var currentSettings = await GetVersionedSettings("_Root");
-                var wasEnabled = currentSettings != null && currentSettings.Contains("\"synchronizationMode\":\"enabled\"");
+                var wasEnabled = currentSettings != null
+                                 && currentSettings.Contains("\"synchronizationMode\":\"enabled\"");
 
                 if (wasEnabled)
                 {
-                    Log.Information("Temporarily disabling versioned settings to allow VCS root modification...");
-                    await DisableVersionedSettings("_Root");
+                    Log.Information(
+                        "Temporarily disabling versioned settings to allow VCS root modification...");
+
+                    await DisableVersionedSettings();
                     await Task.Delay(2000); // Wait for TeamCity to process the change
                 }
 
@@ -82,19 +89,18 @@ public class TeamCityService : IDisposable
                 {
                     await UpdateVcsRootProperty(existingVcsRootId, "username", username);
                 }
+
                 if (password != null)
                 {
                     await UpdateVcsRootProperty(existingVcsRootId, "secure:password", password);
                 }
 
-                return (existingVcsRootId, true);  // Was updated
-            }
-            else
-            {
-                Log.Debug($"VCS root URL is already correct or could not be retrieved");
+                return (existingVcsRootId, true); // Was updated
             }
 
-            return (existingVcsRootId, false);  // No update needed
+            Log.Debug("VCS root URL is already correct or could not be retrieved");
+
+            return (existingVcsRootId, false); // No update needed
         }
 
         // Create a unique ID from the name
@@ -112,7 +118,11 @@ public class TeamCityService : IDisposable
                 {
                     new { name = "url", value = gitUrl },
                     new { name = "branch", value = $"refs/heads/{branch}" },
-                    new { name = "authMethod", value = username != null ? "PASSWORD" : "ANONYMOUS" },
+                    new
+                    {
+                        name = "authMethod",
+                        value = username != null ? "PASSWORD" : "ANONYMOUS"
+                    },
                     new { name = "username", value = username ?? "" },
                     new { name = "secure:password", value = password ?? "" },
                     new { name = "usernameStyle", value = "USERID" },
@@ -131,7 +141,7 @@ public class TeamCityService : IDisposable
         if (response.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created)
         {
             Log.Information($"VCS root '{vcsRootName}' created successfully with ID: {vcsRootId}");
-            return (vcsRootId, true);  // New VCS root created
+            return (vcsRootId, true); // New VCS root created
         }
 
         Log.Error($"Failed to create VCS root: {(int)response.StatusCode} - {response.Content}");
@@ -140,7 +150,7 @@ public class TeamCityService : IDisposable
     }
 
     /// <summary>
-    /// Gets a VCS root by name and returns its ID and URL.
+    ///     Gets a VCS root by name and returns its ID and URL.
     /// </summary>
     private async Task<(string? id, string? url)> GetVcsRootByName(string vcsRootName)
     {
@@ -157,7 +167,7 @@ public class TeamCityService : IDisposable
         // Parse JSON response to check for existing VCS root
         try
         {
-            var json = System.Text.Json.JsonDocument.Parse(response.Content ?? "{}");
+            var json = JsonDocument.Parse(response.Content ?? "{}");
             var count = json.RootElement.TryGetProperty("count", out var countElement)
                 ? countElement.GetInt32()
                 : 0;
@@ -183,7 +193,7 @@ public class TeamCityService : IDisposable
     }
 
     /// <summary>
-    /// Gets the URL of a VCS root.
+    ///     Gets the URL of a VCS root.
     /// </summary>
     private async Task<string?> GetVcsRootUrl(string vcsRootId)
     {
@@ -203,7 +213,7 @@ public class TeamCityService : IDisposable
     }
 
     /// <summary>
-    /// Updates a VCS root property.
+    ///     Updates a VCS root property.
     /// </summary>
     public async Task UpdateVcsRootProperty(string vcsRootId, string propertyName, string value)
     {
@@ -228,7 +238,7 @@ public class TeamCityService : IDisposable
     }
 
     /// <summary>
-    /// Enables versioned settings (config under source control) for the Root project.
+    ///     Enables versioned settings (config under source control) for the Root project.
     /// </summary>
     public async Task EnableVersionedSettings(
         string vcsRootId,
@@ -248,7 +258,9 @@ public class TeamCityService : IDisposable
 
         // Check current versioned settings status
         var currentSettings = await GetVersionedSettings("_Root");
-        if (!forceReconfigure && currentSettings != null && currentSettings.Contains("\"synchronizationMode\":\"enabled\""))
+        if (!forceReconfigure
+            && currentSettings != null
+            && currentSettings.Contains("\"synchronizationMode\":\"enabled\""))
         {
             // Check if it's using the correct VCS root
             if (currentSettings.Contains($"\"vcsRootId\":\"{vcsRootId}\""))
@@ -256,17 +268,17 @@ public class TeamCityService : IDisposable
                 Log.Information("Versioned settings already enabled for _Root project with correct VCS root");
                 return;
             }
-            else
-            {
-                Log.Information("Versioned settings enabled but with different VCS root, will reconfigure");
-            }
+
+            Log.Information("Versioned settings enabled but with different VCS root, will reconfigure");
         }
 
         // If we're reconfiguring, disable first to reset state
-        if (forceReconfigure && currentSettings != null && currentSettings.Contains("\"synchronizationMode\":\"enabled\""))
+        if (forceReconfigure
+            && currentSettings != null
+            && currentSettings.Contains("\"synchronizationMode\":\"enabled\""))
         {
             Log.Information("Disabling versioned settings to reset state before reconfiguring...");
-            await DisableVersionedSettings("_Root");
+            await DisableVersionedSettings();
             await Task.Delay(3000); // Wait for TeamCity to process the change
         }
 
@@ -275,13 +287,13 @@ public class TeamCityService : IDisposable
         var versionedSettingsPayload = new
         {
             synchronizationMode = "enabled",
-            vcsRootId = vcsRootId,
+            vcsRootId,
             format = settingsFormat,
             allowUIEditing = allowUiEditing,
             storeSecureValuesOutsideVcs = true,
             showSettingsChanges = true,
-            importDecision = "overrideInVCS",  // Export current settings to VCS, overwriting existing
-            buildSettingsMode = "useFromVCS"   // Use settings from VCS for builds
+            importDecision = "overrideInVCS", // Export current settings to VCS, overwriting existing
+            buildSettingsMode = "useFromVCS" // Use settings from VCS for builds
         };
 
         var request = new RestRequest("projects/_Root/versionedSettings/config", Method.Put)
@@ -304,13 +316,16 @@ public class TeamCityService : IDisposable
 
             var postResponse = await _client.ExecuteAsync(postRequest);
 
-            if (postResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.NoContent or HttpStatusCode.Created)
+            if (postResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.NoContent
+                or HttpStatusCode.Created)
             {
                 Log.Information("Versioned settings enabled successfully via POST");
                 return;
             }
 
-            Log.Error($"Failed to enable versioned settings via POST: {(int)postResponse.StatusCode} - {postResponse.Content}");
+            Log.Error(
+                $"Failed to enable versioned settings via POST: {(int)postResponse.StatusCode} - {postResponse.Content}");
+
             throw new InvalidOperationException(
                 $"Failed to enable versioned settings: {(int)postResponse.StatusCode} - {postResponse.Content}");
         }
@@ -321,16 +336,13 @@ public class TeamCityService : IDisposable
     }
 
     /// <summary>
-    /// Disables versioned settings for a project.
+    ///     Disables versioned settings for a project.
     /// </summary>
     public async Task DisableVersionedSettings(string projectId = "_Root")
     {
         Log.Information($"Disabling versioned settings for project: {projectId}");
 
-        var disablePayload = new
-        {
-            synchronizationMode = "disabled"
-        };
+        var disablePayload = new { synchronizationMode = "disabled" };
 
         var request = new RestRequest($"projects/{projectId}/versionedSettings/config", Method.Put)
             .AddJsonBody(disablePayload);
@@ -347,7 +359,7 @@ public class TeamCityService : IDisposable
     }
 
     /// <summary>
-    /// Gets the current versioned settings configuration for a project.
+    ///     Gets the current versioned settings configuration for a project.
     /// </summary>
     private async Task<string?> GetVersionedSettings(string projectId)
     {
@@ -364,7 +376,7 @@ public class TeamCityService : IDisposable
     }
 
     /// <summary>
-    /// Checks if the versioned settings status has errors.
+    ///     Checks if the versioned settings status has errors.
     /// </summary>
     private async Task<bool> VersionedSettingsHasErrors(string projectId)
     {
@@ -375,7 +387,8 @@ public class TeamCityService : IDisposable
         if (response.IsSuccessful && response.Content != null)
         {
             // If status contains "message" with "Failed", there's an error
-            if (response.Content.Contains("Failed") || response.Content.Contains("error", StringComparison.OrdinalIgnoreCase))
+            if (response.Content.Contains("Failed")
+                || response.Content.Contains("error", StringComparison.OrdinalIgnoreCase))
             {
                 Log.Debug($"Versioned settings status: {response.Content}");
                 return true;
@@ -386,14 +399,16 @@ public class TeamCityService : IDisposable
     }
 
     /// <summary>
-    /// Triggers TeamCity to commit current settings to the VCS.
+    ///     Triggers TeamCity to commit current settings to the VCS.
     /// </summary>
     public async Task CommitCurrentSettingsToVcs(string projectId = "_Root")
     {
         Log.Information($"Triggering commit of current settings to VCS for project: {projectId}");
 
         // The commit is done via a specific action endpoint
-        var request = new RestRequest($"projects/{projectId}/versionedSettings/commitCurrentSettings", Method.Post);
+        var request = new RestRequest(
+            $"projects/{projectId}/versionedSettings/commitCurrentSettings",
+            Method.Post);
 
         var response = await _client.ExecuteAsync(request);
 
@@ -414,8 +429,8 @@ public class TeamCityService : IDisposable
     }
 
     /// <summary>
-    /// Waits for the settings.kts file to appear in the GitLab repository.
-    /// Throws an exception if the file does not appear within the timeout.
+    ///     Waits for the settings.kts file to appear in the GitLab repository.
+    ///     Throws an exception if the file does not appear within the timeout.
     /// </summary>
     public async Task WaitForSettingsInRepo(
         string gitlabUrl,
@@ -447,7 +462,9 @@ public class TeamCityService : IDisposable
 
                 var response = await gitlabClient.ExecuteGetAsync(request);
 
-                if (response.IsSuccessful && !string.IsNullOrEmpty(response.Content) && response.Content != "[]")
+                if (response.IsSuccessful
+                    && !string.IsNullOrEmpty(response.Content)
+                    && response.Content != "[]")
                 {
                     Log.Information($"Found TeamCity settings at path: {path}");
                     Log.Debug($"Repository tree response: {response.Content}");
@@ -460,7 +477,7 @@ public class TeamCityService : IDisposable
         }
 
         var msg = $"Timeout waiting for settings.kts to appear after {timeoutSeconds} seconds";
-        Log.Warning(msg);
+        Log.Error(msg);
         throw new InvalidOperationException(msg);
     }
 }
