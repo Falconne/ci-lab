@@ -443,37 +443,6 @@ public class TeamCityBootstrapService : IDisposable
         return false;
     }
 
-    public async Task<bool> CreateProject(string token)
-    {
-        Log.Information("Creating TeamCity project 'Sample Project'");
-        var request = new RestRequest("projects", Method.Post)
-            .AddHeader("Authorization", $"Bearer {token}")
-            .AddHeader("Accept", "application/json")
-            .AddStringBody(
-                """<newProjectDescription name="Sample Project" id="SampleProject" />""",
-                ContentType.Xml);
-
-        var response = await _client.ExecuteAsync(request);
-
-        if (response.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created)
-        {
-            Log.Information("TeamCity project created successfully");
-            return true;
-        }
-
-        var body = response.Content ?? "";
-        if (response.StatusCode == HttpStatusCode.Conflict
-            || body.Contains("DuplicateProjectNameException")
-            || body.Contains("already exists"))
-        {
-            Log.Information("TeamCity project already exists");
-            return true;
-        }
-
-        Log.Error($"TeamCity API error {(int)response.StatusCode}: {body}");
-        return false;
-    }
-
     private async Task WaitForAvailability()
     {
         Log.Information("Waiting for TeamCity to become available...");
