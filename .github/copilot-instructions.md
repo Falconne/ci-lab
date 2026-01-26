@@ -7,11 +7,12 @@ When acting in agent mode the assistant should follow these rules:
 ## Repository purpose
   - this repo provides a Docker-based CI lab with GitLab (Omnibus) and TeamCity plus an automated bootstrapper (C#/.NET 9) in `src/`.
 
-## Primary goals
+## General Guidelines
   - Bring the lab up reproducibly via `docker compose up`.
   - Ensure automated, minimal-interaction bootstrapping: generate tokens, create sample projects.
     - There is a C# Bootstrap project to setup initial configuration and initial data in the lab environment. Make sure the bootstrapper is idempotent in everything it does, so it doesn't create duplicates of things; ensure it uses identifiable names and markers to achieve this.
   - As this is a generated testing environment, it is fine to store secrets in source control.
+  - Do not commit code at the end of an edit until explicitly asked for by the user. If the user previously asked for a commit earlier in the session, do not assume that continued automatic commits are desired.
 
 ## Languages & tools
   - Use C# targeting `net9.0` for the bootstrapper (code in `src/`).

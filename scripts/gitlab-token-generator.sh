@@ -1,9 +1,6 @@
 #!/bin/sh
 set -euo pipefail
 
-# Script extracted from docker-compose gitlab-token-generator service
-# Logs are redirected to /workspace/data/logs/gitlab-token-generator.log
-
 mkdir -p /workspace/data/logs
 exec > /workspace/data/logs/gitlab-token-generator.log 2>&1
 apk add --no-cache docker-cli curl
