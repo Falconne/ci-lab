@@ -118,13 +118,24 @@ public class GitlabBootstrapService : IDisposable
     {
         using var gitlabProjectService = new GitlabService(_gitlabUrl, _token!);
 
-        for (var i = 1; i <= 5; i++)
+        foreach (var i in Enumerable.Range(1, 3))
         {
-            var projectName = $"test-project-{i}";
+            var projectName = $"top-level-project-{i}";
             var created = await gitlabProjectService.CreateTopLevelProject(projectName);
             if (!created)
             {
                 Log.Error($"Failed to create GitLab project: {projectName}");
+                return false;
+            }
+        }
+
+        foreach (var i in Enumerable.Range(1, 4))
+        {
+            var projectName = $"sub-project-{i}";
+            var created = await gitlabProjectService.CreateSubProject("top-level-project-1");
+            if (!created)
+            {
+                Log.Error($"Failed to create GitLab sub-project: {projectName}");
                 return false;
             }
         }
