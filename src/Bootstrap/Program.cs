@@ -37,20 +37,15 @@ try
         "root",
         gitlabRootPassword);
 
-    Logging.LogSection("TeamCity Automated Initial Setup");
-
-    var teamcitySetupSuccess = await teamCityBootstrapService.Execute();
-
-    if (!teamcitySetupSuccess)
+    Logging.LogSection("TeamCity Automated Setup");
+    if (!await teamCityBootstrapService.Execute())
     {
         Log.Error("TeamCity automated setup failed");
-        Log.Error("Check screenshots in data/screenshots/ directory for details");
         return 1;
     }
-
     Log.Information("TeamCity initial setup completed");
 
-    Logging.LogSection("Gitlab Setup");
+    Logging.LogSection("Gitlab Automated Setup");
 
     // Ensure GitLab is available before attempting token operations
     Log.Information("Waiting for Gitlab to become available...");
