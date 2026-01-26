@@ -91,8 +91,16 @@ public class TeamCityBootstrapService : IDisposable
             await HandleAdminAccountCreation();
         }
 
-        if (!await HandleTokenCreation())
+        // Ensure we have a valid TEAMCITY_TOKEN and authorize agents
+        var token = await GetValidToken();
+        if (string.IsNullOrEmpty(token))
         {
+            return false;
+        }
+
+        if (!await AuthorizeAgents(token))
+        {
+            Log.Error("Failed to authorize TeamCity agents");
             return false;
         }
 
@@ -325,23 +333,7 @@ public class TeamCityBootstrapService : IDisposable
         }
     }
 
-    private async Task<bool> HandleTokenCreation()
-    {
-        Log.Information("Step 5: Creating access token (API)");
 
-        const string tokenName = "bootstrap-automation";
-        var token = await TryCreateTokenViaApi(tokenName);
-
-        if (token != null)
-        {
-            Log.Information($"Successfully created token '{tokenName}' via API");
-            _envFileService.SaveOrUpdateEnvFile("TEAMCITY_TOKEN", token);
-            return true;
-        }
-
-        Log.Warning("Failed to create token via API");
-        return false;
-    }
 
     public async Task<string?> TryCreateTokenViaApi(string tokenName)
     {
@@ -586,7 +578,7 @@ public class TeamCityBootstrapService : IDisposable
         return true;
     }
 
-    public async Task<string?> EnsureValidToken()
+    public async Task<string?> GetValidToken()
     {
         var existingToken = _envFileService.GetValue("TEAMCITY_TOKEN");
         var needCreateToken = string.IsNullOrEmpty(existingToken);

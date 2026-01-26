@@ -48,21 +48,6 @@ try
         return 1;
     }
 
-    Log.Information("Setting up TeamCity token if needed");
-    var teamcityTokenFromService = await teamCityBootstrapService.EnsureValidToken();
-
-    if (string.IsNullOrEmpty(teamcityTokenFromService))
-    {
-        Log.Error("Failed to obtain or validate TeamCity token; exiting");
-        return 1;
-    }
-
-    Log.Information("Authorizing TeamCity agents...");
-    if (!await teamCityBootstrapService.AuthorizeAgents(teamcityTokenFromService))
-    {
-        return 1;
-    }
-
     Log.Information("TeamCity initial setup completed");
 
     Logging.LogSection("Gitlab Setup");
