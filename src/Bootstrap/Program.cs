@@ -38,30 +38,18 @@ try
         gitlabRootPassword);
 
     Logging.LogSection("TeamCity Automated Setup");
-    if (!await teamCityBootstrapService.Execute())
-    {
-        Log.Error("TeamCity automated setup failed");
-        return 1;
-    }
+    await teamCityBootstrapService.Execute();
     Log.Information("TeamCity initial setup completed");
 
     Logging.LogSection("Gitlab Automated Setup");
     using var gitlabBootstrapService = new GitlabBootstrapService(gitlabUrl, envService);
-    if (!await gitlabBootstrapService.Execute())
-    {
-        Log.Error("GitLab automated setup failed");
-        return 1;
-    }
+    await gitlabBootstrapService.Execute();
 
     Logging.LogSection("Running Initial Project Setup");
     var gitlabToken = envService.GetValue("GITLAB_TOKEN");
     using var gitlabService = new GitlabService(gitlabUrl, gitlabToken!);
     var projectSetupService = new ProjectSetupService(gitlabService);
-    if (!await projectSetupService.Execute())
-    {
-        Log.Error("Project setup failed");
-        return 1;
-    }
+    await projectSetupService.Execute();
 
     Logging.LogSection("Bootstrap complete!");
     Log.Information("Services available at:");

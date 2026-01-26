@@ -50,76 +50,52 @@ public class TeamCityBootstrapService : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    public async Task<bool> Execute()
+    public async Task Execute()
     {
         Log.Information("Starting automated TeamCity initial setup");
 
-        if (!await WaitForAvailability())
-        {
-            return false;
-        }
+        await WaitForAvailability();
 
         var screenshotDir = Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "data", "screenshots");
-        if (!await _browserService.Initialize(screenshotDir))
-        {
-            return false;
-        }
+        await _browserService.Initialize(screenshotDir);
 
         await _browserService.Navigate(_teamcityUrl);
         await Task.Delay(3000);
         await _browserService.TakeScreenshot("01_initial_page");
 
-        if (await IsInMaintenanceErrorState())
-        {
-            return false;
-        }
+        await IsInMaintenanceErrorState();
 
         if (!await IsAccountAlreadyCreated())
         {
             await HandleDataDirectoryConfiguration();
-            if (!await HandleDatabaseSetup())
-            {
-                Log.Error("Database setup did not complete in time");
-                return false;
-            }
+            await HandleDatabaseSetup();
 
-            if (!await HandleLicenseAgreement())
-            {
-                return false;
-            }
+            await HandleLicenseAgreement();
 
             await HandleAdminAccountCreation();
         }
 
         // Ensure we have a valid TEAMCITY_TOKEN and authorize agents
         var token = await GetValidToken();
-        if (string.IsNullOrEmpty(token))
-        {
-            return false;
-        }
 
-        if (!await AuthorizeAgents(token))
-        {
-            Log.Error("Failed to authorize TeamCity agents");
-            return false;
-        }
+        await AuthorizeAgents(token);
 
         await _browserService.TakeScreenshot("22_final_state");
         Log.Information("TeamCity automated setup completed successfully");
-        return true;
+        return;
     }
 
-    private async Task<bool> IsInMaintenanceErrorState()
+    private async Task IsInMaintenanceErrorState()
     {
         var pageContent = await _browserService.GetPageContent();
         if (pageContent.Contains("TeamCity server requires technical maintenance"))
         {
             Log.Error("TeamCity server is in maintenance mode");
             await _browserService.TakeScreenshot("error_maintenance_mode");
-            return true;
+            throw new InvalidOperationException("TeamCity server is in maintenance mode");
         }
 
-        return false;
+        return;
     }
 
     private async Task<bool> IsAccountAlreadyCreated()
@@ -175,7 +151,7 @@ public class TeamCityBootstrapService : IDisposable
         }
     }
 
-    private async Task<bool> HandleDatabaseSetup()
+    private async Task HandleDatabaseSetup()
     {
         Log.Information("Step 2: Checking for database setup screen");
         await _browserService.TakeScreenshot("04_before_database");
@@ -194,7 +170,7 @@ public class TeamCityBootstrapService : IDisposable
                 if (!await _browserService.WaitForTextToDisappear("Creating a new database"))
                 {
                     await _browserService.TakeScreenshot("error_database_creation_still_present");
-                    return false;
+                    throw new InvalidOperationException("Database creation text did not disappear in expected time");
                 }
 
                 if (!await _browserService.WaitForTextToDisappear(
@@ -202,12 +178,12 @@ public class TeamCityBootstrapService : IDisposable
                         180))
                 {
                     await _browserService.TakeScreenshot("error_database_initialization_still_present");
-                    return false;
+                    throw new InvalidOperationException("Database initialization did not complete in expected time");
                 }
 
                 await _browserService.TakeScreenshot("05_after_database");
                 Log.Information("Database setup completed");
-                return true;
+                return;
             }
 
             await Task.Delay(1000);
@@ -219,10 +195,10 @@ public class TeamCityBootstrapService : IDisposable
 
         Log.Error("Timed out waiting for database initialization");
         await _browserService.TakeScreenshot("error_database_timeout");
-        return false;
+        throw new InvalidOperationException("Timed out waiting for database initialization");
     }
 
-    private async Task<bool> HandleLicenseAgreement()
+    private async Task HandleLicenseAgreement()
     {
         Log.Information("Step 3: Checking for license agreement");
         await _browserService.TakeScreenshot("06_before_license");
@@ -231,7 +207,7 @@ public class TeamCityBootstrapService : IDisposable
         if (!pageText.Contains("License Agreement for JetBrains", StringComparison.OrdinalIgnoreCase))
         {
             Log.Information("License page not detected, skipping license acceptance step");
-            return true;
+            return;
         }
 
         var acceptCheckbox = _browserService.GetLocator(
@@ -240,12 +216,12 @@ public class TeamCityBootstrapService : IDisposable
         if (await acceptCheckbox.CountWithRetry() == 0)
         {
             Log.Error("License checkbox not found");
-            return false;
+            throw new InvalidOperationException("License checkbox not found on TeamCity license page");
         }
 
         if (!await PlaywrightService.CheckCheckbox(acceptCheckbox, "license acceptance"))
         {
-            return false;
+            throw new InvalidOperationException("Could not check license acceptance checkbox");
         }
 
         await Task.Delay(1000);
@@ -257,7 +233,7 @@ public class TeamCityBootstrapService : IDisposable
         {
             Log.Error("Continue button not found on license page");
             await _browserService.TakeScreenshot("error_license_no_continue");
-            return false;
+            throw new InvalidOperationException("Continue button not found on license page");
         }
 
         Log.Information("Waiting for Continue button to be enabled...");
@@ -270,7 +246,7 @@ public class TeamCityBootstrapService : IDisposable
         if (!await _browserService.WaitForTextToDisappear("License Agreement for JetBrains", 30))
         {
             await _browserService.TakeScreenshot("error_license_still_present");
-            return false;
+            throw new InvalidOperationException("License agreement did not disappear after accepting");
         }
 
         var postLicenseText = await _browserService.GetPageContent();
@@ -278,11 +254,10 @@ public class TeamCityBootstrapService : IDisposable
         {
             Log.Error("License acceptance did not complete successfully");
             await _browserService.TakeScreenshot("error_license_still_present");
-            return false;
+            throw new InvalidOperationException("License acceptance did not complete successfully");
         }
-
         Log.Information("License accepted");
-        return true;
+        return;
     }
 
     private async Task HandleAdminAccountCreation()
@@ -499,20 +474,14 @@ public class TeamCityBootstrapService : IDisposable
         return false;
     }
 
-    private async Task<bool> WaitForAvailability()
+    private async Task WaitForAvailability()
     {
         Log.Information("Waiting for TeamCity to become available...");
-        var teamcityReady = await HttpHelper.WaitForService(_teamcityUrl, TimeSpan.FromMinutes(5), 503, 401);
-        if (!teamcityReady)
-        {
-            Log.Error("TeamCity did not become available; exiting");
-            return false;
-        }
-
-        return true;
+        await HttpHelper.WaitForService(_teamcityUrl, TimeSpan.FromMinutes(5), 503, 401);
+        return;
     }
 
-    public async Task<bool> AuthorizeAgents(string token)
+    public async Task AuthorizeAgents(string token)
     {
         var listRequest = new RestRequest("agents")
             .AddHeader("Accept", "application/json")
@@ -524,13 +493,13 @@ public class TeamCityBootstrapService : IDisposable
         if (!listResponse.IsSuccessful)
         {
             Log.Error($"Failed to get agents list: {(int)listResponse.StatusCode}");
-            return false;
+            throw new InvalidOperationException($"Failed to get agents list: {(int)listResponse.StatusCode}");
         }
 
         if (listResponse.Data?.Agent is null || listResponse.Data.Agent.Length == 0)
         {
             Log.Information("No unauthorized agents found");
-            return true;
+            return;
         }
 
         foreach (var agent in listResponse.Data.Agent)
@@ -571,14 +540,14 @@ public class TeamCityBootstrapService : IDisposable
             else
             {
                 Log.Warning($"Failed to authorize agent {agentName}: {(int)authResponse.StatusCode}");
-                return false;
+                throw new InvalidOperationException($"Failed to authorize agent {agentName}: {(int)authResponse.StatusCode}");
             }
         }
 
-        return true;
+        return;
     }
 
-    public async Task<string?> GetValidToken()
+    public async Task<string> GetValidToken()
     {
         var existingToken = _envFileService.GetValue("TEAMCITY_TOKEN");
         var needCreateToken = string.IsNullOrEmpty(existingToken);
@@ -623,9 +592,9 @@ public class TeamCityBootstrapService : IDisposable
             }
 
             Log.Error("Could not create TeamCity token via API; cannot continue without TEAMCITY_TOKEN");
-            return null;
+            throw new InvalidOperationException("Could not create TEAMCITY_TOKEN via API");
         }
 
-        return existingToken;
+        return existingToken!;
     }
 }

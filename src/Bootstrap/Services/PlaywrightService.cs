@@ -30,7 +30,7 @@ public class PlaywrightService : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    public async Task<bool> Initialize(string screenshotDirectory, bool headless = true)
+    public async Task Initialize(string screenshotDirectory, bool headless = true)
     {
         try
         {
@@ -49,7 +49,7 @@ public class PlaywrightService : IDisposable
             if (exitCode != 0)
             {
                 Log.Error("Playwright browser installation returned non-zero exit code");
-                return false;
+                throw new InvalidOperationException("Playwright browser installation failed (non-zero exit code)");
             }
 
             _playwright = await Playwright.CreateAsync();
@@ -62,12 +62,12 @@ public class PlaywrightService : IDisposable
             _page = await _context.NewPageAsync();
             _page.SetDefaultTimeout(60000);
 
-            return true;
+            return;
         }
         catch (Exception ex)
         {
             Log.Error($"Failed to initialize browser: {ex.Message}");
-            return false;
+            throw new InvalidOperationException($"Failed to initialize Playwright browser: {ex.Message}", ex);
         }
     }
 

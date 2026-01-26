@@ -113,9 +113,9 @@ public class GitlabService : IDisposable
             $"Failed to create Gitlab project '{projectName}': {(int)createResponse.StatusCode} {createResponse.StatusCode} - {createResponse.Content}");
     }
 
-    public async Task<bool> CreateTopLevelProject(string projectName, int? namespaceId = null)
+    public async Task CreateTopLevelProject(string projectName, int? namespaceId = null)
     {
-        return await CreateAndPopulateProject(
+        await CreateAndPopulateProject(
             projectName,
             namespaceId,
             async tempDir =>
@@ -167,9 +167,9 @@ public class GitlabService : IDisposable
             });
     }
 
-    public async Task<bool> CreateSubProject(string projectName, int? namespaceId = null)
+    public async Task CreateSubProject(string projectName, int? namespaceId = null)
     {
-        return await CreateAndPopulateProject(projectName, namespaceId);
+        await CreateAndPopulateProject(projectName, namespaceId);
     }
 
     private async Task<bool> CheckProjectHasCommits(int projectId)
@@ -186,7 +186,7 @@ public class GitlabService : IDisposable
         return response is { IsSuccessful: true, Data.Length: > 0 };
     }
 
-    private async Task<bool> CreateAndPopulateProject(
+    private async Task CreateAndPopulateProject(
         string projectName,
         int? namespaceId = null,
         Func<string, Task>? populateSpecificFiles = null)
@@ -197,7 +197,7 @@ public class GitlabService : IDisposable
         if (hasCommits)
         {
             Log.Information($"Project '{projectName}' already has commits, skipping repo population");
-            return true;
+            return;
         }
 
         var tempDir = CreateTempDirectory(projectName);
@@ -222,7 +222,7 @@ public class GitlabService : IDisposable
             InitializeAndPushRepository(tempDir, project, projectName);
 
             Log.Information($"Repository populated and pushed to '{projectName}'");
-            return true;
+            return;
         }
         finally
         {

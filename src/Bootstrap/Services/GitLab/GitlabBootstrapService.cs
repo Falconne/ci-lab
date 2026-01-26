@@ -33,35 +33,24 @@ public class GitlabBootstrapService : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    public async Task<bool> Execute()
+    public async Task Execute()
     {
         Log.Information("Starting automated GitLab setup");
 
         // Ensure GitLab is available before attempting token operations
         Log.Information("Waiting for Gitlab to become available...");
-        var gitlabReady = await HttpHelper.WaitForService(_gitlabUrl, TimeSpan.FromMinutes(5));
-        if (!gitlabReady)
-        {
-            Log.Error("GitLab did not become available; exiting");
-            return false;
-        }
+        await HttpHelper.WaitForService(_gitlabUrl, TimeSpan.FromMinutes(5));
 
         // Get and validate GitLab token
         _token = await GetAndValidateGitlabToken();
-        if (string.IsNullOrEmpty(_token))
-        {
-            Log.Error("Failed to obtain valid GitLab token; exiting");
-            return false;
-        }
 
         // Set token header for API calls
         _client.AddDefaultHeader("PRIVATE-TOKEN", _token);
 
         Log.Information("GitLab initial setup completed");
-        return true;
     }
 
-    private async Task<string?> GetAndValidateGitlabToken()
+    private async Task<string> GetAndValidateGitlabToken()
     {
         var timeout = TimeSpan.FromMinutes(7);
         var deadline = DateTime.UtcNow + timeout;
@@ -103,7 +92,7 @@ public class GitlabBootstrapService : IDisposable
         }
 
         Log.Error($"Timed out waiting for a valid GITLAB_TOKEN after {timeout.TotalMinutes} minutes");
-        return null;
+        throw new InvalidOperationException($"Timed out waiting for a valid GITLAB_TOKEN after {timeout.TotalMinutes} minutes");
     }
 
     private async Task<bool> ValidateGitlabToken(string token)

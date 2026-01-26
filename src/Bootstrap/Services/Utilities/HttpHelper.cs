@@ -7,7 +7,7 @@ public static class HttpHelper
     /// <summary>
     /// Waits for a service to be ready by polling its status.
     /// </summary>
-    public static async Task<bool> WaitForService(
+    public static async Task WaitForService(
         string url,
         TimeSpan timeout,
         params int[] extraAllowedStatusCodes)
@@ -33,7 +33,7 @@ public static class HttpHelper
                 if (response.IsSuccessStatusCode)
                 {
                     Log.Information($"{url} is ready: {(int)response.StatusCode}");
-                    return true;
+                    return;
                 }
 
                 // If extra allowed status codes were provided, treat them as ready
@@ -41,7 +41,7 @@ public static class HttpHelper
                 {
                     Log.Information(
                         $"{url} responded with {(int)response.StatusCode} which is allowed during startup; continuing");
-                    return true;
+                    return;
                 }
 
                 Log.Information(
@@ -56,7 +56,7 @@ public static class HttpHelper
             if (elapsed > timeout)
             {
                 Log.Error($"Timeout waiting for {url} after {(int)elapsed.TotalSeconds}s");
-                return false;
+                throw new InvalidOperationException($"Timeout waiting for {url} after {(int)elapsed.TotalSeconds}s");
             }
 
             if ((int)elapsed.TotalSeconds % 30 == 0)

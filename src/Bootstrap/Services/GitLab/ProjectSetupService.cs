@@ -11,7 +11,7 @@ public class ProjectSetupService
         _gitlabService = gitlabService;
     }
 
-    public async Task<bool> Execute()
+    public async Task Execute()
     {
         Log.Information("Setting up GitLab test projects...");
 
@@ -23,26 +23,15 @@ public class ProjectSetupService
         foreach (var i in Enumerable.Range(1, 3))
         {
             var projectName = $"top-level-project-{i}";
-            var created = await gitlabProjectService.CreateTopLevelProject(projectName, testGroup.Id);
-            if (!created)
-            {
-                Log.Error($"Failed to create GitLab project: {projectName}");
-                return false;
-            }
+            await gitlabProjectService.CreateTopLevelProject(projectName, testGroup.Id);
         }
 
         foreach (var i in Enumerable.Range(1, 4))
         {
             var projectName = $"sub-project-{i}";
-            var created = await gitlabProjectService.CreateSubProject(projectName, testGroup.Id);
-            if (!created)
-            {
-                Log.Error($"Failed to create GitLab sub-project: {projectName}");
-                return false;
-            }
+            await gitlabProjectService.CreateSubProject(projectName, testGroup.Id);
         }
 
         Log.Information("GitLab test projects ready");
-        return true;
     }
 }
