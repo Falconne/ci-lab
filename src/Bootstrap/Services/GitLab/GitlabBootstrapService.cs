@@ -59,10 +59,13 @@ public class GitlabBootstrapService : IDisposable
 
         // Create GitLab test projects
         Log.Information("Setting up Gitlab test projects...");
-        var projectsCreated = await CreateTestProjects();
-        Log.Information($"{projectsCreated} Gitlab test project(s) ready");
+        var projectsReady = await CreateTestProjects();
+        if (!projectsReady)
+        {
+            return false;
+        }
 
-        Log.Information("GitLab automated setup completed successfully");
+        Log.Information("Gitlab test projects ready");
         return true;
     }
 
@@ -111,23 +114,22 @@ public class GitlabBootstrapService : IDisposable
         return null;
     }
 
-    private async Task<int> CreateTestProjects()
+    private async Task<bool> CreateTestProjects()
     {
         using var gitlabProjectService = new GitlabService(_gitlabUrl, _token!);
 
-        var projectsCreated = 0;
         for (var i = 1; i <= 5; i++)
         {
             var projectName = $"test-project-{i}";
             var created = await gitlabProjectService.CreateTopLevelProject(projectName);
-
-            if (created)
+            if (!created)
             {
-                projectsCreated++;
+                Log.Error($"Failed to create GitLab project: {projectName}");
+                return false;
             }
         }
 
-        return projectsCreated;
+        return true;
     }
 
     private async Task<bool> ValidateGitlabToken(string token)
