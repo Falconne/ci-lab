@@ -186,6 +186,48 @@ public class GitlabService : IDisposable
         return response is { IsSuccessful: true, Data.Length: > 0 };
     }
 
+    public async Task<bool> CheckProjectHasCommitsPublic(int projectId)
+    {
+        return await CheckProjectHasCommits(projectId);
+    }
+
+    public async Task CreateFileInRepo(
+        int projectId,
+        string filePath,
+        string content,
+        string commitMessage,
+        string branch = "master")
+    {
+        Log.Information($"Creating file '{filePath}' in project {projectId}");
+
+        var request = new RestRequest($"projects/{projectId}/repository/files/{Uri.EscapeDataString(filePath)}", Method.Post)
+            .AddJsonBody(new
+            {
+                branch = branch,
+                content = content,
+                commit_message = commitMessage
+            });
+
+        var response = await _client.ExecuteAsync(request);
+
+        if (response.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created)
+        {
+            Log.Information($"File '{filePath}' created successfully");
+            return;
+        }
+
+        // If file already exists, that's okay
+        if (response.StatusCode == HttpStatusCode.BadRequest && response.Content?.Contains("already exists") == true)
+        {
+            Log.Information($"File '{filePath}' already exists");
+            return;
+        }
+
+        Log.Error($"Failed to create file: {(int)response.StatusCode} - {response.Content}");
+        throw new InvalidOperationException(
+            $"Failed to create file '{filePath}': {(int)response.StatusCode} - {response.Content}");
+    }
+
     private async Task CreateAndPopulateProject(
         string projectName,
         int? namespaceId = null,

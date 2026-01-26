@@ -1,0 +1,464 @@
+using RestSharp;
+using RestSharp.Authenticators;
+using Serilog;
+using System.Net;
+
+namespace Bootstrap.Services.TeamCity;
+
+public class TeamCityService : IDisposable
+{
+    private readonly RestClient _client;
+    private readonly string _teamcityUrl;
+    private readonly string _username;
+    private readonly string _password;
+
+    public TeamCityService(string teamcityUrl, string username, string password)
+    {
+        _teamcityUrl = teamcityUrl.TrimEnd('/');
+        _username = username;
+        _password = password;
+
+        Log.Debug($"Initializing TeamCityService with URL: {_teamcityUrl}, user: {username}");
+
+        _client = new RestClient(
+            new RestClientOptions($"{_teamcityUrl}/app/rest")
+            {
+                ThrowOnAnyError = false,
+                RemoteCertificateValidationCallback = (_, _, _, _) => true,
+                Timeout = TimeSpan.FromSeconds(30),
+                Authenticator = new HttpBasicAuthenticator(username, password)
+            });
+
+        _client.AddDefaultHeader("Accept", "application/json");
+    }
+
+    public void Dispose()
+    {
+        _client.Dispose();
+        GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// Creates or updates a VCS root at the _Root project level.
+    /// Returns the VCS root ID and a flag indicating if it was updated.
+    /// </summary>
+    public async Task<(string vcsRootId, bool wasUpdated)> CreateOrUpdateVcsRoot(
+        string vcsRootName,
+        string gitUrl,
+        string branch,
+        string? username = null,
+        string? password = null)
+    {
+        Log.Information($"Creating/updating VCS root '{vcsRootName}' for URL: {gitUrl}");
+
+        // Check if VCS root already exists
+        var (existingVcsRootId, existingUrl) = await GetVcsRootByName(vcsRootName);
+        if (existingVcsRootId != null)
+        {
+            Log.Information($"VCS root '{vcsRootName}' already exists with ID: {existingVcsRootId}");
+            Log.Debug($"Existing URL: '{existingUrl}', Requested URL: '{gitUrl}'");
+
+            // Check if the URL needs to be updated
+            if (existingUrl != null && existingUrl != gitUrl)
+            {
+                Log.Information($"Existing VCS root has different URL: {existingUrl}");
+                Log.Information($"Updating VCS root URL to: {gitUrl}");
+
+                // First, we need to disable versioned settings to allow VCS root modification
+                var currentSettings = await GetVersionedSettings("_Root");
+                var wasEnabled = currentSettings != null && currentSettings.Contains("\"synchronizationMode\":\"enabled\"");
+
+                if (wasEnabled)
+                {
+                    Log.Information("Temporarily disabling versioned settings to allow VCS root modification...");
+                    await DisableVersionedSettings("_Root");
+                    await Task.Delay(2000); // Wait for TeamCity to process the change
+                }
+
+                await UpdateVcsRootProperty(existingVcsRootId, "url", gitUrl);
+
+                // Also update credentials if provided
+                if (username != null)
+                {
+                    await UpdateVcsRootProperty(existingVcsRootId, "username", username);
+                }
+                if (password != null)
+                {
+                    await UpdateVcsRootProperty(existingVcsRootId, "secure:password", password);
+                }
+
+                return (existingVcsRootId, true);  // Was updated
+            }
+            else
+            {
+                Log.Debug($"VCS root URL is already correct or could not be retrieved");
+            }
+
+            return (existingVcsRootId, false);  // No update needed
+        }
+
+        // Create a unique ID from the name
+        var vcsRootId = $"Root_{vcsRootName.Replace(" ", "_").Replace("-", "_")}";
+
+        var vcsRootPayload = new
+        {
+            id = vcsRootId,
+            name = vcsRootName,
+            vcsName = "jetbrains.git",
+            project = new { id = "_Root" },
+            properties = new
+            {
+                property = new object[]
+                {
+                    new { name = "url", value = gitUrl },
+                    new { name = "branch", value = $"refs/heads/{branch}" },
+                    new { name = "authMethod", value = username != null ? "PASSWORD" : "ANONYMOUS" },
+                    new { name = "username", value = username ?? "" },
+                    new { name = "secure:password", value = password ?? "" },
+                    new { name = "usernameStyle", value = "USERID" },
+                    new { name = "submoduleCheckout", value = "CHECKOUT" },
+                    new { name = "userForTags", value = "" },
+                    new { name = "ignoreKnownHosts", value = "true" }
+                }
+            }
+        };
+
+        var request = new RestRequest("vcs-roots", Method.Post)
+            .AddJsonBody(vcsRootPayload);
+
+        var response = await _client.ExecuteAsync(request);
+
+        if (response.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created)
+        {
+            Log.Information($"VCS root '{vcsRootName}' created successfully with ID: {vcsRootId}");
+            return (vcsRootId, true);  // New VCS root created
+        }
+
+        Log.Error($"Failed to create VCS root: {(int)response.StatusCode} - {response.Content}");
+        throw new InvalidOperationException(
+            $"Failed to create VCS root '{vcsRootName}': {(int)response.StatusCode} - {response.Content}");
+    }
+
+    /// <summary>
+    /// Gets a VCS root by name and returns its ID and URL.
+    /// </summary>
+    private async Task<(string? id, string? url)> GetVcsRootByName(string vcsRootName)
+    {
+        var request = new RestRequest("vcs-roots")
+            .AddQueryParameter("locator", $"name:{vcsRootName}");
+
+        var response = await _client.ExecuteGetAsync(request);
+
+        if (!response.IsSuccessful)
+        {
+            return (null, null);
+        }
+
+        // Parse JSON response to check for existing VCS root
+        try
+        {
+            var json = System.Text.Json.JsonDocument.Parse(response.Content ?? "{}");
+            var count = json.RootElement.TryGetProperty("count", out var countElement)
+                ? countElement.GetInt32()
+                : 0;
+
+            if (count > 0 && json.RootElement.TryGetProperty("vcs-root", out var vcsRoots))
+            {
+                var firstRoot = vcsRoots.EnumerateArray().FirstOrDefault();
+                if (firstRoot.TryGetProperty("id", out var idElement))
+                {
+                    var id = idElement.GetString();
+                    // Get the URL by fetching the full VCS root details
+                    var url = await GetVcsRootUrl(id!);
+                    return (id, url);
+                }
+            }
+        }
+        catch
+        {
+            // Ignore parse errors
+        }
+
+        return (null, null);
+    }
+
+    /// <summary>
+    /// Gets the URL of a VCS root.
+    /// </summary>
+    private async Task<string?> GetVcsRootUrl(string vcsRootId)
+    {
+        var request = new RestRequest($"vcs-roots/id:{vcsRootId}/properties/url")
+            .AddHeader("Accept", "text/plain");
+
+        var response = await _client.ExecuteGetAsync(request);
+
+        if (response.IsSuccessful)
+        {
+            // Response is just the value text
+            return response.Content?.Trim().Trim('"');
+        }
+
+        Log.Debug($"Failed to get VCS root URL: {(int)response.StatusCode} - {response.Content}");
+        return null;
+    }
+
+    /// <summary>
+    /// Updates a VCS root property.
+    /// </summary>
+    public async Task UpdateVcsRootProperty(string vcsRootId, string propertyName, string value)
+    {
+        Log.Information($"Updating VCS root '{vcsRootId}' property '{propertyName}'");
+
+        var request = new RestRequest($"vcs-roots/id:{vcsRootId}/properties/{propertyName}", Method.Put)
+            .AddHeader("Accept", "text/plain")
+            .AddHeader("Content-Type", "text/plain")
+            .AddStringBody(value, ContentType.Plain);
+
+        var response = await _client.ExecuteAsync(request);
+
+        if (response.StatusCode is HttpStatusCode.OK or HttpStatusCode.NoContent)
+        {
+            Log.Information($"VCS root property '{propertyName}' updated successfully");
+            return;
+        }
+
+        Log.Error($"Failed to update VCS root property: {(int)response.StatusCode} - {response.Content}");
+        throw new InvalidOperationException(
+            $"Failed to update VCS root property '{propertyName}': {(int)response.StatusCode} - {response.Content}");
+    }
+
+    /// <summary>
+    /// Enables versioned settings (config under source control) for the Root project.
+    /// </summary>
+    public async Task EnableVersionedSettings(
+        string vcsRootId,
+        string settingsFormat = "kotlin",
+        bool allowUiEditing = false,
+        bool forceReconfigure = false)
+    {
+        Log.Information($"Enabling versioned settings for _Root project using VCS root: {vcsRootId}");
+
+        // Check if versioned settings status has errors
+        var statusHasErrors = await VersionedSettingsHasErrors("_Root");
+        if (statusHasErrors)
+        {
+            Log.Information("Versioned settings status shows errors, will reconfigure");
+            forceReconfigure = true;
+        }
+
+        // Check current versioned settings status
+        var currentSettings = await GetVersionedSettings("_Root");
+        if (!forceReconfigure && currentSettings != null && currentSettings.Contains("\"synchronizationMode\":\"enabled\""))
+        {
+            // Check if it's using the correct VCS root
+            if (currentSettings.Contains($"\"vcsRootId\":\"{vcsRootId}\""))
+            {
+                Log.Information("Versioned settings already enabled for _Root project with correct VCS root");
+                return;
+            }
+            else
+            {
+                Log.Information("Versioned settings enabled but with different VCS root, will reconfigure");
+            }
+        }
+
+        // If we're reconfiguring, disable first to reset state
+        if (forceReconfigure && currentSettings != null && currentSettings.Contains("\"synchronizationMode\":\"enabled\""))
+        {
+            Log.Information("Disabling versioned settings to reset state before reconfiguring...");
+            await DisableVersionedSettings("_Root");
+            await Task.Delay(3000); // Wait for TeamCity to process the change
+        }
+
+        // TeamCity requires specific payload structure for versioned settings
+        // Use "overrideInVCS" to export current settings to VCS (overwrite what's in VCS)
+        var versionedSettingsPayload = new
+        {
+            synchronizationMode = "enabled",
+            vcsRootId = vcsRootId,
+            format = settingsFormat,
+            allowUIEditing = allowUiEditing,
+            storeSecureValuesOutsideVcs = true,
+            showSettingsChanges = true,
+            importDecision = "overrideInVCS",  // Export current settings to VCS, overwriting existing
+            buildSettingsMode = "useFromVCS"   // Use settings from VCS for builds
+        };
+
+        var request = new RestRequest("projects/_Root/versionedSettings/config", Method.Put)
+            .AddJsonBody(versionedSettingsPayload);
+
+        var response = await _client.ExecuteAsync(request);
+
+        if (response.StatusCode is HttpStatusCode.OK or HttpStatusCode.NoContent or HttpStatusCode.Created)
+        {
+            Log.Information("Versioned settings enabled successfully for _Root project");
+            return;
+        }
+
+        // If PUT fails, try POST
+        if (response.StatusCode == HttpStatusCode.MethodNotAllowed)
+        {
+            Log.Information("PUT failed, trying POST method...");
+            var postRequest = new RestRequest("projects/_Root/versionedSettings/config", Method.Post)
+                .AddJsonBody(versionedSettingsPayload);
+
+            var postResponse = await _client.ExecuteAsync(postRequest);
+
+            if (postResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.NoContent or HttpStatusCode.Created)
+            {
+                Log.Information("Versioned settings enabled successfully via POST");
+                return;
+            }
+
+            Log.Error($"Failed to enable versioned settings via POST: {(int)postResponse.StatusCode} - {postResponse.Content}");
+            throw new InvalidOperationException(
+                $"Failed to enable versioned settings: {(int)postResponse.StatusCode} - {postResponse.Content}");
+        }
+
+        Log.Error($"Failed to enable versioned settings: {(int)response.StatusCode} - {response.Content}");
+        throw new InvalidOperationException(
+            $"Failed to enable versioned settings: {(int)response.StatusCode} - {response.Content}");
+    }
+
+    /// <summary>
+    /// Disables versioned settings for a project.
+    /// </summary>
+    public async Task DisableVersionedSettings(string projectId = "_Root")
+    {
+        Log.Information($"Disabling versioned settings for project: {projectId}");
+
+        var disablePayload = new
+        {
+            synchronizationMode = "disabled"
+        };
+
+        var request = new RestRequest($"projects/{projectId}/versionedSettings/config", Method.Put)
+            .AddJsonBody(disablePayload);
+
+        var response = await _client.ExecuteAsync(request);
+
+        if (response.StatusCode is HttpStatusCode.OK or HttpStatusCode.NoContent or HttpStatusCode.Created)
+        {
+            Log.Information("Versioned settings disabled successfully");
+            return;
+        }
+
+        Log.Warning($"Failed to disable versioned settings: {(int)response.StatusCode} - {response.Content}");
+    }
+
+    /// <summary>
+    /// Gets the current versioned settings configuration for a project.
+    /// </summary>
+    private async Task<string?> GetVersionedSettings(string projectId)
+    {
+        var request = new RestRequest($"projects/{projectId}/versionedSettings/config");
+
+        var response = await _client.ExecuteGetAsync(request);
+
+        if (response.IsSuccessful)
+        {
+            return response.Content;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Checks if the versioned settings status has errors.
+    /// </summary>
+    private async Task<bool> VersionedSettingsHasErrors(string projectId)
+    {
+        var request = new RestRequest($"projects/{projectId}/versionedSettings/status");
+
+        var response = await _client.ExecuteGetAsync(request);
+
+        if (response.IsSuccessful && response.Content != null)
+        {
+            // If status contains "message" with "Failed", there's an error
+            if (response.Content.Contains("Failed") || response.Content.Contains("error", StringComparison.OrdinalIgnoreCase))
+            {
+                Log.Debug($"Versioned settings status: {response.Content}");
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Triggers TeamCity to commit current settings to the VCS.
+    /// </summary>
+    public async Task CommitCurrentSettingsToVcs(string projectId = "_Root")
+    {
+        Log.Information($"Triggering commit of current settings to VCS for project: {projectId}");
+
+        // The commit is done via a specific action endpoint
+        var request = new RestRequest($"projects/{projectId}/versionedSettings/commitCurrentSettings", Method.Post);
+
+        var response = await _client.ExecuteAsync(request);
+
+        if (response.StatusCode is HttpStatusCode.OK or HttpStatusCode.NoContent or HttpStatusCode.Accepted)
+        {
+            Log.Information("Settings commit triggered successfully");
+            return;
+        }
+
+        // 409 Conflict might mean there's nothing new to commit
+        if (response.StatusCode == HttpStatusCode.Conflict)
+        {
+            Log.Information("Settings commit returned conflict - settings may already be committed");
+            return;
+        }
+
+        Log.Warning($"Commit settings response: {(int)response.StatusCode} - {response.Content}");
+    }
+
+    /// <summary>
+    /// Waits for the settings.kts file to appear in the GitLab repository.
+    /// </summary>
+    public async Task<bool> WaitForSettingsInRepo(
+        string gitlabUrl,
+        string gitlabToken,
+        int projectId,
+        int timeoutSeconds = 120)
+    {
+        Log.Information($"Waiting for Kotlin settings file to appear in GitLab project {projectId}...");
+
+        using var gitlabClient = new RestClient(
+            new RestClientOptions($"{gitlabUrl.TrimEnd('/')}/api/v4")
+            {
+                ThrowOnAnyError = false,
+                RemoteCertificateValidationCallback = (_, _, _, _) => true,
+                Timeout = TimeSpan.FromSeconds(30)
+            });
+
+        gitlabClient.AddDefaultHeader("PRIVATE-TOKEN", gitlabToken);
+
+        var startTime = DateTime.UtcNow;
+        var checkPaths = new[] { ".teamcity/settings.kts", ".teamcity" };
+
+        while ((DateTime.UtcNow - startTime).TotalSeconds < timeoutSeconds)
+        {
+            foreach (var path in checkPaths)
+            {
+                var request = new RestRequest($"projects/{projectId}/repository/tree")
+                    .AddQueryParameter("path", path);
+
+                var response = await gitlabClient.ExecuteGetAsync(request);
+
+                if (response.IsSuccessful && !string.IsNullOrEmpty(response.Content) && response.Content != "[]")
+                {
+                    Log.Information($"Found TeamCity settings at path: {path}");
+                    Log.Debug($"Repository tree response: {response.Content}");
+                    return true;
+                }
+            }
+
+            Log.Debug("Settings not found yet, waiting 5 seconds...");
+            await Task.Delay(5000);
+        }
+
+        Log.Warning($"Timeout waiting for settings.kts to appear after {timeoutSeconds} seconds");
+        return false;
+    }
+}

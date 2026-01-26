@@ -47,8 +47,10 @@ try
 
     Logging.LogSection("Running Initial Project Setup");
     var gitlabToken = envService.GetValue("GITLAB_TOKEN");
+    var teamcityToken = envService.GetValue("TEAMCITY_TOKEN");
     using var gitlabService = new GitlabService(gitlabUrl, gitlabToken!);
-    var projectSetupService = new ProjectSetupService(gitlabService);
+    using var teamCityService = new TeamCityService(teamcityUrl, "root", gitlabRootPassword);
+    var projectSetupService = new ProjectSetupService(gitlabService, teamCityService, gitlabUrl, gitlabToken!);
     await projectSetupService.Execute();
 
     Logging.LogSection("Bootstrap complete!");
