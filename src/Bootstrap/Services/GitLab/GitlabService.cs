@@ -33,7 +33,45 @@ public class GitlabService : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    public async Task<GitlabProject> CreateProject(string projectName)
+    public async Task<GitlabGroup> CreateGroup(string groupName)
+    {
+        Log.Information($"Creating GitLab group '{groupName}'");
+
+        var searchRequest = new RestRequest("groups")
+            .AddQueryParameter("search", groupName);
+
+        var searchResponse = await _client.ExecuteGetAsync<GitlabGroup[]>(searchRequest);
+
+        if (searchResponse is { IsSuccessful: true, Data: not null })
+        {
+            foreach (var grp in searchResponse.Data)
+            {
+                if (grp.Name == groupName)
+                {
+                    Log.Information($"Group '{groupName}' already exists");
+                    return grp;
+                }
+            }
+        }
+
+        var createRequest = new RestRequest("groups", Method.Post)
+            .AddJsonBody(new { name = groupName, path = groupName.ToLower().Replace(" ", "-"), visibility = "public" });
+
+        var createResponse = await _client.ExecutePostAsync<GitlabGroup>(createRequest);
+
+        if (createResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created
+            && createResponse.Data is not null)
+        {
+            Log.Information($"Group '{groupName}' created");
+            return createResponse.Data;
+        }
+
+        Log.Error($"GitLab API error {(int)createResponse.StatusCode}: {createResponse.Content}");
+        throw new InvalidOperationException(
+            $"Failed to create GitLab group '{groupName}': {(int)createResponse.StatusCode} {createResponse.StatusCode} - {createResponse.Content}");
+    }
+
+    public async Task<GitlabProject> CreateProject(string projectName, int? namespaceId = null)
     {
         Log.Information($"Creating Gitlab project '{projectName}'");
 
@@ -54,8 +92,12 @@ public class GitlabService : IDisposable
             }
         }
 
+        var requestBody = namespaceId.HasValue
+            ? new { name = projectName, initialize_with_readme = false, namespace_id = namespaceId.Value }
+            : (object)new { name = projectName, initialize_with_readme = false };
+
         var createRequest = new RestRequest("projects", Method.Post)
-            .AddJsonBody(new { name = projectName, initialize_with_readme = false });
+            .AddJsonBody(requestBody);
 
         var createResponse = await _client.ExecutePostAsync<GitlabProject>(createRequest);
 
@@ -71,10 +113,11 @@ public class GitlabService : IDisposable
             $"Failed to create Gitlab project '{projectName}': {(int)createResponse.StatusCode} {createResponse.StatusCode} - {createResponse.Content}");
     }
 
-    public async Task<bool> CreateTopLevelProject(string projectName)
+    public async Task<bool> CreateTopLevelProject(string projectName, int? namespaceId = null)
     {
         return await CreateAndPopulateProject(
             projectName,
+            namespaceId,
             async tempDir =>
             {
                 var random = new Random();
@@ -124,9 +167,9 @@ public class GitlabService : IDisposable
             });
     }
 
-    public async Task<bool> CreateSubProject(string projectName)
+    public async Task<bool> CreateSubProject(string projectName, int? namespaceId = null)
     {
-        return await CreateAndPopulateProject(projectName);
+        return await CreateAndPopulateProject(projectName, namespaceId);
     }
 
     private async Task<bool> CheckProjectHasCommits(int projectId)
@@ -145,9 +188,10 @@ public class GitlabService : IDisposable
 
     private async Task<bool> CreateAndPopulateProject(
         string projectName,
+        int? namespaceId = null,
         Func<string, Task>? populateSpecificFiles = null)
     {
-        var project = await CreateProject(projectName);
+        var project = await CreateProject(projectName, namespaceId);
 
         var hasCommits = await CheckProjectHasCommits(project.Id);
         if (hasCommits)

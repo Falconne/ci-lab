@@ -17,10 +17,13 @@ public class ProjectSetupService
 
         var gitlabProjectService = _gitlabService;
 
+        // Create the test group
+        var testGroup = await gitlabProjectService.CreateGroup("Test Group");
+
         foreach (var i in Enumerable.Range(1, 3))
         {
             var projectName = $"top-level-project-{i}";
-            var created = await gitlabProjectService.CreateTopLevelProject(projectName);
+            var created = await gitlabProjectService.CreateTopLevelProject(projectName, testGroup.Id);
             if (!created)
             {
                 Log.Error($"Failed to create GitLab project: {projectName}");
@@ -31,7 +34,7 @@ public class ProjectSetupService
         foreach (var i in Enumerable.Range(1, 4))
         {
             var projectName = $"sub-project-{i}";
-            var created = await gitlabProjectService.CreateSubProject("top-level-project-1");
+            var created = await gitlabProjectService.CreateSubProject(projectName, testGroup.Id);
             if (!created)
             {
                 Log.Error($"Failed to create GitLab sub-project: {projectName}");
