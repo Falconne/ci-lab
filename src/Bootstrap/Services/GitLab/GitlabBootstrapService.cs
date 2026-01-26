@@ -1,4 +1,5 @@
 using Bootstrap.Entities.Gitlab;
+using Bootstrap.Services.Utilities;
 using RestSharp;
 using Serilog;
 
@@ -9,25 +10,22 @@ namespace Bootstrap.Services.Gitlab;
 public class GitlabBootstrapService : IDisposable
 {
     private readonly RestClient _client;
+    private readonly EnvFileService _envFileService;
+    private readonly string _gitlabUrl;
+    private string? _token;
 
-    private readonly string _token;
-
-    public GitlabBootstrapService(string gitlabUrl, string token)
+    public GitlabBootstrapService(string gitlabUrl, EnvFileService envFileService)
     {
-        GitlabUrl = gitlabUrl.TrimEnd('/');
-        _token = token;
+        _gitlabUrl = gitlabUrl.TrimEnd('/');
+        _envFileService = envFileService;
         _client = new RestClient(
-            new RestClientOptions($"{GitlabUrl}/api/v4")
+            new RestClientOptions($"{_gitlabUrl}/api/v4")
             {
                 ThrowOnAnyError = false,
                 RemoteCertificateValidationCallback = (_, _, _, _) => true,
                 Timeout = TimeSpan.FromSeconds(30)
             });
-
-        _client.AddDefaultHeader("PRIVATE-TOKEN", token);
     }
-
-    public string GitlabUrl { get; }
 
     public void Dispose()
     {
@@ -35,12 +33,110 @@ public class GitlabBootstrapService : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    public async Task<bool> ValidateGitlabToken()
+    public async Task<bool> Execute()
+    {
+        Log.Information("Starting automated GitLab setup");
+
+        // Ensure GitLab is available before attempting token operations
+        Log.Information("Waiting for Gitlab to become available...");
+        var gitlabReady = await HttpHelper.WaitForService(_gitlabUrl, TimeSpan.FromMinutes(5));
+        if (!gitlabReady)
+        {
+            Log.Error("GitLab did not become available; exiting");
+            return false;
+        }
+
+        // Get and validate GitLab token
+        _token = await GetAndValidateGitlabToken();
+        if (string.IsNullOrEmpty(_token))
+        {
+            Log.Error("Failed to obtain valid GitLab token; exiting");
+            return false;
+        }
+
+        // Set token header for API calls
+        _client.AddDefaultHeader("PRIVATE-TOKEN", _token);
+
+        // Create GitLab test projects
+        Log.Information("Setting up Gitlab test projects...");
+        var projectsCreated = await CreateTestProjects();
+        Log.Information($"{projectsCreated} Gitlab test project(s) ready");
+
+        Log.Information("GitLab automated setup completed successfully");
+        return true;
+    }
+
+    private async Task<string?> GetAndValidateGitlabToken()
+    {
+        var timeout = TimeSpan.FromMinutes(7);
+        var deadline = DateTime.UtcNow + timeout;
+        var pollInterval = TimeSpan.FromSeconds(5);
+
+        Log.Information($"Waiting up to {timeout.TotalMinutes} minutes for GITLAB_TOKEN in .env...");
+
+        while (DateTime.UtcNow < deadline)
+        {
+            // Reload .env to pick up tokens written by external processes
+            _envFileService.Load();
+            var token = _envFileService.GetValue("GITLAB_TOKEN");
+
+            if (!string.IsNullOrEmpty(token))
+            {
+                Log.Information("Found GITLAB_TOKEN in .env; validating...");
+                try
+                {
+                    if (await ValidateGitlabToken(token))
+                    {
+                        Log.Information("Gitlab token is valid");
+                        _envFileService.SaveOrUpdateEnvFile("GITLAB_TOKEN", token);
+                        return token;
+                    }
+
+                    Log.Information("GITLAB_TOKEN present but not valid yet; will retry until timeout");
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning($"Error validating Gitlab token: {ex.Message}");
+                }
+            }
+            else
+            {
+                Log.Information("No GITLAB_TOKEN found yet; polling .env...");
+            }
+
+            await Task.Delay(pollInterval);
+        }
+
+        Log.Error($"Timed out waiting for a valid GITLAB_TOKEN after {timeout.TotalMinutes} minutes");
+        return null;
+    }
+
+    private async Task<int> CreateTestProjects()
+    {
+        using var gitlabProjectService = new GitlabService(_gitlabUrl, _token!);
+
+        var projectsCreated = 0;
+        for (var i = 1; i <= 5; i++)
+        {
+            var projectName = $"test-project-{i}";
+            var created = await gitlabProjectService.CreateTopLevelProject(projectName);
+
+            if (created)
+            {
+                projectsCreated++;
+            }
+        }
+
+        return projectsCreated;
+    }
+
+    private async Task<bool> ValidateGitlabToken(string token)
     {
         var request = new RestRequest("user");
+        request.AddHeader("PRIVATE-TOKEN", token);
         var fullUrl = _client.BuildUri(request);
         Log.Debug($"Validating token at URL: {fullUrl}");
-        Log.Debug($"Using token: [{_token}] (length: {_token.Length})");
+        Log.Debug($"Using token: [{token}] (length: {token.Length})");
 
         var response = await _client.ExecuteGetAsync<GitlabUser>(request);
 
