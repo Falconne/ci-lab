@@ -418,7 +418,6 @@ public class TeamCityService : IDisposable
             return;
         }
 
-        // TODO throw at this point due to unexpected state
         // 409 Conflict might mean there's nothing new to commit
         if (response.StatusCode == HttpStatusCode.Conflict)
         {
@@ -426,7 +425,10 @@ public class TeamCityService : IDisposable
             return;
         }
 
-        Log.Warning($"Commit settings response: {(int)response.StatusCode} - {response.Content}");
+        // Unexpected response: fail fast so bootstrap aborts and the issue can be diagnosed
+        Log.Error($"Failed to trigger settings commit: {(int)response.StatusCode} - {response.Content}");
+        throw new InvalidOperationException(
+            $"Failed to commit current settings to VCS for project '{projectId}': {(int)response.StatusCode} - {response.Content}");
     }
 
     /// <summary>
