@@ -32,29 +32,31 @@ public class ProjectSetupService
 
     public async Task Execute()
     {
+        await SetupTestRepos();
+
+        await SetupTeamCityConfigRepo();
+    }
+
+    private async Task SetupTestRepos()
+    {
         Log.Information("Setting up GitLab test projects...");
 
-        var gitlabProjectService = _gitlabService;
-
         // Create the test group
-        var testGroup = await gitlabProjectService.CreateGroup("Test Group");
+        var testGroup = await _gitlabService.CreateGroup("Test Group");
 
         foreach (var i in Enumerable.Range(1, 3))
         {
             var projectName = $"top-level-project-{i}";
-            await gitlabProjectService.CreateTopLevelProject(projectName, testGroup.Id);
+            await _gitlabService.CreateTopLevelProject(projectName, testGroup.Id);
         }
 
         foreach (var i in Enumerable.Range(1, 4))
         {
             var projectName = $"sub-project-{i}";
-            await gitlabProjectService.CreateRegularProject(projectName, testGroup.Id);
+            await _gitlabService.CreateRegularProject(projectName, testGroup.Id);
         }
 
         Log.Information("GitLab test projects ready");
-
-        // Set up TeamCity configuration under source control
-        await SetupTeamCityConfigRepo();
     }
 
     private async Task SetupTeamCityConfigRepo()

@@ -418,6 +418,7 @@ public class TeamCityService : IDisposable
             return;
         }
 
+        // TODO throw at this point due to unexpected state
         // 409 Conflict might mean there's nothing new to commit
         if (response.StatusCode == HttpStatusCode.Conflict)
         {
