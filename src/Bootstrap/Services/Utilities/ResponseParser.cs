@@ -91,7 +91,7 @@ public static class ResponseParser
                 }
             }
         }
-        catch (Exception)
+        catch (System.Xml.XmlException)
         {
             // Not valid XML, return null
         }

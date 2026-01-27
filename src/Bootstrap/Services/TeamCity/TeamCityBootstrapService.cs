@@ -149,6 +149,10 @@ public class TeamCityBootstrapService : IDisposable
             await _browserService.TakeScreenshot("03_after_data_directory");
             Log.Information("Data directory step completed");
         }
+        else
+        {
+            Log.Information("No Proceed button found - data directory may already be configured");
+        }
     }
 
     private async Task HandleDatabaseSetup()
@@ -219,10 +223,7 @@ public class TeamCityBootstrapService : IDisposable
             throw new InvalidOperationException("License checkbox not found on TeamCity license page");
         }
 
-        if (!await PlaywrightService.CheckCheckbox(acceptCheckbox, "license acceptance"))
-        {
-            throw new InvalidOperationException("Could not check license acceptance checkbox");
-        }
+        await PlaywrightService.CheckCheckbox(acceptCheckbox, "license acceptance");
 
         await Task.Delay(1000);
 
@@ -299,13 +300,17 @@ public class TeamCityBootstrapService : IDisposable
         var createAccountButton = _browserService.GetLocator(
             "button:has-text('Create Account'), input[value='Create Account'], button[type='submit']");
 
-        if (await createAccountButton.CountWithRetry() > 0)
+        if (await createAccountButton.CountWithRetry() == 0)
         {
-            Log.Information("Submitting admin account creation...");
-            await _browserService.ClickAndWait(createAccountButton, "Create Account button", 5000);
-            await _browserService.TakeScreenshot("10_after_admin_creation");
-            Log.Information("Admin account created successfully");
+            Log.Error("Create Account button not found after filling admin form");
+            await _browserService.TakeScreenshot("error_no_create_account_button");
+            throw new InvalidOperationException("Create Account button not found after filling admin form");
         }
+
+        Log.Information("Submitting admin account creation...");
+        await _browserService.ClickAndWait(createAccountButton, "Create Account button", 5000);
+        await _browserService.TakeScreenshot("10_after_admin_creation");
+        Log.Information("Admin account created successfully");
     }
 
 
@@ -485,32 +490,28 @@ public class TeamCityBootstrapService : IDisposable
 
             var authResponse = await _client.ExecuteAsync(authRequest);
 
-            if (authResponse.IsSuccessful)
+            if (!authResponse.IsSuccessful)
             {
-                Log.Information($"Agent {agentName} authorized");
-
-                var poolRequest = new RestRequest("agentPools/id:0/agents", Method.Post)
-                    .AddHeader("Accept", "application/xml")
-                    .AddHeader("Authorization", $"Bearer {token}")
-                    .AddStringBody($"<agent id=\"{agentId}\" />", ContentType.Xml);
-
-                var poolResponse = await _client.ExecuteAsync(poolRequest);
-
-                if (poolResponse.IsSuccessful)
-                {
-                    Log.Information($"Agent {agentName} added to default pool");
-                }
-                else
-                {
-                    Log.Warning(
-                        $"Could not add agent {agentName} to pool: {(int)poolResponse.StatusCode}");
-                }
-            }
-            else
-            {
-                Log.Warning($"Failed to authorize agent {agentName}: {(int)authResponse.StatusCode}");
+                Log.Error($"Failed to authorize agent {agentName}: {(int)authResponse.StatusCode}");
                 throw new InvalidOperationException($"Failed to authorize agent {agentName}: {(int)authResponse.StatusCode}");
             }
+
+            Log.Information($"Agent {agentName} authorized");
+
+            var poolRequest = new RestRequest("agentPools/id:0/agents", Method.Post)
+                .AddHeader("Accept", "application/xml")
+                .AddHeader("Authorization", $"Bearer {token}")
+                .AddStringBody($"<agent id=\"{agentId}\" />", ContentType.Xml);
+
+            var poolResponse = await _client.ExecuteAsync(poolRequest);
+
+            if (!poolResponse.IsSuccessful)
+            {
+                Log.Error($"Failed to add agent {agentName} to pool: {(int)poolResponse.StatusCode} - {poolResponse.Content}");
+                throw new InvalidOperationException($"Failed to add agent {agentName} to default pool: {(int)poolResponse.StatusCode}");
+            }
+
+            Log.Information($"Agent {agentName} added to default pool");
         }
 
         return;

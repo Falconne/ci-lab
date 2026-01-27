@@ -184,9 +184,10 @@ public class TeamCityService : IDisposable
                 }
             }
         }
-        catch
+        catch (JsonException ex)
         {
-            // Ignore parse errors
+            Log.Error($"Failed to parse VCS root response: {ex.Message}");
+            throw new InvalidOperationException($"Failed to parse VCS root response for '{vcsRootName}': {ex.Message}", ex);
         }
 
         return (null, null);
@@ -355,11 +356,14 @@ public class TeamCityService : IDisposable
             return;
         }
 
-        Log.Warning($"Failed to disable versioned settings: {(int)response.StatusCode} - {response.Content}");
+        Log.Error($"Failed to disable versioned settings: {(int)response.StatusCode} - {response.Content}");
+        throw new InvalidOperationException(
+            $"Failed to disable versioned settings for project '{projectId}': {(int)response.StatusCode} - {response.Content}");
     }
 
     /// <summary>
     ///     Gets the current versioned settings configuration for a project.
+    ///     Returns null if no versioned settings are configured (404).
     /// </summary>
     private async Task<string?> GetVersionedSettings(string projectId)
     {
@@ -372,7 +376,15 @@ public class TeamCityService : IDisposable
             return response.Content;
         }
 
-        return null;
+        // 404 means no versioned settings configured, which is expected for new projects
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        Log.Error($"Failed to get versioned settings: {(int)response.StatusCode} - {response.Content}");
+        throw new InvalidOperationException(
+            $"Failed to get versioned settings for project '{projectId}': {(int)response.StatusCode} - {response.Content}");
     }
 
     /// <summary>

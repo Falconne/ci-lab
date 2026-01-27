@@ -135,45 +135,36 @@ public class PlaywrightService : IDisposable
         return false;
     }
 
-    public static async Task<bool> FillFormField(ILocator locator, string value, string fieldName)
+    public static async Task FillFormField(ILocator locator, string value, string fieldName)
     {
-        if (await locator.CountWithRetry() > 0)
+        if (await locator.CountWithRetry() == 0)
         {
-            Log.Information($"Filling {fieldName}...");
-            await locator.First.FillAsync(value);
-            return true;
+            throw new InvalidOperationException($"Form field '{fieldName}' not found");
         }
 
-        Log.Warning($"{fieldName} field not found");
-        return false;
+        Log.Information($"Filling {fieldName}...");
+        await locator.First.FillAsync(value);
     }
 
-    public async Task<bool> ClickAndWait(
+    public async Task ClickAndWait(
         ILocator locator,
         string buttonName,
         int delayMs = 2000)
     {
-        if (!await ClickButton(locator, buttonName))
-        {
-            return false;
-        }
-
+        await ClickButton(locator, buttonName);
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
         await Task.Delay(delayMs);
-        return true;
     }
 
-    public static async Task<bool> CheckCheckbox(ILocator locator, string checkboxName)
+    public static async Task CheckCheckbox(ILocator locator, string checkboxName)
     {
-        if (await locator.CountWithRetry() > 0)
+        if (await locator.CountWithRetry() == 0)
         {
-            Log.Information($"Checking {checkboxName}...");
-            await locator.First.CheckAsync();
-            return true;
+            throw new InvalidOperationException($"Checkbox '{checkboxName}' not found");
         }
 
-        Log.Warning($"{checkboxName} checkbox not found");
-        return false;
+        Log.Information($"Checking {checkboxName}...");
+        await locator.First.CheckAsync();
     }
 
     public static async Task<bool> WaitForElement(
@@ -199,17 +190,15 @@ public class PlaywrightService : IDisposable
         return Page.Locator(selector);
     }
 
-    private static async Task<bool> ClickButton(ILocator locator, string buttonName)
+    private static async Task ClickButton(ILocator locator, string buttonName)
     {
-        if (await locator.CountWithRetry() > 0)
+        if (await locator.CountWithRetry() == 0)
         {
-            Log.Information($"Clicking {buttonName}...");
-            await locator.First.ClickAsync();
-            return true;
+            throw new InvalidOperationException($"Button '{buttonName}' not found");
         }
 
-        Log.Warning($"{buttonName} button not found");
-        return false;
+        Log.Information($"Clicking {buttonName}...");
+        await locator.First.ClickAsync();
     }
 
     protected virtual void Dispose(bool disposing)

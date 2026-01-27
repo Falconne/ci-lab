@@ -288,9 +288,10 @@ public class GitlabService : IDisposable
                 Directory.Delete(tempDir, true);
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Ignore cleanup errors
+            // Log but don't fail - cleanup errors shouldn't abort the bootstrap
+            Log.Warning($"Could not clean up temp directory '{tempDir}': {ex.Message}");
         }
     }
 
