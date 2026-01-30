@@ -200,6 +200,10 @@ public class ProjectSetupService
             }
         }
 
+        // Check for Kotlin compilation errors after pushing changes
+        await Task.Delay(3000); // Give TeamCity a moment to process the changes
+        await _teamCityService.CheckForKotlinErrors();
+
         // Wait for TeamCity to pick up the changes and verify
         await VerifyLabBuildsCreated();
 
@@ -383,6 +387,18 @@ public class ProjectSetupService
         sb.AppendLine($@"    id(""{buildId}"")");
         sb.AppendLine($@"    name = ""Build {buildNumber} - {primaryRepo}""");
         sb.AppendLine();
+
+        // Add snapshot dependencies for builds 2 and 3 on build 1
+        if (buildNumber > 1)
+        {
+            sb.AppendLine("    dependencies {");
+            sb.AppendLine("        snapshot(CiLabBuild1) {");
+            sb.AppendLine("            onDependencyFailure = FailureAction.FAIL_TO_START");
+            sb.AppendLine("        }");
+            sb.AppendLine("    }");
+            sb.AppendLine();
+        }
+
         sb.AppendLine("    vcs {");
         sb.AppendLine($@"        root({primaryVcsId}, ""+:. => primary"")");
 
@@ -419,11 +435,11 @@ public class ProjectSetupService
 
         // Poll for the CI Lab project to appear (TeamCity needs time to compile Kotlin DSL)
         // The project ID in TeamCity will be "Root_CiLab" since it's a subproject of _Root
-        var projectFound = await _teamCityService.WaitForProject("CiLab", 180);
+        var projectFound = await _teamCityService.WaitForProject("CiLab", 20);
         if (!projectFound)
         {
             throw new InvalidOperationException(
-                "CI Lab project did not appear in TeamCity within timeout - Kotlin DSL may have errors");
+                "CI Lab project did not appear in TeamCity within 20 seconds - Kotlin DSL may have errors");
         }
 
         // Verify build types exist

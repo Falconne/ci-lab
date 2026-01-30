@@ -495,6 +495,41 @@ public class TeamCityService : IDisposable
         Log.Error(msg);
         throw new InvalidOperationException(msg);
     }
+
+    /// <summary>
+    ///     Checks for Kotlin DSL compilation errors in versioned settings.
+    ///     Throws an exception if errors are found.
+    /// </summary>
+    public async Task CheckForKotlinErrors(string projectId = "_Root")
+    {
+        Log.Information($"Checking for Kotlin DSL compilation errors in project {projectId}...");
+
+        var request = new RestRequest($"projects/{projectId}/versionedSettings/status");
+        var response = await _client.ExecuteGetAsync(request);
+
+        if (!response.IsSuccessful)
+        {
+            Log.Warning($"Could not check versioned settings status: {(int)response.StatusCode}");
+            return;
+        }
+
+        if (response.Content == null)
+        {
+            return;
+        }
+
+        // Check for compilation errors or warnings
+        if (response.Content.Contains("Compilation error", StringComparison.OrdinalIgnoreCase) ||
+            response.Content.Contains("Failed to apply changes", StringComparison.OrdinalIgnoreCase))
+        {
+            Log.Error($"Kotlin DSL compilation errors detected in project {projectId}");
+            Log.Error($"Status response: {response.Content}");
+            throw new InvalidOperationException($"Kotlin DSL has compilation errors in project {projectId}. Check TeamCity logs for details.");
+        }
+
+        Log.Information("No Kotlin DSL compilation errors detected");
+    }
+
     /// <summary>
     ///     Gets a project by its ID. Returns null if not found.
     /// </summary>
