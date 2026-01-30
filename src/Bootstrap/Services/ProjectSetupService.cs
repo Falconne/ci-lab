@@ -45,15 +45,17 @@ public class ProjectSetupService
         // Create the test group
         var testGroup = await _gitlabService.CreateGroup("Test Group");
 
+        // Create some primary repos
         foreach (var i in Enumerable.Range(1, 3))
         {
-            var projectName = $"top-level-project-{i}";
+            var projectName = $"primary-{i}";
             await _gitlabService.CreateTopLevelProject(projectName, testGroup.Id);
         }
 
+        // Create some secondary repos
         foreach (var i in Enumerable.Range(1, 4))
         {
-            var projectName = $"sub-project-{i}";
+            var projectName = $"secondary-{i}";
             await _gitlabService.CreateRegularProject(projectName, testGroup.Id);
         }
 
