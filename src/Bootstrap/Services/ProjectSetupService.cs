@@ -76,7 +76,7 @@ public class ProjectSetupService
         var (vcsRootId, wasUpdated) = await _teamCityService.CreateOrUpdateVcsRoot(
             "TeamCityConfig",
             internalGitUrl,
-            "master",
+            "main",
             "root",
             _gitlabToken);
 

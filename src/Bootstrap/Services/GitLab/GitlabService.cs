@@ -196,7 +196,7 @@ public class GitlabService : IDisposable
         string filePath,
         string content,
         string commitMessage,
-        string branch = "master")
+        string branch = "main")
     {
         Log.Information($"Creating file '{filePath}' in project {projectId}");
 
@@ -307,6 +307,14 @@ public class GitlabService : IDisposable
 
         var signature = new Signature("CI Lab Bootstrap", "bootstrap@cilab.local", DateTimeOffset.Now);
         repo.Commit($"Initial commit for {projectName}", signature, signature);
+
+        // Rename the default branch to 'main'
+        var currentBranch = repo.Head;
+        if (currentBranch.FriendlyName != "main")
+        {
+            var mainBranch = repo.CreateBranch("main");
+            Commands.Checkout(repo, mainBranch);
+        }
 
         var repoUrl = project.HttpUrlToRepo.Replace("http://", $"http://root:{_token}@");
         repo.Network.Remotes.Add("origin", repoUrl);

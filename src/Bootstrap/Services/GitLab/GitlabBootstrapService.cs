@@ -47,7 +47,31 @@ public class GitlabBootstrapService : IDisposable
         // Set token header for API calls
         _client.AddDefaultHeader("PRIVATE-TOKEN", _token);
 
+        // Configure GitLab to use 'main' as the default branch
+        await ConfigureDefaultBranch();
+
         Log.Information("GitLab initial setup completed");
+    }
+
+    private async Task ConfigureDefaultBranch()
+    {
+        Log.Information("Configuring GitLab to use 'main' as the default branch...");
+
+        var request = new RestRequest("application/settings", Method.Put)
+            .AddJsonBody(new { default_branch_name = "main" });
+
+        var response = await _client.ExecuteAsync(request);
+
+        if (response.IsSuccessful)
+        {
+            Log.Information("GitLab default branch set to 'main'");
+        }
+        else
+        {
+            var msg = $"Failed to set GitLab default branch: {(int)response.StatusCode} - {response.Content}";
+            Log.Error(msg);
+            throw new InvalidOperationException(msg);
+        }
     }
 
     private async Task<string> GetAndValidateGitlabToken()
@@ -80,7 +104,8 @@ public class GitlabBootstrapService : IDisposable
                 }
                 catch (Exception ex)
                 {
-                    Log.Warning($"Error validating Gitlab token: {ex.Message}");
+                    Log.Error($"Error validating Gitlab token: {ex.Message}");
+                    throw;
                 }
             }
             else
