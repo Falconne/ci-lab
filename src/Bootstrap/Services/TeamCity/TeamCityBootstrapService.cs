@@ -80,6 +80,9 @@ public class TeamCityBootstrapService : IDisposable
 
         await AuthorizeAgents(token);
 
+        // Note: VCS poll interval is set per-VCS-root in the Kotlin DSL configuration
+        // The ProjectSetupService sets pollInterval = 4 on each VCS root
+
         await _browserService.TakeScreenshot("22_final_state");
         Log.Information("TeamCity automated setup completed successfully");
         return;
