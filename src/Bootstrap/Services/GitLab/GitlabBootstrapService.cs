@@ -11,15 +11,15 @@ public class GitlabBootstrapService : IDisposable
 {
     private readonly RestClient _client;
     private readonly EnvFileService _envFileService;
-    private readonly string _gitlabUrl;
+    private readonly string _gitlabURL;
     private string? _token;
 
-    public GitlabBootstrapService(string gitlabUrl, EnvFileService envFileService)
+    public GitlabBootstrapService(string gitlabURL, EnvFileService envFileService)
     {
-        _gitlabUrl = gitlabUrl.TrimEnd('/');
+        _gitlabURL = gitlabURL.TrimEnd('/');
         _envFileService = envFileService;
         _client = new RestClient(
-            new RestClientOptions($"{_gitlabUrl}/api/v4")
+            new RestClientOptions($"{_gitlabURL}/api/v4")
             {
                 ThrowOnAnyError = false,
                 RemoteCertificateValidationCallback = (_, _, _, _) => true,
@@ -39,7 +39,7 @@ public class GitlabBootstrapService : IDisposable
 
         // Ensure GitLab is available before attempting token operations
         Log.Information("Waiting for Gitlab to become available...");
-        await ReliabilityHelpers.WaitForService(_gitlabUrl, TimeSpan.FromMinutes(5));
+        await ReliabilityHelpers.WaitForService(_gitlabURL, TimeSpan.FromMinutes(5));
 
         // Get and validate GitLab token
         _token = await GetAndValidateGitlabToken();
@@ -124,8 +124,8 @@ public class GitlabBootstrapService : IDisposable
     {
         var request = new RestRequest("user");
         request.AddHeader("PRIVATE-TOKEN", token);
-        var fullUrl = _client.BuildUri(request);
-        Log.Debug($"Validating token at URL: {fullUrl}");
+        var fullURL = _client.BuildUri(request);
+        Log.Debug($"Validating token at URL: {fullURL}");
         Log.Debug($"Using token: [{token}] (length: {token.Length})");
 
         var response = await _client.ExecuteGetAsync<GitlabUser>(request);

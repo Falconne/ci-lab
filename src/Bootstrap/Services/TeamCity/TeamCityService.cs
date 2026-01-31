@@ -10,16 +10,16 @@ public class TeamCityService : IDisposable
 {
     private readonly RestClient _client;
 
-    private readonly string _teamcityUrl;
+    private readonly string _teamcityURL;
 
-    public TeamCityService(string teamcityUrl, string username, string password)
+    public TeamCityService(string teamcityURL, string username, string password)
     {
-        _teamcityUrl = teamcityUrl.TrimEnd('/');
+        _teamcityURL = teamcityURL.TrimEnd('/');
 
-        Log.Debug($"Initializing TeamCityService with URL: {_teamcityUrl}, user: {username}");
+        Log.Debug($"Initializing TeamCityService with URL: {_teamcityURL}, user: {username}");
 
         _client = new RestClient(
-            new RestClientOptions($"{_teamcityUrl}/app/rest")
+            new RestClientOptions($"{_teamcityURL}/app/rest")
             {
                 ThrowOnAnyError = false,
                 RemoteCertificateValidationCallback = (_, _, _, _) => true,
@@ -254,7 +254,7 @@ public class TeamCityService : IDisposable
                 {
                     var id = idElement.GetString();
                     // Get the URL by fetching the full VCS root details
-                    var url = await GetVCSRootUrl(id!);
+                    var url = await GetVCSRootURL(id!);
                     return (id, url);
                 }
             }
@@ -273,7 +273,7 @@ public class TeamCityService : IDisposable
     /// <summary>
     ///     Gets the URL of a VCS root.
     /// </summary>
-    private async Task<string?> GetVCSRootUrl(string vcsRootId)
+    private async Task<string?> GetVCSRootURL(string vcsRootId)
     {
         var request = new RestRequest($"vcs-roots/id:{vcsRootId}/properties/url")
             .AddHeader("Accept", "text/plain");
@@ -525,7 +525,7 @@ public class TeamCityService : IDisposable
     ///     Throws an exception if the file does not appear within the timeout.
     /// </summary>
     public async Task WaitForSettingsInRepo(
-        string gitlabUrl,
+        string gitlabURL,
         string gitlabToken,
         int projectId,
         int timeoutSeconds = 120)
@@ -533,7 +533,7 @@ public class TeamCityService : IDisposable
         Log.Information($"Waiting for Kotlin settings file to appear in GitLab project {projectId}...");
 
         using var gitlabClient = new RestClient(
-            new RestClientOptions($"{gitlabUrl.TrimEnd('/')}/api/v4")
+            new RestClientOptions($"{gitlabURL.TrimEnd('/')}/api/v4")
             {
                 ThrowOnAnyError = false,
                 RemoteCertificateValidationCallback = (_, _, _, _) => true,

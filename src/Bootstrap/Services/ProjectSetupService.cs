@@ -8,13 +8,13 @@ namespace Bootstrap.Services;
 
 public class ProjectSetupService
 {
-    private readonly string _gitlabInternalUrl;
+    private readonly string _gitlabInternalURL;
 
     private readonly GitlabService _gitlabService;
 
     private readonly string _gitlabToken;
 
-    private readonly string _gitlabUrl;
+    private readonly string _gitlabURL;
 
     private readonly TeamCityService _teamCityService;
 
@@ -25,16 +25,16 @@ public class ProjectSetupService
     public ProjectSetupService(
         GitlabService gitlabService,
         TeamCityService teamCityService,
-        string gitlabUrl,
+        string gitlabURL,
         string gitlabToken,
-        string? gitlabInternalUrl = null)
+        string? gitlabInternalURL = null)
     {
         _gitlabService = gitlabService;
         _teamCityService = teamCityService;
-        _gitlabUrl = gitlabUrl;
+        _gitlabURL = gitlabURL;
         _gitlabToken = gitlabToken;
         // TeamCity runs inside Docker and needs to access GitLab via its internal network hostname
-        _gitlabInternalUrl = gitlabInternalUrl ?? "http://gitlab:8081";
+        _gitlabInternalURL = gitlabInternalURL ?? "http://gitlab:8081";
     }
 
     public async Task Execute()
@@ -82,12 +82,12 @@ public class ProjectSetupService
 
         // Create a VCS root in TeamCity for this repository
         // TeamCity needs to use the internal Docker network URL to access GitLab
-        var internalGitUrl = configProject.HttpUrlToRepo.Replace(_gitlabUrl, _gitlabInternalUrl);
-        Log.Information($"Using internal Git URL for TeamCity: {internalGitUrl}");
+        var internalGitURL = configProject.HttpURLToRepo.Replace(_gitlabURL, _gitlabInternalURL);
+        Log.Information($"Using internal Git URL for TeamCity: {internalGitURL}");
 
         var (vcsRootId, wasUpdated) = await _teamCityService.CreateOrUpdateVCSRootViaAPI(
             "TeamCityConfig",
-            internalGitUrl,
+            internalGitURL,
             "main",
             "root",
             _gitlabToken);
@@ -105,7 +105,7 @@ public class ProjectSetupService
 
         // Wait for settings.kts to appear in the GitLab repo (throws on failure)
         await _teamCityService.WaitForSettingsInRepo(
-            _gitlabUrl,
+            _gitlabURL,
             _gitlabToken,
             configProject.Id);
 
@@ -123,15 +123,15 @@ public class ProjectSetupService
             throw new InvalidOperationException("TeamCityConfig project not found in GitLab");
         }
 
-        var repoUrl = configProject.HttpUrlToRepo;
-        var authenticatedUrl = repoUrl.Replace("http://", $"http://root:{_gitlabToken}@");
+        var repoURL = configProject.HttpURLToRepo;
+        var authenticatedURL = repoURL.Replace("http://", $"http://root:{_gitlabToken}@");
 
         // Clone the repository to a temp directory
         var tempDir = Path.Combine(Path.GetTempPath(), $"tc-config-{Guid.NewGuid():N}");
         try
         {
             Log.Information($"Cloning TeamCityConfig repository to {tempDir}...");
-            Repository.Clone(authenticatedUrl, tempDir, new CloneOptions
+            Repository.Clone(authenticatedURL, tempDir, new CloneOptions
             {
                 BranchName = "main"
             });
@@ -314,7 +314,7 @@ public class ProjectSetupService
         sb.AppendLine("    features {");
         sb.AppendLine("        commitStatusPublisher {");
         sb.AppendLine("            publisher = gitlab {");
-        sb.AppendLine($@"                gitlabApiUrl = ""{_gitlabInternalUrl}/api/v4""");
+        sb.AppendLine($@"                gitlabApiUrl = ""{_gitlabInternalURL}/api/v4""");
         sb.AppendLine(@"                accessToken = ""%gitlab.token%""");
         sb.AppendLine("            }");
         sb.AppendLine("        }");
@@ -385,14 +385,14 @@ public class ProjectSetupService
     private string GenerateVCSRoot(string repoName)
     {
         var vcsId = GetVCSRootId(repoName);
-        var internalUrl = $"{_gitlabInternalUrl}/test-group/{repoName}.git";
+        var internalURL = $"{_gitlabInternalURL}/test-group/{repoName}.git";
 
         // Reference the project parameter for the password
         // Set polling interval to 4 seconds for fast feedback
         return $@"object {vcsId} : GitVcsRoot({{
     id(""{vcsId}"")
     name = ""{repoName}""
-    url = ""{internalUrl}""
+    url = ""{internalURL}""
     branch = ""refs/heads/main""
     branchSpec = ""+:refs/heads/*""
     pollInterval = 4

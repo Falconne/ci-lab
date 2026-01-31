@@ -22,10 +22,10 @@ try
     // Load environment variables from .env file if it exists
     envService.Load();
 
-    var gitlabUrl = envService.GetValue("GITLAB_URL") ?? "http://localhost:8081";
-    var teamcityUrl = envService.GetValue("TEAMCITY_URL") ?? "http://localhost:8111";
-    Log.Information($"Gitlab URL:   {gitlabUrl}");
-    Log.Information($"TeamCity URL: {teamcityUrl}");
+    var gitlabURL = envService.GetValue("GITLAB_URL") ?? "http://localhost:8081";
+    var teamcityURL = envService.GetValue("TEAMCITY_URL") ?? "http://localhost:8111";
+    Log.Information($"Gitlab URL:   {gitlabURL}");
+    Log.Information($"TeamCity URL: {teamcityURL}");
 
     // Create service instances
     using var browserService = new PlaywrightService();
@@ -33,7 +33,7 @@ try
     using var teamCityBootstrapService = new TeamCityBootstrapService(
         browserService,
         envService,
-        teamcityUrl,
+        teamcityURL,
         "root",
         gitlabRootPassword);
 
@@ -42,21 +42,21 @@ try
     Log.Information("TeamCity initial setup completed");
 
     Logging.LogSection("Gitlab Automated Setup");
-    using var gitlabBootstrapService = new GitlabBootstrapService(gitlabUrl, envService);
+    using var gitlabBootstrapService = new GitlabBootstrapService(gitlabURL, envService);
     await gitlabBootstrapService.Execute();
 
     Logging.LogSection("Running Initial Project Setup");
     var gitlabToken = envService.GetValue("GITLAB_TOKEN");
     var teamcityToken = envService.GetValue("TEAMCITY_TOKEN");
-    using var gitlabService = new GitlabService(gitlabUrl, gitlabToken!);
-    using var teamCityService = new TeamCityService(teamcityUrl, "root", gitlabRootPassword);
-    var projectSetupService = new ProjectSetupService(gitlabService, teamCityService, gitlabUrl, gitlabToken!);
+    using var gitlabService = new GitlabService(gitlabURL, gitlabToken!);
+    using var teamCityService = new TeamCityService(teamcityURL, "root", gitlabRootPassword);
+    var projectSetupService = new ProjectSetupService(gitlabService, teamCityService, gitlabURL, gitlabToken!);
     await projectSetupService.Execute();
 
     Logging.LogSection("Bootstrap complete!");
     Log.Information("Services available at:");
-    Log.Information($"  GitLab:   {gitlabUrl}");
-    Log.Information($"  TeamCity: {teamcityUrl}");
+    Log.Information($"  GitLab:   {gitlabURL}");
+    Log.Information($"  TeamCity: {teamcityURL}");
     Logging.LogSeparator();
 
     return 0;

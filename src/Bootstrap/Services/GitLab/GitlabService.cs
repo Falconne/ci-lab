@@ -12,12 +12,11 @@ public class GitlabService : IDisposable
 
     private readonly string _token;
 
-    public GitlabService(string gitlabUrl, string token)
+    public GitlabService(string gitlabURL, string token)
     {
-        var gitlabUrl1 = gitlabUrl.TrimEnd('/');
         _token = token;
         _client = new RestClient(
-            new RestClientOptions($"{gitlabUrl1}/api/v4")
+            new RestClientOptions($"{gitlabURL.TrimEnd('/')}/api/v4")
             {
                 ThrowOnAnyError = false,
                 RemoteCertificateValidationCallback = (_, _, _, _) => true,
@@ -316,8 +315,8 @@ public class GitlabService : IDisposable
             Commands.Checkout(repo, mainBranch);
         }
 
-        var repoUrl = project.HttpUrlToRepo.Replace("http://", $"http://root:{_token}@");
-        repo.Network.Remotes.Add("origin", repoUrl);
+        var repoURL = project.HttpURLToRepo.Replace("http://", $"http://root:{_token}@");
+        repo.Network.Remotes.Add("origin", repoURL);
 
         var pushOptions = new PushOptions
         {

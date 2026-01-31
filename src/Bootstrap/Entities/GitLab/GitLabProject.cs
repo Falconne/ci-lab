@@ -11,5 +11,5 @@ public sealed class GitlabProject
     public required string Name { get; set; }
 
     [JsonPropertyName("http_url_to_repo")]
-    public required string HttpUrlToRepo { get; set; }
+    public required string HttpURLToRepo { get; set; }
 }

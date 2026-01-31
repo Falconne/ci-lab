@@ -16,25 +16,25 @@ public class TeamCityBootstrapService : IDisposable
 
     private readonly string _password;
 
-    private readonly string _teamcityUrl;
+    private readonly string _teamcityURL;
 
     private readonly string _username;
 
     public TeamCityBootstrapService(
         PlaywrightService browserService,
         EnvFileService envFileService,
-        string teamcityUrl,
+        string teamcityURL,
         string username,
         string password)
     {
         _browserService = browserService;
         _envFileService = envFileService;
-        _teamcityUrl = teamcityUrl.TrimEnd('/');
+        _teamcityURL = teamcityURL.TrimEnd('/');
         _username = username;
         _password = password;
 
         _client = new RestClient(
-            new RestClientOptions($"{_teamcityUrl}/app/rest")
+            new RestClientOptions($"{_teamcityURL}/app/rest")
             {
                 ThrowOnAnyError = false,
                 RemoteCertificateValidationCallback = (_, _, _, _) => true,
@@ -58,7 +58,7 @@ public class TeamCityBootstrapService : IDisposable
         var screenshotDir = Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "data", "screenshots");
         await _browserService.Initialize(screenshotDir);
 
-        await _browserService.Navigate(_teamcityUrl);
+        await _browserService.Navigate(_teamcityURL);
         await Task.Delay(3000);
         await _browserService.TakeScreenshot("01_initial_page");
 
@@ -358,7 +358,7 @@ public class TeamCityBootstrapService : IDisposable
                 }
 
                 Log.Information(
-                    $"No existing token found, creating new one at: {_teamcityUrl}/app/rest/{endpoint}");
+                    $"No existing token found, creating new one at: {_teamcityURL}/app/rest/{endpoint}");
 
                 var token = await TryCreateTokenWithJson(endpoint, tokenName);
                 if (token != null)
@@ -450,7 +450,7 @@ public class TeamCityBootstrapService : IDisposable
     private async Task WaitForAvailability()
     {
         Log.Information("Waiting for TeamCity to become available...");
-        await ReliabilityHelpers.WaitForService(_teamcityUrl, TimeSpan.FromMinutes(5), 503, 401);
+        await ReliabilityHelpers.WaitForService(_teamcityURL, TimeSpan.FromMinutes(5), 503, 401);
     }
 
     public async Task AuthorizeAgents(string token)
