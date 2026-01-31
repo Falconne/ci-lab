@@ -101,7 +101,7 @@ public class ProjectSetupService
             wasUpdated);
 
         // Trigger TeamCity to commit current settings to VCS
-        await _teamCityService.CommitCurrentSettingsToVcs();
+        await _teamCityService.CommitCurrentSettingsToVCS();
 
         // Wait for settings.kts to appear in the GitLab repo (throws on failure)
         await _teamCityService.WaitForSettingsInRepo(
@@ -461,7 +461,7 @@ public class ProjectSetupService
         }
 
         // Verify VCS roots exist
-        var vcsRoots = await _teamCityService.GetVcsRoots("CiLab");
+        var vcsRoots = await _teamCityService.GetVCSRoots("CiLab");
         Log.Information($"Found {vcsRoots.Count} VCS roots in CI Lab project");
 
         var expectedVcsCount = _primaryRepos.Count + _secondaryRepos.Count;

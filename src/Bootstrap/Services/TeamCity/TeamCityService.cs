@@ -56,28 +56,28 @@ public class TeamCityService : IDisposable
         Log.Information($"Creating/updating VCS root '{vcsRootName}' for URL: {gitUrl}");
 
         // Check if VCS root already exists
-        var (existingVcsRootId, existingUrl) = await GetVcsRootByName(vcsRootName);
-        if (existingVcsRootId != null)
+        var (existingVCSRootId, existingUrl) = await GetVCSRootByName(vcsRootName);
+        if (existingVCSRootId != null)
         {
-            Log.Information($"VCS root '{vcsRootName}' already exists with ID: {existingVcsRootId}");
+            Log.Information($"VCS root '{vcsRootName}' already exists with ID: {existingVCSRootId}");
             Log.Debug($"Existing URL: '{existingUrl}', Requested URL: '{gitUrl}'");
 
             if (existingUrl == null)
             {
-                Log.Error($"Could not retrieve URL for existing VCS root '{vcsRootName}' (ID: {existingVcsRootId}). Aborting.");
+                Log.Error($"Could not retrieve URL for existing VCS root '{vcsRootName}' (ID: {existingVCSRootId}). Aborting.");
                 throw new InvalidOperationException(
-                    $"Could not retrieve URL for existing VCS root '{vcsRootName}' (ID: {existingVcsRootId}).");
+                    $"Could not retrieve URL for existing VCS root '{vcsRootName}' (ID: {existingVCSRootId}).");
             }
 
             // Check if the URL needs to be updated
             if (existingUrl != gitUrl)
             {
-                await UpdateExistingVCSRoot(existingVcsRootId, gitUrl, username, password);
-                return (existingVcsRootId, true);
+                await UpdateExistingVCSRoot(existingVCSRootId, gitUrl, username, password);
+                return (existingVCSRootId, true);
             }
 
             Log.Debug("VCS root URL is already correct");
-            return (existingVcsRootId, false); // No update needed
+            return (existingVCSRootId, false); // No update needed
         }
 
         // Create a unique ID from the name
@@ -140,14 +140,14 @@ public class TeamCityService : IDisposable
         var currentSettings = await GetVersionedSettings("_Root");
         var wasVersionedSettingsEnabled = currentSettings != null
                          && currentSettings.Contains("\"synchronizationMode\":\"enabled\"");
-        string? originalVcsRootId = null;
+        string? originalVCSRootId = null;
 
         if (wasVersionedSettingsEnabled)
         {
             Log.Information(
                 "Temporarily disabling versioned settings to allow VCS root modification...");
 
-            originalVcsRootId = ExtractVcsRootIdFromSettings(currentSettings!);
+            originalVCSRootId = ExtractVCSRootIdFromSettings(currentSettings!);
             await DisableVersionedSettings();
             await Task.Delay(2000);
         }
@@ -164,9 +164,9 @@ public class TeamCityService : IDisposable
             await UpdateVCSRootProperty(vcsRootId, "secure:password", password);
         }
 
-        if (wasVersionedSettingsEnabled && originalVcsRootId != null)
+        if (wasVersionedSettingsEnabled && originalVCSRootId != null)
         {
-            await ReEnableVersionedSettings(originalVcsRootId);
+            await ReEnableVersionedSettings(originalVCSRootId);
         }
     }
 
@@ -209,7 +209,7 @@ public class TeamCityService : IDisposable
     /// <summary>
     ///     Extracts the VCS root ID from versioned settings JSON.
     /// </summary>
-    private string? ExtractVcsRootIdFromSettings(string settingsJson)
+    private string? ExtractVCSRootIdFromSettings(string settingsJson)
     {
         try
         {
@@ -230,7 +230,7 @@ public class TeamCityService : IDisposable
     /// <summary>
     ///     Gets a VCS root by name and returns its ID and URL.
     /// </summary>
-    private async Task<(string? id, string? url)> GetVcsRootByName(string vcsRootName)
+    private async Task<(string? id, string? url)> GetVCSRootByName(string vcsRootName)
     {
         var request = new RestRequest("vcs-roots")
             .AddQueryParameter("locator", $"name:{vcsRootName}");
@@ -257,7 +257,7 @@ public class TeamCityService : IDisposable
                 {
                     var id = idElement.GetString();
                     // Get the URL by fetching the full VCS root details
-                    var url = await GetVcsRootUrl(id!);
+                    var url = await GetVCSRootUrl(id!);
                     return (id, url);
                 }
             }
@@ -274,7 +274,7 @@ public class TeamCityService : IDisposable
     /// <summary>
     ///     Gets the URL of a VCS root.
     /// </summary>
-    private async Task<string?> GetVcsRootUrl(string vcsRootId)
+    private async Task<string?> GetVCSRootUrl(string vcsRootId)
     {
         var request = new RestRequest($"vcs-roots/id:{vcsRootId}/properties/url")
             .AddHeader("Accept", "text/plain");
@@ -491,7 +491,7 @@ public class TeamCityService : IDisposable
     /// <summary>
     ///     Triggers TeamCity to commit current settings to the VCS.
     /// </summary>
-    public async Task CommitCurrentSettingsToVcs(string projectId = "_Root")
+    public async Task CommitCurrentSettingsToVCS(string projectId = "_Root")
     {
         Log.Information($"Triggering commit of current settings to VCS for project: {projectId}");
 
@@ -673,7 +673,7 @@ public class TeamCityService : IDisposable
     /// <summary>
     ///     Gets all VCS roots for a project.
     /// </summary>
-    public async Task<List<(string id, string name)>> GetVcsRoots(string projectId)
+    public async Task<List<(string id, string name)>> GetVCSRoots(string projectId)
     {
         var request = new RestRequest("vcs-roots")
             .AddQueryParameter("locator", $"project:(id:{projectId})");
