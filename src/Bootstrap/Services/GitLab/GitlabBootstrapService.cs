@@ -39,7 +39,7 @@ public class GitlabBootstrapService : IDisposable
 
         // Ensure GitLab is available before attempting token operations
         Log.Information("Waiting for Gitlab to become available...");
-        await HttpHelper.WaitForService(_gitlabUrl, TimeSpan.FromMinutes(5));
+        await ReliabilityHelpers.WaitForService(_gitlabUrl, TimeSpan.FromMinutes(5));
 
         // Get and validate GitLab token
         _token = await GetAndValidateGitlabToken();

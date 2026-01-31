@@ -3,7 +3,6 @@ using Bootstrap.Utilities;
 using RestSharp;
 using RestSharp.Authenticators;
 using Serilog;
-using System.Net;
 
 namespace Bootstrap.Services.TeamCity;
 
@@ -85,7 +84,6 @@ public class TeamCityBootstrapService : IDisposable
 
         await _browserService.TakeScreenshot("22_final_state");
         Log.Information("TeamCity automated setup completed successfully");
-        return;
     }
 
     private async Task IsInMaintenanceErrorState()
@@ -97,8 +95,6 @@ public class TeamCityBootstrapService : IDisposable
             await _browserService.TakeScreenshot("error_maintenance_mode");
             throw new InvalidOperationException("TeamCity server is in maintenance mode");
         }
-
-        return;
     }
 
     private async Task<bool> IsAccountAlreadyCreated()
@@ -177,7 +173,8 @@ public class TeamCityBootstrapService : IDisposable
                 if (!await _browserService.WaitForTextToDisappear("Creating a new database"))
                 {
                     await _browserService.TakeScreenshot("error_database_creation_still_present");
-                    throw new InvalidOperationException("Database creation text did not disappear in expected time");
+                    throw new InvalidOperationException(
+                        "Database creation text did not disappear in expected time");
                 }
 
                 if (!await _browserService.WaitForTextToDisappear(
@@ -185,7 +182,8 @@ public class TeamCityBootstrapService : IDisposable
                         180))
                 {
                     await _browserService.TakeScreenshot("error_database_initialization_still_present");
-                    throw new InvalidOperationException("Database initialization did not complete in expected time");
+                    throw new InvalidOperationException(
+                        "Database initialization did not complete in expected time");
                 }
 
                 await _browserService.TakeScreenshot("05_after_database");
@@ -260,8 +258,8 @@ public class TeamCityBootstrapService : IDisposable
             await _browserService.TakeScreenshot("error_license_still_present");
             throw new InvalidOperationException("License acceptance did not complete successfully");
         }
+
         Log.Information("License accepted");
-        return;
     }
 
     private async Task HandleAdminAccountCreation()
@@ -316,8 +314,6 @@ public class TeamCityBootstrapService : IDisposable
         Log.Information("Admin account created successfully");
     }
 
-
-
     public async Task<string?> TryCreateTokenViaApi(string tokenName)
     {
         Log.Information(
@@ -331,7 +327,7 @@ public class TeamCityBootstrapService : IDisposable
             "users/current/tokens"
         };
 
-        return await RetryHelper.Retry(async () =>
+        return await ReliabilityHelpers.Retry(async () =>
         {
             foreach (var endpoint in endpoints)
             {
@@ -454,8 +450,7 @@ public class TeamCityBootstrapService : IDisposable
     private async Task WaitForAvailability()
     {
         Log.Information("Waiting for TeamCity to become available...");
-        await HttpHelper.WaitForService(_teamcityUrl, TimeSpan.FromMinutes(5), 503, 401);
-        return;
+        await ReliabilityHelpers.WaitForService(_teamcityUrl, TimeSpan.FromMinutes(5), 503, 401);
     }
 
     public async Task AuthorizeAgents(string token)
@@ -496,7 +491,8 @@ public class TeamCityBootstrapService : IDisposable
             if (!authResponse.IsSuccessful)
             {
                 Log.Error($"Failed to authorize agent {agentName}: {(int)authResponse.StatusCode}");
-                throw new InvalidOperationException($"Failed to authorize agent {agentName}: {(int)authResponse.StatusCode}");
+                throw new InvalidOperationException(
+                    $"Failed to authorize agent {agentName}: {(int)authResponse.StatusCode}");
             }
 
             Log.Information($"Agent {agentName} authorized");
@@ -510,14 +506,15 @@ public class TeamCityBootstrapService : IDisposable
 
             if (!poolResponse.IsSuccessful)
             {
-                Log.Error($"Failed to add agent {agentName} to pool: {(int)poolResponse.StatusCode} - {poolResponse.Content}");
-                throw new InvalidOperationException($"Failed to add agent {agentName} to default pool: {(int)poolResponse.StatusCode}");
+                Log.Error(
+                    $"Failed to add agent {agentName} to pool: {(int)poolResponse.StatusCode} - {poolResponse.Content}");
+
+                throw new InvalidOperationException(
+                    $"Failed to add agent {agentName} to default pool: {(int)poolResponse.StatusCode}");
             }
 
             Log.Information($"Agent {agentName} added to default pool");
         }
-
-        return;
     }
 
     public async Task<string> GetValidToken()

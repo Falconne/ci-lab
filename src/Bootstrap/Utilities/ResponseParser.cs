@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Xml;
 using System.Xml.Linq;
 
 namespace Bootstrap.Utilities;
@@ -27,7 +28,7 @@ public static class ResponseParser
         }
 
         // If response is reasonably long, assume it's the token itself
-        if (responseBody.Length > 20 && responseBody.Length < 500)
+        if (responseBody.Length is > 20 and < 500)
         {
             return responseBody.Trim();
         }
@@ -91,7 +92,7 @@ public static class ResponseParser
                 }
             }
         }
-        catch (System.Xml.XmlException)
+        catch (XmlException)
         {
             // Not valid XML, return null
         }
