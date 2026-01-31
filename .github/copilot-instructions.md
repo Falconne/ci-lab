@@ -31,11 +31,13 @@ When acting in agent mode the assistant should follow these rules:
 
 ## Testing & verification
   - Run `dotnet build` after modifying `src/` to verify behavior. If .Net 9 or later is not found, use docker instead of trying to insall it locally.
+  - If the docker containers aren't already running, first run `docker compose down -v` to clear previous state then start them up. It is ok to stop and remove an existing session this way, as this is a test environment and you can assume you are the only thing using it.
   - If testing the docker compose or starting containers, note thaty Gitlab takes a long time to become healthy. Do not assume failure unless it takes more than 5 minutes.
   - The TeamCity server should be accessible at `http://localhost:8111` after startup.
   - The Gitlab server should be accessible at `http://localhost:8080` after startup.
 
 ### Running the bootstrapper:
+  - Ensure the docker envrionment from the compose file is running before executing the C# bootstrapper. Usually the user will have started this before running a Copilot Agent prompt, but if a clean environment is desired for debugging, it is always safe to tear down and recreate.
   - Always use `./scripts/bootstrap.sh` to run the bootstrapper (not direct docker run commands).
   - The bootstrap.sh script handles proper network configuration (--net=host) so the container can access localhost services.
   - Test the bootstrapper with a timeout, as otherwise it will retry for a long time: `timeout 120 ./scripts/bootstrap.sh || true` (adjust timeout as needed).
