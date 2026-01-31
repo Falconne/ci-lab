@@ -15,6 +15,7 @@
   - Howver when retrying is required or if using a library that may throw for states we do not consider unexpected, it is ok to catch exceptions.
   - It is also ok to catch exceptions in finally blocks.
 - If any setup step fails or something it not configured as expected, immediately throw an exception and abort. There will be no possibility for manual configuration afterwards, so do not just log a warrning and continue. We need to ensure that either a fully functional environment is created or we abort early so the user can diagnose and fix the setup code.
+- When moving code for refactoring, never leave backwards compatibility shims. Always find and fix all references.
 
 # Coding Conventions
 - As these are console applications, do not use async/await anywhere, unless using a method that only has an async option.
