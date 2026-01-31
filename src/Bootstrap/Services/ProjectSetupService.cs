@@ -310,12 +310,12 @@ public class ProjectSetupService
         // Register VCS roots for all repos
         foreach (var repo in _primaryRepos)
         {
-            var vcsId = GetVcsRootId(repo);
+            var vcsId = GetVCSRootId(repo);
             sb.AppendLine($"    vcsRoot({vcsId})");
         }
         foreach (var repo in _secondaryRepos)
         {
-            var vcsId = GetVcsRootId(repo);
+            var vcsId = GetVCSRootId(repo);
             sb.AppendLine($"    vcsRoot({vcsId})");
         }
         sb.AppendLine();
@@ -332,7 +332,7 @@ public class ProjectSetupService
         // Generate VCS roots for all repos
         foreach (var repo in _primaryRepos.Concat(_secondaryRepos))
         {
-            sb.Append(GenerateVcsRoot(repo));
+            sb.Append(GenerateVCSRoot(repo));
         }
 
         // Generate build types
@@ -348,15 +348,15 @@ public class ProjectSetupService
         return sb.ToString();
     }
 
-    private string GetVcsRootId(string repoName)
+    private string GetVCSRootId(string repoName)
     {
         var sanitized = repoName.Replace("-", "_");
-        return $"CiLabVcs_{sanitized}";
+        return $"CiLabVCS_{sanitized}";
     }
 
-    private string GenerateVcsRoot(string repoName)
+    private string GenerateVCSRoot(string repoName)
     {
-        var vcsId = GetVcsRootId(repoName);
+        var vcsId = GetVCSRootId(repoName);
         var internalUrl = $"{_gitlabInternalUrl}/test-group/{repoName}.git";
 
         // Reference the project parameter for the password
@@ -380,7 +380,7 @@ public class ProjectSetupService
     private string GenerateBuildType(int buildNumber, string primaryRepo, string[] secondaryRepos)
     {
         var buildId = $"CiLabBuild{buildNumber}";
-        var primaryVcsId = GetVcsRootId(primaryRepo);
+        var primaryVcsId = GetVCSRootId(primaryRepo);
 
         var sb = new StringBuilder();
         sb.AppendLine($"object {buildId} : BuildType({{");
@@ -404,7 +404,7 @@ public class ProjectSetupService
 
         foreach (var secondary in secondaryRepos)
         {
-            var secondaryVcsId = GetVcsRootId(secondary);
+            var secondaryVcsId = GetVCSRootId(secondary);
             sb.AppendLine($@"        root({secondaryVcsId}, ""+:. => {secondary}"")");
         }
 
@@ -464,10 +464,10 @@ public class ProjectSetupService
         var vcsRoots = await _teamCityService.GetVCSRoots("CiLab");
         Log.Information($"Found {vcsRoots.Count} VCS roots in CI Lab project");
 
-        var expectedVcsCount = _primaryRepos.Count + _secondaryRepos.Count;
-        if (vcsRoots.Count < expectedVcsCount)
+        var expectedVCSCount = _primaryRepos.Count + _secondaryRepos.Count;
+        if (vcsRoots.Count < expectedVCSCount)
         {
-            Log.Warning($"Expected {expectedVcsCount} VCS roots, found {vcsRoots.Count} - some may be in a different format");
+            Log.Warning($"Expected {expectedVCSCount} VCS roots, found {vcsRoots.Count} - some may be in a different format");
         }
 
         Log.Information("CI Lab project verification passed!");
