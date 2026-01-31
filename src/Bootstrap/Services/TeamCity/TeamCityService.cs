@@ -137,23 +137,23 @@ public class TeamCityService : IDisposable
     {
         Log.Information($"Existing VCS root has different URL, updating to: {gitUrl}");
 
-        // First, we need to disable versioned settings to allow VCS root modification
         var currentSettings = await GetVersionedSettings("_Root");
-        var wasEnabled = currentSettings != null
+        var wasVersionedSettingsEnabled = currentSettings != null
                          && currentSettings.Contains("\"synchronizationMode\":\"enabled\"");
+        string? originalVcsRootId = null;
 
-        if (wasEnabled)
+        if (wasVersionedSettingsEnabled)
         {
             Log.Information(
                 "Temporarily disabling versioned settings to allow VCS root modification...");
 
+            originalVcsRootId = ExtractVcsRootIdFromSettings(currentSettings!);
             await DisableVersionedSettings();
-            await Task.Delay(2000); // Wait for TeamCity to process the change
+            await Task.Delay(2000);
         }
 
         await UpdateVCSRootProperty(vcsRootId, "url", gitUrl);
 
-        // Also update credentials if provided
         if (username != null)
         {
             await UpdateVCSRootProperty(vcsRootId, "username", username);
@@ -163,6 +163,68 @@ public class TeamCityService : IDisposable
         {
             await UpdateVCSRootProperty(vcsRootId, "secure:password", password);
         }
+
+        if (wasVersionedSettingsEnabled && originalVcsRootId != null)
+        {
+            await ReEnableVersionedSettings(originalVcsRootId);
+        }
+    }
+
+    /// <summary>
+    ///     Re-enables versioned settings that were temporarily disabled.
+    /// </summary>
+    private async Task ReEnableVersionedSettings(string vcsRootId)
+    {
+        Log.Information("Re-enabling versioned settings after VCS root modification...");
+        
+        var versionedSettingsPayload = new
+        {
+            synchronizationMode = "enabled",
+            vcsRootId,
+            format = "kotlin",
+            allowUIEditing = false,
+            storeSecureValuesOutsideVcs = true,
+            showSettingsChanges = true,
+            importDecision = "overrideInVCS",
+            buildSettingsMode = "useFromVCS"
+        };
+
+        var request = new RestRequest("projects/_Root/versionedSettings/config", Method.Put)
+            .AddJsonBody(versionedSettingsPayload);
+
+        var response = await _client.ExecuteAsync(request);
+
+        if (response.StatusCode is HttpStatusCode.OK or HttpStatusCode.NoContent or HttpStatusCode.Created)
+        {
+            Log.Information("Versioned settings re-enabled successfully");
+            await Task.Delay(2000);
+            return;
+        }
+
+        Log.Error($"Failed to re-enable versioned settings: {(int)response.StatusCode} - {response.Content}");
+        throw new InvalidOperationException(
+            $"Failed to re-enable versioned settings: {(int)response.StatusCode} - {response.Content}");
+    }
+
+    /// <summary>
+    ///     Extracts the VCS root ID from versioned settings JSON.
+    /// </summary>
+    private string? ExtractVcsRootIdFromSettings(string settingsJson)
+    {
+        try
+        {
+            var json = JsonDocument.Parse(settingsJson);
+            if (json.RootElement.TryGetProperty("vcsRootId", out var vcsRootIdElement))
+            {
+                return vcsRootIdElement.GetString();
+            }
+        }
+        catch (JsonException ex)
+        {
+            Log.Warning($"Failed to parse VCS root ID from settings: {ex.Message}");
+        }
+
+        return null;
     }
 
     /// <summary>
