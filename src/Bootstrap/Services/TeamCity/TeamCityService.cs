@@ -62,44 +62,21 @@ public class TeamCityService : IDisposable
             Log.Information($"VCS root '{vcsRootName}' already exists with ID: {existingVcsRootId}");
             Log.Debug($"Existing URL: '{existingUrl}', Requested URL: '{gitUrl}'");
 
-            // Check if the URL needs to be updated
-            if (existingUrl != null && existingUrl != gitUrl)
+            if (existingUrl == null)
             {
-                Log.Information($"Existing VCS root has different URL: {existingUrl}");
-                Log.Information($"Updating VCS root URL to: {gitUrl}");
-
-                // First, we need to disable versioned settings to allow VCS root modification
-                var currentSettings = await GetVersionedSettings("_Root");
-                var wasEnabled = currentSettings != null
-                                 && currentSettings.Contains("\"synchronizationMode\":\"enabled\"");
-
-                if (wasEnabled)
-                {
-                    Log.Information(
-                        "Temporarily disabling versioned settings to allow VCS root modification...");
-
-                    await DisableVersionedSettings();
-                    await Task.Delay(2000); // Wait for TeamCity to process the change
-                }
-
-                await UpdateVCSRootProperty(existingVcsRootId, "url", gitUrl);
-
-                // Also update credentials if provided
-                if (username != null)
-                {
-                    await UpdateVCSRootProperty(existingVcsRootId, "username", username);
-                }
-
-                if (password != null)
-                {
-                    await UpdateVCSRootProperty(existingVcsRootId, "secure:password", password);
-                }
-
-                return (existingVcsRootId, true); // Was updated
+                Log.Error($"Could not retrieve URL for existing VCS root '{vcsRootName}' (ID: {existingVcsRootId}). Aborting.");
+                throw new InvalidOperationException(
+                    $"Could not retrieve URL for existing VCS root '{vcsRootName}' (ID: {existingVcsRootId}).");
             }
 
-            Log.Debug("VCS root URL is already correct or could not be retrieved");
+            // Check if the URL needs to be updated
+            if (existingUrl != gitUrl)
+            {
+                await UpdateExistingVCSRoot(existingVcsRootId, gitUrl, username, password);
+                return (existingVcsRootId, true);
+            }
 
+            Log.Debug("VCS root URL is already correct");
             return (existingVcsRootId, false); // No update needed
         }
 
@@ -141,12 +118,51 @@ public class TeamCityService : IDisposable
         if (response.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created)
         {
             Log.Information($"VCS root '{vcsRootName}' created successfully with ID: {vcsRootId}");
-            return (vcsRootId, true); // New VCS root created
+            return (vcsRootId, true);
         }
 
         Log.Error($"Failed to create VCS root: {(int)response.StatusCode} - {response.Content}");
         throw new InvalidOperationException(
             $"Failed to create VCS root '{vcsRootName}': {(int)response.StatusCode} - {response.Content}");
+    }
+
+    /// <summary>
+    ///     Updates an existing VCS root's URL and credentials.
+    /// </summary>
+    private async Task UpdateExistingVCSRoot(
+        string vcsRootId,
+        string gitUrl,
+        string? username,
+        string? password)
+    {
+        Log.Information($"Existing VCS root has different URL, updating to: {gitUrl}");
+
+        // First, we need to disable versioned settings to allow VCS root modification
+        var currentSettings = await GetVersionedSettings("_Root");
+        var wasEnabled = currentSettings != null
+                         && currentSettings.Contains("\"synchronizationMode\":\"enabled\"");
+
+        if (wasEnabled)
+        {
+            Log.Information(
+                "Temporarily disabling versioned settings to allow VCS root modification...");
+
+            await DisableVersionedSettings();
+            await Task.Delay(2000); // Wait for TeamCity to process the change
+        }
+
+        await UpdateVCSRootProperty(vcsRootId, "url", gitUrl);
+
+        // Also update credentials if provided
+        if (username != null)
+        {
+            await UpdateVCSRootProperty(vcsRootId, "username", username);
+        }
+
+        if (password != null)
+        {
+            await UpdateVCSRootProperty(vcsRootId, "secure:password", password);
+        }
     }
 
     /// <summary>
