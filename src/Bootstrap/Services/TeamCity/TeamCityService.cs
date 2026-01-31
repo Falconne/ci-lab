@@ -10,17 +10,11 @@ public class TeamCityService : IDisposable
 {
     private readonly RestClient _client;
 
-    private readonly string _password;
-
     private readonly string _teamcityUrl;
-
-    private readonly string _username;
 
     public TeamCityService(string teamcityUrl, string username, string password)
     {
         _teamcityUrl = teamcityUrl.TrimEnd('/');
-        _username = username;
-        _password = password;
 
         Log.Debug($"Initializing TeamCityService with URL: {_teamcityUrl}, user: {username}");
 
@@ -64,7 +58,9 @@ public class TeamCityService : IDisposable
 
             if (existingUrl == null)
             {
-                Log.Error($"Could not retrieve URL for existing VCS root '{vcsRootName}' (ID: {existingVCSRootId}). Aborting.");
+                Log.Error(
+                    $"Could not retrieve URL for existing VCS root '{vcsRootName}' (ID: {existingVCSRootId}). Aborting.");
+
                 throw new InvalidOperationException(
                     $"Could not retrieve URL for existing VCS root '{vcsRootName}' (ID: {existingVCSRootId}).");
             }
@@ -139,7 +135,8 @@ public class TeamCityService : IDisposable
 
         var currentSettings = await GetVersionedSettings("_Root");
         var wasVersionedSettingsEnabled = currentSettings != null
-                         && currentSettings.Contains("\"synchronizationMode\":\"enabled\"");
+                                          && currentSettings.Contains("\"synchronizationMode\":\"enabled\"");
+
         string? originalVCSRootId = null;
 
         if (wasVersionedSettingsEnabled)
@@ -176,7 +173,7 @@ public class TeamCityService : IDisposable
     private async Task ReEnableVersionedSettings(string vcsRootId)
     {
         Log.Information("Re-enabling versioned settings after VCS root modification...");
-        
+
         var versionedSettingsPayload = new
         {
             synchronizationMode = "enabled",
@@ -265,7 +262,9 @@ public class TeamCityService : IDisposable
         catch (JsonException ex)
         {
             Log.Error($"Failed to parse VCS root response: {ex.Message}");
-            throw new InvalidOperationException($"Failed to parse VCS root response for '{vcsRootName}': {ex.Message}", ex);
+            throw new InvalidOperationException(
+                $"Failed to parse VCS root response for '{vcsRootName}': {ex.Message}",
+                ex);
         }
 
         return (null, null);
@@ -597,12 +596,13 @@ public class TeamCityService : IDisposable
         }
 
         // Check for compilation errors or warnings
-        if (response.Content.Contains("Compilation error", StringComparison.OrdinalIgnoreCase) ||
-            response.Content.Contains("Failed to apply changes", StringComparison.OrdinalIgnoreCase))
+        if (response.Content.Contains("Compilation error", StringComparison.OrdinalIgnoreCase)
+            || response.Content.Contains("Failed to apply changes", StringComparison.OrdinalIgnoreCase))
         {
             Log.Error($"Kotlin DSL compilation errors detected in project {projectId}");
             Log.Error($"Status response: {response.Content}");
-            throw new InvalidOperationException($"Kotlin DSL has compilation errors in project {projectId}. Check TeamCity logs for details.");
+            throw new InvalidOperationException(
+                $"Kotlin DSL has compilation errors in project {projectId}. Check TeamCity logs for details.");
         }
 
         Log.Information("No Kotlin DSL compilation errors detected");
@@ -766,9 +766,11 @@ public class TeamCityService : IDisposable
             var state = json.RootElement.TryGetProperty("state", out var stateElem)
                 ? stateElem.GetString() ?? "unknown"
                 : "unknown";
+
             var status = json.RootElement.TryGetProperty("status", out var statusElem)
                 ? statusElem.GetString() ?? "unknown"
                 : "unknown";
+
             return (state, status);
         }
         catch (JsonException ex)
@@ -827,4 +829,5 @@ public class TeamCityService : IDisposable
 
         Log.Error($"Timeout waiting for project '{projectId}' to appear after {timeoutSeconds} seconds");
         return false;
-    }}
+    }
+}
