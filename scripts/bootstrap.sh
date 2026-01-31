@@ -13,6 +13,32 @@ cd src/Bootstrap
 # Pass environment variables to container
 GITLAB_ROOT_PASSWORD="${GITLAB_ROOT_PASSWORD:-changeme123}"
 
+# Check if Playwright dependencies are available on the host.
+# Returns 0 if all required libraries are found, 1 otherwise.
+check_playwright_deps() {
+  # List of critical shared libraries required by Playwright/Chromium
+  local libs=(
+    "libnss3.so"
+    "libnspr4.so"
+    "libatk-1.0.so"
+    "libatk-bridge-2.0.so"
+    "libcups.so"
+    "libdrm.so"
+    "libxkbcommon.so"
+    "libgbm.so"
+    "libasound.so"
+    "libpango-1.0.so"
+    "libcairo.so"
+  )
+
+  for lib in "${libs[@]}"; do
+    if ! ldconfig -p 2>/dev/null | grep -q "$lib"; then
+      return 1
+    fi
+  done
+  return 0
+}
+
 # If a suitable dotnet SDK is available locally, run the bootstrapper natively.
 # Otherwise fall back to running inside Docker (existing behaviour).
 if command -v dotnet >/dev/null 2>&1; then
@@ -20,13 +46,17 @@ if command -v dotnet >/dev/null 2>&1; then
   if [[ "$dotnet_version" =~ ^([0-9]+) ]]; then
     major="${BASH_REMATCH[1]}"
     if [ "$major" -ge 9 ]; then
-      echo "Found dotnet $dotnet_version — running bootstrapper natively."
-      export GITLAB_ROOT_PASSWORD
-      # Run from the project directory so local relative paths match expectations
-      cd "$ROOT_DIR/src/Bootstrap"
-      dotnet restore "$ROOT_DIR/src/Bootstrap/Bootstrap.csproj"
-      dotnet run --project "$ROOT_DIR/src/Bootstrap/Bootstrap.csproj" --configuration Release
-      exit $?
+      if check_playwright_deps; then
+        echo "Found dotnet $dotnet_version and Playwright dependencies — running bootstrapper natively."
+        export GITLAB_ROOT_PASSWORD
+        # Run from the project directory so local relative paths match expectations
+        cd "$ROOT_DIR/src/Bootstrap"
+        dotnet restore "$ROOT_DIR/src/Bootstrap/Bootstrap.csproj"
+        dotnet run --project "$ROOT_DIR/src/Bootstrap/Bootstrap.csproj" --configuration Release
+        exit $?
+      else
+        echo "Found dotnet $dotnet_version but Playwright dependencies are missing — falling back to Docker."
+      fi
     fi
   fi
 fi

@@ -435,11 +435,11 @@ public class ProjectSetupService
 
         // Poll for the CI Lab project to appear (TeamCity needs time to compile Kotlin DSL)
         // The project ID in TeamCity will be "Root_CiLab" since it's a subproject of _Root
-        var projectFound = await _teamCityService.WaitForProject("CiLab", 20);
+        var projectFound = await _teamCityService.WaitForProject("CiLab", 60);
         if (!projectFound)
         {
             throw new InvalidOperationException(
-                "CI Lab project did not appear in TeamCity within 20 seconds - Kotlin DSL may have errors");
+                "CI Lab project did not appear in TeamCity within 60 seconds - Kotlin DSL may have errors");
         }
 
         // Verify build types exist
