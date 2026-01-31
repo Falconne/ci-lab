@@ -46,7 +46,7 @@ public class TeamCityService : IDisposable
     ///     Creates or updates a VCS root at the _Root project level.
     ///     Returns the VCS root ID and a flag indicating if it was updated.
     /// </summary>
-    public async Task<(string vcsRootId, bool wasUpdated)> CreateOrUpdateVcsRoot(
+    public async Task<(string vcsRootId, bool wasUpdated)> CreateOrUpdateVCSRootViaAPI(
         string vcsRootName,
         string gitUrl,
         string branch,
@@ -82,17 +82,17 @@ public class TeamCityService : IDisposable
                     await Task.Delay(2000); // Wait for TeamCity to process the change
                 }
 
-                await UpdateVcsRootProperty(existingVcsRootId, "url", gitUrl);
+                await UpdateVCSRootProperty(existingVcsRootId, "url", gitUrl);
 
                 // Also update credentials if provided
                 if (username != null)
                 {
-                    await UpdateVcsRootProperty(existingVcsRootId, "username", username);
+                    await UpdateVCSRootProperty(existingVcsRootId, "username", username);
                 }
 
                 if (password != null)
                 {
-                    await UpdateVcsRootProperty(existingVcsRootId, "secure:password", password);
+                    await UpdateVCSRootProperty(existingVcsRootId, "secure:password", password);
                 }
 
                 return (existingVcsRootId, true); // Was updated
@@ -216,7 +216,7 @@ public class TeamCityService : IDisposable
     /// <summary>
     ///     Updates a VCS root property.
     /// </summary>
-    public async Task UpdateVcsRootProperty(string vcsRootId, string propertyName, string value)
+    public async Task UpdateVCSRootProperty(string vcsRootId, string propertyName, string value)
     {
         Log.Information($"Updating VCS root '{vcsRootId}' property '{propertyName}'");
 

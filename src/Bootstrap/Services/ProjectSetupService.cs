@@ -85,7 +85,7 @@ public class ProjectSetupService
         var internalGitUrl = configProject.HttpUrlToRepo.Replace(_gitlabUrl, _gitlabInternalUrl);
         Log.Information($"Using internal Git URL for TeamCity: {internalGitUrl}");
 
-        var (vcsRootId, wasUpdated) = await _teamCityService.CreateOrUpdateVcsRoot(
+        var (vcsRootId, wasUpdated) = await _teamCityService.CreateOrUpdateVCSRootViaAPI(
             "TeamCityConfig",
             internalGitUrl,
             "main",
