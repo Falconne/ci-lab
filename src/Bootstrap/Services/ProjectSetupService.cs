@@ -224,8 +224,8 @@ public class ProjectSetupService
     {
         // We need to add the CI Lab subproject to the existing settings.kts
         // First, add the necessary imports if not present
-        // Then add subProject reference inside the root project block
-        // Finally, append all the CI Lab definitions
+        // Then add template reference and subProject reference inside the root project block
+        // Finally, append all the CI Lab definitions and template
 
         var sb = new StringBuilder();
         var lines = existingContent.Split('\n');
@@ -250,6 +250,7 @@ public class ProjectSetupService
                     // Add our additional imports
                     sb.AppendLine("import jetbrains.buildServer.configs.kotlin.buildSteps.script");
                     sb.AppendLine("import jetbrains.buildServer.configs.kotlin.vcs.GitVcsRoot");
+                    sb.AppendLine("import jetbrains.buildServer.configs.kotlin.buildFeatures.commitStatusPublisher");
                     addedImports = true;
                     continue;
                 }
@@ -270,11 +271,17 @@ public class ProjectSetupService
                 rootProjectBraceCount += line.Count(c => c == '{');
                 rootProjectBraceCount -= line.Count(c => c == '}');
 
-                // Insert subProject reference just before closing the root project
+                // Insert template and subProject references just before closing the root project
                 if (rootProjectBraceCount == 0)
                 {
-                    // Insert subProject before the closing brace
+                    // Add params block with gitlab.token at Root level for template access
                     sb.AppendLine();
+                    sb.AppendLine("    params {");
+                    sb.AppendLine($@"        password(""gitlab.token"", ""{_gitlabToken}"", display = ParameterDisplay.HIDDEN)");
+                    sb.AppendLine("    }");
+                    sb.AppendLine();
+                    // Insert template and subProject before the closing brace
+                    sb.AppendLine("    template(GitlabPipelinePublishing)");
                     sb.AppendLine("    subProject(CiLab)");
                     insertedSubProject = true;
                     inRootProject = false;
@@ -284,9 +291,36 @@ public class ProjectSetupService
             sb.AppendLine(line);
         }
 
+        // Append the GitLab Pipeline Publishing template definition
+        sb.AppendLine();
+        sb.Append(GenerateGitlabPipelinePublishingTemplate());
+
         // Append the CI Lab project definition at the end
         sb.AppendLine();
         sb.AppendLine(ciLabContent);
+
+        return sb.ToString();
+    }
+
+    private string GenerateGitlabPipelinePublishingTemplate()
+    {
+        var sb = new StringBuilder();
+
+        // GitLab Pipeline Publishing template definition at Root level
+        sb.AppendLine("object GitlabPipelinePublishing : Template({");
+        sb.AppendLine(@"    id(""GitlabPipelinePublishing"")");
+        sb.AppendLine(@"    name = ""GitLab Pipeline Publishing""");
+        sb.AppendLine();
+        sb.AppendLine("    features {");
+        sb.AppendLine("        commitStatusPublisher {");
+        sb.AppendLine("            publisher = gitlab {");
+        sb.AppendLine($@"                gitlabApiUrl = ""{_gitlabInternalUrl}/api/v4""");
+        sb.AppendLine(@"                accessToken = ""%gitlab.token%""");
+        sb.AppendLine("            }");
+        sb.AppendLine("        }");
+        sb.AppendLine("    }");
+        sb.AppendLine("})");
+        sb.AppendLine();
 
         return sb.ToString();
     }
@@ -299,12 +333,6 @@ public class ProjectSetupService
         sb.AppendLine("object CiLab : Project({");
         sb.AppendLine(@"    id(""CiLab"")");
         sb.AppendLine(@"    name = ""CI Lab""");
-        sb.AppendLine();
-
-        // Add a secure parameter for the GitLab token
-        sb.AppendLine("    params {");
-        sb.AppendLine($@"        password(""gitlab.token"", ""{_gitlabToken}"", display = ParameterDisplay.HIDDEN)");
-        sb.AppendLine("    }");
         sb.AppendLine();
 
         // Register VCS roots for all repos
@@ -388,11 +416,18 @@ public class ProjectSetupService
         sb.AppendLine($@"    name = ""Build {buildNumber} - {primaryRepo}""");
         sb.AppendLine();
 
-        // Add snapshot dependencies for builds 2 and 3 on build 1
-        if (buildNumber > 1)
+        // Apply the GitLab Pipeline Publishing template
+        sb.AppendLine("    templates(GitlabPipelinePublishing)");
+        sb.AppendLine();
+
+        // Build 1 depends on Builds 2 and 3 (snapshot dependencies)
+        if (buildNumber == 1)
         {
             sb.AppendLine("    dependencies {");
-            sb.AppendLine("        snapshot(CiLabBuild1) {");
+            sb.AppendLine("        snapshot(CiLabBuild2) {");
+            sb.AppendLine("            onDependencyFailure = FailureAction.FAIL_TO_START");
+            sb.AppendLine("        }");
+            sb.AppendLine("        snapshot(CiLabBuild3) {");
             sb.AppendLine("            onDependencyFailure = FailureAction.FAIL_TO_START");
             sb.AppendLine("        }");
             sb.AppendLine("    }");
