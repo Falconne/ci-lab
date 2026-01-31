@@ -1,5 +1,5 @@
 using Bootstrap.Entities.Gitlab;
-using Bootstrap.Services.Utilities;
+using Bootstrap.Utilities;
 using RestSharp;
 using Serilog;
 

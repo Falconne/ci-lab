@@ -1,7 +1,7 @@
 using Bootstrap.Services;
 using Bootstrap.Services.Gitlab;
 using Bootstrap.Services.TeamCity;
-using Bootstrap.Services.Utilities;
+using Bootstrap.Utilities;
 using Serilog;
 
 Logging.Init();

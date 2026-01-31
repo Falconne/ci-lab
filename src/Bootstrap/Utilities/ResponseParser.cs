@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Xml.Linq;
 
-namespace Bootstrap.Services.Utilities;
+namespace Bootstrap.Utilities;
 
 public static class ResponseParser
 {

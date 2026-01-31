@@ -1,7 +1,7 @@
 using Microsoft.Playwright;
 using Serilog;
 
-namespace Bootstrap.Services.Utilities;
+namespace Bootstrap.Utilities;
 
 public static class PlaywrightExtensions
 {

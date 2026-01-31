@@ -1,5 +1,5 @@
 using Bootstrap.Entities.TeamCity;
-using Bootstrap.Services.Utilities;
+using Bootstrap.Utilities;
 using RestSharp;
 using RestSharp.Authenticators;
 using Serilog;

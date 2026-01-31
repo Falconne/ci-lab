@@ -1,4 +1,4 @@
-using Bootstrap.Services.Utilities;
+using Bootstrap.Utilities;
 using Microsoft.Playwright;
 using Serilog;
 
