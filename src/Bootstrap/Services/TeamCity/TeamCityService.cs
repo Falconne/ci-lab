@@ -137,14 +137,11 @@ public class TeamCityService : IDisposable
         var wasVersionedSettingsEnabled = currentSettings != null
                                           && currentSettings.Contains("\"synchronizationMode\":\"enabled\"");
 
-        string? originalVCSRootId = null;
-
         if (wasVersionedSettingsEnabled)
         {
             Log.Information(
                 "Temporarily disabling versioned settings to allow VCS root modification...");
 
-            originalVCSRootId = ExtractVCSRootIdFromSettings(currentSettings!);
             await DisableVersionedSettings();
             await Task.Delay(2000);
         }
@@ -160,68 +157,6 @@ public class TeamCityService : IDisposable
         {
             await UpdateVCSRootProperty(vcsRootId, "secure:password", password);
         }
-
-        if (wasVersionedSettingsEnabled && originalVCSRootId != null)
-        {
-            await ReEnableVersionedSettings(originalVCSRootId);
-        }
-    }
-
-    /// <summary>
-    ///     Re-enables versioned settings that were temporarily disabled.
-    /// </summary>
-    private async Task ReEnableVersionedSettings(string vcsRootId)
-    {
-        Log.Information("Re-enabling versioned settings after VCS root modification...");
-
-        var versionedSettingsPayload = new
-        {
-            synchronizationMode = "enabled",
-            vcsRootId,
-            format = "kotlin",
-            allowUIEditing = false,
-            storeSecureValuesOutsideVcs = true,
-            showSettingsChanges = true,
-            importDecision = "overrideInVCS",
-            buildSettingsMode = "useFromVCS"
-        };
-
-        var request = new RestRequest("projects/_Root/versionedSettings/config", Method.Put)
-            .AddJsonBody(versionedSettingsPayload);
-
-        var response = await _client.ExecuteAsync(request);
-
-        if (response.StatusCode is HttpStatusCode.OK or HttpStatusCode.NoContent or HttpStatusCode.Created)
-        {
-            Log.Information("Versioned settings re-enabled successfully");
-            await Task.Delay(2000);
-            return;
-        }
-
-        Log.Error($"Failed to re-enable versioned settings: {(int)response.StatusCode} - {response.Content}");
-        throw new InvalidOperationException(
-            $"Failed to re-enable versioned settings: {(int)response.StatusCode} - {response.Content}");
-    }
-
-    /// <summary>
-    ///     Extracts the VCS root ID from versioned settings JSON.
-    /// </summary>
-    private string? ExtractVCSRootIdFromSettings(string settingsJson)
-    {
-        try
-        {
-            var json = JsonDocument.Parse(settingsJson);
-            if (json.RootElement.TryGetProperty("vcsRootId", out var vcsRootIdElement))
-            {
-                return vcsRootIdElement.GetString();
-            }
-        }
-        catch (JsonException ex)
-        {
-            Log.Warning($"Failed to parse VCS root ID from settings: {ex.Message}");
-        }
-
-        return null;
     }
 
     /// <summary>
@@ -416,7 +351,7 @@ public class TeamCityService : IDisposable
     /// <summary>
     ///     Disables versioned settings for a project.
     /// </summary>
-    public async Task DisableVersionedSettings(string projectId = "_Root")
+    private async Task DisableVersionedSettings(string projectId = "_Root")
     {
         Log.Information($"Disabling versioned settings for project: {projectId}");
 
