@@ -65,16 +65,22 @@ public class ProjectSetupService
         foreach (var i in Enumerable.Range(1, 3))
         {
             var projectName = $"primary-{i}";
-            await _gitlabService.CreateTopLevelProject(projectName, testGroup.Id);
+            var project = await _gitlabService.CreateTopLevelProject(projectName, testGroup.Id);
             _primaryRepos.Add(projectName);
+            
+            // Add Bob Builder as owner
+            await _gitlabService.AddProjectMember(project.Id, "b.builder", 50);
         }
 
         // Create some secondary repos
         foreach (var i in Enumerable.Range(1, 4))
         {
             var projectName = $"secondary-{i}";
-            await _gitlabService.CreateRegularProject(projectName, testGroup.Id);
+            var project = await _gitlabService.CreateRegularProject(projectName, testGroup.Id);
             _secondaryRepos.Add(projectName);
+            
+            // Add Bob Builder as owner
+            await _gitlabService.AddProjectMember(project.Id, "b.builder", 50);
         }
 
         Log.Information("GitLab test projects ready");
@@ -87,6 +93,9 @@ public class ProjectSetupService
         // Create the TeamCityConfig repository in GitLab
         var configProject = await _gitlabService.CreateProject("TeamCityConfig");
         Log.Information($"TeamCityConfig project ID: {configProject.Id}");
+
+        // Add Bob Builder as owner
+        await _gitlabService.AddProjectMember(configProject.Id, "b.builder", 50);
 
         // Create a VCS root in TeamCity for this repository
         // TeamCity needs to use the internal Docker network URL to access GitLab

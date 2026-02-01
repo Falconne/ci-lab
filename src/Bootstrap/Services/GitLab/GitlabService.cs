@@ -112,9 +112,78 @@ public class GitlabService : IDisposable
             $"Failed to create Gitlab project '{projectName}': {(int)createResponse.StatusCode} {createResponse.StatusCode} - {createResponse.Content}");
     }
 
-    public async Task CreateTopLevelProject(string projectName, int? namespaceId = null)
+    public async Task AddProjectMember(int projectId, string username, int accessLevel = 50)
     {
-        await CreateAndPopulateProject(
+        Log.Information($"Adding user '{username}' to project {projectId} with access level {accessLevel}");
+
+        // First, get the user ID by username
+        var userSearchRequest = new RestRequest("users")
+            .AddQueryParameter("username", username);
+
+        var userSearchResponse = await _client.ExecuteGetAsync<GitlabUser[]>(userSearchRequest);
+
+        if (userSearchResponse is not { IsSuccessful: true, Data: not null } || userSearchResponse.Data.Length == 0)
+        {
+            Log.Error($"User '{username}' not found");
+            throw new InvalidOperationException($"User '{username}' not found in GitLab");
+        }
+
+        var userId = userSearchResponse.Data[0].Id;
+
+        // Check if user is already a member
+        var checkRequest = new RestRequest($"projects/{projectId}/members/{userId}");
+        var checkResponse = await _client.ExecuteGetAsync<GitlabProjectMember>(checkRequest);
+
+        if (checkResponse.IsSuccessful && checkResponse.Data is not null)
+        {
+            // User is already a member, check if we need to update access level
+            if (checkResponse.Data.AccessLevel == accessLevel)
+            {
+                Log.Information($"User '{username}' is already a member with correct access level");
+                return;
+            }
+
+            Log.Information($"User '{username}' is already a member, updating access level");
+            var updateRequest = new RestRequest($"projects/{projectId}/members/{userId}", Method.Put)
+                .AddJsonBody(new { access_level = accessLevel });
+
+            var updateResponse = await _client.ExecuteAsync<GitlabProjectMember>(updateRequest);
+
+            if (updateResponse.StatusCode is HttpStatusCode.OK && updateResponse.Data is not null)
+            {
+                Log.Information($"Updated access level for user '{username}' to {accessLevel}");
+                return;
+            }
+
+            Log.Error($"Failed to update project member: {(int)updateResponse.StatusCode} - {updateResponse.Content}");
+            throw new InvalidOperationException(
+                $"Failed to update project member '{username}': {(int)updateResponse.StatusCode} - {updateResponse.Content}");
+        }
+
+        // Add user as a new member
+        var addRequest = new RestRequest($"projects/{projectId}/members", Method.Post)
+            .AddJsonBody(new
+            {
+                user_id = userId,
+                access_level = accessLevel
+            });
+
+        var addResponse = await _client.ExecutePostAsync<GitlabProjectMember>(addRequest);
+
+        if (addResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created && addResponse.Data is not null)
+        {
+            Log.Information($"User '{username}' added to project with access level {accessLevel}");
+            return;
+        }
+
+        Log.Error($"Failed to add project member: {(int)addResponse.StatusCode} - {addResponse.Content}");
+        throw new InvalidOperationException(
+            $"Failed to add project member '{username}': {(int)addResponse.StatusCode} - {addResponse.Content}");
+    }
+
+    public async Task<GitlabProject> CreateTopLevelProject(string projectName, int? namespaceId = null)
+    {
+        return await CreateAndPopulateProject(
             projectName,
             namespaceId,
             async tempDir =>
@@ -166,9 +235,9 @@ public class GitlabService : IDisposable
             });
     }
 
-    public async Task CreateRegularProject(string projectName, int? namespaceId = null)
+    public async Task<GitlabProject> CreateRegularProject(string projectName, int? namespaceId = null)
     {
-        await CreateAndPopulateProject(projectName, namespaceId);
+        return await CreateAndPopulateProject(projectName, namespaceId);
     }
 
     private async Task<bool> CheckProjectHasCommits(int projectId)
@@ -227,7 +296,7 @@ public class GitlabService : IDisposable
             $"Failed to create file '{filePath}': {(int)response.StatusCode} - {response.Content}");
     }
 
-    private async Task CreateAndPopulateProject(
+    private async Task<GitlabProject> CreateAndPopulateProject(
         string projectName,
         int? namespaceId = null,
         Func<string, Task>? populateSpecificFiles = null)
@@ -238,7 +307,7 @@ public class GitlabService : IDisposable
         if (hasCommits)
         {
             Log.Information($"Project '{projectName}' already has commits, skipping repo population");
-            return;
+            return project;
         }
 
         var tempDir = CreateTempDirectory(projectName);
@@ -263,7 +332,7 @@ public class GitlabService : IDisposable
             InitializeAndPushRepository(tempDir, project, projectName);
 
             Log.Information($"Repository populated and pushed to '{projectName}'");
-            return;
+            return project;
         }
         finally
         {

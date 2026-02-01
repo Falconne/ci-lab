@@ -2,6 +2,7 @@ using Bootstrap.Entities.Gitlab;
 using Bootstrap.Utilities;
 using RestSharp;
 using Serilog;
+using System.Net;
 
 namespace Bootstrap.Services.Gitlab;
 
@@ -49,6 +50,9 @@ public class GitlabBootstrapService : IDisposable
 
         // Configure GitLab to use 'main' as the default branch
         await ConfigureDefaultBranch();
+
+        // Create Bob Builder user
+        await CreateBobBuilderUser();
 
         Log.Information("GitLab initial setup completed");
     }
@@ -144,5 +148,82 @@ public class GitlabBootstrapService : IDisposable
         }
 
         return false;
+    }
+
+    private async Task CreateBobBuilderUser()
+    {
+        const string username = "b.builder";
+        const string name = "Bob Builder";
+        const string email = "b.builder@CILab.local";
+        
+        Log.Information($"Creating GitLab user '{username}'...");
+
+        // Check if user already exists
+        var searchRequest = new RestRequest("users")
+            .AddQueryParameter("username", username);
+
+        var searchResponse = await _client.ExecuteGetAsync<GitlabUser[]>(searchRequest);
+
+        if (searchResponse is { IsSuccessful: true, Data: not null } && searchResponse.Data.Length > 0)
+        {
+            Log.Information($"User '{username}' already exists");
+            var existingUser = searchResponse.Data[0];
+            
+            // Ensure password is in .env
+            var existingPassword = _envFileService.GetValue("GITLAB_BOB_PASSWORD");
+            if (string.IsNullOrEmpty(existingPassword))
+            {
+                Log.Warning("User exists but GITLAB_BOB_PASSWORD not found in .env");
+                Log.Warning("You may need to manually set a password for the user");
+            }
+            
+            return;
+        }
+
+        // Generate a password for the user
+        var password = GeneratePassword();
+
+        // Create the user
+        var createRequest = new RestRequest("users", Method.Post)
+            .AddJsonBody(new
+            {
+                username = username,
+                name = name,
+                email = email,
+                password = password,
+                skip_confirmation = true
+            });
+
+        var createResponse = await _client.ExecutePostAsync<GitlabUser>(createRequest);
+
+        if (createResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created
+            && createResponse.Data is not null)
+        {
+            Log.Information($"User '{username}' created successfully");
+            
+            // Save password to .env
+            _envFileService.SaveOrUpdateEnvFile("GITLAB_BOB_PASSWORD", password);
+            Log.Information("User password saved to .env as GITLAB_BOB_PASSWORD");
+            
+            return;
+        }
+
+        Log.Error($"Failed to create user: {(int)createResponse.StatusCode} - {createResponse.Content}");
+        throw new InvalidOperationException(
+            $"Failed to create GitLab user '{username}': {(int)createResponse.StatusCode} {createResponse.StatusCode} - {createResponse.Content}");
+    }
+
+    private string GeneratePassword()
+    {
+        const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%";
+        var random = new Random();
+        var password = new char[16];
+        
+        for (var i = 0; i < password.Length; i++)
+        {
+            password[i] = chars[random.Next(chars.Length)];
+        }
+        
+        return new string(password);
     }
 }
