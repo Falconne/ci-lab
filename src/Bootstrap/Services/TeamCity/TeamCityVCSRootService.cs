@@ -208,7 +208,7 @@ public class TeamCityVCSRootService
     /// <summary>
     ///     Updates a VCS root property.
     /// </summary>
-    public async Task UpdateVCSRootProperty(string vcsRootId, string propertyName, string value)
+    private async Task UpdateVCSRootProperty(string vcsRootId, string propertyName, string value)
     {
         Log.Information($"Updating VCS root '{vcsRootId}' property '{propertyName}'");
 
@@ -248,22 +248,15 @@ public class TeamCityVCSRootService
         }
 
         var result = new List<(string id, string name)>();
-        try
+        var json = JsonDocument.Parse(response.Content ?? "{}");
+        if (json.RootElement.TryGetProperty("vcs-root", out var vcsRoots))
         {
-            var json = JsonDocument.Parse(response.Content ?? "{}");
-            if (json.RootElement.TryGetProperty("vcs-root", out var vcsRoots))
+            foreach (var vr in vcsRoots.EnumerateArray())
             {
-                foreach (var vr in vcsRoots.EnumerateArray())
-                {
-                    var id = vr.GetProperty("id").GetString() ?? "";
-                    var name = vr.GetProperty("name").GetString() ?? "";
-                    result.Add((id, name));
-                }
+                var id = vr.GetProperty("id").GetString() ?? "";
+                var name = vr.GetProperty("name").GetString() ?? "";
+                result.Add((id, name));
             }
-        }
-        catch (JsonException ex)
-        {
-            Log.Error($"Failed to parse VCS roots response: {ex.Message}");
         }
 
         return result;
