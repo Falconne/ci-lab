@@ -49,7 +49,6 @@ try
 
     Logging.LogSection("Running Initial Project Setup");
     var gitlabToken = envService.GetValue("GITLAB_TOKEN");
-    var teamcityToken = envService.GetValue("TEAMCITY_TOKEN");
     using var gitlabService = new GitlabService(gitlabURL, gitlabToken!);
     using var teamCityService = new TeamCityService(teamcityURL, "root", gitlabRootPassword);
 
@@ -99,5 +98,6 @@ finally
     }
     catch
     {
+        // ignored
     }
 }
