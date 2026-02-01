@@ -8,23 +8,38 @@ namespace Bootstrap.Services.TeamCity;
 public class TeamCityVCSRootService
 {
     private readonly RestClient _client;
+    private readonly TeamCityVersionedSettingsService _versionedSettingsService;
 
-    public TeamCityVCSRootService(RestClient client)
+    public TeamCityVCSRootService(RestClient client, TeamCityVersionedSettingsService versionedSettingsService)
     {
         _client = client;
+        _versionedSettingsService = versionedSettingsService;
     }
 
     /// <summary>
     ///     Creates or updates a VCS root at the _Root project level.
     ///     Returns the VCS root ID and a flag indicating if it was updated.
     /// </summary>
-    public async Task<(string vcsRootId, bool wasUpdated)> CreateOrUpdateVCSRoot(
+    public async Task<(string vcsRootId, bool wasUpdated)> CreateOrUpdateVCSRootViaAPI(
         string vcsRootName,
         string gitUrl,
         string branch,
         string? username = null,
         string? password = null)
     {
+        var currentSettings = await _versionedSettingsService.GetVersionedSettings("_Root");
+        var versionedSettingsEnabled = currentSettings != null
+                                          && currentSettings.Contains("\"synchronizationMode\":\"enabled\"");
+
+        if (versionedSettingsEnabled)
+        {
+            Log.Information(
+                "Temporarily disabling versioned settings to allow VCS root modification...");
+
+            await _versionedSettingsService.DisableVersionedSettings();
+            await Task.Delay(2000);
+        }
+
         Log.Information($"Creating/updating VCS root '{vcsRootName}' for URL: {gitUrl}");
 
         // Check if VCS root already exists

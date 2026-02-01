@@ -8,12 +8,9 @@ public class TeamCityVersionedSettingsService
 {
     private readonly RestClient _client;
 
-    private readonly TeamCityVCSRootService _vcsRootService;
-
-    public TeamCityVersionedSettingsService(RestClient client, TeamCityVCSRootService vcsRootService)
+    public TeamCityVersionedSettingsService(RestClient client)
     {
         _client = client;
-        _vcsRootService = vcsRootService;
     }
 
     /// <summary>

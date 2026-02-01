@@ -9,12 +9,7 @@ namespace Bootstrap.Services.TeamCity;
 public class TeamCityService : IDisposable
 {
     private readonly RestClient _client;
-
     private readonly string _teamcityURL;
-
-    private readonly TeamCityVCSRootService _vcsRootService;
-
-    private readonly TeamCityVersionedSettingsService _versionedSettingsService;
 
     public TeamCityService(string teamcityURL, string username, string password)
     {
@@ -32,94 +27,12 @@ public class TeamCityService : IDisposable
             });
 
         _client.AddDefaultHeader("Accept", "application/json");
-
-        _vcsRootService = new TeamCityVCSRootService(_client);
-        _versionedSettingsService = new TeamCityVersionedSettingsService(_client, _vcsRootService);
     }
 
     public void Dispose()
     {
         _client.Dispose();
         GC.SuppressFinalize(this);
-    }
-
-    /// <summary>
-    ///     Creates or updates a VCS root at the _Root project level.
-    ///     Returns the VCS root ID and a flag indicating if it was updated.
-    /// </summary>
-    public async Task<(string vcsRootId, bool wasUpdated)> CreateOrUpdateVCSRootViaAPI(
-        string vcsRootName,
-        string gitUrl,
-        string branch,
-        string? username = null,
-        string? password = null)
-    {
-        var currentSettings = await _versionedSettingsService.GetVersionedSettings("_Root");
-        var wasVersionedSettingsEnabled = currentSettings != null
-                                          && currentSettings.Contains("\"synchronizationMode\":\"enabled\"");
-
-        if (wasVersionedSettingsEnabled)
-        {
-            Log.Information(
-                "Temporarily disabling versioned settings to allow VCS root modification...");
-
-            await _versionedSettingsService.DisableVersionedSettings();
-            await Task.Delay(2000);
-        }
-
-        var result = await _vcsRootService.CreateOrUpdateVCSRoot(vcsRootName, gitUrl, branch, username, password);
-
-        return result;
-    }
-
-    /// <summary>
-    ///     Updates a VCS root property.
-    /// </summary>
-    public async Task UpdateVCSRootProperty(string vcsRootId, string propertyName, string value)
-    {
-        await _vcsRootService.UpdateVCSRootProperty(vcsRootId, propertyName, value);
-    }
-
-    /// <summary>
-    ///     Enables versioned settings (config under source control) for the Root project.
-    /// </summary>
-    public async Task EnableVersionedSettings(
-        string vcsRootId,
-        string settingsFormat = "kotlin",
-        bool allowUiEditing = false,
-        bool forceReconfigure = false)
-    {
-        await _versionedSettingsService.EnableVersionedSettings(vcsRootId, settingsFormat, allowUiEditing, forceReconfigure);
-    }
-
-    /// <summary>
-    ///     Triggers TeamCity to commit current settings to the VCS.
-    /// </summary>
-    public async Task CommitCurrentSettingsToVCS(string projectId = "_Root")
-    {
-        await _versionedSettingsService.CommitCurrentSettingsToVCS(projectId);
-    }
-
-    /// <summary>
-    ///     Waits for the settings.kts file to appear in the GitLab repository.
-    ///     Throws an exception if the file does not appear within the timeout.
-    /// </summary>
-    public async Task WaitForSettingsInRepo(
-        string gitlabURL,
-        string gitlabToken,
-        int projectId,
-        int timeoutSeconds = 120)
-    {
-        await _versionedSettingsService.WaitForSettingsInRepo(gitlabURL, gitlabToken, projectId, timeoutSeconds);
-    }
-
-    /// <summary>
-    ///     Checks for Kotlin DSL compilation errors in versioned settings.
-    ///     Throws an exception if errors are found.
-    /// </summary>
-    public async Task CheckForKotlinErrors(string projectId = "_Root")
-    {
-        await _versionedSettingsService.CheckForKotlinErrors(projectId);
     }
 
     /// <summary>
@@ -182,14 +95,6 @@ public class TeamCityService : IDisposable
         }
 
         return result;
-    }
-
-    /// <summary>
-    ///     Gets all VCS roots for a project.
-    /// </summary>
-    public async Task<List<(string id, string name)>> GetVCSRoots(string projectId)
-    {
-        return await _vcsRootService.GetVCSRoots(projectId);
     }
 
     /// <summary>

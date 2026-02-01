@@ -2,6 +2,8 @@ using Bootstrap.Services;
 using Bootstrap.Services.Gitlab;
 using Bootstrap.Services.TeamCity;
 using Bootstrap.Utilities;
+using RestSharp;
+using RestSharp.Authenticators;
 using Serilog;
 
 Logging.Init();
@@ -50,7 +52,28 @@ try
     var teamcityToken = envService.GetValue("TEAMCITY_TOKEN");
     using var gitlabService = new GitlabService(gitlabURL, gitlabToken!);
     using var teamCityService = new TeamCityService(teamcityURL, "root", gitlabRootPassword);
-    var projectSetupService = new ProjectSetupService(gitlabService, teamCityService, gitlabURL, gitlabToken!);
+
+    // Create TeamCity service components
+    var teamCityRestClientOptions = new RestClientOptions($"{teamcityURL.TrimEnd('/')}/app/rest")
+    {
+        ThrowOnAnyError = false,
+        RemoteCertificateValidationCallback = (_, _, _, _) => true,
+        Timeout = TimeSpan.FromSeconds(30),
+        Authenticator = new HttpBasicAuthenticator("root", gitlabRootPassword)
+    };
+    var teamCityRestClient = new RestClient(teamCityRestClientOptions);
+    teamCityRestClient.AddDefaultHeader("Accept", "application/json");
+
+    var teamCityVersionedSettingsService = new TeamCityVersionedSettingsService(teamCityRestClient);
+    var teamCityVCSRootService = new TeamCityVCSRootService(teamCityRestClient, teamCityVersionedSettingsService);
+
+    var projectSetupService = new ProjectSetupService(
+        gitlabService,
+        teamCityService,
+        teamCityVCSRootService,
+        teamCityVersionedSettingsService,
+        gitlabURL,
+        gitlabToken!);
     await projectSetupService.Execute();
 
     Logging.LogSection("Bootstrap complete!");

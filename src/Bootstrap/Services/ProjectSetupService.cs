@@ -18,6 +18,10 @@ public class ProjectSetupService
 
     private readonly TeamCityService _teamCityService;
 
+    private readonly TeamCityVCSRootService _teamCityVCSRootService;
+
+    private readonly TeamCityVersionedSettingsService _teamCityVersionedSettingsService;
+
     // Store project info for reuse
     private readonly List<string> _primaryRepos = new();
     private readonly List<string> _secondaryRepos = new();
@@ -25,12 +29,16 @@ public class ProjectSetupService
     public ProjectSetupService(
         GitlabService gitlabService,
         TeamCityService teamCityService,
+        TeamCityVCSRootService teamCityVCSRootService,
+        TeamCityVersionedSettingsService teamCityVersionedSettingsService,
         string gitlabURL,
         string gitlabToken,
         string? gitlabInternalURL = null)
     {
         _gitlabService = gitlabService;
         _teamCityService = teamCityService;
+        _teamCityVCSRootService = teamCityVCSRootService;
+        _teamCityVersionedSettingsService = teamCityVersionedSettingsService;
         _gitlabURL = gitlabURL;
         _gitlabToken = gitlabToken;
         // TeamCity runs inside Docker and needs to access GitLab via its internal network hostname
@@ -85,7 +93,7 @@ public class ProjectSetupService
         var internalGitURL = configProject.HttpURLToRepo.Replace(_gitlabURL, _gitlabInternalURL);
         Log.Information($"Using internal Git URL for TeamCity: {internalGitURL}");
 
-        var (vcsRootId, wasUpdated) = await _teamCityService.CreateOrUpdateVCSRootViaAPI(
+        var (vcsRootId, wasUpdated) = await _teamCityVCSRootService.CreateOrUpdateVCSRootViaAPI(
             "TeamCityConfig",
             internalGitURL,
             "main",
@@ -94,17 +102,17 @@ public class ProjectSetupService
 
         // Enable versioned settings for the Root project with Kotlin format
         // Force reconfigure if VCS root was updated to ensure proper setup
-        await _teamCityService.EnableVersionedSettings(
+        await _teamCityVersionedSettingsService.EnableVersionedSettings(
             vcsRootId,
             "kotlin",
             false,
             wasUpdated);
 
         // Trigger TeamCity to commit current settings to VCS
-        await _teamCityService.CommitCurrentSettingsToVCS();
+        await _teamCityVersionedSettingsService.CommitCurrentSettingsToVCS();
 
         // Wait for settings.kts to appear in the GitLab repo (throws on failure)
-        await _teamCityService.WaitForSettingsInRepo(
+        await _teamCityVersionedSettingsService.WaitForSettingsInRepo(
             _gitlabURL,
             _gitlabToken,
             configProject.Id);
@@ -202,7 +210,7 @@ public class ProjectSetupService
 
         // Check for Kotlin compilation errors after pushing changes
         await Task.Delay(3000); // Give TeamCity a moment to process the changes
-        await _teamCityService.CheckForKotlinErrors();
+        await _teamCityVersionedSettingsService.CheckForKotlinErrors();
 
         // Wait for TeamCity to pick up the changes and verify
         await VerifyLabBuildsCreated();
@@ -496,7 +504,7 @@ public class ProjectSetupService
         }
 
         // Verify VCS roots exist
-        var vcsRoots = await _teamCityService.GetVCSRoots("CiLab");
+        var vcsRoots = await _teamCityVCSRootService.GetVCSRoots("CiLab");
         Log.Information($"Found {vcsRoots.Count} VCS roots in CI Lab project");
 
         var expectedVCSCount = _primaryRepos.Count + _secondaryRepos.Count;
