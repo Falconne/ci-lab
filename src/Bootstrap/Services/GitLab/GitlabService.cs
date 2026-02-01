@@ -419,4 +419,48 @@ public class GitlabService : IDisposable
             throw new Exception($"Git push failed for branch '{localName}': {ex.Message}", ex);
         }
     }
+
+    /// <summary>
+    ///     Creates a user in GitLab. Returns true if created, false if already exists.
+    /// </summary>
+    public async Task<bool> CreateUser(string username, string name, string email, string password)
+    {
+        Log.Information($"Creating GitLab user '{username}'...");
+
+        // Check if user already exists
+        var searchRequest = new RestRequest("users")
+            .AddQueryParameter("username", username);
+
+        var searchResponse = await _client.ExecuteGetAsync<GitlabUser[]>(searchRequest);
+
+        if (searchResponse is { IsSuccessful: true, Data: not null } && searchResponse.Data.Length > 0)
+        {
+            Log.Information($"User '{username}' already exists");
+            return false;
+        }
+
+        // Create the user
+        var createRequest = new RestRequest("users", Method.Post)
+            .AddJsonBody(new
+            {
+                username = username,
+                name = name,
+                email = email,
+                password = password,
+                skip_confirmation = true
+            });
+
+        var createResponse = await _client.ExecutePostAsync<GitlabUser>(createRequest);
+
+        if (createResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created
+            && createResponse.Data is not null)
+        {
+            Log.Information($"User '{username}' created successfully");
+            return true;
+        }
+
+        Log.Error($"Failed to create user '{username}': {(int)createResponse.StatusCode} - {createResponse.Content}");
+        throw new InvalidOperationException(
+            $"Failed to create GitLab user '{username}': {(int)createResponse.StatusCode} {createResponse.StatusCode} - {createResponse.Content}");
+    }
 }

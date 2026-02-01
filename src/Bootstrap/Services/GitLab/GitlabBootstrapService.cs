@@ -51,9 +51,6 @@ public class GitlabBootstrapService : IDisposable
         // Configure GitLab to use 'main' as the default branch
         await ConfigureDefaultBranch();
 
-        // Create Bob Builder user
-        await CreateBobBuilderUser();
-
         // Create test accounts
         await CreateTestAccounts();
 
@@ -151,61 +148,6 @@ public class GitlabBootstrapService : IDisposable
         }
 
         return false;
-    }
-
-    private async Task CreateBobBuilderUser()
-    {
-        const string username = "b.builder";
-        const string name = "Bob Builder";
-        const string email = "b.builder@CILab.local";
-        const string password = "changeme123";
-
-        Log.Information($"Creating GitLab user '{username}'...");
-
-        // Check if user already exists
-        var searchRequest = new RestRequest("users")
-            .AddQueryParameter("username", username);
-
-        var searchResponse = await _client.ExecuteGetAsync<GitlabUser[]>(searchRequest);
-
-        if (searchResponse is { IsSuccessful: true, Data: not null } && searchResponse.Data.Length > 0)
-        {
-            Log.Information($"User '{username}' already exists");
-
-            // Ensure password is in .env
-            _envFileService.SaveOrUpdateEnvFile("GITLAB_BOB_PASSWORD", password);
-
-            return;
-        }
-
-        // Create the user
-        var createRequest = new RestRequest("users", Method.Post)
-            .AddJsonBody(new
-            {
-                username = username,
-                name = name,
-                email = email,
-                password = password,
-                skip_confirmation = true
-            });
-
-        var createResponse = await _client.ExecutePostAsync<GitlabUser>(createRequest);
-
-        if (createResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created
-            && createResponse.Data is not null)
-        {
-            Log.Information($"User '{username}' created successfully");
-
-            // Save password to .env
-            _envFileService.SaveOrUpdateEnvFile("GITLAB_BOB_PASSWORD", password);
-            Log.Information("User password saved to .env as GITLAB_BOB_PASSWORD");
-
-            return;
-        }
-
-        Log.Error($"Failed to create user: {(int)createResponse.StatusCode} - {createResponse.Content}");
-        throw new InvalidOperationException(
-            $"Failed to create GitLab user '{username}': {(int)createResponse.StatusCode} {createResponse.StatusCode} - {createResponse.Content}");
     }
 
     private async Task CreateTestAccounts()
