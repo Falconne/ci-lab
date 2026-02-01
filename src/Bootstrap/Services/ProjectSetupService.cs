@@ -1,5 +1,5 @@
-using Bootstrap.Services.TeamCity;
 using Bootstrap.Services.Gitlab;
+using Bootstrap.Services.TeamCity;
 using LibGit2Sharp;
 using Serilog;
 using System.Text;
@@ -112,7 +112,7 @@ public class ProjectSetupService
         await _teamCityVersionedSettingsService.CommitCurrentSettingsToVCS();
 
         // Wait for settings.kts to appear in the GitLab repo (throws on failure)
-        await _teamCityVersionedSettingsService.WaitForSettingsInRepo(
+        await TeamCityVersionedSettingsService.WaitForSettingsInRepo(
             _gitlabURL,
             _gitlabToken,
             configProject.Id);
