@@ -47,13 +47,13 @@ public class ProjectSetupService
 
     public async Task Execute()
     {
+        await SetupTeamCityTestAccounts();
+
         await SetupTestRepos();
 
         await SetupTeamCityConfigRepo();
 
         await SetupLabBuilds();
-
-        await SetupTeamCityTestAccounts();
     }
 
     private async Task SetupTestRepos()
