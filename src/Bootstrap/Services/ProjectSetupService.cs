@@ -510,7 +510,7 @@ public class ProjectSetupService
         var expectedVCSCount = _primaryRepos.Count + _secondaryRepos.Count;
         if (vcsRoots.Count < expectedVCSCount)
         {
-            Log.Warning($"Expected {expectedVCSCount} VCS roots, found {vcsRoots.Count} - some may be in a different format");
+            throw new InvalidDataException($"Expected {expectedVCSCount} VCS roots, found {vcsRoots.Count} - some may be in a different format");
         }
 
         Log.Information("CI Lab project verification passed!");
