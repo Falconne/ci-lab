@@ -47,7 +47,7 @@ public class ProjectSetupService
 
     public async Task Execute()
     {
-        await SetupTeamCityTestAccounts();
+        await SetupTestAccounts();
 
         await SetupTestRepos();
 
@@ -569,14 +569,14 @@ public class ProjectSetupService
         }
     }
 
-    private async Task SetupTeamCityTestAccounts()
+    private async Task SetupTestAccounts()
     {
         Log.Information("Creating Bob Builder account in GitLab...");
         const string password = "changeme123";
-        
+
         // Create Bob Builder in GitLab
         await _gitlabService.CreateUser("b.builder", "Bob Builder", "b.builder@CILab.local", password);
-        
+
         Log.Information("Creating test accounts in TeamCity...");
 
         for (var i = 1; i <= 3; i++)
