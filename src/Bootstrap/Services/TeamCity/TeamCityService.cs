@@ -218,4 +218,44 @@ public class TeamCityService : IDisposable
         Log.Error($"Timeout waiting for project '{projectId}' to appear after {timeoutSeconds} seconds");
         return false;
     }
+
+    /// <summary>
+    ///     Creates a user in TeamCity. Returns true if created, false if already exists.
+    /// </summary>
+    public async Task<bool> CreateUser(string username, string name, string email, string password)
+    {
+        Log.Information($"Creating TeamCity user '{username}'...");
+
+        // Check if user already exists
+        var checkRequest = new RestRequest($"users/username:{username}");
+        var checkResponse = await _client.ExecuteGetAsync(checkRequest);
+
+        if (checkResponse.StatusCode == HttpStatusCode.OK)
+        {
+            Log.Information($"User '{username}' already exists in TeamCity");
+            return false;
+        }
+
+        // Create the user
+        var createRequest = new RestRequest("users", Method.Post)
+            .AddJsonBody(new
+            {
+                username = username,
+                name = name,
+                email = email,
+                password = password
+            });
+
+        var createResponse = await _client.ExecuteAsync(createRequest);
+
+        if (createResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created)
+        {
+            Log.Information($"User '{username}' created successfully in TeamCity");
+            return true;
+        }
+
+        Log.Error($"Failed to create TeamCity user '{username}': {(int)createResponse.StatusCode} - {createResponse.Content}");
+        throw new InvalidOperationException(
+            $"Failed to create TeamCity user '{username}': {(int)createResponse.StatusCode} - {createResponse.Content}");
+    }
 }

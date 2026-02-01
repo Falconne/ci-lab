@@ -52,6 +52,8 @@ public class ProjectSetupService
         await SetupTeamCityConfigRepo();
 
         await SetupLabBuilds();
+
+        await SetupTeamCityTestAccounts();
     }
 
     private async Task SetupTestRepos()
@@ -67,7 +69,7 @@ public class ProjectSetupService
             var projectName = $"primary-{i}";
             var project = await _gitlabService.CreateTopLevelProject(projectName, testGroup.Id);
             _primaryRepos.Add(projectName);
-            
+
             // Add Bob Builder as owner
             await _gitlabService.AddProjectMember(project.Id, "b.builder", 50);
         }
@@ -78,7 +80,7 @@ public class ProjectSetupService
             var projectName = $"secondary-{i}";
             var project = await _gitlabService.CreateRegularProject(projectName, testGroup.Id);
             _secondaryRepos.Add(projectName);
-            
+
             // Add Bob Builder as owner
             await _gitlabService.AddProjectMember(project.Id, "b.builder", 50);
         }
@@ -565,5 +567,23 @@ public class ProjectSetupService
         {
             file.Attributes = FileAttributes.Normal;
         }
+    }
+
+    private async Task SetupTeamCityTestAccounts()
+    {
+        Log.Information("Creating test accounts in TeamCity...");
+
+        const string password = "changeme123";
+
+        for (var i = 1; i <= 3; i++)
+        {
+            var username = $"test{i}";
+            var name = $"Test Account {i}";
+            var email = $"test{i}@CILab.local";
+
+            await _teamCityService.CreateUser(username, name, email, password);
+        }
+
+        Log.Information("TeamCity test accounts created");
     }
 }

@@ -54,6 +54,9 @@ public class GitlabBootstrapService : IDisposable
         // Create Bob Builder user
         await CreateBobBuilderUser();
 
+        // Create test accounts
+        await CreateTestAccounts();
+
         Log.Information("GitLab initial setup completed");
     }
 
@@ -155,7 +158,8 @@ public class GitlabBootstrapService : IDisposable
         const string username = "b.builder";
         const string name = "Bob Builder";
         const string email = "b.builder@CILab.local";
-        
+        const string password = "changeme123";
+
         Log.Information($"Creating GitLab user '{username}'...");
 
         // Check if user already exists
@@ -167,21 +171,12 @@ public class GitlabBootstrapService : IDisposable
         if (searchResponse is { IsSuccessful: true, Data: not null } && searchResponse.Data.Length > 0)
         {
             Log.Information($"User '{username}' already exists");
-            var existingUser = searchResponse.Data[0];
-            
+
             // Ensure password is in .env
-            var existingPassword = _envFileService.GetValue("GITLAB_BOB_PASSWORD");
-            if (string.IsNullOrEmpty(existingPassword))
-            {
-                Log.Warning("User exists but GITLAB_BOB_PASSWORD not found in .env");
-                Log.Warning("You may need to manually set a password for the user");
-            }
-            
+            _envFileService.SaveOrUpdateEnvFile("GITLAB_BOB_PASSWORD", password);
+
             return;
         }
-
-        // Generate a password for the user
-        var password = GeneratePassword();
 
         // Create the user
         var createRequest = new RestRequest("users", Method.Post)
@@ -200,11 +195,11 @@ public class GitlabBootstrapService : IDisposable
             && createResponse.Data is not null)
         {
             Log.Information($"User '{username}' created successfully");
-            
+
             // Save password to .env
             _envFileService.SaveOrUpdateEnvFile("GITLAB_BOB_PASSWORD", password);
             Log.Information("User password saved to .env as GITLAB_BOB_PASSWORD");
-            
+
             return;
         }
 
@@ -213,17 +208,54 @@ public class GitlabBootstrapService : IDisposable
             $"Failed to create GitLab user '{username}': {(int)createResponse.StatusCode} {createResponse.StatusCode} - {createResponse.Content}");
     }
 
-    private string GeneratePassword()
+    private async Task CreateTestAccounts()
     {
-        const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%";
-        var random = new Random();
-        var password = new char[16];
-        
-        for (var i = 0; i < password.Length; i++)
+        const string password = "changeme123";
+
+        for (var i = 1; i <= 3; i++)
         {
-            password[i] = chars[random.Next(chars.Length)];
+            var username = $"test{i}";
+            var name = $"Test Account {i}";
+            var email = $"test{i}@CILab.local";
+
+            Log.Information($"Creating GitLab user '{username}'...");
+
+            // Check if user already exists
+            var searchRequest = new RestRequest("users")
+                .AddQueryParameter("username", username);
+
+            var searchResponse = await _client.ExecuteGetAsync<GitlabUser[]>(searchRequest);
+
+            if (searchResponse is { IsSuccessful: true, Data: not null } && searchResponse.Data.Length > 0)
+            {
+                Log.Information($"User '{username}' already exists");
+                continue;
+            }
+
+            // Create the user
+            var createRequest = new RestRequest("users", Method.Post)
+                .AddJsonBody(new
+                {
+                    username = username,
+                    name = name,
+                    email = email,
+                    password = password,
+                    skip_confirmation = true
+                });
+
+            var createResponse = await _client.ExecutePostAsync<GitlabUser>(createRequest);
+
+            if (createResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created
+                && createResponse.Data is not null)
+            {
+                Log.Information($"User '{username}' created successfully");
+            }
+            else
+            {
+                Log.Error($"Failed to create user '{username}': {(int)createResponse.StatusCode} - {createResponse.Content}");
+                throw new InvalidOperationException(
+                    $"Failed to create GitLab user '{username}': {(int)createResponse.StatusCode} {createResponse.StatusCode} - {createResponse.Content}");
+            }
         }
-        
-        return new string(password);
     }
 }
