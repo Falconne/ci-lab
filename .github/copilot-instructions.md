@@ -23,7 +23,6 @@ When acting in agent mode the assistant should follow these rules:
   - Follow modern C# practices:
     - As these are console applications, do not use async/await anywhere.
     - Use dependency injection for services.
-    - Prefer `HttpClientFactory` for HTTP calls.
     - Use nullable reference types and top-level statements.
     - Use var, new() and pattern matching where appropriate.
     - Do not use inner classes. Organise code into Services and Models (in appropriate folder structure).
