@@ -165,13 +165,13 @@ public class TeamCityVersionedSettingsService
     /// <summary>
     ///     Checks if the versioned settings status has errors.
     /// </summary>
-    public async Task<bool> VersionedSettingsHasErrors(string projectId)
+    private async Task<bool> VersionedSettingsHasErrors(string projectId)
     {
         var request = new RestRequest($"projects/{projectId}/versionedSettings/status");
 
         var response = await _client.ExecuteGetAsync(request);
 
-        if (response.IsSuccessful && response.Content != null)
+        if (response is { IsSuccessful: true, Content: not null })
         {
             // If status contains "message" with "Failed", there's an error
             if (response.Content.Contains("Failed")
@@ -222,7 +222,7 @@ public class TeamCityVersionedSettingsService
     ///     Waits for the settings.kts file to appear in the GitLab repository.
     ///     Throws an exception if the file does not appear within the timeout.
     /// </summary>
-    public async Task WaitForSettingsInRepo(
+    public static async Task WaitForSettingsInRepo(
         string gitlabURL,
         string gitlabToken,
         int projectId,
