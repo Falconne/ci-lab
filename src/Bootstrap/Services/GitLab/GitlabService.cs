@@ -273,7 +273,7 @@ public class GitlabService : IDisposable
 
     private string CreateTempDirectory(string projectName)
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"cilab-{projectName}-{Guid.NewGuid():N}");
+        var tempDir = Path.Combine(Path.GetTempPath(), $"CILab-{projectName}-{Guid.NewGuid():N}");
         Directory.CreateDirectory(tempDir);
         return tempDir;
     }
@@ -304,7 +304,7 @@ public class GitlabService : IDisposable
 
         Commands.Stage(repo, "*");
 
-        var signature = new Signature("CI Lab Bootstrap", "bootstrap@cilab.local", DateTimeOffset.Now);
+        var signature = new Signature("CI Lab Bootstrap", "bootstrap@CILab.local", DateTimeOffset.Now);
         repo.Commit($"Initial commit for {projectName}", signature, signature);
 
         // Rename the default branch to 'main'

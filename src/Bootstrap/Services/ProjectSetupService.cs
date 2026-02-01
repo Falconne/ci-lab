@@ -156,14 +156,14 @@ public class ProjectSetupService
             var existingContent = await File.ReadAllTextAsync(settingsPath);
 
             // Check if CI Lab is already configured
-            if (existingContent.Contains("CiLab") || existingContent.Contains("CI Lab"))
+            if (existingContent.Contains("CILab") || existingContent.Contains("CI Lab"))
             {
                 Log.Information("CI Lab project already exists in settings.kts");
             }
             else
             {
                 // Generate the CI Lab Kotlin configuration and append to settings.kts
-                var ciLabKotlin = GenerateCiLabKotlin();
+                var ciLabKotlin = GenerateCILabKotlin();
                 var modifiedContent = ModifyRootSettings(existingContent, ciLabKotlin);
 
                 await File.WriteAllTextAsync(settingsPath, modifiedContent);
@@ -172,7 +172,7 @@ public class ProjectSetupService
                 // Stage and commit
                 Commands.Stage(repo, "*");
 
-                var signature = new Signature("CI Lab Bootstrap", "bootstrap@cilab.local", DateTimeOffset.Now);
+                var signature = new Signature("CI Lab Bootstrap", "bootstrap@CILab.local", DateTimeOffset.Now);
                 repo.Commit("Add CI Lab project with builds", signature, signature);
 
                 // Push
@@ -290,7 +290,7 @@ public class ProjectSetupService
                     sb.AppendLine();
                     // Insert template and subProject before the closing brace
                     sb.AppendLine("    template(GitlabPipelinePublishing)");
-                    sb.AppendLine("    subProject(CiLab)");
+                    sb.AppendLine("    subProject(CILab)");
                     insertedSubProject = true;
                     inRootProject = false;
                 }
@@ -333,13 +333,13 @@ public class ProjectSetupService
         return sb.ToString();
     }
 
-    private string GenerateCiLabKotlin()
+    private string GenerateCILabKotlin()
     {
         var sb = new StringBuilder();
 
         // CI Lab project definition as an object
-        sb.AppendLine("object CiLab : Project({");
-        sb.AppendLine(@"    id(""CiLab"")");
+        sb.AppendLine("object CILab : Project({");
+        sb.AppendLine(@"    id(""CILab"")");
         sb.AppendLine(@"    name = ""CI Lab""");
         sb.AppendLine();
 
@@ -359,7 +359,7 @@ public class ProjectSetupService
         // Register build types
         for (var i = 0; i < _primaryRepos.Count; i++)
         {
-            var buildId = $"CiLabBuild{i + 1}";
+            var buildId = $"CILabBuild{i + 1}";
             sb.AppendLine($"    buildType({buildId})");
         }
         sb.AppendLine("})");
@@ -387,7 +387,7 @@ public class ProjectSetupService
     private string GetVCSRootId(string repoName)
     {
         var sanitized = repoName.Replace("-", "_");
-        return $"CiLabVCS_{sanitized}";
+        return $"CILabVCS_{sanitized}";
     }
 
     private string GenerateVCSRoot(string repoName)
@@ -415,7 +415,7 @@ public class ProjectSetupService
 
     private string GenerateBuildType(int buildNumber, string primaryRepo, string[] secondaryRepos)
     {
-        var buildId = $"CiLabBuild{buildNumber}";
+        var buildId = $"CILabBuild{buildNumber}";
         var primaryVcsId = GetVCSRootId(primaryRepo);
 
         var sb = new StringBuilder();
@@ -432,10 +432,10 @@ public class ProjectSetupService
         if (buildNumber == 1)
         {
             sb.AppendLine("    dependencies {");
-            sb.AppendLine("        snapshot(CiLabBuild2) {");
+            sb.AppendLine("        snapshot(CILabBuild2) {");
             sb.AppendLine("            onDependencyFailure = FailureAction.FAIL_TO_START");
             sb.AppendLine("        }");
-            sb.AppendLine("        snapshot(CiLabBuild3) {");
+            sb.AppendLine("        snapshot(CILabBuild3) {");
             sb.AppendLine("            onDependencyFailure = FailureAction.FAIL_TO_START");
             sb.AppendLine("        }");
             sb.AppendLine("    }");
@@ -477,8 +477,8 @@ public class ProjectSetupService
         Log.Information("Verifying CI Lab project was created in TeamCity...");
 
         // Poll for the CI Lab project to appear (TeamCity needs time to compile Kotlin DSL)
-        // The project ID in TeamCity will be "Root_CiLab" since it's a subproject of _Root
-        var projectFound = await _teamCityService.WaitForProject("CiLab", 60);
+        // The project ID in TeamCity will be "Root_CILab" since it's a subproject of _Root
+        var projectFound = await _teamCityService.WaitForProject("CILab", 60);
         if (!projectFound)
         {
             throw new InvalidOperationException(
@@ -486,7 +486,7 @@ public class ProjectSetupService
         }
 
         // Verify build types exist
-        var buildTypes = await _teamCityService.GetBuildTypes("CiLab");
+        var buildTypes = await _teamCityService.GetBuildTypes("CILab");
         Log.Information($"Found {buildTypes.Count} build types in CI Lab project");
 
         if (buildTypes.Count < 3)
@@ -494,7 +494,7 @@ public class ProjectSetupService
             throw new InvalidOperationException($"Expected 3 build types in CI Lab project, found {buildTypes.Count}");
         }
 
-        var expectedBuilds = new[] { "CiLabBuild1", "CiLabBuild2", "CiLabBuild3" };
+        var expectedBuilds = new[] { "CILabBuild1", "CILabBuild2", "CILabBuild3" };
         foreach (var expectedBuild in expectedBuilds)
         {
             if (!buildTypes.Any(bt => bt.id.Contains(expectedBuild)))
@@ -504,7 +504,7 @@ public class ProjectSetupService
         }
 
         // Verify VCS roots exist
-        var vcsRoots = await _teamCityVCSRootService.GetVCSRoots("CiLab");
+        var vcsRoots = await _teamCityVCSRootService.GetVCSRoots("CILab");
         Log.Information($"Found {vcsRoots.Count} VCS roots in CI Lab project");
 
         var expectedVCSCount = _primaryRepos.Count + _secondaryRepos.Count;
@@ -520,7 +520,7 @@ public class ProjectSetupService
     {
         Log.Information("Triggering CI Lab builds...");
 
-        var buildTypes = await _teamCityService.GetBuildTypes("CiLab");
+        var buildTypes = await _teamCityService.GetBuildTypes("CILab");
         var buildIds = new List<string>();
 
         foreach (var (btId, btName) in buildTypes)
