@@ -55,7 +55,7 @@ public class TeamCityBootstrapService : IDisposable
 
         await WaitForAvailability();
 
-        var screenshotDir = Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "data", "screenshots");
+        var screenshotDir = Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "..", "..", "data", "screenshots");
         await _browserService.Initialize(screenshotDir);
 
         await _browserService.Navigate(_teamcityURL);

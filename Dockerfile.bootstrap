@@ -28,22 +28,22 @@ RUN apt-get update && \
 WORKDIR /workspace
 
 # Copy project files
-COPY src/Bootstrap/Bootstrap.csproj src/Bootstrap/
-RUN dotnet restore src/Bootstrap/Bootstrap.csproj
+COPY src/be/Bootstrapper/Bootstrap/Bootstrap.csproj src/be/Bootstrapper/Bootstrap/
+RUN dotnet restore src/be/Bootstrapper/Bootstrap/Bootstrap.csproj
 
 # Copy source code
-COPY src/Bootstrap/ src/Bootstrap/
+COPY src/be/Bootstrapper/Bootstrap/ src/be/Bootstrapper/Bootstrap/
 
 # Build the project
-RUN dotnet build src/Bootstrap/Bootstrap.csproj -c Release
+RUN dotnet build src/be/Bootstrapper/Bootstrap/Bootstrap.csproj -c Release
 
 # Install Playwright browsers
 RUN dotnet tool install --global Microsoft.Playwright.CLI && \
     export PATH="$PATH:/root/.dotnet/tools" && \
-    cd src/Bootstrap && \
+    cd src/be/Bootstrapper/Bootstrap && \
     dotnet build && \
     playwright install chromium
 
-WORKDIR /workspace/src/Bootstrap
+WORKDIR /workspace/src/be/Bootstrapper/Bootstrap
 
-ENTRYPOINT ["dotnet", "run", "--project", "/workspace/src/Bootstrap/Bootstrap.csproj"]
+ENTRYPOINT ["dotnet", "run", "--project", "/workspace/src/be/Bootstrapper/Bootstrap/Bootstrap.csproj"]

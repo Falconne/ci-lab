@@ -7,8 +7,8 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 cd "$ROOT_DIR"
 
-# Run from the project directory so the bootstrapper finds ../../.env as expected
-cd src/Bootstrap
+# Run from the project directory so the bootstrapper finds ../../../../.env as expected
+cd src/be/Bootstrapper/Bootstrap
 
 # Pass environment variables to container
 GITLAB_ROOT_PASSWORD="${GITLAB_ROOT_PASSWORD:-changeme123}"
@@ -50,9 +50,9 @@ if command -v dotnet >/dev/null 2>&1; then
         echo "Found dotnet $dotnet_version and Playwright dependencies — running bootstrapper natively."
         export GITLAB_ROOT_PASSWORD
         # Run from the project directory so local relative paths match expectations
-        cd "$ROOT_DIR/src/Bootstrap"
-        dotnet restore "$ROOT_DIR/src/Bootstrap/Bootstrap.csproj"
-        dotnet run --project "$ROOT_DIR/src/Bootstrap/Bootstrap.csproj" --configuration Release
+        cd "$ROOT_DIR/src/be/Bootstrapper/Bootstrap"
+        dotnet restore "$ROOT_DIR/src/be/Bootstrapper/Bootstrap/Bootstrap.csproj"
+        dotnet run --project "$ROOT_DIR/src/be/Bootstrapper/Bootstrap/Bootstrap.csproj" --configuration Release
         exit $?
       else
         echo "Found dotnet $dotnet_version but Playwright dependencies are missing — falling back to Docker."
