@@ -8,7 +8,7 @@ Mergician is a tool to help developers in environments where any one product is 
 - Use C# targeting `net9.0` for the backend of Mergician and the Bootstrap project (code in `src/`, use the existing sln file).
 - Use vue 3 for the frontend of Mergician.
 - Use `docker compose` for orchestration.
-- Pin third-party images and versions in `docker-compose.yml` to ensure reproducibility.
+- Pin third-party images and versions in `docker-compose.yaml` to ensure reproducibility.
 
 # Guidelines
 - Do not commit code at the end of an edit until explicitly asked for by the user. If the user previously asked for a commit earlier in the session, do not assume that continued automatic commits are desired.
