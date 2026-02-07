@@ -1,0 +1,35 @@
+services:
+  mergician-backend:
+    build:
+      context: ./src/be/Mergician
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Production"
+    networks:
+      - mergician-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  mergician-frontend:
+    build:
+      context: ./src/fe
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      mergician-backend:
+        condition: service_healthy
+    networks:
+      - mergician-network
+
+networks:
+  mergician-network:
+    driver: bridge
