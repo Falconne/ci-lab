@@ -1,9 +1,9 @@
 Perform the following tasks:
 
-1)
+1) Test user permissions
 The Project Setup Service creates 3 test users for Gitlab. Make it so that those test users are also added as Developers to the group where the test repos were created, so they can push code, create, approve and merge MRs in those test repos.
 
-2)
+2) Mergician - Gitlab OAuth
 Change the "landing page" of the Mergician app to show the logged in user's Gitlab activity stream for the last week. To fetch this data, we want to use Gitlab as an oauth provider.
 
 Update the bootstrappers project setup service to set up what is needed on the Gitlab admin side to allow Mergician to be an application that can use Gitlab for oauth.
@@ -12,11 +12,20 @@ When a user browses to Mergician, if they are not logged in, they should be redi
 
 Do the changes, then run the bootstrapper and then run Mergician to test that everything loads and fix any issues seen. 
 
-Create a new console project in the VS solution called IntegrationTest. In here, use Playwright to navigate to the Mergician home page and login as one of the test users created by the Project Setup Service. Use the same technique as the Bootstrap project to capture briwser screenshots in /data/screenshots to debug test failures. Once the login functionality is validated, add more tests to this IntegrationTest project to perform some git operations as that test user, then check that their activity is shown in Mergician.
+3) Integration testing
+Create a new console project in the existing Visual Studio solution; call it IntegrationTest. This project will use Playwright to navigate to Mergician pages to do integration testing of Mergician, using the services bootstrapped by CI Lab, including test users and test Gitlab projects created.
+
+This project does not need to start the CI Lab environment. That should be started separately before running the integration test.
+
+Its initial task will be to test the above login functionlaity that's described above.
+
+Move the Playwright service in the Bootstrap project into a shared class library project called PlaywrightService, so we can re-use the same functionality here.
+
+Add functionality to this integration testing app to test the authenticate. Make it login as one of the test users created by the Project Setup Service. Use the hardcoded password found in that service. Use the same technique as the Bootstrap project to capture browser screenshots in /data/screenshots to debug test failures (that should be shared functionality in PlaywrightService). Once the login functionality is validated, add more tests to this IntegrationTest project to perform some git operations as that test user, then check that their activity is shown in Mergician.
 
 If the tests fail, investigate and continue fixing until the integration test succeeds.
 
-3)
+4)
 Create a `docs` folder at the top level of the repo and add a `Authentication.md` file there describing how the authentication works. Be concise and focus on summarising with the intent that future runs of copilot agent can read this document to understand the basics of the auth system without having to read the entire codebase.
 
-Similarly, Add and "Integration Testing.md" explaining how to work with the new IntegrationTest project.
+Similarly, Add and "Integration Testing.md" explaining how to work with the new IntegrationTest project. Don't explain every test that is run, just add guidelines for using it for future copilot agent sessions.
