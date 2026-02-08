@@ -36,13 +36,16 @@ Mergician is a tool to help developers in environments where any one product is 
 - As this is a generated testing environment, it is fine to store secrets in source control (Note: only for the CI Lab environment. Mergician itself should be built securely).
 
 # Testing & verification
-- Run `dotnet build` after modifying `src/` to verify behaviour. If .Net 9 or later is not found, use docker instead of trying to install it locally.
-- If the CI Lab docker containers aren't already running, first run `docker compose down -v` to clear previous state then start them up. It is ok to stop and remove an existing session this way, as this is a test environment and you can assume you are the only thing using it.
+
+## Mergician
+
+## CI Lab
+- If the CI Lab docker containers aren't already running, use the helper script `/scripts/cilab-start.sh` to clear previous sessions and start the environment. It is ok to stop and remove an existing session this way, as this is a test environment and you can assume you are the only thing using it.
 - If testing the docker compose or starting containers, note that Gitlab takes a long time to become healthy. Do not assume failure unless it takes more than 5 minutes.
 - The TeamCity server should be accessible at `http://localhost:8111` after startup.
 - The Gitlab server should be accessible at `http://localhost:8080` after startup.
 
-## Running the Bootstrapper
+### Running the Bootstrapper
 - Ensure the docker environment from the compose file is running before executing the C# Bootstrap project. Usually the user will have started this before running a Copilot Agent prompt, but if a clean environment is desired for debugging, it is always safe to tear down and recreate.
 - Always use `./scripts/bootstrap.sh` to run the bootstrapper (not direct docker run commands).
 - The bootstrap.sh script handles proper network configuration (--net=host) so the container can access localhost services.
