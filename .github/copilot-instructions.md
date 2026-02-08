@@ -62,3 +62,8 @@ If doing more than trivial changes to the CI Lab environment (docker configs or 
 - The bootstrap.sh script handles proper network configuration (--net=host) so the container can access localhost services.
 - Test the bootstrapper with a timeout, as otherwise it will retry for a long time: `timeout 120 ./scripts/bootstrap.sh || true` (adjust timeout as needed).
 - The bootstrapper builds its own Docker image (ci-lab-bootstrap:latest) that includes .NET 9 SDK and Playwright with browser dependencies.
+
+### Common Issues & Debugging
+- **Stale tokens after docker prune/restart**: If you see "401 Unauthorized" errors for GitLab or TeamCity tokens during bootstrap, the `.env` file may have stale tokens from a previous GitLab/TeamCity instance. The `cilab-start.sh` script automatically cleans these, but if running docker compose manually, remove the GITLAB_TOKEN and TEAMCITY_TOKEN lines from `.env` before starting.
+- **Token generator not running**: The `gitlab-token-generator` container depends on GitLab being healthy. If `docker compose up` is interrupted before GitLab becomes healthy, the token generator may be in "Created" state. Either wait for the compose command to complete, or manually start it with `docker start ci-lab-gitlab-token-generator-1` and check logs with `docker logs ci-lab-gitlab-token-generator-1`.
+- **GitLab health check timing**: GitLab takes 3-5 minutes to become healthy on first start. Don't assume failure unless it exceeds 5 minutes. Check status with: `docker inspect ci-lab-gitlab-1 --format '{{.State.Health.Status}}'`
