@@ -38,7 +38,13 @@ Mergician is a tool to help developers in environments where any one product is 
 # Testing & verification
 
 ## Mergician
+If doing more than trivial changes to Mergician, it should be tested by running the application.
 
+- Use `docker compose -f mergician-compose.yaml up --build` from the repository root to start the environment.
+- The frontend should be accessible at `http://localhost:3000` after startup.
+- The backend API runs on `http://localhost:5000`.
+- Stop with `docker compose -f mergician-compose.yaml down`.
+- For native development: run backend with `cd src/be/Mergician && dotnet run --project Mergician`, frontend with `cd src/fe && npm run dev`. Access at `http://localhost:5173`.
 
 ## CI Lab
 If doing more than trivial changes to the CI Lab environment (docker configs or the C# Bootstrap project), it should be tested by running the environment (both spinning up the containers and running the bootstrapper).
