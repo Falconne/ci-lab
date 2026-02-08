@@ -12,10 +12,10 @@ RUN npm run build
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS backend-build
 WORKDIR /src
 
-COPY src/be/Mergician/Mergician/Mergician.csproj Mergician/
+COPY src/be/Mergician/Mergician.csproj Mergician/
 RUN dotnet restore Mergician/Mergician.csproj
 
-COPY src/be/Mergician/Mergician/ Mergician/
+COPY src/be/Mergician/ Mergician/
 RUN dotnet publish Mergician/Mergician.csproj -c Release -o /app/publish
 
 # --- Stage 3: Production runtime ---

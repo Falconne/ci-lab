@@ -1,7 +1,7 @@
 services:
   mergician-backend:
     build:
-      context: ./src/be/Mergician
+      context: ./src/be
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:

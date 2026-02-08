@@ -45,7 +45,7 @@ If doing more than trivial changes to Mergician, it should be tested by running 
 - The frontend should be accessible at `http://localhost:3000` after startup.
 - The backend API runs on `http://localhost:5000`.
 - Stop with `docker compose -f mergician-compose.yaml down`.
-- For native development: run backend with `cd src/be/Mergician && dotnet run --project Mergician`, frontend with `cd src/fe && npm run dev`. Access at `http://localhost:5173`.
+- For native development: run backend with `cd src/be/Mergician && dotnet run`, frontend with `cd src/fe && npm run dev`. Access at `http://localhost:5173`.
 - If it is not possible to test Mergician from the comman line, it is fine to create a small test app using PLaywright or do any suitable browser emulation to verify functionality.
 
 ## CI Lab

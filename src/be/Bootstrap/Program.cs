@@ -15,7 +15,7 @@ Logging.LogSeparator();
 try
 {
     // Determine .env file path relative to the project directory
-    var envPath = Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "..", "..", ".env");
+    var envPath = Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "..", ".env");
     var envFullPath = Path.GetFullPath(envPath);
 
     // Create EnvFileService instance

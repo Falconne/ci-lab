@@ -57,7 +57,7 @@ docker compose -f mergician-compose.yaml down
 ```bash
 cd src/be/Mergician
 dotnet build           # Build
-dotnet run --project Mergician  # Run (serves on http://localhost:5000)
+dotnet run             # Run (serves on http://localhost:5000)
 ```
 
 #### Frontend
@@ -72,7 +72,7 @@ The Vite dev server proxies `/api/*` requests to the backend at `http://localhos
 
 #### Development workflow
 
-1. Start the backend: `cd src/be/Mergician && dotnet run --project Mergician`
+1. Start the backend: `cd src/be/Mergician && dotnet run`
 2. Start the frontend: `cd src/fe && npm run dev`
 3. Open **http://localhost:5173** in your browser
 4. Changes to Vue files hot-reload automatically; .NET changes require a restart (or use `dotnet watch`).
@@ -81,13 +81,19 @@ The Vite dev server proxies `/api/*` requests to the backend at `http://localhos
 
 ```
 src/
-├── be/Mergician/              # .NET backend
+├── be/                            # .NET backend
 │   ├── Mergician.sln
-│   └── Mergician/
-│       ├── Controllers/       # API controllers
-│       ├── Program.cs         # Application entry point
-│       └── Mergician.csproj
-└── fe/                        # Vue frontend
+│   ├── Mergician/                 # Mergician web API project
+│   │   ├── Controllers/           # API controllers
+│   │   ├── Program.cs             # Application entry point
+│   │   └── Mergician.csproj
+│   └── Bootstrap/                 # CI Lab bootstrapper project
+│       ├── Entities/              # API response models
+│       ├── Services/              # Bootstrap services
+│       ├── Utilities/             # Helpers and extensions
+│       ├── Program.cs
+│       └── Bootstrap.csproj
+└── fe/                            # Vue frontend
     ├── src/
     │   ├── components/        # Reusable Vue components
     │   ├── views/             # Page-level components
@@ -135,7 +141,7 @@ If you need to build outside of Docker:
 ```bash
 # Backend
 cd src/be/Mergician
-dotnet publish Mergician/Mergician.csproj -c Release -o ./publish
+dotnet publish Mergician.csproj -c Release -o ./publish
 
 # Frontend
 cd src/fe
