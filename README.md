@@ -10,12 +10,12 @@ Mergician is a web application that helps developers manage "merge groups" — c
 
 ## Prerequisites
 
-### For Docker-based development (recommended)
+### For Docker-based development
 
 - Docker Engine 24+ with Docker Compose v2
 - That's it — all builds happen inside containers.
 
-### For local development
+### For direct local development
 
 | Tool | Minimum Version | Install |
 |------|----------------|---------|
@@ -27,7 +27,10 @@ Mergician is a web application that helps developers manage "merge groups" — c
 >
 > Run `npm run check-env` in `src/fe/` to verify your local environment has the required tools.
 
-## Quick Start (Docker)
+## Development
+The app can be run for dev testing either using docker compose or with native dev tools if they are installed on the machine.
+
+### Docker-based
 
 From the repository root:
 
@@ -47,9 +50,9 @@ To stop:
 docker compose -f mergician-compose.yaml down
 ```
 
-## Local Development
+### Direct (no Docker)
 
-### Backend
+#### Backend
 
 ```bash
 cd src/be/Mergician
@@ -57,7 +60,7 @@ dotnet build           # Build
 dotnet run --project Mergician  # Run (serves on http://localhost:5000)
 ```
 
-### Frontend
+#### Frontend
 
 ```bash
 cd src/fe
@@ -67,7 +70,7 @@ npm run dev            # Start Vite dev server on http://localhost:5173
 
 The Vite dev server proxies `/api/*` requests to the backend at `http://localhost:5000`, so both can run simultaneously during development.
 
-### Development workflow
+#### Development workflow
 
 1. Start the backend: `cd src/be/Mergician && dotnet run --project Mergician`
 2. Start the frontend: `cd src/fe && npm run dev`
