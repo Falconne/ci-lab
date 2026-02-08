@@ -39,7 +39,10 @@ Mergician is a tool to help developers in environments where any one product is 
 
 ## Mergician
 
+
 ## CI Lab
+If doing more than trivial changes to the CI Lab environment (docker configs or the C# Bootstrap project), it should be tested by running the environment (both spinning up the containers and running the bootstrapper).
+
 - If the CI Lab docker containers aren't already running, use the helper script `/scripts/cilab-start.sh` to clear previous sessions and start the environment. It is ok to stop and remove an existing session this way, as this is a test environment and you can assume you are the only thing using it.
 - If testing the docker compose or starting containers, note that Gitlab takes a long time to become healthy. Do not assume failure unless it takes more than 5 minutes.
 - The TeamCity server should be accessible at `http://localhost:8111` after startup.
