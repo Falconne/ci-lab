@@ -101,21 +101,49 @@ src/
 
 ## Building for Production
 
-### Backend
+The production build produces a single Docker image that bundles both the .NET backend and the Vue frontend. The backend serves the frontend as static files from its `wwwroot/` directory, so no separate web server is needed.
+
+### Build the image
 
 ```bash
+docker build -t mergician:latest .
+```
+
+This multi-stage build:
+1. Installs npm dependencies and runs `vite build` for the frontend.
+2. Restores NuGet packages and runs `dotnet publish` for the backend.
+3. Copies the frontend `dist/` into the backend's `wwwroot/` in a slim ASP.NET runtime image.
+
+### Run locally
+
+```bash
+docker run --name mergician -p 5000:5000 mergician:latest
+```
+
+Open **http://localhost:5000** to see the app. The health endpoint is at **http://localhost:5000/api/health**.
+
+To stop and remove:
+
+```bash
+docker rm -f mergician
+```
+
+### Manual builds (without Docker)
+
+If you need to build outside of Docker:
+
+```bash
+# Backend
 cd src/be/Mergician
 dotnet publish Mergician/Mergician.csproj -c Release -o ./publish
-```
 
-### Frontend
-
-```bash
+# Frontend
 cd src/fe
-npm run build          # Output goes to dist/
-```
+npm run build
 
-The production backend is configured to serve static files from its `wwwroot/` directory. To deploy as a single unit, copy the frontend `dist/` contents into the backend's `wwwroot/` before publishing.
+# Combine: copy frontend output into backend publish directory
+cp -r src/fe/dist/* src/be/Mergician/publish/wwwroot/
+```
 
 ---
 
