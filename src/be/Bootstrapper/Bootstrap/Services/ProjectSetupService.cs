@@ -585,6 +585,7 @@ public class ProjectSetupService
             var name = $"Test Account {i}";
             var email = $"test{i}@CILab.local";
 
+            await _gitlabService.CreateUser(username, name, email, password);
             await _teamCityService.CreateUser(username, name, email, password);
         }
 
