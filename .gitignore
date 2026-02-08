@@ -40,3 +40,5 @@ data/screenshots/
 
 *.jar
 *.log
+
+/notes/
