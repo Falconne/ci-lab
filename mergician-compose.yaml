@@ -1,41 +1,22 @@
+name: mergician
+
 services:
-  mergician-backend:
+  mergician:
     build:
-      context: ./src/be
+      context: .
       dockerfile: Dockerfile
     restart: unless-stopped
-    ports:
-      - "5000:5000"
+    network_mode: host
     environment:
-      ASPNETCORE_ENVIRONMENT: "Production"
       Mergician__GitLab__Url: "${GITLAB_URL:-http://localhost:8081}"
       Mergician__GitLab__OAuth__ClientId: "${MERGICIAN_GITLAB_OAUTH_CLIENT_ID:-}"
       Mergician__GitLab__OAuth__ClientSecret: "${MERGICIAN_GITLAB_OAUTH_CLIENT_SECRET:-}"
     env_file:
       - path: .env
         required: false
-    networks:
-      - mergician-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
-
-  mergician-frontend:
-    build:
-      context: ./src/fe
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    ports:
-      - "3000:80"
-    depends_on:
-      mergician-backend:
-        condition: service_healthy
-    networks:
-      - mergician-network
-
-networks:
-  mergician-network:
-    driver: bridge

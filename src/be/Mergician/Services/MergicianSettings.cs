@@ -7,7 +7,7 @@ public class MergicianSettings
 
 public class GitLabSettings
 {
-    public string Url { get; set; } = "http://localhost:8081";
+    public string Url { get; set; } = "";
     public OAuthSettings OAuth { get; set; } = new();
 }
 

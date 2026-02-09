@@ -107,7 +107,7 @@ public class ProjectSetupService
         Log.Information("Setting up GitLab OAuth application for Mergician...");
 
         // Register Mergician as an OAuth application in GitLab
-        // Use multiple redirect URIs for both docker-compose and native dev
+        // Use multiple redirect URIs for backend (port 5000) and native Vue dev server (port 5173)
         var redirectUri = "http://localhost:5000/api/auth/callback\nhttp://localhost:5173/api/auth/callback";
         var oauthApp = await _gitlabService.CreateOAuthApplication(
             "Mergician",

@@ -15,6 +15,11 @@ try
     // Bind Mergician settings from configuration
     var mergicianSettings = new MergicianSettings();
     builder.Configuration.GetSection("Mergician").Bind(mergicianSettings);
+
+    if (string.IsNullOrWhiteSpace(mergicianSettings.GitLab.Url))
+        throw new InvalidOperationException(
+            "Mergician:GitLab:Url is not configured. Set it via appsettings.json or the Mergician__GitLab__Url environment variable.");
+
     builder.Services.AddSingleton(mergicianSettings);
 
     // Register HttpClient factory and GitLab OAuth service
@@ -28,12 +33,12 @@ try
     // Add services
     builder.Services.AddControllers();
 
-    // Configure CORS for development (frontend on different port)
+    // Configure CORS for native development (Vue dev server on different port)
     builder.Services.AddCors(options =>
     {
         options.AddDefaultPolicy(policy =>
         {
-            policy.WithOrigins("http://localhost:5173", "http://localhost:3000")
+            policy.WithOrigins("http://localhost:5173")
                 .AllowAnyHeader()
                 .AllowAnyMethod()
                 .AllowCredentials();

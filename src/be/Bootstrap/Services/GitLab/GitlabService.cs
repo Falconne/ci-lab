@@ -539,7 +539,7 @@ public class GitlabService : IDisposable
     {
         Log.Information($"Creating GitLab OAuth application '{name}'...");
 
-        // Check if the application already exists
+        // Check if the application already exists (by name)
         var listRequest = new RestRequest("applications");
         var listResponse = await _client.ExecuteGetAsync<GitLabOAuthApplication[]>(listRequest);
 
@@ -549,8 +549,25 @@ public class GitlabService : IDisposable
             {
                 if (app.CallbackUrl == redirectUri)
                 {
-                    Log.Information($"OAuth application already exists with matching redirect URI");
+                    // Exact match — the secret won't be in the list response,
+                    // but if the .env already has creds with the same app ID we can reuse it.
+                    Log.Information("OAuth application already exists with matching redirect URI");
                     return app;
+                }
+
+                // If same-name app exists with a different redirect URI, delete and recreate
+                // so the redirect URIs stay up to date.
+                if (string.Equals(app.ApplicationId, "", StringComparison.Ordinal))
+                    continue; // skip apps with no ID
+
+                // GitLab list endpoint doesn't return app name, so match on any existing
+                // Mergician app by checking if callback_url is a subset or superset.
+                // Safest approach: delete all prior apps whose callback contains our backend path
+                if (app.CallbackUrl.Contains("/api/auth/callback"))
+                {
+                    Log.Information($"Deleting stale OAuth application (id={app.Id}) to recreate with updated redirect URIs");
+                    var deleteRequest = new RestRequest($"applications/{app.Id}", Method.Delete);
+                    await _client.ExecuteAsync(deleteRequest);
                 }
             }
         }
