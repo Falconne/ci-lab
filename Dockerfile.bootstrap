@@ -27,11 +27,13 @@ RUN apt-get update && \
 
 WORKDIR /workspace
 
-# Copy project files
+# Copy project files (including PlaywrightService dependency)
+COPY src/be/PlaywrightService/PlaywrightService.csproj src/be/PlaywrightService/
 COPY src/be/Bootstrap/Bootstrap.csproj src/be/Bootstrap/
 RUN dotnet restore src/be/Bootstrap/Bootstrap.csproj
 
-# Copy source code
+# Copy source code (including PlaywrightService dependency)
+COPY src/be/PlaywrightService/ src/be/PlaywrightService/
 COPY src/be/Bootstrap/ src/be/Bootstrap/
 
 # Build the project
