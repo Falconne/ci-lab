@@ -6,7 +6,11 @@ services:
       context: .
       dockerfile: Dockerfile.mergician-prod
     restart: unless-stopped
-    network_mode: host
+    ports:
+      - "5000:5000"
+      - "3000:3000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       Mergician__GitLab__Url: "${GITLAB_URL:-http://localhost:8081}"
       Mergician__GitLab__OAuth__ClientId: "${MERGICIAN_GITLAB_OAUTH_CLIENT_ID:-}"
@@ -14,9 +18,17 @@ services:
     env_file:
       - path: .env
         required: false
+    networks:
+      - default
+      - ci-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
+
+networks:
+  ci-network:
+    external: true
+    name: ci-lab_ci-network
