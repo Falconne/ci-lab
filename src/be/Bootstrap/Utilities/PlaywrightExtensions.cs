@@ -1,33 +1,3 @@
-using Microsoft.Playwright;
-using Serilog;
-
-namespace Bootstrap.Utilities;
-
-public static class PlaywrightExtensions
-{
-    public static async Task<int> CountWithRetry(this ILocator locator)
-    {
-        const int maxRetries = 2;
-        var attempt = 0;
-
-        while (true)
-        {
-            try
-            {
-                return await locator.CountAsync();
-            }
-            catch (Exception ex)
-            {
-                attempt++;
-                if (attempt > maxRetries)
-                {
-                    Log.Error($"CountAsync failed after {maxRetries} retries: {ex.Message}");
-                    throw;
-                }
-
-                Log.Warning($"CountAsync failed (attempt {attempt}/{maxRetries}), retrying: {ex.Message}");
-                await Task.Delay(500);
-            }
-        }
-    }
-}
+// Re-export from the shared PlaywrightService library.
+// This file keeps existing code that uses Bootstrap.Utilities.PlaywrightExtensions working.
+global using PlaywrightService;

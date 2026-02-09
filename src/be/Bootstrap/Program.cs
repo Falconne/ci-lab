@@ -30,7 +30,7 @@ try
     Log.Information($"TeamCity URL: {teamcityURL}");
 
     // Create service instances
-    using var browserService = new PlaywrightService();
+    using var browserService = new Bootstrap.Services.PlaywrightService();
     var gitlabRootPassword = envService.GetValue("GITLAB_ROOT_PASSWORD") ?? "changeme123";
     using var teamCityBootstrapService = new TeamCityBootstrapService(
         browserService,
@@ -71,6 +71,7 @@ try
         teamCityService,
         teamCityVCSRootService,
         teamCityVersionedSettingsService,
+        envService,
         gitlabURL,
         gitlabToken!);
     await projectSetupService.Execute();

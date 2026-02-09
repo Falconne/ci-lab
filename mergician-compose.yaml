@@ -8,6 +8,12 @@ services:
       - "5000:5000"
     environment:
       ASPNETCORE_ENVIRONMENT: "Production"
+      Mergician__GitLab__Url: "${GITLAB_URL:-http://localhost:8081}"
+      Mergician__GitLab__OAuth__ClientId: "${MERGICIAN_GITLAB_OAUTH_CLIENT_ID:-}"
+      Mergician__GitLab__OAuth__ClientSecret: "${MERGICIAN_GITLAB_OAUTH_CLIENT_SECRET:-}"
+    env_file:
+      - path: .env
+        required: false
     networks:
       - mergician-network
     healthcheck:

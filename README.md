@@ -151,6 +151,51 @@ npm run build
 cp -r src/fe/dist/* src/be/Mergician/publish/wwwroot/
 ```
 
+## Configuration
+
+Mergician is configured via the standard ASP.NET `appsettings.json` file located at `src/be/Mergician/appsettings.json`. The key settings are under the `Mergician` section:
+
+```json
+{
+  "Mergician": {
+    "GitLab": {
+      "Url": "http://localhost:8081",
+      "OAuth": {
+        "ClientId": "<your-oauth-app-id>",
+        "ClientSecret": "<your-oauth-app-secret>"
+      }
+    }
+  }
+}
+```
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `Mergician:GitLab:Url` | Base URL of the GitLab server | `http://localhost:8081` (CI Lab) |
+| `Mergician:GitLab:OAuth:ClientId` | OAuth Application ID registered in GitLab | _(empty — set by bootstrapper for CI Lab)_ |
+| `Mergician:GitLab:OAuth:ClientSecret` | OAuth Application Secret | _(empty — set by bootstrapper for CI Lab)_ |
+
+The default `appsettings.json` ships with the CI Lab GitLab URL so everything works out of the box in the test environment.
+
+### Production configuration
+
+For production, either:
+
+1. **Edit `appsettings.json`** directly to point `Mergician:GitLab:Url` to your company GitLab server and supply the OAuth credentials.
+2. **Use environment variables** (ASP.NET convention): set `Mergician__GitLab__Url`, `Mergician__GitLab__OAuth__ClientId`, and `Mergician__GitLab__OAuth__ClientSecret`.
+3. **Use `appsettings.Production.json`** to override only the production values.
+
+To register Mergician as a GitLab OAuth application on your production server:
+
+1. Log in to GitLab as an Admin.
+2. Go to **Admin Area > Applications** (or the group/user-level Applications page).
+3. Create a new application with:
+   - **Name**: Mergician
+   - **Redirect URI**: `http://<mergician-host>:5000/api/auth/callback`
+   - **Scopes**: `read_user`, `read_api`
+   - **Confidential**: Yes
+4. Copy the **Application ID** and **Secret** into the settings above.
+
 ---
 
 # CI Lab

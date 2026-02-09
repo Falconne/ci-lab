@@ -112,6 +112,74 @@ public class GitlabService : IDisposable
             $"Failed to create Gitlab project '{projectName}': {(int)createResponse.StatusCode} {createResponse.StatusCode} - {createResponse.Content}");
     }
 
+    public async Task AddGroupMember(int groupId, string username, int accessLevel = 30)
+    {
+        Log.Information($"Adding user '{username}' to group {groupId} with access level {accessLevel}");
+
+        // First, get the user ID by username
+        var userSearchRequest = new RestRequest("users")
+            .AddQueryParameter("username", username);
+
+        var userSearchResponse = await _client.ExecuteGetAsync<GitlabUser[]>(userSearchRequest);
+
+        if (userSearchResponse is not { IsSuccessful: true, Data: not null } || userSearchResponse.Data.Length == 0)
+        {
+            Log.Error($"User '{username}' not found");
+            throw new InvalidOperationException($"User '{username}' not found in GitLab");
+        }
+
+        var userId = userSearchResponse.Data[0].Id;
+
+        // Check if user is already a member
+        var checkRequest = new RestRequest($"groups/{groupId}/members/{userId}");
+        var checkResponse = await _client.ExecuteGetAsync<GitlabProjectMember>(checkRequest);
+
+        if (checkResponse.IsSuccessful && checkResponse.Data is not null)
+        {
+            if (checkResponse.Data.AccessLevel >= accessLevel)
+            {
+                Log.Information($"User '{username}' is already a group member with sufficient access level");
+                return;
+            }
+
+            Log.Information($"User '{username}' is already a group member, updating access level");
+            var updateRequest = new RestRequest($"groups/{groupId}/members/{userId}", Method.Put)
+                .AddJsonBody(new { access_level = accessLevel });
+
+            var updateResponse = await _client.ExecuteAsync<GitlabProjectMember>(updateRequest);
+
+            if (updateResponse.StatusCode is HttpStatusCode.OK && updateResponse.Data is not null)
+            {
+                Log.Information($"Updated group access level for user '{username}' to {accessLevel}");
+                return;
+            }
+
+            Log.Error($"Failed to update group member: {(int)updateResponse.StatusCode} - {updateResponse.Content}");
+            throw new InvalidOperationException(
+                $"Failed to update group member '{username}': {(int)updateResponse.StatusCode} - {updateResponse.Content}");
+        }
+
+        // Add user as a new group member
+        var addRequest = new RestRequest($"groups/{groupId}/members", Method.Post)
+            .AddJsonBody(new
+            {
+                user_id = userId,
+                access_level = accessLevel
+            });
+
+        var addResponse = await _client.ExecutePostAsync<GitlabProjectMember>(addRequest);
+
+        if (addResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created && addResponse.Data is not null)
+        {
+            Log.Information($"User '{username}' added to group with access level {accessLevel}");
+            return;
+        }
+
+        Log.Error($"Failed to add group member: {(int)addResponse.StatusCode} - {addResponse.Content}");
+        throw new InvalidOperationException(
+            $"Failed to add group member '{username}': {(int)addResponse.StatusCode} - {addResponse.Content}");
+    }
+
     public async Task AddProjectMember(int projectId, string username, int accessLevel = 50)
     {
         Log.Information($"Adding user '{username}' to project {projectId} with access level {accessLevel}");
@@ -462,5 +530,51 @@ public class GitlabService : IDisposable
         Log.Error($"Failed to create user '{username}': {(int)createResponse.StatusCode} - {createResponse.Content}");
         throw new InvalidOperationException(
             $"Failed to create GitLab user '{username}': {(int)createResponse.StatusCode} {createResponse.StatusCode} - {createResponse.Content}");
+    }
+
+    public async Task<GitLabOAuthApplication> CreateOAuthApplication(
+        string name,
+        string redirectUri,
+        string scopes = "read_user read_api")
+    {
+        Log.Information($"Creating GitLab OAuth application '{name}'...");
+
+        // Check if the application already exists
+        var listRequest = new RestRequest("applications");
+        var listResponse = await _client.ExecuteGetAsync<GitLabOAuthApplication[]>(listRequest);
+
+        if (listResponse is { IsSuccessful: true, Data: not null })
+        {
+            foreach (var app in listResponse.Data)
+            {
+                if (app.CallbackUrl == redirectUri)
+                {
+                    Log.Information($"OAuth application already exists with matching redirect URI");
+                    return app;
+                }
+            }
+        }
+
+        var createRequest = new RestRequest("applications", Method.Post)
+            .AddJsonBody(new
+            {
+                name,
+                redirect_uri = redirectUri,
+                scopes,
+                confidential = true
+            });
+
+        var createResponse = await _client.ExecutePostAsync<GitLabOAuthApplication>(createRequest);
+
+        if (createResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created
+            && createResponse.Data is not null)
+        {
+            Log.Information($"OAuth application '{name}' created successfully");
+            return createResponse.Data;
+        }
+
+        Log.Error($"Failed to create OAuth application: {(int)createResponse.StatusCode} - {createResponse.Content}");
+        throw new InvalidOperationException(
+            $"Failed to create OAuth application: {(int)createResponse.StatusCode} - {createResponse.Content}");
     }
 }

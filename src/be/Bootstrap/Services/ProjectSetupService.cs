@@ -22,6 +22,8 @@ public class ProjectSetupService
 
     private readonly TeamCityVersionedSettingsService _teamCityVersionedSettingsService;
 
+    private readonly EnvFileService _envFileService;
+
     // Store project info for reuse
     private readonly List<string> _primaryRepos = new();
     private readonly List<string> _secondaryRepos = new();
@@ -31,6 +33,7 @@ public class ProjectSetupService
         TeamCityService teamCityService,
         TeamCityVCSRootService teamCityVCSRootService,
         TeamCityVersionedSettingsService teamCityVersionedSettingsService,
+        EnvFileService envFileService,
         string gitlabURL,
         string gitlabToken,
         string? gitlabInternalURL = null)
@@ -39,6 +42,7 @@ public class ProjectSetupService
         _teamCityService = teamCityService;
         _teamCityVCSRootService = teamCityVCSRootService;
         _teamCityVersionedSettingsService = teamCityVersionedSettingsService;
+        _envFileService = envFileService;
         _gitlabURL = gitlabURL;
         _gitlabToken = gitlabToken;
         // TeamCity runs inside Docker and needs to access GitLab via its internal network hostname
@@ -50,6 +54,8 @@ public class ProjectSetupService
         await SetupTestAccounts();
 
         await SetupTestRepos();
+
+        await SetupOAuthApplication();
 
         await SetupTeamCityConfigRepo();
 
@@ -85,7 +91,34 @@ public class ProjectSetupService
             await _gitlabService.AddProjectMember(project.Id, "b.builder", 50);
         }
 
+        // Add test users (test1, test2, test3) as Developers to the test group
+        Log.Information("Adding test users as Developers to the test group...");
+        for (var i = 1; i <= 3; i++)
+        {
+            var username = $"test{i}";
+            await _gitlabService.AddGroupMember(testGroup.Id, username, 30);
+        }
+
         Log.Information("GitLab test projects ready");
+    }
+
+    private async Task SetupOAuthApplication()
+    {
+        Log.Information("Setting up GitLab OAuth application for Mergician...");
+
+        // Register Mergician as an OAuth application in GitLab
+        // Use multiple redirect URIs for both docker-compose and native dev
+        var redirectUri = "http://localhost:5000/api/auth/callback\nhttp://localhost:5173/api/auth/callback";
+        var oauthApp = await _gitlabService.CreateOAuthApplication(
+            "Mergician",
+            redirectUri,
+            "read_user read_api");
+
+        // Save OAuth credentials to .env for Mergician to read
+        _envFileService.SaveOrUpdateEnvFile("MERGICIAN_GITLAB_OAUTH_CLIENT_ID", oauthApp.ApplicationId);
+        _envFileService.SaveOrUpdateEnvFile("MERGICIAN_GITLAB_OAUTH_CLIENT_SECRET", oauthApp.Secret);
+
+        Log.Information("GitLab OAuth application for Mergician configured");
     }
 
     private async Task SetupTeamCityConfigRepo()
