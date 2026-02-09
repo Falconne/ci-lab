@@ -4,7 +4,7 @@ services:
   mergician:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.mergician-prod
     restart: unless-stopped
     network_mode: host
     environment:
