@@ -15,10 +15,10 @@ services:
       - ci-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8081/-/health"]
-      interval: 30s
+      interval: 15s
       timeout: 10s
-      retries: 100
-      start_period: 180s
+      retries: 40
+      start_period: 120s
 
   gitlab-token-generator:
     image: alpine:latest
