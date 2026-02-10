@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
 using Mergician.Entities;
+using Serilog;
 
 namespace Mergician.Services;
 
@@ -41,7 +42,13 @@ public class GitLabOAuthService
         });
 
         var response = await client.PostAsync($"{gitlabUrl}/oauth/token", requestBody);
-        if (!response.IsSuccessStatusCode) return null;
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync();
+            Log.Error("GitLab token exchange failed: {StatusCode} {Body} (redirect_uri={RedirectUri})",
+                (int)response.StatusCode, errorBody, redirectUri);
+            return null;
+        }
 
         var json = await response.Content.ReadAsStringAsync();
         return JsonSerializer.Deserialize<GitLabOAuthTokenResponse>(json);
@@ -61,7 +68,13 @@ public class GitLabOAuthService
         });
 
         var response = await client.PostAsync($"{gitlabUrl}/oauth/token", requestBody);
-        if (!response.IsSuccessStatusCode) return null;
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync();
+            Log.Error("GitLab token refresh failed: {StatusCode} {Body}",
+                (int)response.StatusCode, errorBody);
+            return null;
+        }
 
         var json = await response.Content.ReadAsStringAsync();
         return JsonSerializer.Deserialize<GitLabOAuthTokenResponse>(json);

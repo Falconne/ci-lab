@@ -547,25 +547,12 @@ public class GitlabService : IDisposable
         {
             foreach (var app in listResponse.Data)
             {
-                if (app.CallbackUrl == redirectUri)
-                {
-                    // Exact match — the secret won't be in the list response,
-                    // but if the .env already has creds with the same app ID we can reuse it.
-                    Log.Information("OAuth application already exists with matching redirect URI");
-                    return app;
-                }
-
-                // If same-name app exists with a different redirect URI, delete and recreate
-                // so the redirect URIs stay up to date.
-                if (string.Equals(app.ApplicationId, "", StringComparison.Ordinal))
-                    continue; // skip apps with no ID
-
-                // GitLab list endpoint doesn't return app name, so match on any existing
-                // Mergician app by checking if callback_url is a subset or superset.
-                // Safest approach: delete all prior apps whose callback contains our backend path
+                // Always delete existing OAuth apps that use our callback path.
+                // The GitLab list API never returns the secret, so we can't reuse
+                // an existing app — we must recreate to get a fresh secret.
                 if (app.CallbackUrl.Contains("/api/auth/callback"))
                 {
-                    Log.Information($"Deleting stale OAuth application (id={app.Id}) to recreate with updated redirect URIs");
+                    Log.Information($"Deleting existing OAuth application (id={app.Id}) to recreate with fresh credentials");
                     var deleteRequest = new RestRequest($"applications/{app.Id}", Method.Delete);
                     await _client.ExecuteAsync(deleteRequest);
                 }
