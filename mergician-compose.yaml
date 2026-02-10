@@ -31,5 +31,8 @@ services:
 
 networks:
   ci-network:
+    # Note: We must connect to the ci-lab network and use its internal hostnames to access Gitlab and TeamCity rather than
+    # using network mode "host", because that network mode causes complications with port forwarding in WSL2 where we sometimes
+    # need to run and debug.
     external: true
     name: ci-lab_ci-network
