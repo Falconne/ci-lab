@@ -78,6 +78,9 @@ public class ProjectSetupService
 
             // Add Bob Builder as owner
             await _gitlabService.AddProjectMember(project.Id, "b.builder", 50);
+
+            // Configure merge request settings
+            await _gitlabService.ConfigureProjectMergeRequestSettings(project.Id);
         }
 
         // Create some secondary repos
@@ -89,6 +92,9 @@ public class ProjectSetupService
 
             // Add Bob Builder as owner
             await _gitlabService.AddProjectMember(project.Id, "b.builder", 50);
+
+            // Configure merge request settings
+            await _gitlabService.ConfigureProjectMergeRequestSettings(project.Id);
         }
 
         // Add test users (test1, test2, test3) as Developers to the test group
@@ -131,6 +137,9 @@ public class ProjectSetupService
 
         // Add Bob Builder as owner
         await _gitlabService.AddProjectMember(configProject.Id, "b.builder", 50);
+
+        // Configure merge request settings
+        await _gitlabService.ConfigureProjectMergeRequestSettings(configProject.Id);
 
         // Create a VCS root in TeamCity for this repository
         // TeamCity needs to use the internal Docker network URL to access GitLab

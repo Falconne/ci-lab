@@ -581,4 +581,28 @@ public class GitlabService : IDisposable
         throw new InvalidOperationException(
             $"Failed to create OAuth application: {(int)createResponse.StatusCode} - {createResponse.Content}");
     }
+
+    public async Task ConfigureProjectMergeRequestSettings(int projectId)
+    {
+        Log.Information($"Configuring merge request settings for project {projectId}");
+
+        var updateRequest = new RestRequest($"projects/{projectId}", Method.Put)
+            .AddJsonBody(new
+            {
+                only_allow_merge_if_pipeline_succeeds = true,
+                approvals_before_merge = 1
+            });
+
+        var updateResponse = await _client.ExecuteAsync(updateRequest);
+
+        if (updateResponse.StatusCode is HttpStatusCode.OK)
+        {
+            Log.Information($"Merge request settings configured for project {projectId}");
+            return;
+        }
+
+        Log.Error($"Failed to configure project merge request settings: {(int)updateResponse.StatusCode} - {updateResponse.Content}");
+        throw new InvalidOperationException(
+            $"Failed to configure project merge request settings: {(int)updateResponse.StatusCode} - {updateResponse.Content}");
+    }
 }
