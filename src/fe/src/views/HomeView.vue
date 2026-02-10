@@ -2,7 +2,25 @@
   <v-container>
     <v-row justify="center" class="mt-4">
       <v-col cols="12" md="10" lg="8">
-        <div v-if="loading" class="text-center pa-8">
+        <!-- Welcome page for unauthenticated users -->
+        <div v-if="!authenticated && !loading" class="text-center pa-12">
+          <v-icon icon="mdi-source-merge" size="80" color="primary" class="mb-6" />
+          <h1 class="text-h3 mb-4">Welcome to Mergician</h1>
+          <p class="text-body-1 text-grey-darken-1 mb-8" style="max-width: 500px; margin: 0 auto;">
+            Mergician helps you coordinate merge requests across multiple Git repositories.
+            Sign in with your GitLab account to get started.
+          </p>
+          <v-btn
+            color="primary"
+            size="large"
+            href="/api/auth/login"
+            prepend-icon="mdi-login"
+          >
+            Sign in with GitLab
+          </v-btn>
+        </div>
+
+        <div v-else-if="loading" class="text-center pa-8">
           <v-progress-circular indeterminate color="primary" size="48" />
           <p class="mt-4 text-body-1">Loading your activity...</p>
         </div>
@@ -68,14 +86,19 @@ interface ActivityEvent {
 
 const events = ref<ActivityEvent[]>([])
 const loading = ref(true)
+const authenticated = ref(false)
 
 onMounted(async () => {
   try {
-    const response = await fetch('/api/activity')
-    if (response.status === 401) {
-      window.location.href = '/api/auth/login'
+    // Check if user is authenticated first
+    const meResponse = await fetch('/api/auth/me')
+    if (meResponse.status === 401) {
+      loading.value = false
       return
     }
+    authenticated.value = true
+
+    const response = await fetch('/api/activity')
     if (response.ok) {
       events.value = await response.json()
     }

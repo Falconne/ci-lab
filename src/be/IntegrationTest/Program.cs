@@ -47,7 +47,29 @@ try
         authTest.Dispose();
     }
 
-    // Test 2: Git operations and activity
+    // Test 2: Logout clears session and shows welcome page
+    var logoutTest = new LogoutTest();
+    try
+    {
+        Log.Information("");
+        Log.Information("--- Test: Logout ---");
+        await logoutTest.Run();
+        results.Add(("Logout", true, null));
+        Log.Information("PASS: Logout");
+    }
+    catch (Exception ex)
+    {
+        results.Add(("Logout", false, ex.Message));
+        Log.Error($"FAIL: Logout - {ex.Message}");
+        allPassed = false;
+        if (abortOnFirstFailure) throw;
+    }
+    finally
+    {
+        logoutTest.Dispose();
+    }
+
+    // Test 3: Git operations and activity
     var activityTest = new ActivityTest();
     try
     {

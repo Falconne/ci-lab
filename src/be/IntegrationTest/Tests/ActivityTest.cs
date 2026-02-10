@@ -145,7 +145,24 @@ public class ActivityTest : IDisposable
 
     private async Task LoginToMergician()
     {
-        await _browser.Navigate($"{TestConfig.MergicianUrl}/api/auth/login", WaitUntilState.NetworkIdle);
+        // Navigate to home page and click Sign in
+        await _browser.Navigate(TestConfig.MergicianUrl, WaitUntilState.NetworkIdle);
+        await Task.Delay(2000); // Wait for Vue to render
+        await _browser.TakeScreenshot("01_welcome_page");
+
+        var signInLink = _browser.Page.Locator("a:has-text('Sign in with GitLab')");
+        if (await signInLink.CountAsync() > 0)
+        {
+            await signInLink.ClickAsync();
+            await _browser.Page.WaitForURLAsync(
+                url => url.Contains("localhost:8081") || url.Contains("localhost:5000/api/auth"),
+                new PageWaitForURLOptions { Timeout = 30000 });
+        }
+        else
+        {
+            // Already authenticated (e.g. cookies from a prior test in the session)
+            await _browser.Navigate($"{TestConfig.MergicianUrl}/api/auth/login", WaitUntilState.NetworkIdle);
+        }
         await _browser.TakeScreenshot("01_mergician_login_redirect");
 
         var currentUrl = _browser.Page.Url;
@@ -160,7 +177,10 @@ public class ActivityTest : IDisposable
 
             await BrowserService.FillFormField(usernameField, TestConfig.TestUsername, "username");
             await BrowserService.FillFormField(passwordField, TestConfig.TestPassword, "password");
-            await _browser.ClickAndWait(signInButton, "Sign in");
+            await signInButton.First.ClickAsync();
+            await _browser.Page.WaitForURLAsync(
+                url => url.Contains("/oauth/authorize") || url.Contains("localhost:5000"),
+                new PageWaitForURLOptions { Timeout = 30000 });
             await _browser.TakeScreenshot("02_after_sign_in");
 
             currentUrl = _browser.Page.Url;

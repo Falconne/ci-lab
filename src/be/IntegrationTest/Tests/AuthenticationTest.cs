@@ -24,10 +24,28 @@ public class AuthenticationTest : IDisposable
             Path.Combine(TestConfig.ScreenshotDir, "auth"),
             headless: true);
 
-        // Step 1: Navigate to Mergician's login endpoint — redirects to GitLab login
-        Log.Information("Navigating to Mergician login...");
-        await _browser.Navigate($"{TestConfig.MergicianUrl}/api/auth/login", WaitUntilState.NetworkIdle);
-        await _browser.TakeScreenshot("01_initial_load");
+        // Step 1: Navigate to Mergician home — should show welcome page (not logged in)
+        Log.Information("Navigating to Mergician home page...");
+        await _browser.Navigate(TestConfig.MergicianUrl, WaitUntilState.NetworkIdle);
+        await Task.Delay(2000); // Wait for Vue to render
+        await _browser.TakeScreenshot("01_welcome_page");
+
+        var homeContent = await _browser.GetPageContent();
+        if (!homeContent.Contains("Sign in with GitLab"))
+        {
+            throw new InvalidOperationException(
+                $"Expected welcome page with 'Sign in with GitLab' button, got: {homeContent[..Math.Min(300, homeContent.Length)]}");
+        }
+
+        Log.Information("Welcome page displayed correctly");
+
+        // Step 2: Click the Sign in button — should redirect to GitLab
+        Log.Information("Clicking Sign in with GitLab...");
+        var signInLink = _browser.Page.Locator("a:has-text('Sign in with GitLab')");
+        await signInLink.ClickAsync();
+        await _browser.Page.WaitForURLAsync(url => url.Contains("localhost:8081"),
+            new PageWaitForURLOptions { Timeout = 30000 });
+        await _browser.TakeScreenshot("02_after_sign_in_click");
 
         // After the redirect chain, we should be on the GitLab login page
         var currentUrl = _browser.Page.Url;
@@ -36,24 +54,27 @@ public class AuthenticationTest : IDisposable
         if (currentUrl.Contains("/users/sign_in"))
         {
             Log.Information("Reached GitLab login page, entering credentials...");
-            await _browser.TakeScreenshot("02_gitlab_login_page");
+            await _browser.TakeScreenshot("03_gitlab_login_page");
 
             var usernameField = _browser.Page.Locator("#user_login");
             var passwordField = _browser.Page.Locator("#user_password");
-            var signInButton = _browser.Page.Locator("input[type='submit'][name='commit'], button[type='submit']");
+            var gitlabSignInButton = _browser.Page.Locator("input[type='submit'][name='commit'], button[type='submit']");
 
             await BrowserService.FillFormField(usernameField, TestConfig.TestUsername, "username");
             await BrowserService.FillFormField(passwordField, TestConfig.TestPassword, "password");
-            await _browser.TakeScreenshot("03_credentials_filled");
+            await _browser.TakeScreenshot("04_credentials_filled");
 
-            await _browser.ClickAndWait(signInButton, "Sign in");
-            await _browser.TakeScreenshot("04_after_sign_in");
+            await gitlabSignInButton.First.ClickAsync();
+            await _browser.Page.WaitForURLAsync(
+                url => url.Contains("/oauth/authorize") || url.Contains("localhost:5000"),
+                new PageWaitForURLOptions { Timeout = 30000 });
+            await _browser.TakeScreenshot("05_after_sign_in");
 
             currentUrl = _browser.Page.Url;
             Log.Information($"URL after sign in: {currentUrl}");
         }
 
-        // Step 2: GitLab may show an OAuth authorization page — authorize if needed
+        // Step 3: GitLab may show an OAuth authorization page — authorize if needed
         if (currentUrl.Contains("/oauth/authorize"))
         {
             Log.Information("OAuth authorization page detected, submitting...");
@@ -62,14 +83,14 @@ public class AuthenticationTest : IDisposable
             Log.Information($"URL after authorize: {currentUrl}");
         }
 
-        await _browser.TakeScreenshot("05_final_url");
+        await _browser.TakeScreenshot("06_final_url");
         Log.Information($"Final URL: {currentUrl}");
 
-        // Step 3: Verify we're logged in — navigate to /api/auth/me and check response
+        // Step 4: Verify we're logged in — navigate to /api/auth/me and check response
         await _browser.Navigate($"{TestConfig.MergicianUrl}/api/auth/me", WaitUntilState.NetworkIdle);
         var meContent = await _browser.GetPageContent();
         Log.Information($"Auth /me page content: {meContent[..Math.Min(500, meContent.Length)]}");
-        await _browser.TakeScreenshot("06_auth_me_response");
+        await _browser.TakeScreenshot("07_auth_me_response");
 
         if (!meContent.Contains(TestConfig.TestUsername))
         {
