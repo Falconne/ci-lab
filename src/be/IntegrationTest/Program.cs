@@ -19,6 +19,10 @@ Log.Information("============================================================");
 var allPassed = true;
 var results = new List<(string Name, bool Passed, string? Error)>();
 
+// Abort on first failure to speed up debugging during development.
+// Change this to false to run all tests regardless of failures.
+var abortOnFirstFailure = true;
+
 try
 {
     // Test 1: Authentication via GitLab OAuth
@@ -36,6 +40,7 @@ try
         results.Add(("Authentication", false, ex.Message));
         Log.Error($"FAIL: Authentication - {ex.Message}");
         allPassed = false;
+        if (abortOnFirstFailure) throw;
     }
     finally
     {
@@ -57,6 +62,7 @@ try
         results.Add(("Git Activity", false, ex.Message));
         Log.Error($"FAIL: Git Activity - {ex.Message}");
         allPassed = false;
+        if (abortOnFirstFailure) throw;
     }
     finally
     {
@@ -65,7 +71,7 @@ try
 }
 catch (Exception ex)
 {
-    Log.Fatal(ex, "Unexpected error during integration tests");
+    Log.Fatal(ex, "Test run aborted");
     allPassed = false;
 }
 
