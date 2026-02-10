@@ -30,7 +30,7 @@ public class GitLabOAuthService
     public async Task<GitLabOAuthTokenResponse?> ExchangeCodeForToken(string code, string redirectUri)
     {
         var client = _httpClientFactory.CreateClient("GitLabOAuth");
-        var gitlabUrl = _settings.GitLab.Url.TrimEnd('/');
+        var gitlabUrl = _settings.GitLab.ServerUrl.TrimEnd('/');
 
         var requestBody = new FormUrlEncodedContent(new Dictionary<string, string>
         {
@@ -57,7 +57,7 @@ public class GitLabOAuthService
     public async Task<GitLabOAuthTokenResponse?> RefreshToken(string refreshToken)
     {
         var client = _httpClientFactory.CreateClient("GitLabOAuth");
-        var gitlabUrl = _settings.GitLab.Url.TrimEnd('/');
+        var gitlabUrl = _settings.GitLab.ServerUrl.TrimEnd('/');
 
         var requestBody = new FormUrlEncodedContent(new Dictionary<string, string>
         {
@@ -83,7 +83,7 @@ public class GitLabOAuthService
     public async Task<GitLabUserInfo?> GetCurrentUser(string accessToken)
     {
         var client = _httpClientFactory.CreateClient("GitLabOAuth");
-        var gitlabUrl = _settings.GitLab.Url.TrimEnd('/');
+        var gitlabUrl = _settings.GitLab.ServerUrl.TrimEnd('/');
 
         var request = new HttpRequestMessage(HttpMethod.Get, $"{gitlabUrl}/api/v4/user");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
@@ -101,7 +101,7 @@ public class GitLabOAuthService
     public async Task<List<GitLabEvent>> GetUserEvents(string accessToken, int days = 7)
     {
         var client = _httpClientFactory.CreateClient("GitLabOAuth");
-        var gitlabUrl = _settings.GitLab.Url.TrimEnd('/');
+        var gitlabUrl = _settings.GitLab.ServerUrl.TrimEnd('/');
         var after = DateTime.UtcNow.AddDays(-days).ToString("yyyy-MM-dd");
 
         var request = new HttpRequestMessage(HttpMethod.Get,
@@ -118,7 +118,7 @@ public class GitLabOAuthService
     public async Task<GitLabProject?> GetProject(string accessToken, int projectId)
     {
         var client = _httpClientFactory.CreateClient("GitLabOAuth");
-        var gitlabUrl = _settings.GitLab.Url.TrimEnd('/');
+        var gitlabUrl = _settings.GitLab.ServerUrl.TrimEnd('/');
 
         var request = new HttpRequestMessage(HttpMethod.Get,
             $"{gitlabUrl}/api/v4/projects/{projectId}");

@@ -8,7 +8,15 @@ public class MergicianSettings
 public class GitLabSettings
 {
     public string Url { get; set; } = "";
+    public string InternalUrl { get; set; } = "";
     public OAuthSettings OAuth { get; set; } = new();
+
+    /// <summary>
+    /// Returns InternalUrl if configured, otherwise falls back to Url.
+    /// Use this for server-side HTTP calls to GitLab (token exchange, API requests).
+    /// Use Url for browser-facing redirects (OAuth authorize).
+    /// </summary>
+    public string ServerUrl => string.IsNullOrWhiteSpace(InternalUrl) ? Url : InternalUrl;
 }
 
 public class OAuthSettings
