@@ -67,3 +67,37 @@ If doing more than trivial changes to the CI Lab environment (docker configs or 
 - **Stale tokens after docker prune/restart**: If you see "401 Unauthorized" errors for GitLab or TeamCity tokens during bootstrap, the `.env` file may have stale tokens from a previous GitLab/TeamCity instance. The `cilab-start.sh` script automatically cleans these, but if running docker compose manually, remove the GITLAB_TOKEN and TEAMCITY_TOKEN lines from `.env` before starting.
 - **Token generator not running**: The `gitlab-token-generator` container depends on GitLab being healthy. If `docker compose up` is interrupted before GitLab becomes healthy, the token generator may be in "Created" state. Either wait for the compose command to complete, or manually start it with `docker start ci-lab-gitlab-token-generator-1` and check logs with `docker logs ci-lab-gitlab-token-generator-1`.
 - **GitLab health check timing**: GitLab takes 3-5 minutes to become healthy on first start. Don't assume failure unless it exceeds 5 minutes. Check status with: `docker inspect ci-lab-gitlab-1 --format '{{.State.Health.Status}}'`
+
+# Architectural gotchas & pitfalls
+
+## Mergician must remain generic
+- Mergician is designed to work against **any** self-hosted GitLab server in production — not just CI Lab.
+- `appsettings.json` ships with **empty** GitLab settings. CI Lab-specific values belong only in `appsettings.Development.json` or environment variables. Do not add CI Lab URLs, ports, or credentials to `appsettings.json`.
+- The `mergician-compose.yaml` injects CI Lab-specific config via environment variables and `.env` — this is the correct pattern. Do not bake CI Lab defaults into the Mergician source code.
+
+## Docker networking: Url vs InternalUrl
+- When Mergician runs inside a Docker container on a **bridge network** (the default for compose), `localhost` inside the container refers to the container itself, not the host. The container cannot reach GitLab at `localhost:8081`.
+- `MergicianSettings.GitLab.Url` is the **browser-facing** URL (what the user's browser navigates to for OAuth authorize). `MergicianSettings.GitLab.InternalUrl` is the **server-side** URL (what the container uses for HTTP calls like token exchange, API requests).
+- `GitLabSettings.ServerUrl` is a computed property that returns `InternalUrl` if set, otherwise falls back to `Url`. All server-side HTTP calls in `GitLabOAuthService` must use `ServerUrl`, not `Url`.
+- In `mergician-compose.yaml`, `InternalUrl` defaults to `http://gitlab:8081` (the Docker DNS name on `ci-lab_ci-network`). For native development without Docker, `InternalUrl` is not set so `ServerUrl` falls back to `Url` and everything uses `localhost`.
+- If you see `Connection refused (localhost:808x)` errors on the token exchange callback, the server-side call is incorrectly using `Url` instead of `ServerUrl`.
+
+## GitLab OAuth application secrets
+- The GitLab `GET /api/v4/applications` endpoint **never** returns the `secret` field — only the `POST` creation response includes it.
+- If the bootstrapper reuses an existing OAuth app from the list API, the `.env` file will contain an **empty** `MERGICIAN_GITLAB_OAUTH_CLIENT_SECRET`, causing `invalid_client` errors during token exchange.
+- The fix in `GitlabService.CreateOAuthApplication` always deletes existing OAuth apps with `/api/auth/callback` and recreates them to ensure the secret is returned. Do not change this to reuse existing apps.
+- Symptom of this problem: `{"error":"invalid_client","error_description":"Client authentication failed due to unknown client, no client authentication included, or unsupported authentication method."}` in the Mergician logs.
+
+## OAuth redirect_uri matching
+- GitLab requires that the `redirect_uri` in the token exchange request **exactly** matches one registered in the OAuth application.
+- `AuthController.GetRedirectUri()` dynamically builds the callback URL from `Request.Host`. This allows it to work with any hostname/port forwarding setup. Do not hardcode the callback URL.
+- The bootstrapper registers redirect URIs for both `localhost:5000` (Docker/production) and `localhost:5173` (native Vue dev server).
+
+## Compose project naming
+- `mergician-compose.yaml` uses `name: mergician` to avoid container name conflicts with `cilab-compose.yaml` (project name `ci-lab`). Do not remove this.
+- The Mergician compose file connects to the CI Lab network via `networks.ci-network` (external, named `ci-lab_ci-network`). The CI Lab compose must be running first for this network to exist.
+
+## Stale .env after environment recreation
+- After tearing down and recreating the CI Lab environment (`docker compose down -v`), the `.env` file retains tokens and credentials from the previous instance. These will be rejected by the new GitLab/TeamCity instances.
+- The `cilab-start.sh` script cleans stale `GITLAB_TOKEN` and `TEAMCITY_TOKEN` entries. The bootstrapper regenerates `MERGICIAN_GITLAB_OAUTH_CLIENT_ID` and `MERGICIAN_GITLAB_OAUTH_CLIENT_SECRET` on each run (since it always recreates the OAuth app).
+- If debugging auth failures after a restart, first check whether the `.env` credentials match the current GitLab instance.

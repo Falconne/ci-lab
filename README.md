@@ -159,7 +159,8 @@ Mergician is configured via the standard ASP.NET `appsettings.json` file located
 {
   "Mergician": {
     "GitLab": {
-      "Url": "http://localhost:8081",
+      "Url": "https://gitlab.example.com",
+      "InternalUrl": "",
       "OAuth": {
         "ClientId": "<your-oauth-app-id>",
         "ClientSecret": "<your-oauth-app-secret>"
@@ -171,18 +172,19 @@ Mergician is configured via the standard ASP.NET `appsettings.json` file located
 
 | Setting | Description | Default |
 |---------|-------------|---------|
-| `Mergician:GitLab:Url` | Base URL of the GitLab server | `http://localhost:8081` (CI Lab) |
-| `Mergician:GitLab:OAuth:ClientId` | OAuth Application ID registered in GitLab | _(empty — set by bootstrapper for CI Lab)_ |
-| `Mergician:GitLab:OAuth:ClientSecret` | OAuth Application Secret | _(empty — set by bootstrapper for CI Lab)_ |
+| `Mergician:GitLab:Url` | Browser-facing GitLab URL (used for OAuth redirects) | _(empty — must be configured)_ |
+| `Mergician:GitLab:InternalUrl` | Server-side GitLab URL (for API calls from within Docker). Falls back to `Url` if not set. | _(empty)_ |
+| `Mergician:GitLab:OAuth:ClientId` | OAuth Application ID registered in GitLab | _(empty)_ |
+| `Mergician:GitLab:OAuth:ClientSecret` | OAuth Application Secret | _(empty)_ |
 
-The default `appsettings.json` ships with the CI Lab GitLab URL so everything works out of the box in the test environment.
+The default `appsettings.json` ships with **empty** values — Mergician requires explicit configuration for the target GitLab server. For CI Lab development, `appsettings.Development.json` provides the `localhost:8081` URL.
 
-### Production configuration
+> **Note:** When Mergician runs inside a Docker container on a bridge network, it cannot reach GitLab via `localhost`. Set `InternalUrl` to the Docker-resolvable address (e.g. `http://gitlab:8081`). The `Url` remains the browser-accessible address. When running natively (no Docker), leave `InternalUrl` empty and `Url` is used for everything.
 
-For production, either:
+### Configuration methods
 
-1. **Edit `appsettings.json`** directly to point `Mergician:GitLab:Url` to your company GitLab server and supply the OAuth credentials.
-2. **Use environment variables** (ASP.NET convention): set `Mergician__GitLab__Url`, `Mergician__GitLab__OAuth__ClientId`, and `Mergician__GitLab__OAuth__ClientSecret`.
+1. **Environment variables** (recommended for Docker): set `Mergician__GitLab__Url`, `Mergician__GitLab__InternalUrl`, `Mergician__GitLab__OAuth__ClientId`, and `Mergician__GitLab__OAuth__ClientSecret`.
+2. **Edit `appsettings.json`** directly.
 3. **Use `appsettings.Production.json`** to override only the production values.
 
 To register Mergician as a GitLab OAuth application on your production server:
@@ -200,4 +202,109 @@ To register Mergician as a GitLab OAuth application on your production server:
 
 # CI Lab
 
-*Documentation for CI Lab / Bootstrapper tooling coming soon.*
+CI Lab provides a local integration testing environment for Mergician, using GitLab (Omnibus) and TeamCity spun up via Docker Compose, plus an automated C# bootstrapper that creates test accounts, projects, and OAuth applications.
+
+## Prerequisites
+
+- Docker Engine 24+ with Docker Compose v2
+- Ports 8081 (GitLab), 8111 (TeamCity), and 5000 (Mergician) available
+
+## Starting the CI Lab environment
+
+```bash
+./scripts/cilab-start.sh
+```
+
+This tears down any previous session, cleans stale tokens from `.env`, and starts the CI Lab containers. GitLab takes 3–5 minutes to become healthy on first start.
+
+## Running the Bootstrapper
+
+Once the CI Lab containers are running and healthy:
+
+```bash
+./scripts/bootstrap.sh
+```
+
+The bootstrapper creates test users, sample GitLab projects, registers the Mergician OAuth application, and writes credentials to `.env`. Use a timeout for CI scenarios:
+
+```bash
+timeout 120 ./scripts/bootstrap.sh || true
+```
+
+## Starting Mergician against CI Lab
+
+```bash
+./scripts/mergician-start.sh
+```
+
+Or manually:
+
+```bash
+docker compose -f mergician-compose.yaml up --build
+```
+
+Mergician will be accessible at `http://localhost:5000`. It reads OAuth credentials from `.env` (written by the bootstrapper).
+
+## Integration Tests
+
+The `IntegrationTest` project (`src/be/IntegrationTest/`) contains Playwright-based end-to-end tests that exercise Mergician against the CI Lab environment.
+
+### What is tested
+
+- **Authentication**: Full OAuth login flow — navigates to Mergician's login endpoint, authenticates as `test1` on GitLab, authorizes the OAuth app, and verifies the `/api/auth/me` endpoint returns the logged-in user.
+- **Activity**: Creates a personal access token for `test1`, pushes a test commit to a GitLab project, logs into Mergician, and verifies the activity stream shows the git event.
+
+### Prerequisites
+
+Both CI Lab and Mergician must be running:
+
+```bash
+# 1. Start CI Lab (if not already running)
+./scripts/cilab-start.sh
+
+# 2. Run the bootstrapper (if not already done)
+./scripts/bootstrap.sh
+
+# 3. Start Mergician
+docker compose -f mergician-compose.yaml up --build -d
+```
+
+### Running the tests
+
+From the repository root with .NET 9 SDK installed:
+
+```bash
+cd src/be/IntegrationTest
+dotnet run
+```
+
+The tests use Playwright in headless mode. On first run, install the browsers:
+
+```bash
+# From the IntegrationTest project directory
+dotnet build
+pwsh bin/Debug/net9.0/playwright.ps1 install chromium
+```
+
+Or if PowerShell is not available:
+
+```bash
+npx playwright install chromium
+```
+
+### Test output
+
+- **Logs**: `data/logs/integration-test.log`
+- **Screenshots**: `data/screenshots/integration-test/auth/` and `data/screenshots/integration-test/activity/` — captured at each step for debugging.
+- **Exit code**: `0` if all tests pass, `1` if any fail.
+
+### Test configuration
+
+Test settings are in `src/be/IntegrationTest/TestConfig.cs`:
+
+| Setting | Value | Description |
+|---------|-------|-------------|
+| `GitLabUrl` | `http://localhost:8081` | CI Lab GitLab instance |
+| `MergicianUrl` | `http://localhost:5000` | Mergician instance |
+| `TestUsername` | `test1` | Test account created by bootstrapper |
+| `TestPassword` | `changeme123` | Test account password |
