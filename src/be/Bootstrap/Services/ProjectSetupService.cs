@@ -619,6 +619,15 @@ public class ProjectSetupService
         // Create Bob Builder in GitLab
         await _gitlabService.CreateUser("b.builder", "Bob Builder", "b.builder@CILab.local", password);
 
+        // Generate a service access token for b.builder with full permissions
+        Log.Information("Generating service access token for b.builder...");
+        var serviceToken = await _gitlabService.CreatePersonalAccessToken(
+            "b.builder",
+            "mergician-service",
+            new[] { "api" });
+        _envFileService.SaveOrUpdateEnvFile("GITLAB_SERVICE_TOKEN", serviceToken.Token);
+        Log.Information("Service access token written to .env as GITLAB_SERVICE_TOKEN");
+
         Log.Information("Creating test accounts in TeamCity...");
 
         for (var i = 1; i <= 3; i++)

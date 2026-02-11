@@ -1,4 +1,4 @@
-namespace Mergician.Services;
+namespace Mergician.Entities;
 
 public class MergicianSettings
 {
@@ -9,6 +9,7 @@ public class GitLabSettings
 {
     public string Url { get; set; } = "";
     public string InternalUrl { get; set; } = "";
+    public string ServiceToken { get; set; } = "";
     public OAuthSettings OAuth { get; set; } = new();
 
     /// <summary>

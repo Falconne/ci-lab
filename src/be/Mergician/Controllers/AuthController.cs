@@ -1,4 +1,4 @@
-using Mergician.Services;
+using Mergician.Services.Gitlab;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Mergician.Controllers;
@@ -8,11 +8,19 @@ namespace Mergician.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly GitLabOAuthService _oauthService;
+    private readonly GitlabCurrentUser _currentUser;
+    private readonly GitlabService _gitlabService;
     private readonly ILogger<AuthController> _logger;
 
-    public AuthController(GitLabOAuthService oauthService, ILogger<AuthController> logger)
+    public AuthController(
+        GitLabOAuthService oauthService,
+        GitlabCurrentUser currentUser,
+        GitlabService gitlabService,
+        ILogger<AuthController> logger)
     {
         _oauthService = oauthService;
+        _currentUser = currentUser;
+        _gitlabService = gitlabService;
         _logger = logger;
     }
 
@@ -73,11 +81,7 @@ public class AuthController : ControllerBase
     [HttpGet("me")]
     public async Task<IActionResult> Me()
     {
-        var accessToken = await GetValidAccessToken();
-        if (accessToken == null)
-            return Unauthorized();
-
-        var user = await _oauthService.GetCurrentUser(accessToken);
+        var user = await _gitlabService.GetCurrentUser(_currentUser);
         if (user == null)
             return Unauthorized();
 
@@ -90,37 +94,6 @@ public class AuthController : ControllerBase
         Response.Cookies.Delete("gl_access_token", new CookieOptions { Path = "/" });
         Response.Cookies.Delete("gl_refresh_token", new CookieOptions { Path = "/" });
         return Ok();
-    }
-
-    private async Task<string?> GetValidAccessToken()
-    {
-        var accessToken = Request.Cookies["gl_access_token"];
-        if (!string.IsNullOrEmpty(accessToken))
-        {
-            // Verify the token still works
-            var user = await _oauthService.GetCurrentUser(accessToken);
-            if (user != null) return accessToken;
-        }
-
-        // Try to refresh
-        var refreshToken = Request.Cookies["gl_refresh_token"];
-        if (string.IsNullOrEmpty(refreshToken)) return null;
-
-        var tokenResponse = await _oauthService.RefreshToken(refreshToken);
-        if (tokenResponse == null) return null;
-
-        var cookieOptions = new CookieOptions
-        {
-            HttpOnly = true,
-            SameSite = SameSiteMode.Lax,
-            MaxAge = TimeSpan.FromDays(30),
-            Path = "/"
-        };
-
-        Response.Cookies.Append("gl_access_token", tokenResponse.AccessToken, cookieOptions);
-        Response.Cookies.Append("gl_refresh_token", tokenResponse.RefreshToken, cookieOptions);
-
-        return tokenResponse.AccessToken;
     }
 
     private string GetRedirectUri()

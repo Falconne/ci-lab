@@ -25,9 +25,11 @@ Mergician uses **GitLab OAuth 2.0** for authentication. Users log in with their 
 |------|---------|
 | `src/be/Mergician/Controllers/AuthController.cs` | Login, callback, `/me`, logout endpoints |
 | `src/be/Mergician/Controllers/ActivityController.cs` | Fetches authenticated user's GitLab events |
-| `src/be/Mergician/Services/GitLabOAuthService.cs` | Token exchange, user info, events API calls |
-| `src/be/Mergician/Services/MergicianSettings.cs` | Strongly-typed settings (GitLab URL, OAuth creds) |
-| `src/be/Mergician/appsettings.json` | Default configuration with CI Lab GitLab URL |
+| `src/be/Mergician/Services/Gitlab/GitLabOAuthService.cs` | OAuth token exchange and refresh |
+| `src/be/Mergician/Services/Gitlab/GitlabService.cs` | GitLab API calls (user info, events, projects) |
+| `src/be/Mergician/Services/Gitlab/GitlabCurrentUser.cs` | Resolves access token from session cookies |
+| `src/be/Mergician/Entities/MergicianSettings.cs` | Strongly-typed settings (GitLab URL, OAuth creds, service token) |
+| `src/be/Mergician/appsettings.json` | Default configuration (empty — configured per environment) |
 | `src/fe/src/views/HomeView.vue` | Activity stream UI; redirects to login on 401 |
 | `src/fe/src/components/AppBar.vue` | Displays logged-in user name and logout button |
 

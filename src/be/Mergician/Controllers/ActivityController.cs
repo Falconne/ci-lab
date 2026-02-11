@@ -1,4 +1,4 @@
-using Mergician.Services;
+using Mergician.Services.Gitlab;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Mergician.Controllers;
@@ -7,23 +7,28 @@ namespace Mergician.Controllers;
 [Route("api/[controller]")]
 public class ActivityController : ControllerBase
 {
-    private readonly GitLabOAuthService _oauthService;
+    private readonly GitlabCurrentUser _currentUser;
+    private readonly GitlabService _gitlabService;
     private readonly ILogger<ActivityController> _logger;
 
-    public ActivityController(GitLabOAuthService oauthService, ILogger<ActivityController> logger)
+    public ActivityController(
+        GitlabCurrentUser currentUser,
+        GitlabService gitlabService,
+        ILogger<ActivityController> logger)
     {
-        _oauthService = oauthService;
+        _currentUser = currentUser;
+        _gitlabService = gitlabService;
         _logger = logger;
     }
 
     [HttpGet]
     public async Task<IActionResult> GetActivity()
     {
-        var accessToken = await GetValidAccessToken();
+        var accessToken = await _currentUser.GetValidAccessToken();
         if (accessToken == null)
             return Unauthorized();
 
-        var events = await _oauthService.GetUserEvents(accessToken);
+        var events = await _gitlabService.GetUserEvents(_currentUser);
 
         // Enrich events with project names
         var projectCache = new Dictionary<int, string>();
@@ -31,7 +36,7 @@ public class ActivityController : ControllerBase
         {
             if (evt.ProjectId > 0 && !projectCache.ContainsKey(evt.ProjectId))
             {
-                var project = await _oauthService.GetProject(accessToken, evt.ProjectId);
+                var project = await _gitlabService.GetProject(_currentUser, evt.ProjectId);
                 projectCache[evt.ProjectId] = project?.NameWithNamespace ?? $"Project #{evt.ProjectId}";
             }
         }
@@ -51,34 +56,5 @@ public class ActivityController : ControllerBase
         });
 
         return Ok(enrichedEvents);
-    }
-
-    private async Task<string?> GetValidAccessToken()
-    {
-        var accessToken = Request.Cookies["gl_access_token"];
-        if (!string.IsNullOrEmpty(accessToken))
-        {
-            var user = await _oauthService.GetCurrentUser(accessToken);
-            if (user != null) return accessToken;
-        }
-
-        var refreshToken = Request.Cookies["gl_refresh_token"];
-        if (string.IsNullOrEmpty(refreshToken)) return null;
-
-        var tokenResponse = await _oauthService.RefreshToken(refreshToken);
-        if (tokenResponse == null) return null;
-
-        var cookieOptions = new CookieOptions
-        {
-            HttpOnly = true,
-            SameSite = SameSiteMode.Lax,
-            MaxAge = TimeSpan.FromDays(30),
-            Path = "/"
-        };
-
-        Response.Cookies.Append("gl_access_token", tokenResponse.AccessToken, cookieOptions);
-        Response.Cookies.Append("gl_refresh_token", tokenResponse.RefreshToken, cookieOptions);
-
-        return tokenResponse.AccessToken;
     }
 }

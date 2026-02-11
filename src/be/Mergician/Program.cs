@@ -1,4 +1,5 @@
-using Mergician.Services;
+using Mergician.Entities;
+using Mergician.Services.Gitlab;
 using Serilog;
 
 Log.Logger = new LoggerConfiguration()
@@ -22,13 +23,17 @@ try
 
     builder.Services.AddSingleton(mergicianSettings);
 
-    // Register HttpClient factory and GitLab OAuth service
+    // Register HttpClient factory and GitLab services
     builder.Services.AddHttpClient("GitLabOAuth")
         .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
         {
             ServerCertificateCustomValidationCallback = (_, _, _, _) => true
         });
+    builder.Services.AddHttpContextAccessor();
     builder.Services.AddSingleton<GitLabOAuthService>();
+    builder.Services.AddSingleton<GitlabService>();
+    builder.Services.AddScoped<GitlabCurrentUser>();
+    builder.Services.AddSingleton<GitlabServiceUser>();
 
     // Add services
     builder.Services.AddControllers();

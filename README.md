@@ -161,6 +161,7 @@ Mergician is configured via the standard ASP.NET `appsettings.json` file located
     "GitLab": {
       "Url": "https://gitlab.example.com",
       "InternalUrl": "",
+      "ServiceToken": "<personal-access-token-with-api-scope>",
       "OAuth": {
         "ClientId": "<your-oauth-app-id>",
         "ClientSecret": "<your-oauth-app-secret>"
@@ -174,6 +175,7 @@ Mergician is configured via the standard ASP.NET `appsettings.json` file located
 |---------|-------------|---------|
 | `Mergician:GitLab:Url` | Browser-facing GitLab URL (used for OAuth redirects) | _(empty — must be configured)_ |
 | `Mergician:GitLab:InternalUrl` | Server-side GitLab URL (for API calls from within Docker). Falls back to `Url` if not set. | _(empty)_ |
+| `Mergician:GitLab:ServiceToken` | Personal access token (with `api` scope) for a dedicated service account. Used for background monitoring and performing merge actions on behalf of Mergician. | _(empty)_ |
 | `Mergician:GitLab:OAuth:ClientId` | OAuth Application ID registered in GitLab | _(empty)_ |
 | `Mergician:GitLab:OAuth:ClientSecret` | OAuth Application Secret | _(empty)_ |
 
@@ -183,7 +185,7 @@ The default `appsettings.json` ships with **empty** values — Mergician require
 
 ### Configuration methods
 
-1. **Environment variables** (recommended for Docker): set `Mergician__GitLab__Url`, `Mergician__GitLab__InternalUrl`, `Mergician__GitLab__OAuth__ClientId`, and `Mergician__GitLab__OAuth__ClientSecret`.
+1. **Environment variables** (recommended for Docker): set `Mergician__GitLab__Url`, `Mergician__GitLab__InternalUrl`, `Mergician__GitLab__ServiceToken`, `Mergician__GitLab__OAuth__ClientId`, and `Mergician__GitLab__OAuth__ClientSecret`.
 2. **Edit `appsettings.json`** directly.
 3. **Use `appsettings.Production.json`** to override only the production values.
 
@@ -197,6 +199,16 @@ To register Mergician as a GitLab OAuth application on your production server:
    - **Scopes**: `read_user`, `read_api`
    - **Confidential**: Yes
 4. Copy the **Application ID** and **Secret** into the settings above.
+
+### Service token for background operations
+
+Mergician uses a dedicated GitLab personal access token for background monitoring and performing merge actions. To set this up:
+
+1. Create a dedicated service account in GitLab (e.g. a "bot" user).
+2. As an admin, go to **Admin Area > Users**, find the service account, and create a **Personal Access Token** with the `api` scope.
+3. Set the token as `Mergician:GitLab:ServiceToken` in your configuration or via the `Mergician__GitLab__ServiceToken` environment variable.
+
+> **Note:** In the CI Lab environment, the bootstrapper automatically creates this token for the `b.builder` account and writes it to `.env` as `GITLAB_SERVICE_TOKEN`.
 
 ---
 

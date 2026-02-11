@@ -605,4 +605,47 @@ public class GitlabService : IDisposable
         throw new InvalidOperationException(
             $"Failed to configure project merge request settings: {(int)updateResponse.StatusCode} - {updateResponse.Content}");
     }
+
+    public async Task<GitLabPersonalAccessToken> CreatePersonalAccessToken(
+        string username,
+        string tokenName,
+        string[] scopes)
+    {
+        Log.Information($"Creating personal access token '{tokenName}' for user '{username}'...");
+
+        // Get user ID by username
+        var userSearchRequest = new RestRequest("users")
+            .AddQueryParameter("username", username);
+
+        var userSearchResponse = await _client.ExecuteGetAsync<GitlabUser[]>(userSearchRequest);
+
+        if (userSearchResponse is not { IsSuccessful: true, Data: not null } || userSearchResponse.Data.Length == 0)
+        {
+            throw new InvalidOperationException($"User '{username}' not found in GitLab");
+        }
+
+        var userId = userSearchResponse.Data[0].Id;
+
+        // Create personal access token via admin API
+        var createRequest = new RestRequest($"users/{userId}/personal_access_tokens", Method.Post)
+            .AddJsonBody(new
+            {
+                name = tokenName,
+                scopes = scopes,
+                expires_at = DateTime.UtcNow.AddYears(1).ToString("yyyy-MM-dd")
+            });
+
+        var createResponse = await _client.ExecutePostAsync<GitLabPersonalAccessToken>(createRequest);
+
+        if (createResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created
+            && createResponse.Data is not null)
+        {
+            Log.Information($"Personal access token '{tokenName}' created for user '{username}'");
+            return createResponse.Data;
+        }
+
+        Log.Error($"Failed to create personal access token: {(int)createResponse.StatusCode} - {createResponse.Content}");
+        throw new InvalidOperationException(
+            $"Failed to create personal access token '{tokenName}' for user '{username}': {(int)createResponse.StatusCode} - {createResponse.Content}");
+    }
 }
