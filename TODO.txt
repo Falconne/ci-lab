@@ -2,9 +2,8 @@ In ProjectSetupService, add a step to generate an access token for the b.builder
 
 In Mergician, implement the following tasks:
 
-`GetValidAccessToken` is duplicated. Move this to a shared service. Check for any other duplcated functionality and rationise them.
+`GetValidAccessToken` is duplicated. Move this to a shared service called `GitlabAccessUser` based on interface `IGitlabAccessUser` which has a public method `GetValidAccessToken`.
 
-Move `MergicianSettings` into Entities and update all references. Move the `GetProject`, `GetUserEvents` and `GetCurrentUser` methods out of the Oauth service (which doesn't make sense for them) and put them in a new `GitlabService` class. Update all references and ensure the build is passing.
+Move `MergicianSettings` into Entities and update all references. Move the `GetProject`, `GetUserEvents` and `GetCurrentUser` methods out of the Oauth service (which doesn't make sense for them) and put them in a new `GitlabService` class. Put future generic Gitlab API calls in here. Update all references and ensure the build is passing. In this new class, change the methods that take in a `string accessToken` as the first parameter to take in a `IGitlabAccessUser` instead and use GetValidAccessToken() internally.
 
-
-Give the landing page of Mergician (once logged in) the tile "Dashboard". Remove the current activity stream and replace it with a data table. This should fetch the users push activity for the last 2 weeks to see what repos and branches they have pushed to.
+Give the landing page of Mergician (once logged in) the tile "Dashboard". Remove the current activity stream and replace it with a data table. To populate this table, fetch the user's push activity for the last 2 weeks to see what repos and branches they have pushed to.

@@ -1,5 +1,6 @@
 - Follow modern C# practices.
-- Use best practices for organsing C# code. Put services classes in a Services folder, controllers in a Controllers folder, etc. In this codebase, use the Entities folder for models. Divide functionlaity into sensible service classes, ensuring that any one service class does not contain unrelated functionality.
+- Use best practices for organsing C# code. Put services classes under a Services folder, controllers in a Controllers folder, etc. In this codebase, use the Entities folder for models.
+  - Within the Services folder, create subfolders based on feature, purpose or domain, to group related service classes together. Divide functionlaity into sensible service classes, ensuring that any one service class does not contain unrelated functionality.
 - Use dependency injection for services.
 - Use nullable reference types and top-level statements.
 - Use var, new() and pattern matching where appropriate.
