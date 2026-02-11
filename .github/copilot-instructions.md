@@ -14,6 +14,7 @@ Mergician is a tool to help developers in environments where any one product is 
 - Do not commit code at the end of an edit until explicitly asked for by the user. If the user previously asked for a commit earlier in the session, do not assume that continued automatic commits are desired.
 - When doing edits, after all the testing and rework is done, before finishing up, perform a code review and see if any clean up or improvements are warrented based on the final changes. Look for any technical debt that can me remedied, such as any duplicated functionality or code that now exists that should be consolidated. Remove any unsued variables, imports, etc that may have been left behind. If the rework is significant, redo any important tests.
 - Add logging in code whenever any significant action is performed, especially when conditional logic is executed (e.g. in branches of if/switch statements) with the intention of diagnosing the flow.
+- When refactoring, never leave compatiblity shims behind. Always update references to changed code. All the usages of the code in this repo is within this repo so there is no reason to leave compatibility shims.
 
 ## CI Lab Specific
 - The intention is to spin up a test CI/CD environment with test data for integration testing Mergician.
