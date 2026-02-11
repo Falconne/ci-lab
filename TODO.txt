@@ -1,0 +1,10 @@
+In ProjectSetupService, add a step to generate an access token for the b.builder account, with full permissions.Write this token into the .env file as "GITLAB_FULL_ACCESS_TOKEN" and add a property in Mergician's app settings to pass this in with. Update the Mergician docker compose file to pass this in like the other existing settings. This will be used by Mergician for background monitoring and for performing merge actions. Update the Readme's configuration section to mention this for production setup.
+
+In Mergician, implement the following tasks:
+
+`GetValidAccessToken` is duplicated. Move this to a shared service. Check for any other duplcated functionality and rationise them.
+
+Move `MergicianSettings` into Entities and update all references. Move the `GetProject`, `GetUserEvents` and `GetCurrentUser` methods out of the Oauth service (which doesn't make sense for them) and put them in a new `GitlabService` class. Update all references and ensure the build is passing.
+
+
+Give the landing page of Mergician (once logged in) the tile "Dashboard". Remove the current activity stream and replace it with a data table. This should fetch the users push activity for the last 2 weeks to see what repos and branches they have pushed to.

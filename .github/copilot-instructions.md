@@ -12,18 +12,8 @@ Mergician is a tool to help developers in environments where any one product is 
 
 # Guidelines
 - Do not commit code at the end of an edit until explicitly asked for by the user. If the user previously asked for a commit earlier in the session, do not assume that continued automatic commits are desired.
-
-## For C#
-- Follow modern C# practices.
-- Use dependency injection for services.
-- Use nullable reference types and top-level statements.
-- Use var, new() and pattern matching where appropriate.
-- Do not use inner classes. Organise code into Services and Models (in appropriate folder structure).
-- Do not suffix async method name with "Async" unless there is also a sync version of the method.
-- When parsing JSON returned from an API, use model classes to deserialize responses in a typesafe way. Place model files in a directory called `Entities` at the root of a project and only include properties that are used.
-- Do not use JsonElement or dynamic types for JSON parsing unless it is not possible to deserialize in a typesafe way or it will make the code much more complex to do it statically.
-- Do not use unicode characters for decorating Log messages.
-- Organise private methods after public ones and private fields after public fields. All fields should come before all methods.
+- When doing edits, after all the testing and rework is done, before finishing up, perform a code review and see if any clean up or improvements are warrented based on the final changes. Look for any technical debt that can me remedied, such as any duplicated functionality or code that now exists that should be consolidated. Remove any unsued variables, imports, etc that may have been left behind. If the rework is significant, redo any important tests.
+- Add logging in code whenever any significant action is performed, especially when conditional logic is executed (e.g. in branches of if/switch statements) with the intention of diagnosing the flow.
 
 ## CI Lab Specific
 - The intention is to spin up a test CI/CD environment with test data for integration testing Mergician.
