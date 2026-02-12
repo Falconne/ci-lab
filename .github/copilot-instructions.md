@@ -64,35 +64,36 @@ These are guideline for working on the Bootstrap C# project that creates test da
 
 # Testing & verification
 
-## Mergician
-If doing more than trivial changes to Mergician, it should be tested by running the application.
-
-- Use `docker compose -f mergician-compose.yaml up --build` from the repository root to start the environment.
-- The frontend should be accessible at `http://localhost:3000` after startup.
-- The backend API runs on `http://localhost:5000`.
-- Stop with `docker compose -f mergician-compose.yaml down`.
-- For native development: run backend with `cd src/be/Mergician && dotnet run`, frontend with `cd src/fe && npm run dev`. Access at `http://localhost:5173`.
-- If it is not possible to test Mergician from the comman line, it is fine to create a small test app using PLaywright or do any suitable browser emulation to verify functionality.
-
 ## CI Lab
-If doing more than trivial changes to the CI Lab environment (docker configs or the C# Bootstrap project), it should be tested by running the environment (both spinning up the containers and running the bootstrapper).
-
-- If the CI Lab docker containers aren't already running, use the helper script `/scripts/cilab-start.sh` to clear previous sessions and start the environment. It is ok to stop and remove an existing session this way, as this is a test environment and you can assume you are the only thing using it.
+For testing changes to the CI Lab or bootstrapper, or for setting up the CI Lab environment for testing Mergician, follow this procedure:
+- When testing for the first time in a session, run the helper script `/scripts/cilab-start.sh` to clear previous sessions and start the environment. It is ok to stop and remove an existing session this way, as this is a test environment and you can assume you are the only thing using it.
 - If testing the docker compose or starting containers, note that Gitlab takes a long time to become healthy. Do not assume failure unless it takes more than 5 minutes.
 - The TeamCity server should be accessible at `http://localhost:8111` after startup.
 - The Gitlab server should be accessible at `http://localhost:8080` after startup.
 
 ### Running the Bootstrapper
-- Ensure the docker environment from the compose file is running before executing the C# Bootstrap project. Usually the user will have started this before running a Copilot Agent prompt, but if a clean environment is desired for debugging, it is always safe to tear down and recreate.
+The Bootstrapper sets up the initial data needed for Merigican to run, so make sure this is finished before starting Mergician.
+
+- The bootstrapper shoud be designed to wait for the CI Lab services it needs to be ready before it operates, so it can be run immediately after starting the environment without needing to wait for GitLab or TeamCity to be healthy first. It is important to run `cilab-start.sh` first however as that cleans up any stale tokens from previous runs.
 - Always use `./scripts/bootstrap.sh` to run the bootstrapper (not direct docker run commands).
 - The bootstrap.sh script handles proper network configuration (--net=host) so the container can access localhost services.
-- Test the bootstrapper with a timeout, as otherwise it will retry for a long time: `timeout 120 ./scripts/bootstrap.sh || true` (adjust timeout as needed).
+- Test the bootstrapper with a timeout, as otherwise it will retry for a long time: `timeout 600 ./scripts/bootstrap.sh || true` (adjust timeout as needed).
 - The bootstrapper builds its own Docker image (ci-lab-bootstrap:latest) that includes .NET 9 SDK and Playwright with browser dependencies.
 
 ### Common Issues & Debugging
 - **Stale tokens after docker prune/restart**: If you see "401 Unauthorized" errors for GitLab or TeamCity tokens during bootstrap, the `.env` file may have stale tokens from a previous GitLab/TeamCity instance. The `cilab-start.sh` script automatically cleans these, but if running docker compose manually, remove the GITLAB_TOKEN and TEAMCITY_TOKEN lines from `.env` before starting.
 - **Token generator not running**: The `gitlab-token-generator` container depends on GitLab being healthy. If `docker compose up` is interrupted before GitLab becomes healthy, the token generator may be in "Created" state. Either wait for the compose command to complete, or manually start it with `docker start ci-lab-gitlab-token-generator-1` and check logs with `docker logs ci-lab-gitlab-token-generator-1`.
 - **GitLab health check timing**: GitLab takes 3-5 minutes to become healthy on first start. Don't assume failure unless it exceeds 5 minutes. Check status with: `docker inspect ci-lab-gitlab-1 --format '{{.State.Health.Status}}'`
+
+- ## Mergician
+If doing more than trivial changes to Mergician, it should be tested by running the application. Mergician needs services from CI Lab to be running, so before running Mergician, ensure the CI Lab environment is up and bootstrapped according to the instructions above.
+
+- Use `docker compose -f mergician-compose.yaml up --build` from the repository root to start the environment.
+- After most non trivial changes, run the Integration tests project and ensure it is passing.
+- The frontend should be accessible at `http://localhost:3000` after startup.
+- The backend API runs on `http://localhost:5000`.
+- Stop with `docker compose -f mergician-compose.yaml down -v` (so we clean up volumes created during testing too).
+- For native development: run backend with `cd src/be/Mergician && dotnet run`, frontend with `cd src/fe && npm run dev`. Access at `http://localhost:5173`.
 
 # Architectural gotchas & pitfalls
 
