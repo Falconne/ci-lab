@@ -32,6 +32,23 @@ public class GitlabService : IDisposable
         GC.SuppressFinalize(this);
     }
 
+    /// <summary>
+    /// Creates a RestClient authenticated as a specific user (via their PAT).
+    /// Caller is responsible for disposing the returned client.
+    /// </summary>
+    private RestClient CreateUserClient(string token)
+    {
+        var client = new RestClient(
+            new RestClientOptions(_client.Options.BaseUrl!.ToString())
+            {
+                ThrowOnAnyError = false,
+                RemoteCertificateValidationCallback = (_, _, _, _) => true,
+                Timeout = TimeSpan.FromSeconds(30)
+            });
+        client.AddDefaultHeader("PRIVATE-TOKEN", token);
+        return client;
+    }
+
     public async Task<GitlabGroup> CreateGroup(string groupName)
     {
         Log.Information($"Creating GitLab group '{groupName}'");
@@ -322,11 +339,6 @@ public class GitlabService : IDisposable
         return response is { IsSuccessful: true, Data.Length: > 0 };
     }
 
-    public async Task<bool> CheckProjectHasCommitsPublic(int projectId)
-    {
-        return await CheckProjectHasCommits(projectId);
-    }
-
     public async Task CreateFileInRepo(
         int projectId,
         string filePath,
@@ -604,6 +616,200 @@ public class GitlabService : IDisposable
         Log.Error($"Failed to configure project merge request settings: {(int)updateResponse.StatusCode} - {updateResponse.Content}");
         throw new InvalidOperationException(
             $"Failed to configure project merge request settings: {(int)updateResponse.StatusCode} - {updateResponse.Content}");
+    }
+
+    /// <summary>
+    /// Creates a branch from the given ref (defaults to "main").
+    /// Returns the branch if created or already exists.
+    /// </summary>
+    public async Task<GitlabBranch> CreateBranch(int projectId, string branchName, string fromRef = "main")
+    {
+        Log.Information($"Creating branch '{branchName}' in project {projectId} from '{fromRef}'");
+
+        // Check if branch already exists
+        var encodedBranch = Uri.EscapeDataString(branchName);
+        var checkRequest = new RestRequest($"projects/{projectId}/repository/branches/{encodedBranch}");
+        var checkResponse = await _client.ExecuteGetAsync<GitlabBranch>(checkRequest);
+
+        if (checkResponse.IsSuccessful && checkResponse.Data is not null)
+        {
+            Log.Information($"Branch '{branchName}' already exists in project {projectId}");
+            return checkResponse.Data;
+        }
+
+        var createRequest = new RestRequest($"projects/{projectId}/repository/branches", Method.Post)
+            .AddJsonBody(new { branch = branchName, @ref = fromRef });
+
+        var createResponse = await _client.ExecutePostAsync<GitlabBranch>(createRequest);
+
+        if (createResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created
+            && createResponse.Data is not null)
+        {
+            Log.Information($"Branch '{branchName}' created in project {projectId}");
+            return createResponse.Data;
+        }
+
+        Log.Error($"Failed to create branch: {(int)createResponse.StatusCode} - {createResponse.Content}");
+        throw new InvalidOperationException(
+            $"Failed to create branch '{branchName}': {(int)createResponse.StatusCode} - {createResponse.Content}");
+    }
+
+    /// <summary>
+    /// Creates a file commit on a branch as a specific user (via their PAT).
+    /// If userToken is null, uses the admin token.
+    /// </summary>
+    public async Task CreateCommitOnBranchAsUser(
+        int projectId,
+        string branchName,
+        string filePath,
+        string content,
+        string commitMessage,
+        string? userToken)
+    {
+        Log.Information($"Creating commit on branch '{branchName}' in project {projectId}" +
+                        (userToken != null ? " (as user)" : " (as admin)"));
+
+        var client = _client;
+        RestClient? userClient = null;
+
+        if (userToken != null)
+        {
+            userClient = CreateUserClient(userToken);
+            client = userClient;
+        }
+
+        try
+        {
+            var request = new RestRequest($"projects/{projectId}/repository/files/{Uri.EscapeDataString(filePath)}", Method.Post)
+                .AddJsonBody(new
+                {
+                    branch = branchName,
+                    content,
+                    commit_message = commitMessage
+                });
+
+            var response = await client.ExecuteAsync(request);
+
+            if (response.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created)
+            {
+                Log.Information($"Commit created on branch '{branchName}' in project {projectId}");
+                return;
+            }
+
+            // If file already exists, update it instead
+            if (response.StatusCode == HttpStatusCode.BadRequest && response.Content?.Contains("already exists") == true)
+            {
+                Log.Information($"File '{filePath}' already exists on branch '{branchName}', updating it");
+                var updateRequest = new RestRequest($"projects/{projectId}/repository/files/{Uri.EscapeDataString(filePath)}", Method.Put)
+                    .AddJsonBody(new
+                    {
+                        branch = branchName,
+                        content,
+                        commit_message = commitMessage
+                    });
+
+                var updateResponse = await client.ExecuteAsync(updateRequest);
+
+                if (updateResponse.StatusCode is HttpStatusCode.OK)
+                {
+                    Log.Information($"File updated on branch '{branchName}' in project {projectId}");
+                    return;
+                }
+
+                Log.Error($"Failed to update file: {(int)updateResponse.StatusCode} - {updateResponse.Content}");
+                throw new InvalidOperationException(
+                    $"Failed to update file on branch '{branchName}': {(int)updateResponse.StatusCode} - {updateResponse.Content}");
+            }
+
+            Log.Error($"Failed to create commit: {(int)response.StatusCode} - {response.Content}");
+            throw new InvalidOperationException(
+                $"Failed to create commit on branch '{branchName}': {(int)response.StatusCode} - {response.Content}");
+        }
+        finally
+        {
+            userClient?.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// Creates a merge request. Returns it if created, or returns the existing one if already open.
+    /// </summary>
+    public async Task<GitlabMergeRequest> CreateMergeRequest(
+        int projectId,
+        string sourceBranch,
+        string targetBranch,
+        string title,
+        string userToken)
+    {
+        Log.Information($"Creating MR '{title}' in project {projectId}: {sourceBranch} -> {targetBranch}");
+
+        // Use a user-scoped client to create MR as that user
+        using var userClient = CreateUserClient(userToken);
+
+        // Check if MR already exists
+        var searchRequest = new RestRequest($"projects/{projectId}/merge_requests")
+            .AddQueryParameter("source_branch", sourceBranch)
+            .AddQueryParameter("target_branch", targetBranch)
+            .AddQueryParameter("state", "opened");
+
+        var searchResponse = await userClient.ExecuteGetAsync<GitlabMergeRequest[]>(searchRequest);
+
+        if (searchResponse is { IsSuccessful: true, Data: not null } && searchResponse.Data.Length > 0)
+        {
+            Log.Information($"MR already exists for {sourceBranch} -> {targetBranch} in project {projectId}");
+            return searchResponse.Data[0];
+        }
+
+        var createRequest = new RestRequest($"projects/{projectId}/merge_requests", Method.Post)
+            .AddJsonBody(new
+            {
+                source_branch = sourceBranch,
+                target_branch = targetBranch,
+                title
+            });
+
+        var createResponse = await userClient.ExecutePostAsync<GitlabMergeRequest>(createRequest);
+
+        if (createResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created
+            && createResponse.Data is not null)
+        {
+            Log.Information($"MR '{title}' created in project {projectId} (IID: {createResponse.Data.Iid})");
+            return createResponse.Data;
+        }
+
+        Log.Error($"Failed to create MR: {(int)createResponse.StatusCode} - {createResponse.Content}");
+        throw new InvalidOperationException(
+            $"Failed to create MR '{title}': {(int)createResponse.StatusCode} - {createResponse.Content}");
+    }
+
+    /// <summary>
+    /// Approves a merge request as the given user.
+    /// </summary>
+    public async Task ApproveMergeRequest(int projectId, int mergeRequestIid, string approverToken)
+    {
+        Log.Information($"Approving MR !{mergeRequestIid} in project {projectId}");
+
+        using var approverClient = CreateUserClient(approverToken);
+
+        var request = new RestRequest($"projects/{projectId}/merge_requests/{mergeRequestIid}/approve", Method.Post);
+        var response = await approverClient.ExecutePostAsync(request);
+
+        if (response.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created)
+        {
+            Log.Information($"MR !{mergeRequestIid} approved in project {projectId}");
+            return;
+        }
+
+        // 401 can occur when already approved
+        if (response.StatusCode == HttpStatusCode.Unauthorized || response.Content?.Contains("already approved") == true)
+        {
+            Log.Information($"MR !{mergeRequestIid} was already approved or cannot be approved again");
+            return;
+        }
+
+        Log.Error($"Failed to approve MR: {(int)response.StatusCode} - {response.Content}");
+        throw new InvalidOperationException(
+            $"Failed to approve MR !{mergeRequestIid}: {(int)response.StatusCode} - {response.Content}");
     }
 
     public async Task<GitLabPersonalAccessToken> CreatePersonalAccessToken(

@@ -22,41 +22,80 @@
 
         <div v-else-if="loading" class="text-center pa-8">
           <v-progress-circular indeterminate color="primary" size="48" />
-          <p class="mt-4 text-body-1">Loading your activity...</p>
+          <p class="mt-4 text-body-1">Loading dashboard...</p>
         </div>
 
-        <div v-else-if="events.length === 0" class="text-center pa-8">
-          <v-icon icon="mdi-calendar-blank" size="64" color="grey" class="mb-4" />
-          <p class="text-h6 text-grey">No activity in the last 7 days</p>
+        <div v-else-if="groupedBranches.length === 0" class="text-center pa-8">
+          <v-icon icon="mdi-source-branch" size="64" color="grey" class="mb-4" />
+          <p class="text-h6 text-grey">No active branches in the last 14 days</p>
         </div>
 
         <div v-else>
-          <h2 class="text-h5 mb-4">Your GitLab Activity (Last 7 Days)</h2>
-          <v-timeline density="compact" side="end">
-            <v-timeline-item
-              v-for="event in events"
-              :key="event.id"
-              :dot-color="getEventColor(event.actionName)"
-              :icon="getEventIcon(event.actionName)"
-              size="small"
-            >
-              <v-card variant="outlined" class="mb-2">
-                <v-card-text>
-                  <div class="d-flex justify-space-between align-center">
-                    <div>
-                      <strong>{{ formatAction(event) }}</strong>
-                      <div v-if="event.projectName" class="text-caption text-grey">
-                        {{ event.projectName }}
-                      </div>
-                    </div>
-                    <v-chip size="small" variant="text" class="text-caption">
-                      {{ formatDate(event.createdAt) }}
-                    </v-chip>
-                  </div>
-                </v-card-text>
-              </v-card>
-            </v-timeline-item>
-          </v-timeline>
+          <h2 class="text-h5 mb-4">Dashboard</h2>
+          <v-table class="dashboard-table" density="comfortable">
+            <thead>
+              <tr>
+                <th>Branch</th>
+                <th>Repository</th>
+                <th class="text-center">MR</th>
+                <th class="text-center">Approvals</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template v-for="group in groupedBranches" :key="group.branchName">
+                <tr v-for="(item, idx) in group.items" :key="`${group.branchName}-${item.projectId}`">
+                  <!-- Branch name cell: only show on first row of group, span all rows -->
+                  <td
+                    v-if="idx === 0"
+                    :rowspan="group.items.length"
+                    class="branch-name-cell font-weight-medium"
+                  >
+                    <v-icon icon="mdi-source-branch" size="small" class="mr-1" />
+                    {{ group.branchName }}
+                  </td>
+
+                  <!-- Repository name -->
+                  <td>{{ item.projectName }}</td>
+
+                  <!-- MR status -->
+                  <td class="text-center">
+                    <v-icon
+                      v-if="item.hasMergeRequest"
+                      icon="mdi-check-circle"
+                      color="success"
+                      size="small"
+                    />
+                    <v-icon
+                      v-else
+                      icon="mdi-minus-circle-outline"
+                      color="grey"
+                      size="small"
+                    />
+                  </td>
+
+                  <!-- Approval status -->
+                  <td class="text-center">
+                    <template v-if="item.hasMergeRequest && item.approvalsRequired != null && item.approvalsGiven != null">
+                      <v-chip
+                        :color="item.approvalsGiven >= item.approvalsRequired ? 'success' : 'warning'"
+                        size="small"
+                        variant="tonal"
+                      >
+                        <v-icon
+                          v-if="item.approvalsGiven >= item.approvalsRequired"
+                          icon="mdi-check"
+                          size="x-small"
+                          class="mr-1"
+                        />
+                        {{ item.approvalsGiven }}/{{ item.approvalsRequired }}
+                      </v-chip>
+                    </template>
+                    <span v-else class="text-grey">—</span>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </v-table>
         </div>
       </v-col>
     </v-row>
@@ -64,33 +103,44 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 
-interface PushData {
-  commit_count: number
-  ref: string | null
-  ref_type: string | null
-  action: string | null
-}
-
-interface ActivityEvent {
-  id: number
-  actionName: string
-  targetType: string | null
-  targetTitle: string | null
-  createdAt: string
-  pushData: PushData | null
+interface BranchActivity {
+  branchName: string
   projectId: number
-  projectName: string | null
+  projectName: string
+  hasMergeRequest: boolean
+  approvalsRequired: number | null
+  approvalsGiven: number | null
 }
 
-const events = ref<ActivityEvent[]>([])
+interface BranchGroup {
+  branchName: string
+  items: BranchActivity[]
+}
+
+const activities = ref<BranchActivity[]>([])
 const loading = ref(true)
 const authenticated = ref(false)
 
+const groupedBranches = computed<BranchGroup[]>(() => {
+  const groups = new Map<string, BranchActivity[]>()
+  for (const item of activities.value) {
+    const existing = groups.get(item.branchName)
+    if (existing) {
+      existing.push(item)
+    } else {
+      groups.set(item.branchName, [item])
+    }
+  }
+  return Array.from(groups.entries()).map(([branchName, items]) => ({
+    branchName,
+    items
+  }))
+})
+
 onMounted(async () => {
   try {
-    // Check if user is authenticated first
     const meResponse = await fetch('/api/auth/me')
     if (meResponse.status === 401) {
       loading.value = false
@@ -100,58 +150,25 @@ onMounted(async () => {
 
     const response = await fetch('/api/activity')
     if (response.ok) {
-      events.value = await response.json()
+      activities.value = await response.json()
     }
   } catch (err) {
-    console.error('Failed to load activity:', err)
+    console.error('Failed to load dashboard:', err)
   } finally {
     loading.value = false
   }
 })
-
-function getEventColor(action: string): string {
-  switch (action) {
-    case 'pushed to': case 'pushed new': return 'green'
-    case 'opened': case 'created': return 'blue'
-    case 'merged': case 'accepted': return 'purple'
-    case 'closed': return 'red'
-    case 'commented on': return 'orange'
-    default: return 'grey'
-  }
-}
-
-function getEventIcon(action: string): string {
-  switch (action) {
-    case 'pushed to': case 'pushed new': return 'mdi-source-commit'
-    case 'opened': case 'created': return 'mdi-plus-circle'
-    case 'merged': case 'accepted': return 'mdi-source-merge'
-    case 'closed': return 'mdi-close-circle'
-    case 'commented on': return 'mdi-comment'
-    default: return 'mdi-circle'
-  }
-}
-
-function formatAction(event: ActivityEvent): string {
-  let text = event.actionName
-  if (event.targetTitle) {
-    text += ` "${event.targetTitle}"`
-  }
-  if (event.pushData?.ref) {
-    text += ` branch ${event.pushData.ref}`
-    if (event.pushData.commit_count > 0) {
-      text += ` (${event.pushData.commit_count} commit${event.pushData.commit_count > 1 ? 's' : ''})`
-    }
-  }
-  return text
-}
-
-function formatDate(dateStr: string): string {
-  const d = new Date(dateStr)
-  return d.toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
-}
 </script>
+
+<style scoped>
+.dashboard-table {
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border-radius: 4px;
+}
+
+.branch-name-cell {
+  vertical-align: top;
+  border-right: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  background-color: rgba(var(--v-theme-surface-variant), 0.3);
+}
+</style>

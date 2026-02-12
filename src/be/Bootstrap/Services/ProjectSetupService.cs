@@ -24,9 +24,12 @@ public class ProjectSetupService
 
     private readonly EnvFileService _envFileService;
 
-    // Store project info for reuse
-    private readonly List<string> _primaryRepos = new();
-    private readonly List<string> _secondaryRepos = new();
+    // Store project info (name -> project ID) for reuse
+    private readonly Dictionary<string, int> _primaryRepos = new();
+    private readonly Dictionary<string, int> _secondaryRepos = new();
+
+    // Store user PATs for creating MRs/approvals as specific users
+    private readonly Dictionary<string, string> _userTokens = new();
 
     public ProjectSetupService(
         GitlabService gitlabService,
@@ -60,6 +63,8 @@ public class ProjectSetupService
         await SetupTeamCityConfigRepo();
 
         await SetupLabBuilds();
+
+        await SetupTestBranchData();
     }
 
     private async Task SetupTestRepos()
@@ -74,7 +79,7 @@ public class ProjectSetupService
         {
             var projectName = $"primary-{i}";
             var project = await _gitlabService.CreateTopLevelProject(projectName, testGroup.Id);
-            _primaryRepos.Add(projectName);
+            _primaryRepos[projectName] = project.Id;
 
             // Add Bob Builder as owner
             await _gitlabService.AddProjectMember(project.Id, "b.builder", 50);
@@ -88,7 +93,7 @@ public class ProjectSetupService
         {
             var projectName = $"secondary-{i}";
             var project = await _gitlabService.CreateRegularProject(projectName, testGroup.Id);
-            _secondaryRepos.Add(projectName);
+            _secondaryRepos[projectName] = project.Id;
 
             // Add Bob Builder as owner
             await _gitlabService.AddProjectMember(project.Id, "b.builder", 50);
@@ -178,7 +183,7 @@ public class ProjectSetupService
         Log.Information("Setting up CI Lab builds in TeamCity configuration...");
 
         // Get the TeamCityConfig project info
-        var configProject = await GetTeamCityConfigProject();
+        var configProject = await GetOrCreateTeamCityConfigProject();
         if (configProject == null)
         {
             throw new InvalidOperationException("TeamCityConfig project not found in GitLab");
@@ -274,7 +279,7 @@ public class ProjectSetupService
         Log.Information("CI Lab builds setup complete!");
     }
 
-    private async Task<Entities.Gitlab.GitlabProject?> GetTeamCityConfigProject()
+    private async Task<Entities.Gitlab.GitlabProject?> GetOrCreateTeamCityConfigProject()
     {
         // Search for the project
         var project = await _gitlabService.CreateProject("TeamCityConfig");
@@ -397,12 +402,12 @@ public class ProjectSetupService
         sb.AppendLine();
 
         // Register VCS roots for all repos
-        foreach (var repo in _primaryRepos)
+        foreach (var repo in _primaryRepos.Keys)
         {
             var vcsId = GetVCSRootId(repo);
             sb.AppendLine($"    vcsRoot({vcsId})");
         }
-        foreach (var repo in _secondaryRepos)
+        foreach (var repo in _secondaryRepos.Keys)
         {
             var vcsId = GetVCSRootId(repo);
             sb.AppendLine($"    vcsRoot({vcsId})");
@@ -415,24 +420,26 @@ public class ProjectSetupService
             var buildId = $"CILabBuild{i + 1}";
             sb.AppendLine($"    buildType({buildId})");
         }
+        var primaryRepoNames = _primaryRepos.Keys.ToList();
+        var secondaryRepoNames = _secondaryRepos.Keys.ToList();
         sb.AppendLine("})");
         sb.AppendLine();
 
         // Generate VCS roots for all repos
-        foreach (var repo in _primaryRepos.Concat(_secondaryRepos))
+        foreach (var repo in _primaryRepos.Keys.Concat(_secondaryRepos.Keys))
         {
             sb.Append(GenerateVCSRoot(repo));
         }
 
         // Generate build types
         // Build 1: primary-1 + all 4 secondary repos
-        sb.Append(GenerateBuildType(1, _primaryRepos[0], _secondaryRepos.ToArray()));
+        sb.Append(GenerateBuildType(1, primaryRepoNames[0], secondaryRepoNames.ToArray()));
 
         // Build 2: primary-2 + first 2 secondary repos
-        sb.Append(GenerateBuildType(2, _primaryRepos[1], _secondaryRepos.Take(2).ToArray()));
+        sb.Append(GenerateBuildType(2, primaryRepoNames[1], secondaryRepoNames.Take(2).ToArray()));
 
         // Build 3: primary-3 + only 4th secondary repo
-        sb.Append(GenerateBuildType(3, _primaryRepos[2], new[] { _secondaryRepos[3] }));
+        sb.Append(GenerateBuildType(3, primaryRepoNames[2], new[] { secondaryRepoNames[3] }));
 
         return sb.ToString();
     }
@@ -638,8 +645,110 @@ public class ProjectSetupService
 
             await _gitlabService.CreateUser(username, name, email, password);
             await _teamCityService.CreateUser(username, name, email, password);
+
+            // Create a PAT for each test user so we can create MRs/approvals as them
+            var pat = await _gitlabService.CreatePersonalAccessToken(
+                username,
+                "bootstrap-test-data",
+                ["api", "read_user", "read_api"]);
+            _userTokens[username] = pat.Token;
+            Log.Information($"Created PAT for '{username}'");
         }
 
         Log.Information("TeamCity test accounts created");
+    }
+
+    /// <summary>
+    /// Creates deterministic branch/MR/approval test data for the dashboard.
+    ///
+    /// Test data layout:
+    /// - test1 creates branch "feature/alpha" in primary-1 and secondary-1, with MRs.
+    ///   test2 approves the MR in primary-1.
+    /// - test1 creates branch "feature/beta" in primary-2 only, with an MR (no approval).
+    /// - test2 creates branch "feature/gamma" in primary-1, secondary-1, secondary-2, with MRs in all.
+    ///   test3 approves the MR in secondary-1.
+    /// - test3 creates branch "feature/delta" in secondary-3 only, no MR.
+    /// </summary>
+    private async Task SetupTestBranchData()
+    {
+        Log.Information("Setting up deterministic test branch data for the dashboard...");
+
+        var allRepos = new Dictionary<string, int>(_primaryRepos);
+        foreach (var (name, id) in _secondaryRepos)
+        {
+            allRepos[name] = id;
+        }
+
+        // Resolve project IDs by name
+        int ProjectId(string name) => allRepos[name];
+
+        // ── test1: feature/alpha in primary-1 and secondary-1 ──
+        var test1Token = _userTokens["test1"];
+
+        await CreateBranchWithCommit(ProjectId("primary-1"), "feature/alpha", "test1");
+        await CreateBranchWithCommit(ProjectId("secondary-1"), "feature/alpha", "test1");
+
+        var mrAlpha1 = await _gitlabService.CreateMergeRequest(
+            ProjectId("primary-1"), "feature/alpha", "main",
+            "Alpha changes in primary-1", test1Token);
+        var mrAlpha2 = await _gitlabService.CreateMergeRequest(
+            ProjectId("secondary-1"), "feature/alpha", "main",
+            "Alpha changes in secondary-1", test1Token);
+
+        // test2 approves alpha MR in primary-1
+        await _gitlabService.ApproveMergeRequest(
+            ProjectId("primary-1"), mrAlpha1.Iid, _userTokens["test2"]);
+
+        // ── test1: feature/beta in primary-2 only, MR but no approval ──
+        await CreateBranchWithCommit(ProjectId("primary-2"), "feature/beta", "test1");
+
+        await _gitlabService.CreateMergeRequest(
+            ProjectId("primary-2"), "feature/beta", "main",
+            "Beta changes in primary-2", test1Token);
+
+        // ── test2: feature/gamma in primary-1, secondary-1, secondary-2 ──
+        var test2Token = _userTokens["test2"];
+
+        await CreateBranchWithCommit(ProjectId("primary-1"), "feature/gamma", "test2");
+        await CreateBranchWithCommit(ProjectId("secondary-1"), "feature/gamma", "test2");
+        await CreateBranchWithCommit(ProjectId("secondary-2"), "feature/gamma", "test2");
+
+        await _gitlabService.CreateMergeRequest(
+            ProjectId("primary-1"), "feature/gamma", "main",
+            "Gamma changes in primary-1", test2Token);
+        var mrGammaSec1 = await _gitlabService.CreateMergeRequest(
+            ProjectId("secondary-1"), "feature/gamma", "main",
+            "Gamma changes in secondary-1", test2Token);
+        await _gitlabService.CreateMergeRequest(
+            ProjectId("secondary-2"), "feature/gamma", "main",
+            "Gamma changes in secondary-2", test2Token);
+
+        // test3 approves gamma MR in secondary-1
+        await _gitlabService.ApproveMergeRequest(
+            ProjectId("secondary-1"), mrGammaSec1.Iid, _userTokens["test3"]);
+
+        // ── test3: feature/delta in secondary-3, no MR ──
+        await CreateBranchWithCommit(ProjectId("secondary-3"), "feature/delta", "test3");
+
+        Log.Information("Test branch data setup complete!");
+    }
+
+    /// <summary>
+    /// Helper: creates a branch and a commit on it so the branch has changes vs main.
+    /// Uses the user's token so the commit and push event are attributed to them.
+    /// </summary>
+    private async Task CreateBranchWithCommit(int projectId, string branchName, string username)
+    {
+        await _gitlabService.CreateBranch(projectId, branchName);
+
+        // Use the user's token to create the commit so it registers as their push event
+        var userToken = _userTokens[username];
+        await _gitlabService.CreateCommitOnBranchAsUser(
+            projectId,
+            branchName,
+            $"changes/{branchName.Replace("/", "-")}.txt",
+            $"Changes for {branchName} by {username} at {DateTime.UtcNow:O}",
+            $"Add changes for {branchName}",
+            userToken);
     }
 }

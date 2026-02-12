@@ -69,26 +69,26 @@ try
         logoutTest.Dispose();
     }
 
-    // Test 3: Git operations and activity
-    var activityTest = new ActivityTest();
+    // Test 3: Dashboard data verification
+    var dashboardTest = new DashboardTest();
     try
     {
         Log.Information("");
-        Log.Information("--- Test: Git Activity ---");
-        await activityTest.Run();
-        results.Add(("Git Activity", true, null));
-        Log.Information("PASS: Git Activity");
+        Log.Information("--- Test: Dashboard ---");
+        await dashboardTest.Run();
+        results.Add(("Dashboard", true, null));
+        Log.Information("PASS: Dashboard");
     }
     catch (Exception ex)
     {
-        results.Add(("Git Activity", false, ex.Message));
-        Log.Error($"FAIL: Git Activity - {ex.Message}");
+        results.Add(("Dashboard", false, ex.Message));
+        Log.Error($"FAIL: Dashboard - {ex.Message}");
         allPassed = false;
         if (abortOnFirstFailure) throw;
     }
     finally
     {
-        activityTest.Dispose();
+        dashboardTest.Dispose();
     }
 }
 catch (Exception ex)
