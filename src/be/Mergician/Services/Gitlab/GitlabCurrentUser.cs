@@ -1,18 +1,14 @@
-using Mergician.Entities;
 using Serilog;
-using System.Net.Http.Headers;
 
 namespace Mergician.Services.Gitlab;
 
-public class GitlabCurrentUser : IGitlabAccessUser
+public class GitlabCurrentUser : GitlabAccessUserBase
 {
     private readonly IHttpClientFactory _httpClientFactory;
 
     private readonly IHttpContextAccessor _httpContextAccessor;
 
     private readonly GitLabOAuthService _oauthService;
-
-    private readonly MergicianSettings _settings;
 
     private string? _cachedAccessToken;
 
@@ -22,15 +18,15 @@ public class GitlabCurrentUser : IGitlabAccessUser
         IHttpContextAccessor httpContextAccessor,
         GitLabOAuthService oauthService,
         IHttpClientFactory httpClientFactory,
-        MergicianSettings settings)
+        string apiBaseUrl)
+        : base(apiBaseUrl)
     {
         _httpContextAccessor = httpContextAccessor;
         _oauthService = oauthService;
         _httpClientFactory = httpClientFactory;
-        _settings = settings;
     }
 
-    public async Task<string?> GetValidAccessToken()
+    public override async Task<string?> GetValidAccessToken()
     {
         if (_resolved)
         {
@@ -94,12 +90,8 @@ public class GitlabCurrentUser : IGitlabAccessUser
 
     private async Task<bool> ValidateToken(string accessToken)
     {
+        var request = CreateRequestWithToken(HttpMethod.Get, "user", accessToken);
         var client = _httpClientFactory.CreateClient("GitLabOAuth");
-        var gitlabUrl = _settings.GitLab.ServerUrl.TrimEnd('/');
-
-        var request = new HttpRequestMessage(HttpMethod.Get, $"{gitlabUrl}/api/v4/user");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-
         var response = await client.SendAsync(request);
         return response.IsSuccessStatusCode;
     }

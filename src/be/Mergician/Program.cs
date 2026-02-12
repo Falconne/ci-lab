@@ -23,6 +23,10 @@ try
 
     builder.Services.AddSingleton(mergicianSettings);
 
+    // Compute GitLab API base URL once at startup from configuration
+    var gitlabApiBaseUrl = $"{mergicianSettings.GitLab.ServerUrl.TrimEnd('/')}/api/v4";
+    Log.Information("GitLab API base URL: {GitLabApiBaseUrl}", gitlabApiBaseUrl);
+
     // Register HttpClient factory and GitLab services
     builder.Services.AddHttpClient("GitLabOAuth")
         .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
@@ -32,8 +36,14 @@ try
     builder.Services.AddHttpContextAccessor();
     builder.Services.AddSingleton<GitLabOAuthService>();
     builder.Services.AddSingleton<GitlabService>();
-    builder.Services.AddScoped<GitlabCurrentUser>();
-    builder.Services.AddSingleton<GitlabServiceUser>();
+    builder.Services.AddScoped<GitlabCurrentUser>(sp => new GitlabCurrentUser(
+        sp.GetRequiredService<IHttpContextAccessor>(),
+        sp.GetRequiredService<GitLabOAuthService>(),
+        sp.GetRequiredService<IHttpClientFactory>(),
+        gitlabApiBaseUrl));
+    builder.Services.AddSingleton(new GitlabServiceUser(
+        mergicianSettings.GitLab.ServiceToken,
+        gitlabApiBaseUrl));
 
     // Add services
     builder.Services.AddControllers();

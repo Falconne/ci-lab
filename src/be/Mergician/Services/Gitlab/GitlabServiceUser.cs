@@ -1,26 +1,32 @@
-using Mergician.Entities;
 using Serilog;
 
 namespace Mergician.Services.Gitlab;
 
-public class GitlabServiceUser : IGitlabAccessUser
+public class GitlabServiceUser : GitlabAccessUserBase
 {
-    private readonly MergicianSettings _settings;
+    private readonly string? _serviceToken;
 
-    public GitlabServiceUser(MergicianSettings settings)
+    public bool IsConfigured => !string.IsNullOrWhiteSpace(_serviceToken);
+
+    public GitlabServiceUser(string? serviceToken, string apiBaseUrl)
+        : base(apiBaseUrl)
     {
-        _settings = settings;
+        _serviceToken = serviceToken;
+
+        if (!IsConfigured)
+            Log.Error("GitLab service token is not configured. Set the Mergician:GitLab:ServiceToken setting");
+        else
+            Log.Information("GitLab service user initialised with a configured service token");
     }
 
-    public Task<string?> GetValidAccessToken()
+    public override Task<string?> GetValidAccessToken()
     {
-        var token = _settings.GitLab.ServiceToken;
-        if (string.IsNullOrWhiteSpace(token))
+        if (!IsConfigured)
         {
-            Log.Warning("GitLab service token is not configured");
+            Log.Error("GitLab service token is not configured — cannot authenticate API request");
             return Task.FromResult<string?>(null);
         }
 
-        return Task.FromResult<string?>(token);
+        return Task.FromResult<string?>(_serviceToken);
     }
 }
