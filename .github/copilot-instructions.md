@@ -67,6 +67,7 @@ These are guideline for working on the Bootstrap C# project that creates test da
 ## CI Lab
 For testing changes to the CI Lab or bootstrapper, or for setting up the CI Lab environment for testing Mergician, follow this procedure:
 - When testing for the first time in a session, run the helper script `/scripts/cilab-start.sh` to clear previous sessions and start the environment. It is ok to stop and remove an existing session this way, as this is a test environment and you can assume you are the only thing using it.
+- Unless testing changes relating to the cilab itself, it is prudent to start the cilab in the background and immediately kick off the bootstrapper. The cilab takes a long time to finish and the bootstrapper can do work while this is starting, so this will save time.
 - If testing the docker compose or starting containers, note that Gitlab takes a long time to become healthy. Do not assume failure unless it takes more than 5 minutes.
 - The TeamCity server should be accessible at `http://localhost:8111` after startup.
 - The Gitlab server should be accessible at `http://localhost:8080` after startup.
