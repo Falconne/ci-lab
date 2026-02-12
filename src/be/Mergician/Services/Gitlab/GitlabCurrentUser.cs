@@ -1,17 +1,21 @@
-using System.Net.Http.Headers;
 using Mergician.Entities;
 using Serilog;
+using System.Net.Http.Headers;
 
 namespace Mergician.Services.Gitlab;
 
 public class GitlabCurrentUser : IGitlabAccessUser
 {
-    private readonly IHttpContextAccessor _httpContextAccessor;
-    private readonly GitLabOAuthService _oauthService;
     private readonly IHttpClientFactory _httpClientFactory;
+
+    private readonly IHttpContextAccessor _httpContextAccessor;
+
+    private readonly GitLabOAuthService _oauthService;
+
     private readonly MergicianSettings _settings;
 
     private string? _cachedAccessToken;
+
     private bool _resolved;
 
     public GitlabCurrentUser(
@@ -28,10 +32,13 @@ public class GitlabCurrentUser : IGitlabAccessUser
 
     public async Task<string?> GetValidAccessToken()
     {
-        if (_resolved) return _cachedAccessToken;
+        if (_resolved)
+        {
+            return _cachedAccessToken;
+        }
 
-        _resolved = true;
         _cachedAccessToken = await ResolveAccessToken();
+        _resolved = true;
         return _cachedAccessToken;
     }
 

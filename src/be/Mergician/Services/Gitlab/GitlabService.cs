@@ -1,14 +1,15 @@
-using System.Net.Http.Headers;
-using System.Text.Json;
 using Mergician.Entities;
 using Serilog;
+using System.Net.Http.Headers;
+using System.Text.Json;
 
 namespace Mergician.Services.Gitlab;
 
 public class GitlabService
 {
-    private readonly MergicianSettings _settings;
     private readonly IHttpClientFactory _httpClientFactory;
+
+    private readonly MergicianSettings _settings;
 
     public GitlabService(MergicianSettings settings, IHttpClientFactory httpClientFactory)
     {
@@ -39,10 +40,9 @@ public class GitlabService
         }
 
         var json = await response.Content.ReadAsStringAsync();
-        return JsonSerializer.Deserialize<GitLabUserInfo>(json, new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true
-        });
+        return JsonSerializer.Deserialize<GitLabUserInfo>(
+            json,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
     }
 
     public async Task<List<GitLabEvent>> GetUserEvents(IGitlabAccessUser accessUser, int days = 7)
@@ -58,8 +58,10 @@ public class GitlabService
         var gitlabUrl = _settings.GitLab.ServerUrl.TrimEnd('/');
         var after = DateTime.UtcNow.AddDays(-days).ToString("yyyy-MM-dd");
 
-        var request = new HttpRequestMessage(HttpMethod.Get,
+        var request = new HttpRequestMessage(
+            HttpMethod.Get,
             $"{gitlabUrl}/api/v4/events?after={after}&per_page=100");
+
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
         var response = await client.SendAsync(request);
@@ -85,21 +87,26 @@ public class GitlabService
         var client = _httpClientFactory.CreateClient("GitLabOAuth");
         var gitlabUrl = _settings.GitLab.ServerUrl.TrimEnd('/');
 
-        var request = new HttpRequestMessage(HttpMethod.Get,
+        var request = new HttpRequestMessage(
+            HttpMethod.Get,
             $"{gitlabUrl}/api/v4/projects/{projectId}");
+
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
         var response = await client.SendAsync(request);
         if (!response.IsSuccessStatusCode)
         {
-            Log.Warning("GetProject({ProjectId}) failed with status {StatusCode}", projectId, (int)response.StatusCode);
+            Log.Warning(
+                "GetProject({ProjectId}) failed with status {StatusCode}",
+                projectId,
+                (int)response.StatusCode);
+
             return null;
         }
 
         var json = await response.Content.ReadAsStringAsync();
-        return JsonSerializer.Deserialize<GitLabProject>(json, new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true
-        });
+        return JsonSerializer.Deserialize<GitLabProject>(
+            json,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
     }
 }
