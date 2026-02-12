@@ -13,9 +13,9 @@ public class GitlabService
         _httpClientFactory = httpClientFactory;
     }
 
-    public async Task<GitLabUserInfo?> GetCurrentUser(GitlabAccessUserBase accessUser)
+    public async Task<GitLabUserInfo?> GetCurrentUser(GitlabAccessUserBase user)
     {
-        var request = await accessUser.CreateRequest(HttpMethod.Get, "user");
+        var request = await user.CreateRequest(HttpMethod.Get, "user");
         if (request == null)
         {
             Log.Debug("No valid access token available for GetCurrentUser");
@@ -36,10 +36,10 @@ public class GitlabService
             new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
     }
 
-    public async Task<List<GitLabEvent>> GetUserEvents(GitlabAccessUserBase accessUser, int days = 7)
+    public async Task<List<GitLabEvent>> GetUserEvents(GitlabAccessUserBase user, int days = 7)
     {
         var after = DateTime.UtcNow.AddDays(-days).ToString("yyyy-MM-dd");
-        var request = await accessUser.CreateRequest(
+        var request = await user.CreateRequest(
             HttpMethod.Get,
             $"events?after={after}&per_page=100");
 
@@ -61,9 +61,9 @@ public class GitlabService
         return JsonSerializer.Deserialize<List<GitLabEvent>>(json) ?? [];
     }
 
-    public async Task<GitLabProject?> GetProject(GitlabAccessUserBase accessUser, int projectId)
+    public async Task<GitLabProject?> GetProject(GitlabAccessUserBase user, int projectId)
     {
-        var request = await accessUser.CreateRequest(
+        var request = await user.CreateRequest(
             HttpMethod.Get,
             $"projects/{projectId}");
 
