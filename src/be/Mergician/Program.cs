@@ -36,6 +36,7 @@ try
     builder.Services.AddHttpContextAccessor();
     builder.Services.AddSingleton<GitLabOAuthService>();
     builder.Services.AddSingleton<GitlabService>();
+    builder.Services.AddScoped<GitlabActivityService>();
     builder.Services.AddScoped<GitlabCurrentUser>(sp => new GitlabCurrentUser(
         sp.GetRequiredService<IHttpContextAccessor>(),
         sp.GetRequiredService<GitLabOAuthService>(),
