@@ -30,25 +30,18 @@ public class GitlabActivityService
         _logger.LogInformation("Fetching push activity for last 14 days");
         var events = await _gitlabService.GetUserEvents(currentUser, days: 14);
 
-        // Filter to push events with branch refs, excluding default branches
-        var pushEvents = events
-            .Where(e => e.PushData?.RefType == "branch" && e.PushData.Ref != null)
+        var activeInBranches = events
+            .Where(e => e.PushData is { RefType: "branch", Ref: not null })
             .Where(e => !GitlabService.IsPossibleDefaultBranch(e.PushData!.Ref!))
-            .ToList();
-
-        _logger.LogInformation("Found {Count} push events after filtering default branches", pushEvents.Count);
-
-        // Deduplicate by (branchName, projectId)
-        var uniqueBranches = pushEvents
             .Select(e => new { BranchName = e.PushData!.Ref!, e.ProjectId })
             .Distinct()
             .ToList();
 
-        _logger.LogInformation("Found {Count} unique branch/project combinations", uniqueBranches.Count);
+        _logger.LogInformation("Found {Count} unique branch/project combinations", activeInBranches.Count);
 
         // Resolve project names
         var projectCache = new Dictionary<int, string>();
-        foreach (var entry in uniqueBranches)
+        foreach (var entry in activeInBranches)
         {
             if (entry.ProjectId > 0 && !projectCache.ContainsKey(entry.ProjectId))
             {
@@ -60,7 +53,7 @@ public class GitlabActivityService
         // Track already-emitted branch-project pairs to avoid duplicates
         var emitted = new HashSet<(string BranchName, int ProjectId)>();
 
-        foreach (var entry in uniqueBranches)
+        foreach (var entry in activeInBranches)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
