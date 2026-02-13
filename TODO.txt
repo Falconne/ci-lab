@@ -1,0 +1,5 @@
+
+
+--
+
+The dashboard currently waits for all user activity data to be collected before rendering the table. Make it so that the table starts filling in as soon as each activity line is read from the feed and data about merge requests (MRs) are discovered, so the UI updates dynamically. This means the front end needs to be dynamic:

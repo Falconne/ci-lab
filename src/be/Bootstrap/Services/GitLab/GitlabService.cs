@@ -602,7 +602,6 @@ public class GitlabService : IDisposable
             .AddJsonBody(new
             {
                 only_allow_merge_if_pipeline_succeeds = true,
-                approvals_before_merge = 1
             });
 
         var updateResponse = await _client.ExecuteAsync(updateRequest);
