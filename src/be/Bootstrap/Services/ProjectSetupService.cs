@@ -317,6 +317,7 @@ public class ProjectSetupService
                     sb.AppendLine("import jetbrains.buildServer.configs.kotlin.buildSteps.script");
                     sb.AppendLine("import jetbrains.buildServer.configs.kotlin.vcs.GitVcsRoot");
                     sb.AppendLine("import jetbrains.buildServer.configs.kotlin.buildFeatures.commitStatusPublisher");
+                    sb.AppendLine("import jetbrains.buildServer.configs.kotlin.triggers.vcs");
                     addedImports = true;
                     continue;
                 }
@@ -524,6 +525,12 @@ public class ProjectSetupService
         sb.AppendLine("                chmod +x build.sh");
         sb.AppendLine("                ./build.sh");
         sb.AppendLine(@"            """""".trimIndent()");
+        sb.AppendLine("        }");
+        sb.AppendLine("    }");
+        sb.AppendLine();
+        sb.AppendLine("    triggers {");
+        sb.AppendLine("        vcs {");
+        sb.AppendLine(@"            branchFilter = ""+:*""");
         sb.AppendLine("        }");
         sb.AppendLine("    }");
         sb.AppendLine("})");

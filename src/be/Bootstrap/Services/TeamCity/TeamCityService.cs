@@ -258,4 +258,5 @@ public class TeamCityService : IDisposable
         throw new InvalidOperationException(
             $"Failed to create TeamCity user '{username}': {(int)createResponse.StatusCode} - {createResponse.Content}");
     }
+
 }
