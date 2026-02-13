@@ -1,4 +1,6 @@
+Observe the CI Lab started from cilab-start.sh. It clears the old .env file before starting the docker compose. Update the cilab docker compose yaml itself so this file is always deleted before the Gitlab and TeamCity services start. This may be done with a simple initial service that can rm this file and exit that the other services wait on before they start. Once this is done, remove the code that deletes the .env file from cilab-start.sh.
 
+Then look at the `bootstrap.sh` script to see how it builds and runs the bootstrpper in docker (ignore the bits about checking if it can run dotnet natively, we only care about the docker case). Use this as an example to add a service to the cilab compose file to build and kick off a container build of the bootstrapper and run it as a service. This should also start after the env deleting is done, but it can start at the same time as all the other services. Keep the script around for manual running.
 
 --
 
