@@ -254,6 +254,9 @@ function stopPolling() {
   }
 }
 
+// TODO In adition to polling for new activity, we need to check if the currently displayed branches have
+// had their MR created or deleted or approvals updated. Poll for this as well, but send a single request
+// to fetch data for all currently displayed rows, to avoid hitting the backend too much.
 async function pollForActivity() {
   if (!lastUpdateTime) return
 
