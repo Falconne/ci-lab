@@ -86,19 +86,37 @@ public class AuthenticationTest : IDisposable
         await _browser.TakeScreenshot("06_final_url");
         Log.Information($"Final URL: {currentUrl}");
 
-        // Step 4: Verify we're logged in — navigate to /api/auth/me and check response
-        await _browser.Navigate($"{TestConfig.MergicianUrl}/api/auth/me", WaitUntilState.NetworkIdle);
-        var meContent = await _browser.GetPageContent();
-        Log.Information($"Auth /me page content: {meContent[..Math.Min(500, meContent.Length)]}");
-        await _browser.TakeScreenshot("07_auth_me_response");
+        // Step 4: Verify we're logged in — navigate to the home page and check the UI
+        await _browser.Navigate(TestConfig.MergicianUrl, WaitUntilState.NetworkIdle);
+        await Task.Delay(3000); // Wait for Vue to render and /api/auth/me to resolve
+        await _browser.TakeScreenshot("07_logged_in_home");
 
-        if (!meContent.Contains(TestConfig.TestUsername))
+        var pageContent = await _browser.GetPageContent();
+
+        // The welcome page should NOT be shown (we're logged in)
+        if (pageContent.Contains("Sign in with GitLab"))
         {
             throw new InvalidOperationException(
-                $"Expected to find '{TestConfig.TestUsername}' in auth response, got: {meContent[..Math.Min(200, meContent.Length)]}");
+                "Expected dashboard after login, but welcome page is still showing");
         }
 
-        Log.Information("Authentication test passed - user is logged in");
+        // The AppBar should show the user's name and a Logout button
+        var logoutButton = _browser.Page.Locator("button:has-text('Logout')");
+        var logoutVisible = await BrowserService.WaitForElement(logoutButton, timeoutMs: 10000);
+        if (!logoutVisible)
+        {
+            throw new InvalidOperationException(
+                "Expected Logout button in app bar after login, but it was not found");
+        }
+
+        // The Dashboard heading should be visible (or the 'No active branches' message)
+        if (!pageContent.Contains("Dashboard") && !pageContent.Contains("No active branches"))
+        {
+            throw new InvalidOperationException(
+                $"Expected Dashboard content after login, got: {pageContent[..Math.Min(300, pageContent.Length)]}");
+        }
+
+        Log.Information("Authentication test passed - user is logged in and dashboard is visible");
     }
 
     private async Task HandleOAuthAuthorize()

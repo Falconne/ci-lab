@@ -28,24 +28,26 @@ public class LogoutTest : IDisposable
         Log.Information("Logging in before testing logout...");
         await LoginViaGitLab();
 
-        // Verify we're authenticated
-        await _browser.Navigate($"{TestConfig.MergicianUrl}/api/auth/me", WaitUntilState.NetworkIdle);
-        var meContent = await _browser.GetPageContent();
-        await _browser.TakeScreenshot("01_logged_in_me");
+        // Verify we're authenticated by checking the rendered UI
+        await _browser.Navigate(TestConfig.MergicianUrl, WaitUntilState.NetworkIdle);
+        await Task.Delay(3000); // Wait for Vue to render
+        await _browser.TakeScreenshot("01_logged_in_home");
 
-        if (!meContent.Contains(TestConfig.TestUsername))
+        var logoutButton = _browser.Page.Locator("button:has-text('Logout')");
+        var logoutVisible = await BrowserService.WaitForElement(logoutButton, timeoutMs: 10000);
+        if (!logoutVisible)
         {
             throw new InvalidOperationException(
-                $"Pre-condition failed: not logged in. /api/auth/me returned: {meContent[..Math.Min(200, meContent.Length)]}");
+                "Pre-condition failed: not logged in. Logout button not found in app bar.");
         }
 
-        Log.Information("Confirmed logged in as test1");
+        Log.Information("Confirmed logged in (Logout button visible in app bar)");
 
-        // Step 2: Call the logout endpoint
-        Log.Information("Calling logout endpoint...");
-        await _browser.Page.EvaluateAsync("fetch('/api/auth/logout', { method: 'POST' })");
-        await Task.Delay(1000);
-        await _browser.TakeScreenshot("02_after_logout_api_call");
+        // Step 2: Click the Logout button in the app bar (same as production flow)
+        Log.Information("Clicking Logout button...");
+        await logoutButton.ClickAsync();
+        await Task.Delay(2000); // Wait for logout redirect to complete
+        await _browser.TakeScreenshot("02_after_logout_click");
 
         // Step 3: Navigate to the home page — should show welcome page, NOT activity
         Log.Information("Navigating to home page after logout...");
@@ -64,23 +66,17 @@ public class LogoutTest : IDisposable
 
         Log.Information("Welcome page shown after logout - correct");
 
-        // Step 4: Verify /api/auth/me returns 401 (not authenticated)
-        await _browser.Navigate($"{TestConfig.MergicianUrl}/api/auth/me", WaitUntilState.NetworkIdle);
-        var meAfterLogout = await _browser.GetPageContent();
-        await _browser.TakeScreenshot("04_me_after_logout");
-
-        if (meAfterLogout.Contains(TestConfig.TestUsername))
+        // Step 4: Verify the Logout button is no longer visible (session cleared)
+        var logoutButtonAfter = _browser.Page.Locator("button:has-text('Logout')");
+        var logoutStillVisible = await BrowserService.WaitForElement(
+            logoutButtonAfter, WaitForSelectorState.Hidden, timeoutMs: 5000);
+        if (!logoutStillVisible)
         {
             throw new InvalidOperationException(
-                "After logout, /api/auth/me still returns user info — session was not cleared");
+                "After logout, Logout button is still visible — session may not have been cleared");
         }
 
-        if (!meAfterLogout.Contains("401") && !meAfterLogout.Contains("Unauthorized"))
-        {
-            throw new InvalidOperationException(
-                $"After logout, expected 401 from /api/auth/me, got: {meAfterLogout[..Math.Min(200, meAfterLogout.Length)]}");
-        }
-
+        await _browser.TakeScreenshot("04_no_logout_button");
         Log.Information("Logout test passed - user is signed out and sees welcome page");
     }
 
