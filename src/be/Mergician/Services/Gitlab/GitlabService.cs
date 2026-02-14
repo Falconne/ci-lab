@@ -6,7 +6,7 @@ namespace Mergician.Services.Gitlab;
 
 public class GitlabService
 {
-    private static readonly JsonSerializerOptions CaseInsensitiveOptions =
+    private static readonly JsonSerializerOptions _jsonOptions =
         new() { PropertyNameCaseInsensitive = true };
 
     private readonly IHttpClientFactory _httpClientFactory;
@@ -17,7 +17,7 @@ public class GitlabService
     }
 
     /// <summary>
-    /// Returns true if the branch name is a common default branch name.
+    ///     Returns true if the branch name is a common default branch name.
     /// </summary>
     public static bool IsPossibleDefaultBranch(string branchName)
     {
@@ -42,7 +42,7 @@ public class GitlabService
         }
 
         var json = await response.Content.ReadAsStringAsync();
-        return JsonSerializer.Deserialize<GitLabUserInfo>(json, CaseInsensitiveOptions);
+        return JsonSerializer.Deserialize<GitLabUserInfo>(json, _jsonOptions);
     }
 
     public async Task<List<GitLabEvent>> GetUserEvents(GitlabAccessUserBase user, int days = 7)
@@ -52,10 +52,10 @@ public class GitlabService
     }
 
     /// <summary>
-    /// Fetches user events created at or after the given timestamp.
-    /// Uses the date portion of <paramref name="since"/> for the GitLab API query
-    /// (which only supports date-level granularity), then filters results
-    /// to only include events with CreatedAt >= <paramref name="since"/>.
+    ///     Fetches user events created at or after the given timestamp.
+    ///     Uses the date portion of <paramref name="since" /> for the GitLab API query
+    ///     (which only supports date-level granularity), then filters results
+    ///     to only include events with CreatedAt >= <paramref name="since" />.
     /// </summary>
     public async Task<List<GitLabEvent>> GetUserEventsSince(GitlabAccessUserBase user, DateTime since)
     {
@@ -65,8 +65,11 @@ public class GitlabService
         var events = await FetchEvents(user, afterDate);
 
         var filtered = events.Where(e => e.CreatedAt >= since).ToList();
-        Log.Debug("Filtered {Total} events to {Filtered} events since {Since}",
-            events.Count, filtered.Count, since);
+        Log.Debug(
+            "Filtered {Total} events to {Filtered} events since {Since}",
+            events.Count,
+            filtered.Count,
+            since);
 
         return filtered;
     }
@@ -92,7 +95,7 @@ public class GitlabService
         }
 
         var json = await response.Content.ReadAsStringAsync();
-        return JsonSerializer.Deserialize<List<GitLabEvent>>(json, CaseInsensitiveOptions) ?? [];
+        return JsonSerializer.Deserialize<List<GitLabEvent>>(json, _jsonOptions) ?? [];
     }
 
     public async Task<GitLabProject?> GetProject(GitlabAccessUserBase user, int projectId)
@@ -120,11 +123,11 @@ public class GitlabService
         }
 
         var json = await response.Content.ReadAsStringAsync();
-        return JsonSerializer.Deserialize<GitLabProject>(json, CaseInsensitiveOptions);
+        return JsonSerializer.Deserialize<GitLabProject>(json, _jsonOptions);
     }
 
     /// <summary>
-    /// Checks whether a branch exists in the given project.
+    ///     Checks whether a branch exists in the given project.
     /// </summary>
     public async Task<bool> BranchExists(GitlabAccessUserBase user, int projectId, string branchName)
     {
@@ -148,16 +151,22 @@ public class GitlabService
             return true;
         }
 
-        Log.Debug("Branch '{BranchName}' does not exist in project {ProjectId} (status {StatusCode})",
-            branchName, projectId, (int)response.StatusCode);
+        Log.Debug(
+            "Branch '{BranchName}' does not exist in project {ProjectId} (status {StatusCode})",
+            branchName,
+            projectId,
+            (int)response.StatusCode);
+
         return false;
     }
 
     /// <summary>
-    /// Finds open merge requests for a given source branch in a project.
+    ///     Finds open merge requests for a given source branch in a project.
     /// </summary>
     public async Task<List<GitLabMergeRequest>> GetMergeRequests(
-        GitlabAccessUserBase user, int projectId, string sourceBranch)
+        GitlabAccessUserBase user,
+        int projectId,
+        string sourceBranch)
     {
         var encodedBranch = Uri.EscapeDataString(sourceBranch);
         var request = await user.CreateRequest(
@@ -174,20 +183,26 @@ public class GitlabService
         var response = await client.SendAsync(request);
         if (!response.IsSuccessStatusCode)
         {
-            Log.Warning("GetMergeRequests failed with status {StatusCode} for project {ProjectId}, branch '{BranchName}'",
-                (int)response.StatusCode, projectId, sourceBranch);
+            Log.Warning(
+                "GetMergeRequests failed with status {StatusCode} for project {ProjectId}, branch '{BranchName}'",
+                (int)response.StatusCode,
+                projectId,
+                sourceBranch);
+
             return [];
         }
 
         var json = await response.Content.ReadAsStringAsync();
-        return JsonSerializer.Deserialize<List<GitLabMergeRequest>>(json, CaseInsensitiveOptions) ?? [];
+        return JsonSerializer.Deserialize<List<GitLabMergeRequest>>(json, _jsonOptions) ?? [];
     }
 
     /// <summary>
-    /// Gets the approval state for a merge request.
+    ///     Gets the approval state for a merge request.
     /// </summary>
     public async Task<GitLabApprovalState?> GetMergeRequestApprovals(
-        GitlabAccessUserBase user, int projectId, int mergeRequestIid)
+        GitlabAccessUserBase user,
+        int projectId,
+        int mergeRequestIid)
     {
         var request = await user.CreateRequest(
             HttpMethod.Get,
@@ -208,6 +223,6 @@ public class GitlabService
         }
 
         var json = await response.Content.ReadAsStringAsync();
-        return JsonSerializer.Deserialize<GitLabApprovalState>(json, CaseInsensitiveOptions);
+        return JsonSerializer.Deserialize<GitLabApprovalState>(json, _jsonOptions);
     }
 }
