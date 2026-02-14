@@ -55,7 +55,19 @@ public class AuthController : ControllerBase
         Response.Cookies.Delete("oauth_state");
 
         var redirectUri = GetRedirectUri();
-        var tokenResponse = await _oauthService.ExchangeCodeForToken(code, redirectUri);
+
+        GitLabOAuthTokenResponse? tokenResponse;
+        try
+        {
+            tokenResponse = await _oauthService.ExchangeCodeForToken(code, redirectUri);
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "Failed to connect to GitLab for token exchange (redirect_uri={RedirectUri}). " +
+                "Check that the GitLab InternalUrl is reachable from the Mergician container", redirectUri);
+            return StatusCode(502, "Unable to reach GitLab for authentication. Check server logs for details.");
+        }
+
         if (tokenResponse == null)
         {
             _logger.LogError("Failed to exchange code for token");
