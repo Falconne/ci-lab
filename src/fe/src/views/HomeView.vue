@@ -326,6 +326,5 @@ onUnmounted(() => {
 .branch-name-cell {
   vertical-align: top;
   border-right: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
-  background-color: rgba(var(--v-theme-surface-variant), 0.3);
 }
 </style>
