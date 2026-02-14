@@ -4,20 +4,34 @@ using Serilog;
 
 namespace IntegrationTest.Tests;
 
+// TODO Add tests to validate that new branches being pushed by the user will appear on an already populated dashboard.
+// Come up with a strategy to push new git activity with a user while the dashboard is still loaded by Playwright to validate this.
+// Also add tests for the new functionality that be added to dynamically update MR and approval status on existing branch rows.
+
 /// <summary>
-/// Tests that the dashboard UI displays the expected branch activity data
-/// after SSE streaming completes. Uses Playwright to interact with the actual
-/// frontend, just as a real user would.
-///
-/// Expected data per user (created by ProjectSetupService.SetupTestBranchData):
-///   test1: feature/alpha (primary-1 with MR+approval, secondary-1 with MR),
-///          feature/beta (primary-2 with MR, no approval)
-///   test2: feature/gamma (primary-1 with MR, secondary-1 with MR+approval, secondary-2 with MR)
-///   test3: feature/delta (secondary-3, no MR)
+///     Tests that the dashboard UI displays the expected branch activity data
+///     after SSE streaming completes. Uses Playwright to interact with the actual
+///     frontend, just as a real user would.
+///     Expected data per user (created by ProjectSetupService.SetupTestBranchData):
+///     test1: feature/alpha (primary-1 with MR+approval, secondary-1 with MR),
+///     feature/beta (primary-2 with MR, no approval)
+///     test2: feature/gamma (primary-1 with MR, secondary-1 with MR+approval, secondary-2 with MR)
+///     test3: feature/delta (secondary-3, no MR)
 /// </summary>
 public class DashboardTest : IDisposable
 {
     private readonly BrowserService _browser = new();
+
+    /// <summary>
+    ///     Cached page content from the dashboard table, populated by WaitForDashboard.
+    /// </summary>
+    private string _dashboardContent = "";
+
+    /// <summary>
+    ///     Cached table rows from the dashboard, populated by WaitForDashboard.
+    ///     Each tuple is (branchName, repoName, hasMrIcon, approvalsText).
+    /// </summary>
+    private List<(string Branch, string Repo, bool HasMr, string Approvals)> _parsedRows = [];
 
     public void Dispose()
     {
@@ -28,47 +42,41 @@ public class DashboardTest : IDisposable
     public async Task Run()
     {
         await _browser.Initialize(
-            Path.Combine(TestConfig.ScreenshotDir, "activity"),
-            headless: true);
+            Path.Combine(TestConfig.ScreenshotDir, "activity"));
 
         // Test with test1 — should see feature/alpha and feature/beta
-        await TestUserDashboard("test1", () =>
-        {
-            AssertBranchRow("feature/alpha", "primary-1", hasMr: true, expectApproval: true);
-            AssertBranchRow("feature/alpha", "secondary-1", hasMr: true, expectApproval: false);
-            AssertBranchRow("feature/beta", "primary-2", hasMr: true, expectApproval: false);
-            Log.Information("test1 dashboard data verified");
-        });
+        await TestUserDashboard(
+            "test1",
+            () =>
+            {
+                AssertBranchRow("feature/alpha", "primary-1", true, true);
+                AssertBranchRow("feature/alpha", "secondary-1", true, false);
+                AssertBranchRow("feature/beta", "primary-2", true, false);
+                Log.Information("test1 dashboard data verified");
+            });
 
         // Test with test2 — should see feature/gamma
-        await TestUserDashboard("test2", () =>
-        {
-            AssertBranchRow("feature/gamma", "primary-1", hasMr: true, expectApproval: false);
-            AssertBranchRow("feature/gamma", "secondary-1", hasMr: true, expectApproval: true);
-            AssertBranchRow("feature/gamma", "secondary-2", hasMr: true, expectApproval: false);
-            Log.Information("test2 dashboard data verified");
-        });
+        await TestUserDashboard(
+            "test2",
+            () =>
+            {
+                AssertBranchRow("feature/gamma", "primary-1", true, false);
+                AssertBranchRow("feature/gamma", "secondary-1", true, true);
+                AssertBranchRow("feature/gamma", "secondary-2", true, false);
+                Log.Information("test2 dashboard data verified");
+            });
 
         // Test with test3 — should see feature/delta (no MR)
-        await TestUserDashboard("test3", () =>
-        {
-            AssertBranchRow("feature/delta", "secondary-3", hasMr: false, expectApproval: false);
-            Log.Information("test3 dashboard data verified");
-        });
+        await TestUserDashboard(
+            "test3",
+            () =>
+            {
+                AssertBranchRow("feature/delta", "secondary-3", false, false);
+                Log.Information("test3 dashboard data verified");
+            });
 
         Log.Information("Dashboard test passed for all users");
     }
-
-    /// <summary>
-    /// Cached page content from the dashboard table, populated by WaitForDashboard.
-    /// </summary>
-    private string _dashboardContent = "";
-
-    /// <summary>
-    /// Cached table rows from the dashboard, populated by WaitForDashboard.
-    /// Each tuple is (branchName, repoName, hasMrIcon, approvalsText).
-    /// </summary>
-    private List<(string Branch, string Repo, bool HasMr, string Approvals)> _parsedRows = [];
 
     private async Task TestUserDashboard(string username, Action verify)
     {
@@ -90,7 +98,7 @@ public class DashboardTest : IDisposable
 
     private async Task LoginToMergician(string username)
     {
-        await _browser.Navigate($"{TestConfig.MergicianUrl}/api/auth/login", WaitUntilState.NetworkIdle);
+        await _browser.Navigate($"{TestConfig.MergicianUrl}/api/auth/login");
         await Task.Delay(2000);
         await _browser.TakeScreenshot($"dashboard_{username}_01_login_redirect");
 
@@ -101,7 +109,8 @@ public class DashboardTest : IDisposable
         {
             var usernameField = _browser.Page.Locator("#user_login");
             var passwordField = _browser.Page.Locator("#user_password");
-            var signInButton = _browser.Page.Locator("input[type='submit'][name='commit'], button[type='submit']");
+            var signInButton =
+                _browser.Page.Locator("input[type='submit'][name='commit'], button[type='submit']");
 
             await BrowserService.FillFormField(usernameField, username, "username");
             await BrowserService.FillFormField(passwordField, TestConfig.TestPassword, "password");
@@ -109,6 +118,7 @@ public class DashboardTest : IDisposable
             await _browser.Page.WaitForURLAsync(
                 url => url.Contains("/oauth/authorize") || url.Contains("localhost:5000"),
                 new PageWaitForURLOptions { Timeout = 30000 });
+
             await _browser.TakeScreenshot($"dashboard_{username}_02_after_sign_in");
 
             currentUrl = _browser.Page.Url;
@@ -119,7 +129,8 @@ public class DashboardTest : IDisposable
         if (currentUrl.Contains("/oauth/authorize"))
         {
             Log.Information("OAuth authorization page, submitting...");
-            await _browser.Page.EvaluateAsync("""
+            await _browser.Page.EvaluateAsync(
+                """
                 (() => {
                     const btn = document.querySelector('[data-testid="authorization-button"]');
                     if (btn) { btn.click(); return; }
@@ -127,15 +138,18 @@ public class DashboardTest : IDisposable
                     if (form) { form.submit(); }
                 })()
                 """);
+
             try
             {
-                await _browser.Page.WaitForURLAsync(url => !url.Contains("/oauth/authorize"),
+                await _browser.Page.WaitForURLAsync(
+                    url => !url.Contains("/oauth/authorize"),
                     new PageWaitForURLOptions { Timeout = 15000 });
             }
             catch
             {
                 Log.Warning($"OAuth authorize didn't redirect. URL: {_browser.Page.Url}");
             }
+
             await _browser.TakeScreenshot($"dashboard_{username}_03_after_authorize");
         }
 
@@ -143,13 +157,13 @@ public class DashboardTest : IDisposable
     }
 
     /// <summary>
-    /// Navigates to the Mergician home page and waits for the SSE activity stream
-    /// to finish (the loading spinner disappears and the dashboard table is rendered).
-    /// Parses the rendered table rows into _parsedRows for assertion.
+    ///     Navigates to the Mergician home page and waits for the SSE activity stream
+    ///     to finish (the loading spinner disappears and the dashboard table is rendered).
+    ///     Parses the rendered table rows into _parsedRows for assertion.
     /// </summary>
     private async Task WaitForDashboard(string username)
     {
-        await _browser.Navigate(TestConfig.MergicianUrl, WaitUntilState.NetworkIdle);
+        await _browser.Navigate(TestConfig.MergicianUrl);
         await Task.Delay(2000);
         await _browser.TakeScreenshot($"dashboard_{username}_04_initial_load");
 
@@ -158,7 +172,7 @@ public class DashboardTest : IDisposable
         // We detect this by waiting for all loading spinners in the table to disappear,
         // meaning all MR/approval data has been resolved.
         Log.Information("Waiting for SSE activity stream to complete...");
-        var streamComplete = await WaitForStreamCompletion(timeoutSeconds: 120);
+        var streamComplete = await WaitForStreamCompletion(120);
         if (!streamComplete)
         {
             await _browser.TakeScreenshot($"dashboard_{username}_05_stream_timeout");
@@ -169,6 +183,7 @@ public class DashboardTest : IDisposable
         await _browser.TakeScreenshot($"dashboard_{username}_05_stream_complete");
 
         // Parse the rendered dashboard table
+        // TODO What is this variable used for? Remove redundant code if not needed
         _dashboardContent = await _browser.GetPageContent();
         _parsedRows = await ParseDashboardTable();
 
@@ -180,8 +195,8 @@ public class DashboardTest : IDisposable
     }
 
     /// <summary>
-    /// Waits until there are no more loading spinners in the dashboard table,
-    /// meaning all data has been resolved via SSE.
+    ///     Waits until there are no more loading spinners in the dashboard table,
+    ///     meaning all data has been resolved via SSE.
     /// </summary>
     private async Task<bool> WaitForStreamCompletion(int timeoutSeconds)
     {
@@ -192,14 +207,18 @@ public class DashboardTest : IDisposable
             if (!tableExists)
             {
                 if (s % 10 == 0)
+                {
                     Log.Information($"Waiting for dashboard table to appear... {s}s");
+                }
 
                 await Task.Delay(1000);
                 continue;
             }
 
             // Check for loading spinners in the table (v-progress-circular elements)
-            var spinnerCount = await _browser.Page.Locator(".dashboard-table .v-progress-circular").CountAsync();
+            var spinnerCount =
+                await _browser.Page.Locator(".dashboard-table .v-progress-circular").CountAsync();
+
             if (spinnerCount == 0)
             {
                 Log.Information($"Dashboard stream completed after ~{s}s (no spinners remaining)");
@@ -207,7 +226,10 @@ public class DashboardTest : IDisposable
             }
 
             if (s % 10 == 0)
-                Log.Information($"Waiting for stream to resolve... {spinnerCount} spinners remaining, {s}s elapsed");
+            {
+                Log.Information(
+                    $"Waiting for stream to resolve... {spinnerCount} spinners remaining, {s}s elapsed");
+            }
 
             await Task.Delay(1000);
         }
@@ -216,9 +238,9 @@ public class DashboardTest : IDisposable
     }
 
     /// <summary>
-    /// Parses the rendered dashboard HTML table into structured row data.
-    /// The table uses rowspan for branch names, so we track the current branch
-    /// across rows that don't have a branch cell.
+    ///     Parses the rendered dashboard HTML table into structured row data.
+    ///     The table uses rowspan for branch names, so we track the current branch
+    ///     across rows that don't have a branch cell.
     /// </summary>
     private async Task<List<(string Branch, string Repo, bool HasMr, string Approvals)>> ParseDashboardTable()
     {
@@ -267,8 +289,8 @@ public class DashboardTest : IDisposable
     }
 
     /// <summary>
-    /// Asserts that a specific branch/repo combination exists in the parsed dashboard rows
-    /// with the expected MR and approval status.
+    ///     Asserts that a specific branch/repo combination exists in the parsed dashboard rows
+    ///     with the expected MR and approval status.
     /// </summary>
     private void AssertBranchRow(
         string branchName,
@@ -277,23 +299,25 @@ public class DashboardTest : IDisposable
         bool expectApproval)
     {
         var match = _parsedRows.FirstOrDefault(r =>
-            r.Branch.Contains(branchName, StringComparison.OrdinalIgnoreCase) &&
-            r.Repo.Contains(repoContains, StringComparison.OrdinalIgnoreCase));
+            r.Branch.Contains(branchName, StringComparison.OrdinalIgnoreCase)
+            && r.Repo.Contains(repoContains, StringComparison.OrdinalIgnoreCase));
 
         if (match == default)
         {
-            var available = string.Join(", ",
+            var available = string.Join(
+                ", ",
                 _parsedRows.Select(r => $"{r.Branch}@{r.Repo}"));
+
             throw new InvalidOperationException(
-                $"Expected branch '{branchName}' in repo containing '{repoContains}' " +
-                $"not found in dashboard UI. Available: [{available}]");
+                $"Expected branch '{branchName}' in repo containing '{repoContains}' "
+                + $"not found in dashboard UI. Available: [{available}]");
         }
 
         if (match.HasMr != hasMr)
         {
             throw new InvalidOperationException(
-                $"Branch '{branchName}' in '{repoContains}': " +
-                $"expected MR icon={hasMr}, got {match.HasMr}");
+                $"Branch '{branchName}' in '{repoContains}': "
+                + $"expected MR icon={hasMr}, got {match.HasMr}");
         }
 
         if (expectApproval)
@@ -302,8 +326,8 @@ public class DashboardTest : IDisposable
             if (match.Approvals == "—" || string.IsNullOrWhiteSpace(match.Approvals))
             {
                 throw new InvalidOperationException(
-                    $"Branch '{branchName}' in '{repoContains}': " +
-                    $"expected approvals, got '{match.Approvals}'");
+                    $"Branch '{branchName}' in '{repoContains}': "
+                    + $"expected approvals, got '{match.Approvals}'");
             }
 
             // Parse "X/Y" and verify X > 0
@@ -311,8 +335,8 @@ public class DashboardTest : IDisposable
             if (parts.Length != 2 || !int.TryParse(parts[0], out var given) || given <= 0)
             {
                 throw new InvalidOperationException(
-                    $"Branch '{branchName}' in '{repoContains}': " +
-                    $"expected approvals given > 0, got '{match.Approvals}'");
+                    $"Branch '{branchName}' in '{repoContains}': "
+                    + $"expected approvals given > 0, got '{match.Approvals}'");
             }
         }
 
