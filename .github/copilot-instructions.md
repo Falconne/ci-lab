@@ -16,7 +16,7 @@ Mergician is a tool to help developers in environments where any one product is 
   - Be careful not to make code review changes for the sake of making changes. Only do so if the code quality can be improved in a meaningful way.
 - Add logging in code whenever any significant action is performed, especially when conditional logic is executed (e.g. in branches of if/switch statements) with the intention of diagnosing the flow.
 - When refactoring, never leave compatiblity shims behind. Always update references to changed code. All the usages of the code in this repo is within this repo so there is no reason to leave compatibility shims.
- 
+
 ## CI Lab Specific
 - The intention is to spin up a test CI/CD environment with test data for integration testing Mergician.
 - The bootstrap process should run without the need for user interaction.
@@ -51,6 +51,7 @@ These are guideline for working on the Bootstrap C# project that creates test da
 ## CI Lab
 For testing changes to the CI Lab or bootstrapper, or for setting up the CI Lab environment for testing Mergician, follow this procedure:
 - When testing for the first time in a session, run the helper script `/scripts/cilab-start.sh` to clear previous sessions and start the environment. It is ok to stop and remove an existing session this way, as this is a test environment and you can assume you are the only thing using it.
+  - If the user has specified that the CI Lab is already running in the prompt, then you can skip this step and assume the environment is already running (but feel free to recreate it if any anomolies are found).
   - For subsequent tests in the same session, you can choose to keep some or all of the lab environment running to save time, if recreation is not needed for the test.
 - Unless testing changes relating to the cilab itself, it is prudent to start the cilab in the background and immediately kick off the bootstrapper. The cilab takes a long time to finish and the bootstrapper can do work while this is starting, so this will save time.
 - If testing the docker compose or starting containers, note that Gitlab takes a long time to become healthy. Do not assume failure unless it takes more than 5 minutes.
