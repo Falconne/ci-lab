@@ -1,4 +1,3 @@
-using Mergician.Entities;
 using Mergician.Services.Gitlab;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
@@ -72,33 +71,6 @@ public class ActivityController : ControllerBase
         {
             _logger.LogInformation("SSE activity stream cancelled by client");
         }
-    }
-
-    /// <summary>
-    /// Returns all branch activity at once (non-streaming).
-    /// Used by integration tests and as a fallback.
-    /// </summary>
-    [HttpGet]
-    public async Task<IActionResult> GetPushActivity()
-    {
-        var accessToken = await _currentUser.GetValidAccessToken();
-        if (accessToken == null)
-            return Unauthorized();
-
-        _logger.LogInformation("Fetching all push activity (non-streaming)");
-
-        var results = new List<BranchActivity>();
-        await foreach (var activity in _activityService.StreamBranchActivity(_currentUser))
-        {
-            // Only keep records that have resolved MR status (skip initial loading records)
-            if (activity.HasMergeRequest != null)
-            {
-                results.Add(activity);
-            }
-        }
-
-        _logger.LogInformation("Returning {Count} branch activity records", results.Count);
-        return Ok(results);
     }
 
     /// <summary>

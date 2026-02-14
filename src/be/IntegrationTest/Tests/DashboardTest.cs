@@ -1,14 +1,13 @@
-using IntegrationTest.Entities;
 using Microsoft.Playwright;
 using PlaywrightService;
 using Serilog;
-using System.Text.Json;
 
 namespace IntegrationTest.Tests;
 
 /// <summary>
-/// Tests that the dashboard API returns the expected branch activity data
-/// based on the deterministic test data created by the bootstrapper.
+/// Tests that the dashboard UI displays the expected branch activity data
+/// after SSE streaming completes. Uses Playwright to interact with the actual
+/// frontend, just as a real user would.
 ///
 /// Expected data per user (created by ProjectSetupService.SetupTestBranchData):
 ///   test1: feature/alpha (primary-1 with MR+approval, secondary-1 with MR),
@@ -33,54 +32,45 @@ public class DashboardTest : IDisposable
             headless: true);
 
         // Test with test1 — should see feature/alpha and feature/beta
-        await TestUserDashboard("test1", activity =>
+        await TestUserDashboard("test1", () =>
         {
-            // test1 should see branches they pushed to
-            var branchNames = activity.Select(a => a.BranchName).Distinct().ToList();
-            Log.Information($"test1 branches: {string.Join(", ", branchNames)}");
-
-            AssertContainsBranch(activity, "feature/alpha", "primary-1",
-                hasMr: true, expectApproval: true);
-            AssertContainsBranch(activity, "feature/alpha", "secondary-1",
-                hasMr: true, expectApproval: false);
-            AssertContainsBranch(activity, "feature/beta", "primary-2",
-                hasMr: true, expectApproval: false);
-
+            AssertBranchRow("feature/alpha", "primary-1", hasMr: true, expectApproval: true);
+            AssertBranchRow("feature/alpha", "secondary-1", hasMr: true, expectApproval: false);
+            AssertBranchRow("feature/beta", "primary-2", hasMr: true, expectApproval: false);
             Log.Information("test1 dashboard data verified");
         });
 
         // Test with test2 — should see feature/gamma
-        await TestUserDashboard("test2", activity =>
+        await TestUserDashboard("test2", () =>
         {
-            var branchNames = activity.Select(a => a.BranchName).Distinct().ToList();
-            Log.Information($"test2 branches: {string.Join(", ", branchNames)}");
-
-            AssertContainsBranch(activity, "feature/gamma", "primary-1",
-                hasMr: true, expectApproval: false);
-            AssertContainsBranch(activity, "feature/gamma", "secondary-1",
-                hasMr: true, expectApproval: true);
-            AssertContainsBranch(activity, "feature/gamma", "secondary-2",
-                hasMr: true, expectApproval: false);
-
+            AssertBranchRow("feature/gamma", "primary-1", hasMr: true, expectApproval: false);
+            AssertBranchRow("feature/gamma", "secondary-1", hasMr: true, expectApproval: true);
+            AssertBranchRow("feature/gamma", "secondary-2", hasMr: true, expectApproval: false);
             Log.Information("test2 dashboard data verified");
         });
 
         // Test with test3 — should see feature/delta (no MR)
-        await TestUserDashboard("test3", activity =>
+        await TestUserDashboard("test3", () =>
         {
-            var branchNames = activity.Select(a => a.BranchName).Distinct().ToList();
-            Log.Information($"test3 branches: {string.Join(", ", branchNames)}");
-
-            AssertContainsBranch(activity, "feature/delta", "secondary-3",
-                hasMr: false, expectApproval: false);
-
+            AssertBranchRow("feature/delta", "secondary-3", hasMr: false, expectApproval: false);
             Log.Information("test3 dashboard data verified");
         });
 
         Log.Information("Dashboard test passed for all users");
     }
 
-    private async Task TestUserDashboard(string username, Action<List<BranchActivityDto>> verify)
+    /// <summary>
+    /// Cached page content from the dashboard table, populated by WaitForDashboard.
+    /// </summary>
+    private string _dashboardContent = "";
+
+    /// <summary>
+    /// Cached table rows from the dashboard, populated by WaitForDashboard.
+    /// Each tuple is (branchName, repoName, hasMrIcon, approvalsText).
+    /// </summary>
+    private List<(string Branch, string Repo, bool HasMr, string Approvals)> _parsedRows = [];
+
+    private async Task TestUserDashboard(string username, Action verify)
     {
         Log.Information($"Testing dashboard for user '{username}'...");
 
@@ -91,13 +81,11 @@ public class DashboardTest : IDisposable
         // Login as this user via Mergician OAuth flow
         await LoginToMergician(username);
 
-        // Hit the dashboard API
-        var activity = await FetchDashboardActivity();
+        // Navigate to the dashboard and wait for SSE streaming to complete
+        await WaitForDashboard(username);
 
-        Log.Information($"Dashboard returned {activity.Count} records for '{username}'");
-
-        // Verify expectations
-        verify(activity);
+        // Verify expectations against the rendered UI
+        verify();
     }
 
     private async Task LoginToMergician(string username)
@@ -151,87 +139,184 @@ public class DashboardTest : IDisposable
             await _browser.TakeScreenshot($"dashboard_{username}_03_after_authorize");
         }
 
-        // Verify we're authenticated
-        await _browser.Navigate($"{TestConfig.MergicianUrl}/api/auth/me", WaitUntilState.NetworkIdle);
-        var meContent = await _browser.GetPageContent();
-        await _browser.TakeScreenshot($"dashboard_{username}_04_auth_verified");
-
-        if (!meContent.Contains(username))
-        {
-            throw new InvalidOperationException(
-                $"Login failed: expected '{username}' in /api/auth/me, got: {meContent[..Math.Min(200, meContent.Length)]}");
-        }
-
         Log.Information($"Logged into Mergician as {username}");
     }
 
-    private async Task<List<BranchActivityDto>> FetchDashboardActivity()
+    /// <summary>
+    /// Navigates to the Mergician home page and waits for the SSE activity stream
+    /// to finish (the loading spinner disappears and the dashboard table is rendered).
+    /// Parses the rendered table rows into _parsedRows for assertion.
+    /// </summary>
+    private async Task WaitForDashboard(string username)
     {
-        await _browser.Navigate($"{TestConfig.MergicianUrl}/api/activity", WaitUntilState.NetworkIdle);
+        await _browser.Navigate(TestConfig.MergicianUrl, WaitUntilState.NetworkIdle);
         await Task.Delay(2000);
-        await _browser.TakeScreenshot("dashboard_api_response");
+        await _browser.TakeScreenshot($"dashboard_{username}_04_initial_load");
 
-        var rawContent = await _browser.GetPageContent();
-        Log.Information($"Activity API raw response: {rawContent[..Math.Min(1000, rawContent.Length)]}");
-
-        if (rawContent.Contains("Unauthorized") || rawContent.Contains("401"))
+        // Wait for SSE streaming to complete — the v-progress-circular spinner in the
+        // Dashboard heading disappears once the "done" SSE event is received.
+        // We detect this by waiting for all loading spinners in the table to disappear,
+        // meaning all MR/approval data has been resolved.
+        Log.Information("Waiting for SSE activity stream to complete...");
+        var streamComplete = await WaitForStreamCompletion(timeoutSeconds: 120);
+        if (!streamComplete)
         {
-            throw new InvalidOperationException("Activity API returned unauthorized");
+            await _browser.TakeScreenshot($"dashboard_{username}_05_stream_timeout");
+            throw new InvalidOperationException(
+                "Dashboard SSE stream did not complete within timeout");
         }
 
-        // The browser wraps JSON in HTML when navigating to an API endpoint.
-        // Extract the JSON from the <pre> tag if present.
-        var jsonContent = rawContent;
-        var preStart = rawContent.IndexOf("<pre>", StringComparison.Ordinal);
-        var preEnd = rawContent.IndexOf("</pre>", StringComparison.Ordinal);
-        if (preStart >= 0 && preEnd > preStart)
+        await _browser.TakeScreenshot($"dashboard_{username}_05_stream_complete");
+
+        // Parse the rendered dashboard table
+        _dashboardContent = await _browser.GetPageContent();
+        _parsedRows = await ParseDashboardTable();
+
+        Log.Information($"Dashboard rendered {_parsedRows.Count} rows for '{username}':");
+        foreach (var row in _parsedRows)
         {
-            jsonContent = rawContent[(preStart + 5)..preEnd];
-            Log.Information($"Extracted JSON from <pre> tag: {jsonContent[..Math.Min(500, jsonContent.Length)]}");
+            Log.Information($"  {row.Branch} / {row.Repo} — MR={row.HasMr}, Approvals={row.Approvals}");
         }
-
-        var activities = JsonSerializer.Deserialize<List<BranchActivityDto>>(jsonContent,
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-
-        return activities ?? [];
     }
 
-    private static void AssertContainsBranch(
-        List<BranchActivityDto> activities,
+    /// <summary>
+    /// Waits until there are no more loading spinners in the dashboard table,
+    /// meaning all data has been resolved via SSE.
+    /// </summary>
+    private async Task<bool> WaitForStreamCompletion(int timeoutSeconds)
+    {
+        for (var s = 0; s < timeoutSeconds; s++)
+        {
+            // Check if the dashboard table exists
+            var tableExists = await _browser.Page.Locator(".dashboard-table").CountAsync() > 0;
+            if (!tableExists)
+            {
+                if (s % 10 == 0)
+                    Log.Information($"Waiting for dashboard table to appear... {s}s");
+
+                await Task.Delay(1000);
+                continue;
+            }
+
+            // Check for loading spinners in the table (v-progress-circular elements)
+            var spinnerCount = await _browser.Page.Locator(".dashboard-table .v-progress-circular").CountAsync();
+            if (spinnerCount == 0)
+            {
+                Log.Information($"Dashboard stream completed after ~{s}s (no spinners remaining)");
+                return true;
+            }
+
+            if (s % 10 == 0)
+                Log.Information($"Waiting for stream to resolve... {spinnerCount} spinners remaining, {s}s elapsed");
+
+            await Task.Delay(1000);
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Parses the rendered dashboard HTML table into structured row data.
+    /// The table uses rowspan for branch names, so we track the current branch
+    /// across rows that don't have a branch cell.
+    /// </summary>
+    private async Task<List<(string Branch, string Repo, bool HasMr, string Approvals)>> ParseDashboardTable()
+    {
+        var rows = new List<(string Branch, string Repo, bool HasMr, string Approvals)>();
+
+        var tableRows = _browser.Page.Locator(".dashboard-table tbody tr");
+        var rowCount = await tableRows.CountAsync();
+
+        var currentBranch = "";
+
+        for (var i = 0; i < rowCount; i++)
+        {
+            var row = tableRows.Nth(i);
+            var cells = row.Locator("td");
+            var cellCount = await cells.CountAsync();
+
+            // If the row has a branch-name-cell (rowspan cell), it's the first row of a group
+            var branchCell = row.Locator(".branch-name-cell");
+            var hasBranchCell = await branchCell.CountAsync() > 0;
+
+            int repoIndex;
+            if (hasBranchCell)
+            {
+                currentBranch = (await branchCell.InnerTextAsync()).Trim();
+                repoIndex = 1; // repo is the second cell
+            }
+            else
+            {
+                repoIndex = 0; // no branch cell, repo is the first cell
+            }
+
+            var repoName = (await cells.Nth(repoIndex).InnerTextAsync()).Trim();
+
+            // MR column: check for mdi-check-circle (has MR) vs mdi-minus-circle-outline (no MR)
+            var mrCell = cells.Nth(repoIndex + 1);
+            var hasMr = await mrCell.Locator(".mdi-check-circle").CountAsync() > 0;
+
+            // Approvals column: get the text content (e.g. "1/1" or "—")
+            var approvalsCell = cells.Nth(repoIndex + 2);
+            var approvalsText = (await approvalsCell.InnerTextAsync()).Trim();
+
+            rows.Add((currentBranch, repoName, hasMr, approvalsText));
+        }
+
+        return rows;
+    }
+
+    /// <summary>
+    /// Asserts that a specific branch/repo combination exists in the parsed dashboard rows
+    /// with the expected MR and approval status.
+    /// </summary>
+    private void AssertBranchRow(
         string branchName,
-        string projectNameContains,
+        string repoContains,
         bool hasMr,
         bool expectApproval)
     {
-        var match = activities.FirstOrDefault(a =>
-            a.BranchName == branchName &&
-            a.ProjectName.Contains(projectNameContains, StringComparison.OrdinalIgnoreCase));
+        var match = _parsedRows.FirstOrDefault(r =>
+            r.Branch.Contains(branchName, StringComparison.OrdinalIgnoreCase) &&
+            r.Repo.Contains(repoContains, StringComparison.OrdinalIgnoreCase));
 
-        if (match == null)
+        if (match == default)
         {
             var available = string.Join(", ",
-                activities.Select(a => $"{a.BranchName}@{a.ProjectName}"));
+                _parsedRows.Select(r => $"{r.Branch}@{r.Repo}"));
             throw new InvalidOperationException(
-                $"Expected branch '{branchName}' in project containing '{projectNameContains}' " +
-                $"not found in dashboard. Available: [{available}]");
+                $"Expected branch '{branchName}' in repo containing '{repoContains}' " +
+                $"not found in dashboard UI. Available: [{available}]");
         }
 
-        if (match.HasMergeRequest != hasMr)
+        if (match.HasMr != hasMr)
         {
             throw new InvalidOperationException(
-                $"Branch '{branchName}' in '{projectNameContains}': " +
-                $"expected HasMergeRequest={hasMr}, got {match.HasMergeRequest}");
+                $"Branch '{branchName}' in '{repoContains}': " +
+                $"expected MR icon={hasMr}, got {match.HasMr}");
         }
 
-        if (expectApproval && match.ApprovalsGiven is null or 0)
+        if (expectApproval)
         {
-            throw new InvalidOperationException(
-                $"Branch '{branchName}' in '{projectNameContains}': " +
-                $"expected approvals given > 0, got {match.ApprovalsGiven}");
+            // Approvals text should be something like "1/1", not "—"
+            if (match.Approvals == "—" || string.IsNullOrWhiteSpace(match.Approvals))
+            {
+                throw new InvalidOperationException(
+                    $"Branch '{branchName}' in '{repoContains}': " +
+                    $"expected approvals, got '{match.Approvals}'");
+            }
+
+            // Parse "X/Y" and verify X > 0
+            var parts = match.Approvals.Split('/');
+            if (parts.Length != 2 || !int.TryParse(parts[0], out var given) || given <= 0)
+            {
+                throw new InvalidOperationException(
+                    $"Branch '{branchName}' in '{repoContains}': " +
+                    $"expected approvals given > 0, got '{match.Approvals}'");
+            }
         }
 
         Log.Information(
-            $"  Verified: {branchName} in {projectNameContains} — MR={match.HasMergeRequest}, " +
-            $"Approvals={match.ApprovalsGiven}/{match.ApprovalsRequired}");
+            $"  Verified: {branchName} in {repoContains} — MR={match.HasMr}, Approvals={match.Approvals}");
     }
 }

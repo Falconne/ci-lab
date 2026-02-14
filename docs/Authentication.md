@@ -4,7 +4,7 @@ Mergician uses **GitLab OAuth 2.0** for authentication. Users log in with their 
 
 ## Flow
 
-1. User visits Mergician. The frontend calls `GET /api/activity` (or any protected endpoint).
+1. User visits Mergician. The frontend calls `GET /api/activity/stream` (SSE) to load dashboard data.
 2. If no valid session cookie exists, the backend returns `401 Unauthorized`.
 3. The frontend detects the 401 and redirects the browser to `GET /api/auth/login`.
 4. The `AuthController.Login` action:
