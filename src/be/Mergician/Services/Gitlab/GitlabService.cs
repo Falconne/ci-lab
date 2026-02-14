@@ -48,9 +48,34 @@ public class GitlabService
     public async Task<List<GitLabEvent>> GetUserEvents(GitlabAccessUserBase user, int days = 7)
     {
         var after = DateTime.UtcNow.AddDays(-days).ToString("yyyy-MM-dd");
+        return await FetchEvents(user, after);
+    }
+
+    /// <summary>
+    /// Fetches user events created at or after the given timestamp.
+    /// Uses the date portion of <paramref name="since"/> for the GitLab API query
+    /// (which only supports date-level granularity), then filters results
+    /// to only include events with CreatedAt >= <paramref name="since"/>.
+    /// </summary>
+    public async Task<List<GitLabEvent>> GetUserEventsSince(GitlabAccessUserBase user, DateTime since)
+    {
+        // GitLab events API 'after' param is date-only, so use the day before to avoid
+        // missing events near midnight boundaries
+        var afterDate = since.AddDays(-1).ToString("yyyy-MM-dd");
+        var events = await FetchEvents(user, afterDate);
+
+        var filtered = events.Where(e => e.CreatedAt >= since).ToList();
+        Log.Debug("Filtered {Total} events to {Filtered} events since {Since}",
+            events.Count, filtered.Count, since);
+
+        return filtered;
+    }
+
+    private async Task<List<GitLabEvent>> FetchEvents(GitlabAccessUserBase user, string afterDate)
+    {
         var request = await user.CreateRequest(
             HttpMethod.Get,
-            $"events?after={after}&per_page=100");
+            $"events?after={afterDate}&per_page=100");
 
         if (request == null)
         {

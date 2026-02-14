@@ -1,3 +1,5 @@
 Currently the dashboard only fetches user activity on load. Make it so that it can also monitor for new activity every 5 seconds. Each subsequent poll should only fetch and process activity from Gitlab from the last time it was checked, or whatever the minimum time frame for a Gitlab query is. Be conservative and check from 5 seconds before the last update time, so we don't miss any activity.
 
 You may refactor the code to ensure that the structure is still clean with this functionality added.
+
+The CI Lab is already running and has been bootstrapped so you can test Mergician immediately after the changes.

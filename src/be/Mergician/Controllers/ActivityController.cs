@@ -100,4 +100,24 @@ public class ActivityController : ControllerBase
         _logger.LogInformation("Returning {Count} branch activity records", results.Count);
         return Ok(results);
     }
+
+    /// <summary>
+    /// Returns branch activity for events that occurred since the given time.
+    /// Used by the frontend to poll for new activity after the initial SSE stream completes.
+    /// </summary>
+    [HttpGet("poll")]
+    public async Task<IActionResult> PollActivity([FromQuery] DateTime since)
+    {
+        var accessToken = await _currentUser.GetValidAccessToken();
+        if (accessToken == null)
+            return Unauthorized();
+
+        _logger.LogInformation("Polling for activity since {Since}", since);
+
+        var results = await _activityService.GetActivitySince(
+            _currentUser, since, HttpContext.RequestAborted);
+
+        _logger.LogInformation("Returning {Count} poll results", results.Count);
+        return Ok(results);
+    }
 }

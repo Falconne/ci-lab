@@ -166,6 +166,8 @@ const streaming = ref(false)
 const errorMessage = ref('')
 
 let eventSource: EventSource | null = null
+let pollIntervalId: ReturnType<typeof setInterval> | null = null
+let lastUpdateTime: Date | null = null
 
 const mergeGroups = computed<MergeGroup[]>(() => {
   const groups = new Map<string, BranchActivity[]>()
@@ -230,12 +232,57 @@ function startStreaming() {
     streaming.value = false
     eventSource?.close()
     eventSource = null
+    startPolling()
   })
 
   eventSource.onerror = () => {
     streaming.value = false
     eventSource?.close()
     eventSource = null
+  }
+}
+
+function startPolling() {
+  lastUpdateTime = new Date()
+  pollIntervalId = setInterval(pollForActivity, 5000)
+}
+
+function stopPolling() {
+  if (pollIntervalId !== null) {
+    clearInterval(pollIntervalId)
+    pollIntervalId = null
+  }
+}
+
+async function pollForActivity() {
+  if (!lastUpdateTime) return
+
+  // Check from 5 seconds before the last update time to avoid missing activity
+  const since = new Date(lastUpdateTime.getTime() - 5000)
+  const sinceParam = since.toISOString()
+
+  try {
+    const response = await fetch(`/api/activity/poll?since=${encodeURIComponent(sinceParam)}`)
+
+    if (response.status === 401) {
+      console.warn('Poll returned 401, stopping polling')
+      stopPolling()
+      return
+    }
+
+    if (!response.ok) {
+      console.error('Poll failed with status', response.status)
+      return
+    }
+
+    const data: BranchActivity[] = await response.json()
+    for (const activity of data) {
+      handleActivityEvent(activity)
+    }
+
+    lastUpdateTime = new Date()
+  } catch (err) {
+    console.error('Poll request failed:', err)
   }
 }
 
@@ -266,6 +313,7 @@ onMounted(async () => {
 onUnmounted(() => {
   eventSource?.close()
   eventSource = null
+  stopPolling()
 })
 </script>
 
