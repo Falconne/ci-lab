@@ -91,7 +91,7 @@
                     <v-icon
                       v-else-if="item.hasMergeRequest"
                       icon="mdi-check-circle"
-                      color="success"
+                      color="primary"
                       size="small"
                     />
                     <v-icon
