@@ -93,8 +93,7 @@ If doing more than trivial changes to Mergician, it should be tested by running 
 
 - Use `docker compose -f mergician-compose.yaml up --build` from the repository root to start the environment.
 - After most non trivial changes, run the Integration tests project and ensure it is passing.
-- The frontend should be accessible at `http://localhost:3000` after startup.
-- The backend API runs on `http://localhost:5000`.
+- Mergician is accessible at `http://localhost:5000` after startup (ASP.NET Core serves both API and frontend).
 - Stop with `docker compose -f mergician-compose.yaml down -v` (so we clean up volumes created during testing too).
 - For native development: run backend with `cd src/be/Mergician && dotnet run`, frontend with `cd src/fe && npm run dev`. Access at `http://localhost:5173`.
 

@@ -39,10 +39,10 @@ docker compose -f mergician-compose.yaml up --build
 ```
 
 This will:
-1. Build the .NET backend and run it on **http://localhost:5000**
-2. Build the Vue frontend and serve it via Nginx on **http://localhost:3000**
+1. Build the .NET backend with embedded frontend
+2. Serve both on **http://localhost:5000**
 
-Open **http://localhost:3000** in your browser to see the app.
+Open **http://localhost:5000** in your browser to see the app.
 
 To stop:
 
