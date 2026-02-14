@@ -100,6 +100,11 @@ public class GitlabService
 
     public async Task<GitLabProject?> GetProject(GitlabAccessUserBase user, int projectId)
     {
+        // TODO Project mappings rarely change, so it is wasteful to query GitLab for the same project info repeatedly.
+        // Create a generic caching service that can be used for cases like this (map generic id to value) and use it here.
+        // In this case it should be a global cache, we don't need the project map cache to be per-user.
+        // All caches should have a configurable expiration time (24 hours by default), which should be checked on access.
+        // The entire cache dictionary should be cleared on expiry.
         var request = await user.CreateRequest(
             HttpMethod.Get,
             $"projects/{projectId}");
