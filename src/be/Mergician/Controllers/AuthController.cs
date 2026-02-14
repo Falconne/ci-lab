@@ -1,3 +1,4 @@
+using Mergician.Entities;
 using Mergician.Services.Gitlab;
 using Microsoft.AspNetCore.Mvc;
 
@@ -65,13 +66,18 @@ public class AuthController : ControllerBase
         {
             _logger.LogError(ex, "Failed to connect to GitLab for token exchange (redirect_uri={RedirectUri}). " +
                 "Check that the GitLab InternalUrl is reachable from the Mergician container", redirectUri);
-            return StatusCode(502, "Unable to reach GitLab for authentication. Check server logs for details.");
+            return Redirect($"/?error=connection&message={Uri.EscapeDataString("Unable to reach GitLab for authentication")}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error during token exchange (redirect_uri={RedirectUri})", redirectUri);
+            return Redirect($"/?error=server&message={Uri.EscapeDataString("An unexpected error occurred during authentication")}");
         }
 
         if (tokenResponse == null)
         {
-            _logger.LogError("Failed to exchange code for token");
-            return BadRequest("Failed to authenticate with GitLab");
+            _logger.LogError("Failed to exchange code for token - GitLab returned an error response");
+            return Redirect($"/?error=auth&message={Uri.EscapeDataString("Authentication with GitLab failed. Please try again.")}");
         }
 
         // Store tokens in secure cookies

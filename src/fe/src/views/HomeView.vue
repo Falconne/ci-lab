@@ -2,6 +2,18 @@
   <v-container>
     <v-row justify="center" class="mt-4">
       <v-col cols="12" md="10" lg="8">
+        <!-- Error alert -->
+        <v-alert
+          v-if="errorMessage"
+          type="error"
+          variant="tonal"
+          closable
+          @click:close="errorMessage = ''"
+          class="mb-4"
+        >
+          {{ errorMessage }}
+        </v-alert>
+
         <!-- Welcome page for unauthenticated users -->
         <div v-if="!authenticated && !initialLoading" class="text-center pa-12">
           <v-icon icon="mdi-source-merge" size="80" color="primary" class="mb-6" />
@@ -128,6 +140,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
 interface BranchActivity {
   branchName: string
@@ -143,10 +156,14 @@ interface MergeGroup {
   items: BranchActivity[]
 }
 
+const route = useRoute()
+const router = useRouter()
+
 const activities = ref<BranchActivity[]>([])
 const initialLoading = ref(true)
 const authenticated = ref(false)
 const streaming = ref(false)
+const errorMessage = ref('')
 
 let eventSource: EventSource | null = null
 
@@ -223,6 +240,13 @@ function startStreaming() {
 }
 
 onMounted(async () => {
+  // Check for error in query parameters
+  if (route.query.error && route.query.message) {
+    errorMessage.value = route.query.message as string
+    // Clean up URL by removing error params
+    router.replace({ query: {} })
+  }
+
   try {
     const meResponse = await fetch('/api/auth/me')
     if (meResponse.status === 401) {

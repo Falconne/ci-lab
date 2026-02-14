@@ -13,7 +13,7 @@ services:
       - "host.docker.internal:host-gateway"
     environment:
       Mergician__GitLab__Url: "${GITLAB_URL:-http://localhost:8081}"
-      Mergician__GitLab__InternalUrl: "${GITLAB_INTERNAL_URL:-http://gitlab:8081}"
+      Mergician__GitLab__InternalUrl: "${GITLAB_INTERNAL_URL:-http://host.docker.internal:8081}"
       Mergician__GitLab__ServiceToken: "${GITLAB_SERVICE_TOKEN:-}"
       Mergician__GitLab__OAuth__ClientId: "${MERGICIAN_GITLAB_OAUTH_CLIENT_ID:-}"
       Mergician__GitLab__OAuth__ClientSecret: "${MERGICIAN_GITLAB_OAUTH_CLIENT_SECRET:-}"
@@ -32,8 +32,9 @@ services:
 
 networks:
   ci-network:
-    # Note: We must connect to the ci-lab network and use its internal hostnames to access Gitlab and TeamCity rather than
-    # using network mode "host", because that network mode causes complications with port forwarding in WSL2 where we sometimes
-    # need to run and debug.
+    # We connect to the ci-lab network for potential direct container-to-container communication.
+    # The default InternalUrl uses host.docker.internal (mapped via extra_hosts) rather than Docker DNS
+    # names like "gitlab", because cross-compose Docker DNS resolution is unreliable on WSL 2.
+    # host.docker.internal routes through the host's published ports and works on both Linux and WSL 2.
     external: true
     name: ci-lab_ci-network
