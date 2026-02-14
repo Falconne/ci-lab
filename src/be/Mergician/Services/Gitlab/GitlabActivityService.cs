@@ -111,6 +111,10 @@ public class GitlabActivityService
         DateTime since,
         CancellationToken cancellationToken = default)
     {
+        // TODO most of the body of this is repeated with that of StreamBranchActivity. Move the common functionality into a
+        // helper method that returns an IAsyncEnumerable of partially filled in BranchActivity. The StreamBranchActivity method
+        // can yield from that then yield a ResolveBranchActivity, while this one constructs teh full list, resolves each item and returns the full set.
+
         _logger.LogInformation("Polling for activity since {Since}", since);
         var events = await _gitlabService.GetUserEventsSince(currentUser, since);
         var activeBranches = ExtractActiveBranches(events);

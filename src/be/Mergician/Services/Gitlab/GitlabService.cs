@@ -45,6 +45,7 @@ public class GitlabService
         return JsonSerializer.Deserialize<GitLabUserInfo>(json, _jsonOptions);
     }
 
+    // TODO This extra method is redundant, remove it and make the callers use GetUserEventsSince
     public async Task<List<GitLabEvent>> GetUserEvents(GitlabAccessUserBase user, int days = 7)
     {
         var after = DateTime.UtcNow.AddDays(-days).ToString("yyyy-MM-dd");
