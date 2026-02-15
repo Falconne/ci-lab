@@ -12,6 +12,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		..\..\.github\copilot-instructions.md = ..\..\.github\copilot-instructions.md
 		..\..\.github\instructions\csharp.instructions.md = ..\..\.github\instructions\csharp.instructions.md
 		..\..\.github\instructions\integration-test.instructions.md = ..\..\.github\instructions\integration-test.instructions.md
+		..\..\TODO.txt = ..\..\TODO.txt
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PlaywrightService", "PlaywrightService\PlaywrightService.csproj", "{4870C9AC-93F7-4439-B5B5-58E7E420BCFA}"

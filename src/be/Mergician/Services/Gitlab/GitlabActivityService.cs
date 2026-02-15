@@ -97,6 +97,8 @@ public class GitlabActivityService
         List<BranchRefreshRequest> branches,
         CancellationToken cancellationToken = default)
     {
+        // TODO make this method also stream each record back with SSE as it is resolved. Also update the
+        // frontend to handle the API change.
         _logger.LogInformation("Refreshing status for {Count} branch-project pairs", branches.Count);
 
         var results = new List<BranchActivity>();
