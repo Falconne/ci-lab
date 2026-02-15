@@ -1,3 +1,4 @@
+using Mergician.Entities;
 using Mergician.Services.Gitlab;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
@@ -90,6 +91,26 @@ public class ActivityController : ControllerBase
             _currentUser, since, HttpContext.RequestAborted);
 
         _logger.LogInformation("Returning {Count} poll results", results.Count);
+        return Ok(results);
+    }
+
+    /// <summary>
+    /// Refreshes MR and approval status for the specified branch-project pairs.
+    /// Used by the frontend to update existing dashboard rows without re-fetching all activity.
+    /// </summary>
+    [HttpPost("refresh")]
+    public async Task<IActionResult> RefreshActivity([FromBody] List<BranchRefreshRequest> branches)
+    {
+        var accessToken = await _currentUser.GetValidAccessToken();
+        if (accessToken == null)
+            return Unauthorized();
+
+        _logger.LogInformation("Refreshing status for {Count} branches", branches.Count);
+
+        var results = await _activityService.RefreshBranchStatus(
+            _currentUser, branches, HttpContext.RequestAborted);
+
+        _logger.LogInformation("Returning {Count} refreshed results", results.Count);
         return Ok(results);
     }
 }

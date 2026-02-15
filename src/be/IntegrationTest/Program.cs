@@ -90,6 +90,28 @@ try
     {
         dashboardTest.Dispose();
     }
+
+    // Test 4: Dashboard live updates (new branches and MR status changes)
+    var liveUpdateTest = new DashboardLiveUpdateTest();
+    try
+    {
+        Log.Information("");
+        Log.Information("--- Test: Dashboard Live Updates ---");
+        await liveUpdateTest.Run();
+        results.Add(("Dashboard Live Updates", true, null));
+        Log.Information("PASS: Dashboard Live Updates");
+    }
+    catch (Exception ex)
+    {
+        results.Add(("Dashboard Live Updates", false, ex.Message));
+        Log.Error($"FAIL: Dashboard Live Updates - {ex.Message}");
+        allPassed = false;
+        if (abortOnFirstFailure) throw;
+    }
+    finally
+    {
+        liveUpdateTest.Dispose();
+    }
 }
 catch (Exception ex)
 {

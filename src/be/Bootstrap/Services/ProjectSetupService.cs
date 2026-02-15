@@ -659,7 +659,10 @@ public class ProjectSetupService
                 "bootstrap-test-data",
                 ["api", "read_user", "read_api"]);
             _userTokens[username] = pat.Token;
-            Log.Information($"Created PAT for '{username}'");
+
+            var envKey = $"GITLAB_TEST{i}_TOKEN";
+            _envFileService.SaveOrUpdateEnvFile(envKey, pat.Token);
+            Log.Information("Created PAT for '{Username}', written to .env as {EnvKey}", username, envKey);
         }
 
         Log.Information("TeamCity test accounts created");

@@ -1,4 +1,5 @@
 using Mergician.Entities;
+using Mergician.Services;
 using Mergician.Services.Gitlab;
 using Serilog;
 
@@ -35,6 +36,7 @@ try
         });
     builder.Services.AddHttpContextAccessor();
     builder.Services.AddSingleton<GitLabOAuthService>();
+    builder.Services.AddSingleton(new CacheService<int, GitLabProject>());
     builder.Services.AddSingleton<GitlabService>();
     builder.Services.AddScoped<GitlabActivityService>();
     builder.Services.AddScoped<GitlabCurrentUser>(sp => new GitlabCurrentUser(

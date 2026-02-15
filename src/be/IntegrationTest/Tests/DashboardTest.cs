@@ -4,10 +4,6 @@ using Serilog;
 
 namespace IntegrationTest.Tests;
 
-// TODO Add tests to validate that new branches being pushed by the user will appear on an already populated dashboard.
-// Come up with a strategy to push new git activity with a user while the dashboard is still loaded by Playwright to validate this.
-// Also add tests for the new functionality that be added to dynamically update MR and approval status on existing branch rows.
-
 /// <summary>
 ///     Tests that the dashboard UI displays the expected branch activity data
 ///     after SSE streaming completes. Uses Playwright to interact with the actual
@@ -21,11 +17,6 @@ namespace IntegrationTest.Tests;
 public class DashboardTest : IDisposable
 {
     private readonly BrowserService _browser = new();
-
-    /// <summary>
-    ///     Cached page content from the dashboard table, populated by WaitForDashboard.
-    /// </summary>
-    private string _dashboardContent = "";
 
     /// <summary>
     ///     Cached table rows from the dashboard, populated by WaitForDashboard.
@@ -183,8 +174,6 @@ public class DashboardTest : IDisposable
         await _browser.TakeScreenshot($"dashboard_{username}_05_stream_complete");
 
         // Parse the rendered dashboard table
-        // TODO What is this variable used for? Remove redundant code if not needed
-        _dashboardContent = await _browser.GetPageContent();
         _parsedRows = await ParseDashboardTable();
 
         Log.Information($"Dashboard rendered {_parsedRows.Count} rows for '{username}':");

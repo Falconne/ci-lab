@@ -1,4 +1,5 @@
 using Mergician.Entities;
+using Mergician.Services;
 using Serilog;
 using System.Text.Json;
 
@@ -10,10 +11,12 @@ public class GitlabService
         new() { PropertyNameCaseInsensitive = true };
 
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly CacheService<int, GitLabProject> _projectCache;
 
-    public GitlabService(IHttpClientFactory httpClientFactory)
+    public GitlabService(IHttpClientFactory httpClientFactory, CacheService<int, GitLabProject> projectCache)
     {
         _httpClientFactory = httpClientFactory;
+        _projectCache = projectCache;
     }
 
     /// <summary>
@@ -43,13 +46,6 @@ public class GitlabService
 
         var json = await response.Content.ReadAsStringAsync();
         return JsonSerializer.Deserialize<GitLabUserInfo>(json, _jsonOptions);
-    }
-
-    // TODO This extra method is redundant, remove it and make the callers use GetUserEventsSince
-    public async Task<List<GitLabEvent>> GetUserEvents(GitlabAccessUserBase user, int days = 7)
-    {
-        var after = DateTime.UtcNow.AddDays(-days).ToString("yyyy-MM-dd");
-        return await FetchEvents(user, after);
     }
 
     /// <summary>
@@ -83,7 +79,7 @@ public class GitlabService
 
         if (request == null)
         {
-            Log.Debug("No valid access token available for GetUserEvents");
+            Log.Debug("No valid access token available for FetchEvents");
             return [];
         }
 
@@ -91,7 +87,7 @@ public class GitlabService
         var response = await client.SendAsync(request);
         if (!response.IsSuccessStatusCode)
         {
-            Log.Warning("GetUserEvents failed with status {StatusCode}", (int)response.StatusCode);
+            Log.Warning("FetchEvents failed with status {StatusCode}", (int)response.StatusCode);
             return [];
         }
 
@@ -101,11 +97,12 @@ public class GitlabService
 
     public async Task<GitLabProject?> GetProject(GitlabAccessUserBase user, int projectId)
     {
-        // TODO Project mappings rarely change, so it is wasteful to query GitLab for the same project info repeatedly.
-        // Create a generic caching service that can be used for cases like this (map generic id to value) and use it here.
-        // In this case it should be a global cache, we don't need the project map cache to be per-user.
-        // All caches should have a configurable expiration time (24 hours by default), which should be checked on access.
-        // The entire cache dictionary should be cleared on expiry.
+        if (_projectCache.TryGet(projectId, out var cached))
+        {
+            Log.Debug("Returning cached project info for project {ProjectId}", projectId);
+            return cached;
+        }
+
         var request = await user.CreateRequest(
             HttpMethod.Get,
             $"projects/{projectId}");
@@ -129,7 +126,15 @@ public class GitlabService
         }
 
         var json = await response.Content.ReadAsStringAsync();
-        return JsonSerializer.Deserialize<GitLabProject>(json, _jsonOptions);
+        var project = JsonSerializer.Deserialize<GitLabProject>(json, _jsonOptions);
+
+        if (project != null)
+        {
+            _projectCache.Set(projectId, project);
+            Log.Debug("Cached project info for project {ProjectId}", projectId);
+        }
+
+        return project;
     }
 
     /// <summary>

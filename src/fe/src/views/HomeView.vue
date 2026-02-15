@@ -167,6 +167,7 @@ const errorMessage = ref('')
 
 let eventSource: EventSource | null = null
 let pollIntervalId: ReturnType<typeof setInterval> | null = null
+let refreshIntervalId: ReturnType<typeof setInterval> | null = null
 let lastUpdateTime: Date | null = null
 
 const mergeGroups = computed<MergeGroup[]>(() => {
@@ -245,6 +246,7 @@ function startStreaming() {
 function startPolling() {
   lastUpdateTime = new Date()
   pollIntervalId = setInterval(pollForActivity, 5000)
+  refreshIntervalId = setInterval(refreshExistingBranches, 15000)
 }
 
 function stopPolling() {
@@ -252,11 +254,55 @@ function stopPolling() {
     clearInterval(pollIntervalId)
     pollIntervalId = null
   }
+  if (refreshIntervalId !== null) {
+    clearInterval(refreshIntervalId)
+    refreshIntervalId = null
+  }
 }
 
-// TODO In adition to polling for new activity, we need to check if the currently displayed branches have
-// had their MR created or deleted or approvals updated. Poll for this as well, but send a single request
-// to fetch data for all currently displayed rows, to avoid hitting the backend too much.
+// Refreshes MR and approval status for all currently displayed branches by
+// sending a single request with all branch-project pairs.
+async function refreshExistingBranches() {
+  if (activities.value.length === 0) return
+
+  // Deduplicate branch-project pairs
+  const seen = new Set<string>()
+  const branches: { branchName: string; projectId: number }[] = []
+  for (const a of activities.value) {
+    const key = `${a.branchName}:${a.projectId}`
+    if (!seen.has(key)) {
+      seen.add(key)
+      branches.push({ branchName: a.branchName, projectId: a.projectId })
+    }
+  }
+
+  try {
+    const response = await fetch('/api/activity/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(branches)
+    })
+
+    if (response.status === 401) {
+      console.warn('Refresh returned 401, stopping polling')
+      stopPolling()
+      return
+    }
+
+    if (!response.ok) {
+      console.error('Refresh failed with status', response.status)
+      return
+    }
+
+    const data: BranchActivity[] = await response.json()
+    for (const activity of data) {
+      handleActivityEvent(activity)
+    }
+  } catch (err) {
+    console.error('Refresh request failed:', err)
+  }
+}
+
 async function pollForActivity() {
   if (!lastUpdateTime) return
 
