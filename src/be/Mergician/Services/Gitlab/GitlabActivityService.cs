@@ -46,7 +46,8 @@ public class GitlabActivityService
                 currentUser,
                 branch.BranchName,
                 branch.ProjectId,
-                branch.ProjectName);
+                branch.ProjectName,
+                branch.LastUpdated);
         }
 
         _logger.LogInformation("Finished streaming branch activity");
@@ -73,7 +74,8 @@ public class GitlabActivityService
                 currentUser,
                 branch.BranchName,
                 branch.ProjectId,
-                branch.ProjectName);
+                branch.ProjectName,
+                branch.LastUpdated);
 
             _logger.LogDebug(
                 "Poll found activity for '{BranchName}' in '{ProjectName}': HasMR={HasMr}",
@@ -162,13 +164,13 @@ public class GitlabActivityService
     /// <summary>
     ///     Extracts distinct branch-project pairs from push events, excluding default branches.
     /// </summary>
-    private static List<(string BranchName, int ProjectId)> ExtractActiveBranches(List<GitLabEvent> events)
+    private static List<(string BranchName, int ProjectId, DateTimeOffset LastUpdated)> ExtractActiveBranches(List<GitLabEvent> events)
     {
         return events
             .Where(e => e.PushData is { RefType: "branch", Ref: not null })
             .Where(e => !GitlabService.IsPossibleDefaultBranch(e.PushData!.Ref!))
-            .Select(e => (BranchName: e.PushData!.Ref!, e.ProjectId))
-            .Distinct()
+            .GroupBy(e => (BranchName: e.PushData!.Ref!, e.ProjectId))
+            .Select(g => (g.Key.BranchName, g.Key.ProjectId, LastUpdated: (DateTimeOffset)g.Max(e => e.CreatedAt)))
             .ToList();
     }
 
@@ -179,7 +181,8 @@ public class GitlabActivityService
         GitlabAccessUserBase user,
         string branchName,
         int projectId,
-        string projectName)
+        string projectName,
+        DateTimeOffset? lastUpdated)
     {
         var mergeRequests = await _gitlabService.GetMergeRequests(user, projectId, branchName);
 
@@ -219,6 +222,7 @@ public class GitlabActivityService
             projectName,
             hasMr,
             approvalsRequired,
-            approvalsGiven);
+            approvalsGiven,
+            lastUpdated);
     }
 }

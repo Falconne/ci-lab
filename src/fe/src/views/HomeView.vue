@@ -61,6 +61,7 @@
                 <th>Repository</th>
                 <th class="text-center">MR</th>
                 <th class="text-center">Approvals</th>
+                <th class="text-end">Last Updated</th>
               </tr>
             </thead>
             <tbody>
@@ -128,6 +129,16 @@
                     </template>
                     <span v-else class="text-grey">—</span>
                   </td>
+
+                  <!-- Last Updated -->
+                  <td class="text-end">
+                    <v-tooltip v-if="item.lastUpdated" location="top" :text="formatDateTime(item.lastUpdated)">
+                      <template v-slot:activator="{ props }">
+                        <span v-bind="props">{{ formatTimeAgo(item.lastUpdated) }}</span>
+                      </template>
+                    </v-tooltip>
+                    <span v-else class="text-grey">—</span>
+                  </td>
                 </tr>
               </template>
             </tbody>
@@ -149,6 +160,7 @@ interface BranchActivity {
   hasMergeRequest: boolean | null
   approvalsRequired: number | null
   approvalsGiven: number | null
+  lastUpdated: string | null
 }
 
 interface MergeGroup {
@@ -164,10 +176,12 @@ const initialLoading = ref(true)
 const authenticated = ref(false)
 const streaming = ref(false)
 const errorMessage = ref('')
+const now = ref(Date.now())
 
 let eventSource: EventSource | null = null
 let pollIntervalId: ReturnType<typeof setInterval> | null = null
 let refreshIntervalId: ReturnType<typeof setInterval> | null = null
+let timeIntervalId: ReturnType<typeof setInterval> | null = null
 let lastUpdateTime: Date | null = null
 
 const mergeGroups = computed<MergeGroup[]>(() => {
@@ -188,6 +202,26 @@ const mergeGroups = computed<MergeGroup[]>(() => {
     items
   }))
 })
+
+function formatDateTime(isoString: string): string {
+  if (!isoString) return ''
+  return new Date(isoString).toLocaleString()
+}
+
+function formatTimeAgo(isoString: string): string {
+  if (!isoString) return ''
+  const date = new Date(isoString)
+  const diffMs = now.value - date.getTime()
+  const diffSec = Math.floor(diffMs / 1000)
+
+  if (diffSec < 60) return `${diffSec} seconds ago`
+  const diffMin = Math.floor(diffSec / 60)
+  if (diffMin < 60) return `${diffMin} minutes ago`
+  const diffHour = Math.floor(diffMin / 60)
+  if (diffHour < 24) return `${diffHour} hours ago`
+  const diffDay = Math.floor(diffHour / 24)
+  return `${diffDay} days ago`
+}
 
 function handleActivityEvent(data: BranchActivity) {
   const existingIndex = activities.value.findIndex(
@@ -267,12 +301,12 @@ async function refreshExistingBranches() {
 
   // Deduplicate branch-project pairs
   const seen = new Set<string>()
-  const branches: { branchName: string; projectId: number }[] = []
+  const branches: { branchName: string; projectId: number; lastUpdated: string | null }[] = []
   for (const a of activities.value) {
     const key = `${a.branchName}:${a.projectId}`
     if (!seen.has(key)) {
       seen.add(key)
-      branches.push({ branchName: a.branchName, projectId: a.projectId })
+      branches.push({ branchName: a.branchName, projectId: a.projectId, lastUpdated: a.lastUpdated })
     }
   }
 
@@ -364,6 +398,8 @@ async function pollForActivity() {
 }
 
 onMounted(async () => {
+  timeIntervalId = setInterval(() => { now.value = Date.now() }, 60000)
+
   // Check for error in query parameters
   if (route.query.error && route.query.message) {
     errorMessage.value = route.query.message as string
@@ -388,6 +424,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  if (timeIntervalId) clearInterval(timeIntervalId)
   eventSource?.close()
   eventSource = null
   stopPolling()

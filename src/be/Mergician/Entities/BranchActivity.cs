@@ -12,4 +12,5 @@ public record BranchActivity(
     string ProjectName,
     bool? HasMergeRequest,
     int? ApprovalsRequired,
-    int? ApprovalsGiven);
+    int? ApprovalsGiven,
+    DateTimeOffset? LastUpdated = null);

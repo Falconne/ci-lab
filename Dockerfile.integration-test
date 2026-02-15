@@ -1,0 +1,51 @@
+FROM mcr.microsoft.com/dotnet/sdk:9.0
+
+# Install Playwright dependencies
+RUN apt-get update && \
+    apt-get install -y \
+    wget \
+    gnupg \
+    libnss3 \
+    libnspr4 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxrandr2 \
+    libgbm1 \
+    libasound2 \
+    libpango-1.0-0 \
+    libcairo2 \
+    libgdk-pixbuf2.0-0 \
+    libgtk-3-0 \
+    libx11-xcb1 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace
+
+# Copy project files (including PlaywrightService dependency)
+COPY src/be/PlaywrightService/PlaywrightService.csproj src/be/PlaywrightService/
+COPY src/be/IntegrationTest/IntegrationTest.csproj src/be/IntegrationTest/
+RUN dotnet restore src/be/IntegrationTest/IntegrationTest.csproj
+
+# Copy source code (including PlaywrightService dependency)
+COPY src/be/PlaywrightService/ src/be/PlaywrightService/
+COPY src/be/IntegrationTest/ src/be/IntegrationTest/
+
+# Build the project
+RUN dotnet build src/be/IntegrationTest/IntegrationTest.csproj -c Release
+
+# Install Playwright browsers
+RUN dotnet tool install --global Microsoft.Playwright.CLI && \
+    export PATH="$PATH:/root/.dotnet/tools" && \
+    cd src/be/IntegrationTest && \
+    dotnet build && \
+    playwright install chromium
+
+WORKDIR /workspace/src/be/IntegrationTest
+
+ENTRYPOINT ["dotnet", "run", "--project", "/workspace/src/be/IntegrationTest/IntegrationTest.csproj"]
