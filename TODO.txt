@@ -1,4 +1,1 @@
 When I run this script in this Linux instance, it decides that Playwright libraries are not installed so it run the app in Docker. However, when I manually do a donet run of the Bootstrap project without docker, it does
-
---
-
