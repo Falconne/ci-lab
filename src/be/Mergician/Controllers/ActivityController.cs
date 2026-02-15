@@ -31,7 +31,7 @@ public class ActivityController : ControllerBase
     /// A final event with type "done" signals the end of the stream.
     /// </summary>
     [HttpGet("stream")]
-    public async Task StreamPushActivity()
+    public async Task StreamPushActivity(CancellationToken cancellationToken)
     {
         var accessToken = await _currentUser.GetValidAccessToken();
         if (accessToken == null)
@@ -51,8 +51,6 @@ public class ActivityController : ControllerBase
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         };
-
-        var cancellationToken = HttpContext.RequestAborted;
 
         try
         {
@@ -79,7 +77,7 @@ public class ActivityController : ControllerBase
     /// Used by the frontend to poll for new activity after the initial SSE stream completes.
     /// </summary>
     [HttpGet("poll")]
-    public async Task<IActionResult> PollActivity([FromQuery] DateTime since)
+    public async Task<IActionResult> PollActivity([FromQuery] DateTime since, CancellationToken cancellationToken)
     {
         var accessToken = await _currentUser.GetValidAccessToken();
         if (accessToken == null)
@@ -88,29 +86,56 @@ public class ActivityController : ControllerBase
         _logger.LogInformation("Polling for activity since {Since}", since);
 
         var results = await _activityService.GetActivitySince(
-            _currentUser, since, HttpContext.RequestAborted);
+            _currentUser, since, cancellationToken);
 
         _logger.LogInformation("Returning {Count} poll results", results.Count);
         return Ok(results);
     }
 
     /// <summary>
-    /// Refreshes MR and approval status for the specified branch-project pairs.
-    /// Used by the frontend to update existing dashboard rows without re-fetching all activity.
+    /// Streams refreshed MR and approval status for the specified branch-project pairs
+    /// as Server-Sent Events. Each event is a JSON-serialized BranchActivity record.
+    /// A final event with type "done" signals the end of the stream.
     /// </summary>
     [HttpPost("refresh")]
-    public async Task<IActionResult> RefreshActivity([FromBody] List<BranchRefreshRequest> branches)
+    public async Task RefreshActivity([FromBody] List<BranchRefreshRequest> branches, CancellationToken cancellationToken)
     {
         var accessToken = await _currentUser.GetValidAccessToken();
         if (accessToken == null)
-            return Unauthorized();
+        {
+            _logger.LogWarning("Unauthorized request to refresh activity");
+            Response.StatusCode = 401;
+            return;
+        }
 
-        _logger.LogInformation("Refreshing status for {Count} branches", branches.Count);
+        Response.Headers.ContentType = "text/event-stream";
+        Response.Headers.CacheControl = "no-cache";
+        Response.Headers.Connection = "keep-alive";
 
-        var results = await _activityService.RefreshBranchStatus(
-            _currentUser, branches, HttpContext.RequestAborted);
+        _logger.LogInformation("Starting SSE refresh stream for {Count} branches", branches.Count);
 
-        _logger.LogInformation("Returning {Count} refreshed results", results.Count);
-        return Ok(results);
+        var jsonOptions = new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        };
+
+        try
+        {
+            await foreach (var activity in _activityService.StreamRefreshBranchStatus(
+                               _currentUser, branches, cancellationToken))
+            {
+                var json = JsonSerializer.Serialize(activity, jsonOptions);
+                await Response.WriteAsync($"data: {json}\n\n", cancellationToken);
+                await Response.Body.FlushAsync(cancellationToken);
+            }
+
+            await Response.WriteAsync("event: done\ndata: {}\n\n", cancellationToken);
+            await Response.Body.FlushAsync(cancellationToken);
+            _logger.LogInformation("SSE refresh stream completed");
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogInformation("SSE refresh stream cancelled by client");
+        }
     }
 }

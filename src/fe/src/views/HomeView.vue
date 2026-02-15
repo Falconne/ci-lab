@@ -261,7 +261,7 @@ function stopPolling() {
 }
 
 // Refreshes MR and approval status for all currently displayed branches by
-// sending a single request with all branch-project pairs.
+// streaming results via SSE as each branch is resolved.
 async function refreshExistingBranches() {
   if (activities.value.length === 0) return
 
@@ -294,9 +294,37 @@ async function refreshExistingBranches() {
       return
     }
 
-    const data: BranchActivity[] = await response.json()
-    for (const activity of data) {
-      handleActivityEvent(activity)
+    const reader = response.body?.getReader()
+    if (!reader) return
+
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+
+      // Process complete SSE events (separated by double newline)
+      let eventEnd: number
+      while ((eventEnd = buffer.indexOf('\n\n')) !== -1) {
+        const eventText = buffer.slice(0, eventEnd)
+        buffer = buffer.slice(eventEnd + 2)
+
+        if (eventText.startsWith('event: done')) {
+          return
+        }
+
+        if (eventText.startsWith('data: ')) {
+          try {
+            const data: BranchActivity = JSON.parse(eventText.slice(6))
+            handleActivityEvent(data)
+          } catch (err) {
+            console.error('Failed to parse refresh SSE data:', err)
+          }
+        }
+      }
     }
   } catch (err) {
     console.error('Refresh request failed:', err)

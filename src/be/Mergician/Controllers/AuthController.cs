@@ -68,7 +68,7 @@ public class AuthController : ControllerBase
                 "Check that the GitLab InternalUrl is reachable from the Mergician container", redirectUri);
             return Redirect($"/?error=connection&message={Uri.EscapeDataString("Unable to reach GitLab for authentication")}");
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.LogError(ex, "Unexpected error during token exchange (redirect_uri={RedirectUri})", redirectUri);
             return Redirect($"/?error=server&message={Uri.EscapeDataString("An unexpected error occurred during authentication")}");

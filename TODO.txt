@@ -1,5 +1,0 @@
-Fix the TODOs in the code in this repo.
-
-Also, review the backend Controllers in the project and see if we are handling Operation Cancelled exceptionss in the best practice methodology recommended for modern ASP.NET.
-
-Also, when I run the bootstrap.sh script in this Linux instance, it decides that Playwright libraries are not installed so it runs the app in Docker. However, when I manually do a donet run of the Bootstrap project without docker, it does work and it successfully loads Playwright from a local installation. Figure out why this is not being detected correctly.

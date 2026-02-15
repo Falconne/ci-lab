@@ -15,7 +15,15 @@ GITLAB_ROOT_PASSWORD="${GITLAB_ROOT_PASSWORD:-changeme123}"
 
 # Check if Playwright dependencies are available on the host.
 # Returns 0 if all required libraries are found, 1 otherwise.
+#
+# Note: ldconfig output is cached in a variable first to avoid a pipefail
+# issue where grep -q exits early after finding a match, causing ldconfig to
+# receive SIGPIPE and return a non-zero exit code. With pipefail enabled, this
+# would make the entire pipeline fail even though the library was found.
 check_playwright_deps() {
+  local cache
+  cache="$(ldconfig -p 2>/dev/null || true)"
+
   # List of critical shared libraries required by Playwright/Chromium
   local libs=(
     "libnss3.so"
@@ -32,7 +40,7 @@ check_playwright_deps() {
   )
 
   for lib in "${libs[@]}"; do
-    if ! ldconfig -p 2>/dev/null | grep -q "$lib"; then
+    if ! grep -q "$lib" <<< "$cache"; then
       return 1
     fi
   done

@@ -89,19 +89,16 @@ public class GitlabActivityService
     }
 
     /// <summary>
-    ///     Refreshes MR and approval status for specific branch-project pairs.
+    ///     Streams refreshed MR and approval status for specific branch-project pairs,
+    ///     yielding each record as it is resolved.
     ///     Used to update the dashboard when existing rows may have changed.
     /// </summary>
-    public async Task<List<BranchActivity>> RefreshBranchStatus(
+    public async IAsyncEnumerable<BranchActivity> StreamRefreshBranchStatus(
         GitlabAccessUserBase user,
         List<BranchRefreshRequest> branches,
-        CancellationToken cancellationToken = default)
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        // TODO make this method also stream each record back with SSE as it is resolved. Also update the
-        // frontend to handle the API change.
-        _logger.LogInformation("Refreshing status for {Count} branch-project pairs", branches.Count);
-
-        var results = new List<BranchActivity>();
+        _logger.LogInformation("Streaming refresh for {Count} branch-project pairs", branches.Count);
 
         foreach (var branch in branches)
         {
@@ -116,11 +113,10 @@ public class GitlabActivityService
                 branch.ProjectId,
                 projectName);
 
-            results.Add(activity);
+            yield return activity;
         }
 
-        _logger.LogInformation("Returning {Count} refreshed branch activity records", results.Count);
-        return results;
+        _logger.LogInformation("Finished streaming refresh for {Count} branch-project pairs", branches.Count);
     }
 
     /// <summary>

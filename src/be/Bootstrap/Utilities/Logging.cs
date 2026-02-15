@@ -6,8 +6,9 @@ public static class Logging
 {
     public static void Init()
     {
-        var logDir = Directory.GetCurrentDirectory();
-        var logPath = Path.Combine(logDir, "f.log");
+        var logDir = Path.Combine(PathUtilities.FindRepoRoot(), "data", "logs");
+        Directory.CreateDirectory(logDir);
+        var logPath = Path.Combine(logDir, "bootstrap.log");
 
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Debug()

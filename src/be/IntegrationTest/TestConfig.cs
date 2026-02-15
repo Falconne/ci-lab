@@ -15,31 +15,13 @@ public static class TestConfig
     public const string MergicianUrl = "http://localhost:5000";
 
     // Paths
+    private static readonly string RepoRoot = FindRepoRoot();
 
-    // TODO change the search for the data dir to be by searching upward from the AppContext.BaseDirectory, until a data dir
-    // containing a file called ".placeholder" is found. If it isn't found, throw an exception and abort.
-    public static readonly string ScreenshotDir =
-        Path.GetFullPath(
-            Path.Combine(
-                AppContext.BaseDirectory,
-                "..",
-                "..",
-                "..",
-                "..",
-                "..",
-                "..",
-                "data",
-                "screenshots",
-                "integration-test"));
+    public static readonly string ScreenshotDir = Path.Combine(RepoRoot, "data", "screenshots", "integration-test");
 
-    public static readonly string LogDir =
-        Path.GetFullPath(
-            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "..", "data", "logs"));
+    public static readonly string LogDir = Path.Combine(RepoRoot, "data", "logs");
 
-    // TODO change the search for the data dir to be by searching upward from the AppContext.BaseDirectory, until one is
-    // found. If it isn't found, throw an exception and abort.
-    private static readonly string EnvFilePath =
-        Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "..", ".env"));
+    private static readonly string EnvFilePath = Path.Combine(RepoRoot, ".env");
 
     /// <summary>
     ///     Reads a value from the .env file. Returns null if the key is not found.
@@ -95,5 +77,29 @@ public static class TestConfig
         var key = $"GITLAB_TEST{index}_TOKEN";
         return GetEnvValue(key)
                ?? throw new InvalidOperationException($"{key} not found in .env file");
+    }
+
+    /// <summary>
+    ///     Searches upward from <see cref="AppContext.BaseDirectory" /> for a 'data' directory
+    ///     containing a '.placeholder' file. Returns the parent directory (repository root).
+    /// </summary>
+    private static string FindRepoRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+
+        while (dir != null)
+        {
+            var dataDir = Path.Combine(dir.FullName, "data");
+            if (Directory.Exists(dataDir) && File.Exists(Path.Combine(dataDir, ".placeholder")))
+            {
+                return dir.FullName;
+            }
+
+            dir = dir.Parent;
+        }
+
+        throw new InvalidOperationException(
+            "Could not find the repository root. Expected a 'data' directory containing '.placeholder' " +
+            $"in an ancestor of '{AppContext.BaseDirectory}'.");
     }
 }
