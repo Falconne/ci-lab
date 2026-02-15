@@ -134,22 +134,9 @@ public class GitlabActivityService
         var activeBranches = ExtractActiveBranches(events);
         _logger.LogInformation("Found {Count} unique branch/project combinations", activeBranches.Count);
 
-        var emitted = new HashSet<(string BranchName, int ProjectId)>();
-
         foreach (var entry in activeBranches)
         {
             cancellationToken.ThrowIfCancellationRequested();
-
-            if (!emitted.Add((entry.BranchName, entry.ProjectId)))
-            {
-                _logger.LogDebug(
-                    "Skipping duplicate branch-project: '{BranchName}' in project {ProjectId}",
-                    entry.BranchName,
-                    entry.ProjectId);
-
-                continue;
-            }
-
             var exists = await _gitlabService.BranchExists(user, entry.ProjectId, entry.BranchName);
             if (!exists)
             {
