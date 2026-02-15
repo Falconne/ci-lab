@@ -1,1 +1,3 @@
-When I run this script in this Linux instance, it decides that Playwright libraries are not installed so it run the app in Docker. However, when I manually do a donet run of the Bootstrap project without docker, it does
+Fix the TODOs in C# code in this repo.
+
+Also, when I run the bootstrap.sh script in this Linux instance, it decides that Playwright libraries are not installed so it runs the app in Docker. However, when I manually do a donet run of the Bootstrap project without docker, it does work and it successfully loads Playwright from a local installation. Figure out why this is not being detected correctly.
