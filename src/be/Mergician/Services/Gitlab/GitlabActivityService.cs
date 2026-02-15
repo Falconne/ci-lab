@@ -113,7 +113,8 @@ public class GitlabActivityService
                 user,
                 branch.BranchName,
                 branch.ProjectId,
-                projectName);
+                projectName,
+                branch.LastUpdated);
 
             yield return activity;
         }
@@ -157,12 +158,14 @@ public class GitlabActivityService
                 projectName,
                 null,
                 null,
-                null);
+                null,
+                entry.LastUpdated);
         }
     }
 
     /// <summary>
     ///     Extracts distinct branch-project pairs from push events, excluding default branches.
+    ///     Returns the latest push timestamp for each branch.
     /// </summary>
     private static List<(string BranchName, int ProjectId, DateTimeOffset LastUpdated)> ExtractActiveBranches(List<GitLabEvent> events)
     {

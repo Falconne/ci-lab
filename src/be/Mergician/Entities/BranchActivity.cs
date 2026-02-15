@@ -5,6 +5,7 @@ namespace Mergician.Entities;
 /// along with its merge request and approval status.
 /// When streamed progressively, HasMergeRequest may be null
 /// to indicate that MR status has not yet been resolved.
+/// LastUpdated contains the timestamp of the most recent push to the branch.
 /// </summary>
 public record BranchActivity(
     string BranchName,
