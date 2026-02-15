@@ -56,7 +56,17 @@ public class TeamCityBootstrapService : IDisposable
 
         await WaitForAvailability();
 
-        var screenshotDir = Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "..", "..", "data", "screenshots");
+        // TODO change the search for the data dir to be by searching upward from the AppContext.BaseDirectory, until a data dir
+        // containing a file called ".placeholder" is found. If it isn't found, throw an exception and abort.
+        var screenshotDir = Path.Combine(
+            Directory.GetCurrentDirectory(),
+            "..",
+            "..",
+            "..",
+            "..",
+            "data",
+            "screenshots");
+
         await _browserService.Initialize(screenshotDir);
 
         await _browserService.Navigate(_teamcityURL);
