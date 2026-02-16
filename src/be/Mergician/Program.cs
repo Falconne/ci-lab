@@ -40,14 +40,12 @@ try
     builder.Services.AddSingleton<GitlabService>();
     builder.Services.AddSingleton<VersionService>();
     builder.Services.AddScoped<GitlabActivityService>();
-    builder.Services.AddScoped<GitlabCurrentUser>(sp => new GitlabCurrentUser(
+    builder.Services.AddScoped<GitlabUserFactory>(sp => new GitlabUserFactory(
         sp.GetRequiredService<IHttpContextAccessor>(),
         sp.GetRequiredService<GitLabOAuthService>(),
         sp.GetRequiredService<IHttpClientFactory>(),
-        gitlabApiBaseUrl));
-    builder.Services.AddSingleton(new GitlabServiceUser(
-        mergicianSettings.GitLab.ServiceToken,
-        gitlabApiBaseUrl));
+        gitlabApiBaseUrl,
+        mergicianSettings.GitLab.ServiceToken));
 
     // Add services
     builder.Services.AddControllers();

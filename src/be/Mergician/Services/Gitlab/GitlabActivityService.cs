@@ -25,7 +25,7 @@ public class GitlabActivityService
     ///     populated in follow-up yields for the same branch-project combination.
     /// </summary>
     public async IAsyncEnumerable<BranchActivity> StreamBranchActivity(
-        GitlabCurrentUser currentUser,
+        GitlabAccessUser currentUser,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Fetching push activity for last 14 days");
@@ -59,7 +59,7 @@ public class GitlabActivityService
     ///     Returns fully resolved records (MR and approval data included).
     /// </summary>
     public async Task<List<BranchActivity>> GetActivitySince(
-        GitlabCurrentUser currentUser,
+        GitlabAccessUser currentUser,
         DateTime since,
         CancellationToken cancellationToken = default)
     {
@@ -96,7 +96,7 @@ public class GitlabActivityService
     ///     Used to update the dashboard when existing rows may have changed.
     /// </summary>
     public async IAsyncEnumerable<BranchActivity> StreamRefreshBranchStatus(
-        GitlabAccessUserBase user,
+        GitlabAccessUser user,
         List<BranchRefreshRequest> branches,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
@@ -128,7 +128,7 @@ public class GitlabActivityService
     ///     This is the common logic shared by StreamBranchActivity and GetActivitySince.
     /// </summary>
     private async IAsyncEnumerable<BranchActivity> DiscoverBranches(
-        GitlabAccessUserBase user,
+        GitlabAccessUser user,
         List<GitLabEvent> events,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
@@ -181,7 +181,7 @@ public class GitlabActivityService
     ///     Resolves a branch's MR and approval status into a fully populated BranchActivity record.
     /// </summary>
     private async Task<BranchActivity> ResolveBranchActivity(
-        GitlabAccessUserBase user,
+        GitlabAccessUser user,
         string branchName,
         int projectId,
         string projectName,

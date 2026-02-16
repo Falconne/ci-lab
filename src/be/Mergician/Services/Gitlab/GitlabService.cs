@@ -27,14 +27,9 @@ public class GitlabService
         return branchName is "main" or "master" or "develop";
     }
 
-    public async Task<GitLabUserInfo?> GetCurrentUser(GitlabAccessUserBase user)
+    public async Task<GitLabUserInfo?> GetCurrentUser(GitlabAccessUser user)
     {
-        var request = await user.CreateRequest(HttpMethod.Get, "user");
-        if (request == null)
-        {
-            Log.Debug("No valid access token available for GetCurrentUser");
-            return null;
-        }
+        var request = user.CreateRequest(HttpMethod.Get, "user");
 
         var client = _httpClientFactory.CreateClient("GitLabOAuth");
         var response = await client.SendAsync(request);
@@ -54,7 +49,7 @@ public class GitlabService
     ///     (which only supports date-level granularity), then filters results
     ///     to only include events with CreatedAt >= <paramref name="since" />.
     /// </summary>
-    public async Task<List<GitLabEvent>> GetUserEventsSince(GitlabAccessUserBase user, DateTime since)
+    public async Task<List<GitLabEvent>> GetUserEventsSince(GitlabAccessUser user, DateTime since)
     {
         // GitLab events API 'after' param is date-only, so use the day before to avoid
         // missing events near midnight boundaries
@@ -71,17 +66,11 @@ public class GitlabService
         return filtered;
     }
 
-    private async Task<List<GitLabEvent>> FetchEvents(GitlabAccessUserBase user, string afterDate)
+    private async Task<List<GitLabEvent>> FetchEvents(GitlabAccessUser user, string afterDate)
     {
-        var request = await user.CreateRequest(
+        var request = user.CreateRequest(
             HttpMethod.Get,
             $"events?after={afterDate}&per_page=100");
-
-        if (request == null)
-        {
-            Log.Debug("No valid access token available for FetchEvents");
-            return [];
-        }
 
         var client = _httpClientFactory.CreateClient("GitLabOAuth");
         var response = await client.SendAsync(request);
@@ -95,7 +84,7 @@ public class GitlabService
         return JsonSerializer.Deserialize<List<GitLabEvent>>(json, _jsonOptions) ?? [];
     }
 
-    public async Task<GitLabProject?> GetProject(GitlabAccessUserBase user, int projectId)
+    public async Task<GitLabProject?> GetProject(GitlabAccessUser user, int projectId)
     {
         if (_projectCache.TryGet(projectId, out var cached))
         {
@@ -103,15 +92,9 @@ public class GitlabService
             return cached;
         }
 
-        var request = await user.CreateRequest(
+        var request = user.CreateRequest(
             HttpMethod.Get,
             $"projects/{projectId}");
-
-        if (request == null)
-        {
-            Log.Debug("No valid access token available for GetProject");
-            return null;
-        }
 
         var client = _httpClientFactory.CreateClient("GitLabOAuth");
         var response = await client.SendAsync(request);
@@ -140,18 +123,12 @@ public class GitlabService
     /// <summary>
     ///     Checks whether a branch exists in the given project.
     /// </summary>
-    public async Task<bool> BranchExists(GitlabAccessUserBase user, int projectId, string branchName)
+    public async Task<bool> BranchExists(GitlabAccessUser user, int projectId, string branchName)
     {
         var encodedBranch = Uri.EscapeDataString(branchName);
-        var request = await user.CreateRequest(
+        var request = user.CreateRequest(
             HttpMethod.Get,
             $"projects/{projectId}/repository/branches/{encodedBranch}");
-
-        if (request == null)
-        {
-            Log.Debug("No valid access token available for BranchExists");
-            return false;
-        }
 
         var client = _httpClientFactory.CreateClient("GitLabOAuth");
         var response = await client.SendAsync(request);
@@ -175,20 +152,14 @@ public class GitlabService
     ///     Finds open merge requests for a given source branch in a project.
     /// </summary>
     public async Task<List<GitLabMergeRequest>> GetMergeRequests(
-        GitlabAccessUserBase user,
+        GitlabAccessUser user,
         int projectId,
         string sourceBranch)
     {
         var encodedBranch = Uri.EscapeDataString(sourceBranch);
-        var request = await user.CreateRequest(
+        var request = user.CreateRequest(
             HttpMethod.Get,
             $"projects/{projectId}/merge_requests?source_branch={encodedBranch}&state=opened");
-
-        if (request == null)
-        {
-            Log.Debug("No valid access token available for GetMergeRequests");
-            return [];
-        }
 
         var client = _httpClientFactory.CreateClient("GitLabOAuth");
         var response = await client.SendAsync(request);
@@ -211,19 +182,13 @@ public class GitlabService
     ///     Gets the approval state for a merge request.
     /// </summary>
     public async Task<GitLabApprovalState?> GetMergeRequestApprovals(
-        GitlabAccessUserBase user,
+        GitlabAccessUser user,
         int projectId,
         int mergeRequestIid)
     {
-        var request = await user.CreateRequest(
+        var request = user.CreateRequest(
             HttpMethod.Get,
             $"projects/{projectId}/merge_requests/{mergeRequestIid}/approvals");
-
-        if (request == null)
-        {
-            Log.Debug("No valid access token available for GetMergeRequestApprovals");
-            return null;
-        }
 
         var client = _httpClientFactory.CreateClient("GitLabOAuth");
         var response = await client.SendAsync(request);

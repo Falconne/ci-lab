@@ -9,16 +9,16 @@ namespace Mergician.Controllers;
 [Route("api/[controller]")]
 public class ActivityController : ControllerBase
 {
-    private readonly GitlabCurrentUser _currentUser;
+    private readonly GitlabUserFactory _userFactory;
     private readonly GitlabActivityService _activityService;
     private readonly ILogger<ActivityController> _logger;
 
     public ActivityController(
-        GitlabCurrentUser currentUser,
+        GitlabUserFactory userFactory,
         GitlabActivityService activityService,
         ILogger<ActivityController> logger)
     {
-        _currentUser = currentUser;
+        _userFactory = userFactory;
         _activityService = activityService;
         _logger = logger;
     }
@@ -33,8 +33,8 @@ public class ActivityController : ControllerBase
     [HttpGet("stream")]
     public async Task StreamPushActivity(CancellationToken cancellationToken)
     {
-        var accessToken = await _currentUser.GetValidAccessToken();
-        if (accessToken == null)
+        var currentUser = await _userFactory.GetCurrentUser();
+        if (currentUser == null)
         {
             _logger.LogWarning("Unauthorized request to stream activity");
             Response.StatusCode = 401;
@@ -54,7 +54,7 @@ public class ActivityController : ControllerBase
 
         try
         {
-            await foreach (var activity in _activityService.StreamBranchActivity(_currentUser, cancellationToken))
+            await foreach (var activity in _activityService.StreamBranchActivity(currentUser, cancellationToken))
             {
                 var json = JsonSerializer.Serialize(activity, jsonOptions);
                 await Response.WriteAsync($"data: {json}\n\n", cancellationToken);
@@ -79,14 +79,14 @@ public class ActivityController : ControllerBase
     [HttpGet("poll")]
     public async Task<IActionResult> PollActivity([FromQuery] DateTime since, CancellationToken cancellationToken)
     {
-        var accessToken = await _currentUser.GetValidAccessToken();
-        if (accessToken == null)
+        var currentUser = await _userFactory.GetCurrentUser();
+        if (currentUser == null)
             return Unauthorized();
 
         _logger.LogInformation("Polling for activity since {Since}", since);
 
         var results = await _activityService.GetActivitySince(
-            _currentUser, since, cancellationToken);
+            currentUser, since, cancellationToken);
 
         _logger.LogInformation("Returning {Count} poll results", results.Count);
         return Ok(results);
@@ -100,8 +100,8 @@ public class ActivityController : ControllerBase
     [HttpPost("refresh")]
     public async Task RefreshActivity([FromBody] List<BranchRefreshRequest> branches, CancellationToken cancellationToken)
     {
-        var accessToken = await _currentUser.GetValidAccessToken();
-        if (accessToken == null)
+        var currentUser = await _userFactory.GetCurrentUser();
+        if (currentUser == null)
         {
             _logger.LogWarning("Unauthorized request to refresh activity");
             Response.StatusCode = 401;
@@ -122,7 +122,7 @@ public class ActivityController : ControllerBase
         try
         {
             await foreach (var activity in _activityService.StreamRefreshBranchStatus(
-                               _currentUser, branches, cancellationToken))
+                               currentUser, branches, cancellationToken))
             {
                 var json = JsonSerializer.Serialize(activity, jsonOptions);
                 await Response.WriteAsync($"data: {json}\n\n", cancellationToken);

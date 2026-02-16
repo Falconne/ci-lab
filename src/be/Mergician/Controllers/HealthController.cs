@@ -8,11 +8,11 @@ namespace Mergician.Controllers;
 [Route("api/[controller]")]
 public class HealthController : ControllerBase
 {
-    private readonly GitlabServiceUser _serviceUser;
+    private readonly GitlabUserFactory _userFactory;
 
-    public HealthController(GitlabServiceUser serviceUser)
+    public HealthController(GitlabUserFactory userFactory)
     {
-        _serviceUser = serviceUser;
+        _userFactory = userFactory;
     }
 
     [HttpGet]
@@ -20,7 +20,7 @@ public class HealthController : ControllerBase
     {
         var errors = new List<string>();
 
-        if (!_serviceUser.IsConfigured)
+        if (!_userFactory.IsServiceTokenConfigured)
             errors.Add("GitLab service token is not configured. Set the Mergician:GitLab:ServiceToken setting.");
 
         return Ok(new HealthStatus

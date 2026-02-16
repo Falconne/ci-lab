@@ -9,18 +9,18 @@ namespace Mergician.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly GitLabOAuthService _oauthService;
-    private readonly GitlabCurrentUser _currentUser;
+    private readonly GitlabUserFactory _userFactory;
     private readonly GitlabService _gitlabService;
     private readonly ILogger<AuthController> _logger;
 
     public AuthController(
         GitLabOAuthService oauthService,
-        GitlabCurrentUser currentUser,
+        GitlabUserFactory userFactory,
         GitlabService gitlabService,
         ILogger<AuthController> logger)
     {
         _oauthService = oauthService;
-        _currentUser = currentUser;
+        _userFactory = userFactory;
         _gitlabService = gitlabService;
         _logger = logger;
     }
@@ -99,7 +99,11 @@ public class AuthController : ControllerBase
     [HttpGet("me")]
     public async Task<IActionResult> Me()
     {
-        var user = await _gitlabService.GetCurrentUser(_currentUser);
+        var accessUser = await _userFactory.GetCurrentUser();
+        if (accessUser == null)
+            return Unauthorized();
+
+        var user = await _gitlabService.GetCurrentUser(accessUser);
         if (user == null)
             return Unauthorized();
 
