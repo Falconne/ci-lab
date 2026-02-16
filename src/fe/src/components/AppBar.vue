@@ -3,6 +3,9 @@
     <v-app-bar-title>
       <v-icon icon="mdi-source-merge" class="mr-2" />
       Mergician
+      <span class="version-text ml-3">
+        fe: {{ frontendVersion.slice(0, 7) }} | be: {{ backendVersion.slice(0, 7) }}
+      </span>
     </v-app-bar-title>
 
     <template v-slot:append>
@@ -30,6 +33,8 @@ interface User {
 }
 
 const user = ref<User | null>(null)
+const frontendVersion = ref(__APP_VERSION__)
+const backendVersion = ref('unknown')
 
 onMounted(async () => {
   try {
@@ -40,6 +45,17 @@ onMounted(async () => {
   } catch {
     // Not logged in
   }
+
+  // Fetch backend version
+  try {
+    const response = await fetch('/api/version')
+    if (response.ok) {
+      const data = await response.json()
+      backendVersion.value = data.version || 'unknown'
+    }
+  } catch {
+    // Could not fetch backend version
+  }
 })
 
 async function logout() {
@@ -48,3 +64,11 @@ async function logout() {
   window.location.href = '/'
 }
 </script>
+
+<style scoped>
+.version-text {
+  font-size: 0.75rem;
+  opacity: 0.7;
+  font-weight: normal;
+}
+</style>

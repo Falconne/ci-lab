@@ -1,0 +1,3 @@
+Redo how the auth token is retrieved in the backend. Instead of having a polymorphic `GitlabAccessUserBase`, create a new service called `GitlabUserFactory` that has two methods: `GetCurrentUser` and `GetServiceUser`. Move the token fetching functionality from the child classes of `GitlabAccessUserBase` into this factory as `GetCurrentUserToken` and `GetServiceUserToken`.
+
+Then rename `GitlabAccessUserBase` to `GitlabAccessUser`, make it non-abstract and delete the child classes. The `GitlabAccessUser` must be constructed with a non-null access token and apiBaseUrl. The above methods in the factory should each return a `GitlabAccessUser`

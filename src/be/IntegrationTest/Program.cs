@@ -112,6 +112,28 @@ try
     {
         liveUpdateTest.Dispose();
     }
+
+    // Test 5: Version display and Last Updated column
+    var versionTest = new VersionAndLastUpdatedTest();
+    try
+    {
+        Log.Information("");
+        Log.Information("--- Test: Version and Last Updated ---");
+        await versionTest.Run();
+        results.Add(("Version and Last Updated", true, null));
+        Log.Information("PASS: Version and Last Updated");
+    }
+    catch (Exception ex)
+    {
+        results.Add(("Version and Last Updated", false, ex.Message));
+        Log.Error($"FAIL: Version and Last Updated - {ex.Message}");
+        allPassed = false;
+        if (abortOnFirstFailure) throw;
+    }
+    finally
+    {
+        versionTest.Dispose();
+    }
 }
 catch (Exception ex)
 {

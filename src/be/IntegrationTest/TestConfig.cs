@@ -17,6 +17,8 @@ public static class TestConfig
     // Paths
     private static readonly string RepoRoot = FindRepoRoot();
 
+    public static string RepositoryRoot => RepoRoot;
+
     public static readonly string ScreenshotDir = Path.Combine(RepoRoot, "data", "screenshots", "integration-test");
 
     public static readonly string LogDir = Path.Combine(RepoRoot, "data", "logs");

@@ -3,10 +3,26 @@ import vue from '@vitejs/plugin-vue'
 import vuetify from 'vite-plugin-vuetify'
 import { fileURLToPath, URL } from 'node:url'
 import { randomUUID } from 'node:crypto'
+import { execSync } from 'node:child_process'
 
-// Single build hash shared between the JS bundle and version.json.
-// Each `vite build` produces a new hash so deployments are distinguishable.
-const buildHash = randomUUID().replace(/-/g, '').slice(0, 12)
+// Get git hash from environment (set during Docker build) or from git directly (for dev builds).
+// Falls back to a random UUID if git is not available.
+function getVersion(): string {
+  // First try environment variable set during Docker build
+  if (process.env.VITE_GIT_HASH) {
+    return process.env.VITE_GIT_HASH
+  }
+
+  // Try to get from git directly (for local development)
+  try {
+    return execSync('git rev-parse HEAD').toString().trim()
+  } catch {
+    // Fallback to random UUID if git is not available
+    return randomUUID().replace(/-/g, '').slice(0, 12)
+  }
+}
+
+const buildHash = getVersion()
 
 // Generates a version.json file at build time with the build hash.
 // The running app periodically fetches this to detect when a new version is deployed.
