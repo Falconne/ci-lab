@@ -6,7 +6,6 @@ import { randomUUID } from 'node:crypto'
 import { execSync } from 'node:child_process'
 
 // Get git hash from environment (set during Docker build) or from git directly (for dev builds).
-// Falls back to a random UUID if git is not available.
 function getVersion(): string {
   // First try environment variable set during Docker build
   if (process.env.VITE_GIT_HASH) {
@@ -17,8 +16,7 @@ function getVersion(): string {
   try {
     return execSync('git rev-parse HEAD').toString().trim()
   } catch {
-    // Fallback to random UUID if git is not available
-    return randomUUID().replace(/-/g, '').slice(0, 12)
+    return 'VersionNotSet'
   }
 }
 
