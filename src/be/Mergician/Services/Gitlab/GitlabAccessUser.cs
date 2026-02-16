@@ -6,7 +6,8 @@ namespace Mergician.Services.Gitlab;
 ///     Represents an authenticated GitLab API user with a valid access token.
 ///     Provides HTTP request creation with the GitLab API v4 base URL pre-configured,
 ///     so consumers only need to specify the relative API path (e.g. "user", "projects/1").
-///     Instances are created by GitlabUserFactory.
+///     Instances are created by the GitLabCookieAuthenticationHandler (for the current
+///     OAuth user) or by GitlabUserFactory (for the service user).
 /// </summary>
 public class GitlabAccessUser
 {

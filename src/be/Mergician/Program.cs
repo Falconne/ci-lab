@@ -1,6 +1,7 @@
 using Mergician.Entities;
 using Mergician.Services;
 using Mergician.Services.Gitlab;
+using Microsoft.AspNetCore.Authentication;
 using Serilog;
 
 Log.Logger = new LoggerConfiguration()
@@ -40,10 +41,16 @@ try
     builder.Services.AddSingleton<GitlabService>();
     builder.Services.AddSingleton<VersionService>();
     builder.Services.AddScoped<GitlabActivityService>();
-    builder.Services.AddScoped<GitlabUserFactory>(sp => new GitlabUserFactory(
-        sp.GetRequiredService<IHttpContextAccessor>(),
-        sp.GetRequiredService<GitLabOAuthService>(),
-        sp.GetRequiredService<IHttpClientFactory>(),
+
+    // Register GitLab authentication handler
+    builder.Services.AddSingleton(new GitLabAuthSettings { ApiBaseUrl = gitlabApiBaseUrl });
+    builder.Services.AddAuthentication(GitLabCookieAuthenticationHandler.SchemeName)
+        .AddScheme<AuthenticationSchemeOptions, GitLabCookieAuthenticationHandler>(
+            GitLabCookieAuthenticationHandler.SchemeName, null);
+    builder.Services.AddAuthorization();
+
+    // GitlabUserFactory is still needed for service user access (background tasks, health checks)
+    builder.Services.AddSingleton(new GitlabUserFactory(
         gitlabApiBaseUrl,
         mergicianSettings.GitLab.ServiceToken));
 
@@ -66,6 +73,10 @@ try
 
     app.UseSerilogRequestLogging();
     app.UseCors();
+
+    // Authentication and authorization middleware
+    app.UseAuthentication();
+    app.UseAuthorization();
 
     // Serve static files from wwwroot (for production builds of the Vue frontend)
     app.UseDefaultFiles();

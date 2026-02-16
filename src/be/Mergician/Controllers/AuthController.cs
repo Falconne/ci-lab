@@ -1,5 +1,7 @@
 using Mergician.Entities;
+using Mergician.Services;
 using Mergician.Services.Gitlab;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Mergician.Controllers;
@@ -9,18 +11,15 @@ namespace Mergician.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly GitLabOAuthService _oauthService;
-    private readonly GitlabUserFactory _userFactory;
     private readonly GitlabService _gitlabService;
     private readonly ILogger<AuthController> _logger;
 
     public AuthController(
         GitLabOAuthService oauthService,
-        GitlabUserFactory userFactory,
         GitlabService gitlabService,
         ILogger<AuthController> logger)
     {
         _oauthService = oauthService;
-        _userFactory = userFactory;
         _gitlabService = gitlabService;
         _logger = logger;
     }
@@ -96,12 +95,11 @@ public class AuthController : ControllerBase
         return Redirect("/");
     }
 
+    [Authorize]
     [HttpGet("me")]
     public async Task<IActionResult> Me()
     {
-        var accessUser = await _userFactory.GetCurrentUser();
-        if (accessUser == null)
-            return Unauthorized();
+        var accessUser = HttpContext.GetGitlabUser()!;
 
         var user = await _gitlabService.GetCurrentUser(accessUser);
         if (user == null)

@@ -1,24 +1,24 @@
 using Mergician.Entities;
+using Mergician.Services;
 using Mergician.Services.Gitlab;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
 
 namespace Mergician.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class ActivityController : ControllerBase
 {
-    private readonly GitlabUserFactory _userFactory;
     private readonly GitlabActivityService _activityService;
     private readonly ILogger<ActivityController> _logger;
 
     public ActivityController(
-        GitlabUserFactory userFactory,
         GitlabActivityService activityService,
         ILogger<ActivityController> logger)
     {
-        _userFactory = userFactory;
         _activityService = activityService;
         _logger = logger;
     }
@@ -33,13 +33,7 @@ public class ActivityController : ControllerBase
     [HttpGet("stream")]
     public async Task StreamPushActivity(CancellationToken cancellationToken)
     {
-        var currentUser = await _userFactory.GetCurrentUser();
-        if (currentUser == null)
-        {
-            _logger.LogWarning("Unauthorized request to stream activity");
-            Response.StatusCode = 401;
-            return;
-        }
+        var currentUser = HttpContext.GetGitlabUser()!;
 
         Response.Headers.ContentType = "text/event-stream";
         Response.Headers.CacheControl = "no-cache";
@@ -79,9 +73,7 @@ public class ActivityController : ControllerBase
     [HttpGet("poll")]
     public async Task<IActionResult> PollActivity([FromQuery] DateTime since, CancellationToken cancellationToken)
     {
-        var currentUser = await _userFactory.GetCurrentUser();
-        if (currentUser == null)
-            return Unauthorized();
+        var currentUser = HttpContext.GetGitlabUser()!;
 
         _logger.LogInformation("Polling for activity since {Since}", since);
 
@@ -100,13 +92,7 @@ public class ActivityController : ControllerBase
     [HttpPost("refresh")]
     public async Task RefreshActivity([FromBody] List<BranchRefreshRequest> branches, CancellationToken cancellationToken)
     {
-        var currentUser = await _userFactory.GetCurrentUser();
-        if (currentUser == null)
-        {
-            _logger.LogWarning("Unauthorized request to refresh activity");
-            Response.StatusCode = 401;
-            return;
-        }
+        var currentUser = HttpContext.GetGitlabUser()!;
 
         Response.Headers.ContentType = "text/event-stream";
         Response.Headers.CacheControl = "no-cache";
