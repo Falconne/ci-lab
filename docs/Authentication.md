@@ -110,6 +110,20 @@ This handler runs **before every controller action** (when `app.UseAuthenticatio
 4. If invalid but `gl_refresh_token` exists: Calls GitLab's token refresh endpoint, updates the cookies, and returns success
 5. If no valid tokens: Returns `AuthenticateResult.NoResult()`
 
+#### What `AuthenticateResult.NoResult()` means and `HttpContext.Items`
+
+`AuthenticateResult.NoResult()` indicates the authentication handler did not authenticate the request (no valid credentials were found) and did not produce a failure that should be challenged immediately. In practice this means:
+
+- The request continues through the middleware pipeline as an *unauthenticated* request (no principal is set).
+- If the target controller or action is protected with `[Authorize]`, ASP.NET Core's authorization middleware will convert the lack of an authenticated principal into a `401 Unauthorized` (or a challenge for interactive schemes). This is why the frontend sees a `401` and then redirects to `/api/auth/login`.
+
+Conversely, when the `GitLabCookieAuthenticationHandler` successfully authenticates a request it does two things:
+
+- It returns `AuthenticateResult.Success()` so the runtime considers the request authenticated.
+- It creates a `GitlabAccessUser` and stores it in `HttpContext.Items[GitLabCookieAuthenticationHandler.GitlabAccessUserKey]` for use by controllers and services.
+
+Because `[Authorize]` prevents controller actions from running for unauthenticated requests, any controller action that is executed under `[Authorize]` can rely on `HttpContext.GetGitlabUser()` returning a non-null `GitlabAccessUser`. If you call `HttpContext.GetGitlabUser()` from an endpoint that is *not* protected by `[Authorize]`, you must still check for `null` because the request may be unauthenticated.
+
 ```mermaid
 flowchart TD
     A[Request arrives] --> B{gl_access_token<br/>cookie exists?}
