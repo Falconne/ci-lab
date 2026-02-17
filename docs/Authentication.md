@@ -68,12 +68,17 @@ sequenceDiagram
 
 6. **User authorizes on GitLab**: GitLab shows the user an authorization page. If the user grants permission, GitLab redirects back to the callback URL.
 
-7. **Authorization callback**: GitLab redirects to `/api/auth/callback?code=ABC&state=XYZ`. The `AuthController.Callback` endpoint:
-   - Validates that the `state` parameter matches the cookie (CSRF protection)
-   - Exchanges the authorization `code` for tokens via `POST /oauth/token` to GitLab
-   - Receives an `access_token` (short-lived, used for API calls) and `refresh_token` (long-lived, used to obtain new access tokens)
-   - Stores both tokens in HTTP-only, SameSite=Lax cookies with 30-day expiry
-   - Redirects the browser back to `/` (the homepage)
+7. **Authorization callback**: GitLab redirects the browser to `/api/auth/callback?code=ABC&state=XYZ`. GitLab includes a short-lived, single-use authorization "code" in this redirect. The `AuthController.Callback` endpoint:
+  - Validates that the `state` parameter matches the cookie (CSRF protection)
+  - Reads the `code` from the query string. This `code` is an authorization code (not an access token) and must be exchanged server-side using the application's `client_secret`.
+  - Exchanges the authorization `code` for tokens via `POST /oauth/token` to GitLab (server-to-server request)
+  - Receives an `access_token` (short-lived, used for API calls) and `refresh_token` (long-lived, used to obtain new access tokens)
+  - Stores both tokens in HTTP-only, SameSite=Lax cookies with 30-day expiry
+  - Redirects the browser back to `/` (the homepage)
+
+Important notes about the authorization `code`:
+- The code is single-use and short-lived. Attempting to reuse it or exchange it client-side (in the browser) will fail.
+- The exchange must happen on the server because it requires the OAuth `client_secret`, which must never be exposed to the browser or stored in client-side code.
 
 8. **Authenticated requests**: On subsequent requests, the authentication middleware:
    - Reads the `gl_access_token` cookie
