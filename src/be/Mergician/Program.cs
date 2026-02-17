@@ -88,7 +88,8 @@ try
     // Fallback to index.html for SPA routing (must be after MapControllers)
     app.MapFallbackToFile("index.html");
 
-    Log.Information("Mergician starting on {Urls}", string.Join(", ", app.Urls));
+    var versionService = app.Services.GetRequiredService<VersionService>();
+    Log.Information("Mergician v{Version} starting on {Urls}", versionService.GetVersion(), string.Join(", ", app.Urls));
     app.Run();
 }
 catch (Exception ex)
