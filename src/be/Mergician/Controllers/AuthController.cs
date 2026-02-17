@@ -99,7 +99,7 @@ public class AuthController : ControllerBase
     [HttpGet("me")]
     public async Task<IActionResult> Me()
     {
-        var accessUser = HttpContext.GetGitlabUser()!;
+        var accessUser = HttpContext.GetGitlabUser();
 
         var user = await _gitlabService.GetCurrentUser(accessUser);
         if (user == null)

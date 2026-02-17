@@ -9,11 +9,15 @@ public static class HttpContextExtensions
 {
     /// <summary>
     ///     Gets the GitlabAccessUser stored by the authentication handler.
-    ///     Returns null if the user is not authenticated (should not happen
+    ///     Throws if the user is not authenticated (should not happen
     ///     when used with [Authorize]).
     /// </summary>
-    public static GitlabAccessUser? GetGitlabUser(this HttpContext context)
+    public static GitlabAccessUser GetGitlabUser(this HttpContext context)
     {
-        return context.Items[GitLabCookieAuthenticationHandler.GitlabAccessUserKey] as GitlabAccessUser;
+        var gitlabUser = context.Items[GitLabCookieAuthenticationHandler.GitlabAccessUserKey] as GitlabAccessUser;
+        if (gitlabUser is null)
+            throw new InvalidOperationException("Authenticated GitLab user was not found in HttpContext items.");
+
+        return gitlabUser;
     }
 }
