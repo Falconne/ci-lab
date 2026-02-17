@@ -2,12 +2,11 @@ using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using Mergician.Entities;
-using Mergician.Services.Gitlab;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Options;
 using Serilog;
 
-namespace Mergician.Services;
+namespace Mergician.Services.Authentication;
 
 /// <summary>
 ///     Custom ASP.NET Core authentication handler that validates GitLab OAuth tokens

@@ -1,4 +1,5 @@
 using Mergician.Entities;
+using Mergician.Services.Authentication;
 using Mergician.Services;
 using Serilog;
 using System.Text.Json;

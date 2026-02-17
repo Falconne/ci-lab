@@ -1,4 +1,5 @@
 using Mergician.Entities;
+using Mergician.Services.Authentication;
 using System.Runtime.CompilerServices;
 
 namespace Mergician.Services.Gitlab;

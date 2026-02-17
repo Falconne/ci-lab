@@ -1,5 +1,5 @@
 using Mergician.Entities;
-using Mergician.Services;
+using Mergician.Services.Authentication;
 using Mergician.Services.Gitlab;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;

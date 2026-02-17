@@ -1,6 +1,4 @@
-using Mergician.Services.Gitlab;
-
-namespace Mergician.Services;
+namespace Mergician.Services.Authentication;
 
 /// <summary>
 ///     Extension methods for retrieving the authenticated GitlabAccessUser

@@ -2,7 +2,7 @@ using System.Text.Json;
 using Mergician.Entities;
 using Serilog;
 
-namespace Mergician.Services.Gitlab;
+namespace Mergician.Services.Authentication;
 
 public class GitLabOAuthService
 {

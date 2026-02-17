@@ -1,6 +1,6 @@
 using System.Net.Http.Headers;
 
-namespace Mergician.Services.Gitlab;
+namespace Mergician.Services.Authentication;
 
 /// <summary>
 ///     Represents an authenticated GitLab API user with a valid access token.

@@ -1,6 +1,6 @@
 using Serilog;
 
-namespace Mergician.Services.Gitlab;
+namespace Mergician.Services.Authentication;
 
 /// <summary>
 ///     Factory for creating GitlabAccessUser instances for the service user.
