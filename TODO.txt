@@ -1,23 +1,31 @@
-We need a database to store persistent data in Mergician. Use Dapper to provide ORM and DbUp to handle migrations. Use the recommended best practices for these libraries to structure the code and implement and abstract the DB usage well.
+We need a database to store persistent data in Mergician. Use Dapper to provide ORM and DbUp to handle migrations. Use the recommended best practices for these libraries to structure the code, figure out where to place and how to run migration scripts, etc and implement and abstract the DB usage well.
 
 Add database connection settings support in a similar way to the other settings.
 
-In the mergician docker compose script, implelemt a DB service using Postgres for internal testing, and add the necessary configuration through the .env file for the connection and credential settings. Include bootrapping of the database as part of the docker compose setup, setting up the sysadmin credentials for Mergician to connect. The DB that Mergician uses will be exclusive to it, so it is ok for it to have sysadmin credentials. With these it should try to do as much of the initialisation itself so we keep the docker compose init minimal.
+In the mergician docker compose script, implelemt a DB service using Postgres for internal testing (pin the current latest version), and have an init step create the sysadmin credentials (if they don't exist) and pass the necessary configuration through the .env file for Mergician to read. Thus Mergician should only start after the DB is healthy. The DB that Mergician uses will be exclusive to it, so it is ok for Mergician to have sysadmin credentials. With these it can create a database (call it Mergician) for itself if it doesn't exist and run the migration scripts on startup.
 
-The initial usage of the database will be to cache the results of the user activity we have seen, so we don't have to query Gitlab for as much data on subsequent dashboard loads.
+The initial idea of the database will be to cache the results of the user activity we have seen, so we don't have to query Gitlab for as much data on subsequent dashboard loads.
+
+Primary keys should be auto incrementing integers.
 
 Create several tables:
-* UserActivity: to store Gitlab username and last poll timestamp, so subsequent queries by the same user can be done from this timestamp onwards (then updated). Replace the current polling system which just goes back a fixed number of seconds with this method.
+* UserActivity: to store Gitlab user id and last poll timestamp, so subsequent queries by the same user can be done from this timestamp onwards (then updated). Replace the current polling system which just goes back a fixed number of seconds with this method.
 * BranchInProject: store an Id (primary key), BranchName, ProjectId, ProjectName
 * MergGroup: store an Id (primary key), Name (this should just be the branch name the merge group is created for by default), LastUpdateTime (update this any time fresh activity is seen for any branch in the group).
 * BranchesInMergGroup: A table to store the one to many links from MergeGroup to BranchInProject rows (as per the current logic on the frontend, a MergeGroup is a collection of BranchInProject with the same branch name).
-* UsersInMergeGroup: This should map Gitlab usernames to MergeGroups based on what users have had a branch in that merge group in their activity.
+* UsersInMergeGroups: This should map Gitlab user ids to MergeGroups based on what users have had a branch in that merge group in their activity.
 
-Add the above tables and refactor the backend code to use them. When a user loads their dashboard, return the data from the DB first (latest entries first). Ensure that only merge groups associated with the user in UsersInMergeGroup are returned. Also, ignore anything older than the queried timespan based on the LastUpdateTime of the MergeGroup. Then query for new data from the user's last access timestamp. Before new data is returned, add it to the DB first. Update the DB if the data already exists (i.e. there is new activity on an already tracked branch, we need to update the LastUpdateTime of the MergeGroup and possibly the `UsersInMergeGroup` table).
+Make sure database use is abstracted with dependency injection so that we can mock it out when testing (do not implement any unit tests yet).
+
+Use UTC time in all records, DB, backend and frontend. Refactor any existing code that uses local times. Only the frontend should convert to local time for display.
+
+Add the above tables and refactor the backend code to use them. When a user loads their dashboard, return the data from the DB first (latest entries first). Ensure that only merge groups associated with the user in UsersInMergeGroups are returned. Also, ignore anything older than the queried timespan based on the LastUpdateTime of the MergeGroup. Then query for new data from the user's last access timestamp. Before new data is returned, add it to the DB first. Update the DB if the data already exists (i.e. there is new activity on an already tracked branch, we need to update the LastUpdateTime of the MergeGroup and possibly the `UsersInMergeGroups` table).
 
 When returning data to the user, keep the current structure rather than changing to a MergGroup structure (i.e. we return one branch entry at a time). However, return the MergeGroupId from the DB for each branch row, and udpate the frontend to use this to group branches into merge groups instead of grouping by branch name. This applies to subsequent updates as well.
 
-When returning data from the database, first check if the branch still exists and if not, delete it and its references from the DB. If a MergeGroup has no branches left, delete it and its references in UsersInMergeGroup, etc.
+If there is trouble getting data from the DB, return an error to the frontend and log the error. Do not allow any activity in the app while the DB is unhealthy.
+
+When returning data from the database, first check if the branch still exists and if not, delete it and its references from the DB. If a MergeGroup has no branches left, delete it and its references in UsersInMergeGroups, etc.
 
 Make sure that during regular polling, if a branch a user's frontend is requesting updates for is gone, it is removed from the DB and the frontend is notified to remove it.
 
@@ -25,4 +33,10 @@ If a user has new activity in a branch that is already in a MergeGroup they are 
 
 Do not store MR or approvals info in the DB. This should be queried live.
 
-Also, think about what we are trying to achieve, by using the database to cache activity and if you can think of any other sensible changes we should do to preserve data integrity or and report all relevant data to the user, then implement that as well.
+If doing multiple related data updates, ensure they are done in a transaction. Also consider that multiple users working on the same branches maybe querying the backend at the same time. Use recommended best practices to avoid creating duplicate records of branches, merge groups, etc due to race conditions.
+
+Add any indexes you think are necessary for performance. Ensure primary keys will be indexed if not by default.
+
+Create a background service (called CleanupService) that always runs, using the GitalServiceUser's token, to check if any tracked branches have been deleted and if so remove them and empty merge groups from the DB. This process only needs to run once a day (at 3am New Zealand time).
+
+Once done start up a clean environment and run the integration tests to ensure everything still works the same from a user's point of view.
