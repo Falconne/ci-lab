@@ -1,6 +1,7 @@
 using Mergician.Entities;
 using Mergician.Services;
 using Mergician.Services.Authentication;
+using Mergician.Services.Database;
 using Mergician.Services.Gitlab;
 using Microsoft.AspNetCore.Authentication;
 using Serilog;
@@ -24,7 +25,22 @@ try
         throw new InvalidOperationException(
             "Mergician:GitLab:Url is not configured. Set it via appsettings.json or the Mergician__GitLab__Url environment variable.");
 
+    if (string.IsNullOrWhiteSpace(mergicianSettings.Database.Host))
+        throw new InvalidOperationException(
+            "Mergician:Database:Host is not configured. Set it via appsettings.json or the Mergician__Database__Host environment variable.");
+
     builder.Services.AddSingleton(mergicianSettings);
+    builder.Services.AddSingleton(mergicianSettings.Database);
+
+    // Run database migrations
+    Log.Information("Running database migrations");
+    var migrationService = new DatabaseMigrationService(mergicianSettings.Database);
+    migrationService.MigrateDatabase();
+    Log.Information("Database migrations completed");
+
+    // Register database services
+    builder.Services.AddSingleton<IDbConnectionFactory>(new NpgsqlConnectionFactory(mergicianSettings.Database));
+    builder.Services.AddSingleton<IMergicianRepository, MergicianRepository>();
 
     // Compute GitLab API base URL once at startup from configuration
     var gitlabApiBaseUrl = $"{mergicianSettings.GitLab.ServerUrl.TrimEnd('/')}/api/v4";
@@ -54,6 +70,9 @@ try
     builder.Services.AddSingleton(new GitlabUserFactory(
         gitlabApiBaseUrl,
         mergicianSettings.GitLab.ServiceToken));
+
+    // Register background cleanup service
+    builder.Services.AddHostedService<CleanupService>();
 
     // Add services
     builder.Services.AddControllers();

@@ -1,6 +1,22 @@
 name: mergician
 
 services:
+  postgres:
+    image: postgres:17.2-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: "${MERGICIAN_DB_USERNAME:-mergician}"
+      POSTGRES_PASSWORD: "${MERGICIAN_DB_PASSWORD:-mergician}"
+      POSTGRES_DB: postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${MERGICIAN_DB_USERNAME:-mergician}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
   mergician:
     build:
       context: .
@@ -10,12 +26,20 @@ services:
       - "5000:5000"
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
       Mergician__GitLab__Url: "${GITLAB_URL:-http://localhost:8081}"
       Mergician__GitLab__InternalUrl: "${GITLAB_INTERNAL_URL:-http://host.docker.internal:8081}"
       Mergician__GitLab__ServiceToken: "${GITLAB_SERVICE_TOKEN:-}"
       Mergician__GitLab__OAuth__ClientId: "${MERGICIAN_GITLAB_OAUTH_CLIENT_ID:-}"
       Mergician__GitLab__OAuth__ClientSecret: "${MERGICIAN_GITLAB_OAUTH_CLIENT_SECRET:-}"
+      Mergician__Database__Host: postgres
+      Mergician__Database__Port: "5432"
+      Mergician__Database__Username: "${MERGICIAN_DB_USERNAME:-mergician}"
+      Mergician__Database__Password: "${MERGICIAN_DB_PASSWORD:-mergician}"
+      Mergician__Database__Database: mergician
     env_file:
       - path: .env
         required: false
@@ -28,6 +52,9 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+
+volumes:
+  pgdata:
 
 networks:
   ci-network:

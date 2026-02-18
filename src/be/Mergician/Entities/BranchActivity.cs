@@ -5,7 +5,8 @@ namespace Mergician.Entities;
 /// along with its merge request and approval status.
 /// When streamed progressively, HasMergeRequest may be null
 /// to indicate that MR status has not yet been resolved.
-/// LastUpdated contains the timestamp of the most recent push to the branch.
+/// LastUpdated contains the UTC timestamp of the most recent push to the branch.
+/// MergeGroupId identifies the merge group this branch belongs to in the database.
 /// </summary>
 public record BranchActivity(
     string BranchName,
@@ -14,4 +15,5 @@ public record BranchActivity(
     bool? HasMergeRequest,
     int? ApprovalsRequired,
     int? ApprovalsGiven,
-    DateTimeOffset? LastUpdated = null);
+    DateTimeOffset? LastUpdated = null,
+    int? MergeGroupId = null);

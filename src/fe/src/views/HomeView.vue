@@ -65,8 +65,8 @@
               </tr>
             </thead>
             <tbody>
-              <template v-for="group in mergeGroups" :key="group.branchName">
-                <tr v-for="(item, idx) in group.items" :key="`${group.branchName}-${item.projectId}`">
+              <template v-for="group in mergeGroups" :key="group.groupKey">
+                <tr v-for="(item, idx) in group.items" :key="`${group.groupKey}-${item.projectId}`">
                   <!-- Branch name cell: only show on first row of group, span all rows -->
                   <td
                     v-if="idx === 0"
@@ -161,9 +161,22 @@ interface BranchActivity {
   approvalsRequired: number | null
   approvalsGiven: number | null
   lastUpdated: string | null
+  mergeGroupId: number | null
+}
+
+interface BranchDeletedNotification {
+  branchName: string
+  projectId: number
+  mergeGroupId: number | null
+}
+
+interface ActivityPollResponse {
+  activities: BranchActivity[]
+  deletedBranches: BranchDeletedNotification[]
 }
 
 interface MergeGroup {
+  groupKey: string
   branchName: string
   items: BranchActivity[]
 }
@@ -184,25 +197,36 @@ let refreshIntervalId: ReturnType<typeof setInterval> | null = null
 let timeIntervalId: ReturnType<typeof setInterval> | null = null
 let lastUpdateTime: Date | null = null
 
+/**
+ * Groups activities by mergeGroupId (from DB) when available,
+ * falling back to branchName for items without a mergeGroupId.
+ */
 const mergeGroups = computed<MergeGroup[]>(() => {
-  const groups = new Map<string, BranchActivity[]>()
+  const groups = new Map<string, { branchName: string; items: BranchActivity[] }>()
   for (const item of activities.value) {
-    const existing = groups.get(item.branchName)
+    // Use mergeGroupId as the grouping key when available, fallback to branchName
+    const groupKey = item.mergeGroupId != null ? `mg:${item.mergeGroupId}` : `bn:${item.branchName}`
+    const existing = groups.get(groupKey)
     if (existing) {
       // Skip duplicates: same branch + project already in the group
-      if (!existing.some(e => e.projectId === item.projectId)) {
-        existing.push(item)
+      if (!existing.items.some(e => e.projectId === item.projectId && e.branchName === item.branchName)) {
+        existing.items.push(item)
       }
     } else {
-      groups.set(item.branchName, [item])
+      groups.set(groupKey, { branchName: item.branchName, items: [item] })
     }
   }
-  return Array.from(groups.entries()).map(([branchName, items]) => ({
+  return Array.from(groups.entries()).map(([groupKey, { branchName, items }]) => ({
+    groupKey,
     branchName,
     items
   }))
 })
 
+/**
+ * Formats an ISO datetime string to local date/time for display.
+ * The backend stores and returns UTC; conversion to local happens here.
+ */
 function formatDateTime(isoString: string): string {
   if (!isoString) return ''
   return new Date(isoString).toLocaleString()
@@ -232,14 +256,38 @@ function handleActivityEvent(data: BranchActivity) {
     // Update existing entry in place (e.g. MR/approval data arrived)
     activities.value[existingIndex] = data
   } else {
-    // Find the right insertion point: if a group with this branchName already exists,
-    // insert after the last item in that group to maintain grouping
-    const lastGroupIndex = findLastIndexOf(activities.value, a => a.branchName === data.branchName)
+    // Find the right insertion point: group by mergeGroupId or branchName
+    const groupKey = data.mergeGroupId != null ? data.mergeGroupId : null
+    let lastGroupIndex = -1
+
+    if (groupKey != null) {
+      lastGroupIndex = findLastIndexOf(
+        activities.value,
+        a => a.mergeGroupId === groupKey
+      )
+    }
+
+    if (lastGroupIndex < 0) {
+      lastGroupIndex = findLastIndexOf(
+        activities.value,
+        a => a.branchName === data.branchName
+      )
+    }
+
     if (lastGroupIndex >= 0) {
       activities.value.splice(lastGroupIndex + 1, 0, data)
     } else {
       activities.value.push(data)
     }
+  }
+}
+
+function handleBranchDeleted(notification: BranchDeletedNotification) {
+  const idx = activities.value.findIndex(
+    a => a.branchName === notification.branchName && a.projectId === notification.projectId
+  )
+  if (idx >= 0) {
+    activities.value.splice(idx, 1)
   }
 }
 
@@ -270,10 +318,11 @@ function startStreaming() {
     startPolling()
   })
 
-  eventSource.onerror = () => {
+  eventSource.onerror = (event) => {
     streaming.value = false
     eventSource?.close()
     eventSource = null
+    console.error('SSE stream error:', event)
   }
 }
 
@@ -301,12 +350,17 @@ async function refreshExistingBranches() {
 
   // Deduplicate branch-project pairs
   const seen = new Set<string>()
-  const branches: { branchName: string; projectId: number; lastUpdated: string | null }[] = []
+  const branches: { branchName: string; projectId: number; lastUpdated: string | null; mergeGroupId: number | null }[] = []
   for (const a of activities.value) {
     const key = `${a.branchName}:${a.projectId}`
     if (!seen.has(key)) {
       seen.add(key)
-      branches.push({ branchName: a.branchName, projectId: a.projectId, lastUpdated: a.lastUpdated })
+      branches.push({
+        branchName: a.branchName,
+        projectId: a.projectId,
+        lastUpdated: a.lastUpdated,
+        mergeGroupId: a.mergeGroupId
+      })
     }
   }
 
@@ -319,6 +373,12 @@ async function refreshExistingBranches() {
 
     if (response.status === 401) {
       console.warn('Refresh returned 401, stopping polling')
+      stopPolling()
+      return
+    }
+
+    if (response.status === 503) {
+      errorMessage.value = 'Database is unavailable. Please try again later.'
       stopPolling()
       return
     }
@@ -348,6 +408,20 @@ async function refreshExistingBranches() {
 
         if (eventText.startsWith('event: done')) {
           return
+        }
+
+        // Handle branch deletion events
+        if (eventText.startsWith('event: deleted')) {
+          const dataLine = eventText.split('\n').find(l => l.startsWith('data: '))
+          if (dataLine) {
+            try {
+              const notification: BranchDeletedNotification = JSON.parse(dataLine.slice(6))
+              handleBranchDeleted(notification)
+            } catch (err) {
+              console.error('Failed to parse deleted SSE data:', err)
+            }
+          }
+          continue
         }
 
         if (eventText.startsWith('data: ')) {
@@ -381,14 +455,31 @@ async function pollForActivity() {
       return
     }
 
+    if (response.status === 503) {
+      errorMessage.value = 'Database is unavailable. Please try again later.'
+      stopPolling()
+      return
+    }
+
     if (!response.ok) {
       console.error('Poll failed with status', response.status)
       return
     }
 
-    const data: BranchActivity[] = await response.json()
-    for (const activity of data) {
-      handleActivityEvent(activity)
+    const data: ActivityPollResponse = await response.json()
+
+    // Handle deletions
+    if (data.deletedBranches) {
+      for (const deleted of data.deletedBranches) {
+        handleBranchDeleted(deleted)
+      }
+    }
+
+    // Handle new/updated activities
+    if (data.activities) {
+      for (const activity of data.activities) {
+        handleActivityEvent(activity)
+      }
     }
 
     lastUpdateTime = new Date()

@@ -3,6 +3,7 @@ namespace Mergician.Entities;
 public class MergicianSettings
 {
     public GitLabSettings GitLab { get; set; } = new();
+    public DatabaseSettings Database { get; set; } = new();
 }
 
 public class GitLabSettings

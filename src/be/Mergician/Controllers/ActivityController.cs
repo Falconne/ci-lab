@@ -1,5 +1,6 @@
 using Mergician.Entities;
 using Mergician.Services.Authentication;
+using Mergician.Services.Database;
 using Mergician.Services.Gitlab;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -13,15 +14,26 @@ namespace Mergician.Controllers;
 public class ActivityController : ControllerBase
 {
     private readonly GitlabActivityService _activityService;
+    private readonly GitlabService _gitlabService;
+    private readonly IMergicianRepository _repository;
     private readonly ILogger<ActivityController> _logger;
 
     public ActivityController(
         GitlabActivityService activityService,
+        GitlabService gitlabService,
+        IMergicianRepository repository,
         ILogger<ActivityController> logger)
     {
         _activityService = activityService;
+        _gitlabService = gitlabService;
+        _repository = repository;
         _logger = logger;
     }
+
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
 
     /// <summary>
     /// Streams branch activity as Server-Sent Events.
@@ -35,22 +47,34 @@ public class ActivityController : ControllerBase
     {
         var currentUser = HttpContext.GetGitlabUser();
 
+        if (!_repository.IsHealthy())
+        {
+            _logger.LogError("Database is unhealthy, cannot stream activity");
+            Response.StatusCode = 503;
+            await Response.WriteAsync("{\"error\":\"Database is unavailable\"}", cancellationToken);
+            return;
+        }
+
+        var userInfo = await _gitlabService.GetCurrentUser(currentUser);
+        if (userInfo == null)
+        {
+            _logger.LogWarning("Could not resolve GitLab user for stream");
+            Response.StatusCode = 401;
+            return;
+        }
+
         Response.Headers.ContentType = "text/event-stream";
         Response.Headers.CacheControl = "no-cache";
         Response.Headers.Connection = "keep-alive";
 
-        _logger.LogInformation("Starting SSE activity stream");
-
-        var jsonOptions = new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        };
+        _logger.LogInformation("Starting SSE activity stream for user {UserId}", userInfo.Id);
 
         try
         {
-            await foreach (var activity in _activityService.StreamBranchActivity(currentUser, cancellationToken))
+            await foreach (var activity in _activityService.StreamBranchActivity(
+                               currentUser, userInfo.Id, cancellationToken))
             {
-                var json = JsonSerializer.Serialize(activity, jsonOptions);
+                var json = JsonSerializer.Serialize(activity, JsonOptions);
                 await Response.WriteAsync($"data: {json}\n\n", cancellationToken);
                 await Response.Body.FlushAsync(cancellationToken);
             }
@@ -75,18 +99,28 @@ public class ActivityController : ControllerBase
     {
         var currentUser = HttpContext.GetGitlabUser();
 
-        _logger.LogInformation("Polling for activity since {Since}", since);
+        if (!_repository.IsHealthy())
+        {
+            _logger.LogError("Database is unhealthy, cannot poll for activity");
+            return StatusCode(503, new { error = "Database is unavailable" });
+        }
 
-        var results = await _activityService.GetActivitySince(
-            currentUser, since, cancellationToken);
+        var userInfo = await _gitlabService.GetCurrentUser(currentUser);
+        if (userInfo == null)
+            return Unauthorized();
 
-        _logger.LogInformation("Returning {Count} poll results", results.Count);
-        return Ok(results);
+        _logger.LogInformation("Polling for activity for user {UserId} since {Since}", userInfo.Id, since);
+
+        var result = await _activityService.GetActivitySince(
+            currentUser, userInfo.Id, since, cancellationToken);
+
+        _logger.LogInformation("Returning {Count} poll results", result.Activities.Count);
+        return Ok(result);
     }
 
     /// <summary>
     /// Streams refreshed MR and approval status for the specified branch-project pairs
-    /// as Server-Sent Events. Each event is a JSON-serialized BranchActivity record.
+    /// as Server-Sent Events. Each event is a JSON-serialized BranchActivity or BranchDeletedNotification.
     /// A final event with type "done" signals the end of the stream.
     /// </summary>
     [HttpPost("refresh")]
@@ -94,24 +128,36 @@ public class ActivityController : ControllerBase
     {
         var currentUser = HttpContext.GetGitlabUser();
 
+        if (!_repository.IsHealthy())
+        {
+            _logger.LogError("Database is unhealthy, cannot refresh activity");
+            Response.StatusCode = 503;
+            await Response.WriteAsync("{\"error\":\"Database is unavailable\"}", cancellationToken);
+            return;
+        }
+
         Response.Headers.ContentType = "text/event-stream";
         Response.Headers.CacheControl = "no-cache";
         Response.Headers.Connection = "keep-alive";
 
         _logger.LogInformation("Starting SSE refresh stream for {Count} branches", branches.Count);
 
-        var jsonOptions = new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        };
-
         try
         {
-            await foreach (var activity in _activityService.StreamRefreshBranchStatus(
+            await foreach (var item in _activityService.StreamRefreshBranchStatus(
                                currentUser, branches, cancellationToken))
             {
-                var json = JsonSerializer.Serialize(activity, jsonOptions);
-                await Response.WriteAsync($"data: {json}\n\n", cancellationToken);
+                string json;
+                if (item is BranchDeletedNotification deleted)
+                {
+                    json = JsonSerializer.Serialize(deleted, JsonOptions);
+                    await Response.WriteAsync($"event: deleted\ndata: {json}\n\n", cancellationToken);
+                }
+                else
+                {
+                    json = JsonSerializer.Serialize(item, JsonOptions);
+                    await Response.WriteAsync($"data: {json}\n\n", cancellationToken);
+                }
                 await Response.Body.FlushAsync(cancellationToken);
             }
 
