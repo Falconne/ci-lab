@@ -27,15 +27,16 @@ public class GitlabUserFactory
     }
 
     /// <summary>
-    ///     Returns a GitlabAccessUser for the configured service account,
-    ///     or null if the service token is not configured.
+    ///     Returns a GitlabAccessUser for the configured service account.
+    ///     Throws if the service token is not configured because this indicates
+    ///     a misconfiguration that should result in a server error.
     /// </summary>
-    public GitlabAccessUser? GetServiceUser()
+    public GitlabAccessUser GetServiceUser()
     {
         if (!IsServiceTokenConfigured)
         {
-            Log.Debug("GitLab service token is not configured — cannot create service user");
-            return null;
+            Log.Error("GitLab service token is not configured — service user cannot be created");
+            throw new InvalidOperationException("GitLab service token is not configured");
         }
 
         return new GitlabAccessUser(_serviceToken!, _apiBaseUrl);
