@@ -8,10 +8,12 @@ namespace Mergician.Services;
 /// </summary>
 public class CacheService<TKey, TValue> where TKey : notnull
 {
-    private readonly TimeSpan _expiration;
-    private readonly object _lock = new();
+    private readonly Dictionary<TKey, TValue> _cache = new();
 
-    private Dictionary<TKey, TValue> _cache = new();
+    private readonly TimeSpan _expiration;
+
+    private readonly Lock _lock = new();
+
     private DateTime _lastReset = DateTime.UtcNow;
 
     public CacheService(TimeSpan? expiration = null)
