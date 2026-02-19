@@ -1,3 +1,0 @@
-Add a new service to "cilab-compose.yaml" called "bootstrap" that builds and runs the bootstrap service in a similar way to how "scripts/bootstrap.sh" does it. Only look at the docker based running of the bootstrap, not the native mode. Put this service in the "bootstrap" profile so it is only started when docker compose is called with that profile. Make it only run after the cleanup-env service has completed.
-
-Add a "-b" switch to "scripts/cilab-start.sh" which will make it do the docker compose up with the "bootstrap" profile. As this service needs building, pass the --build parameter in in this case too.
