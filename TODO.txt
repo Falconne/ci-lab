@@ -1,0 +1,3 @@
+Rename `MergicianRepository` to `MergeGroupRepositoy`. Create a new `UserRepository` and move the GetLastPollTimestamp and UpsertLastPollTimestamp methods in there. Move `IsHealthy` into a new `CoreRepository` where global db methods can go.
+
+Then add some integration tests for deleting a previously pushed branch and check that it disappears from an open dashboard. Also ensure after a fresh reload of the dashboard that the deleted branch doesn't reappear.
