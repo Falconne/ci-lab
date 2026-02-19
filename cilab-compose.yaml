@@ -8,6 +8,26 @@ services:
     command: ["rm -f .env"]
     restart: "no"
 
+  bootstrap:
+    profiles:
+      - bootstrap
+    build:
+      context: .
+      dockerfile: Dockerfile.bootstrap
+    image: ci-lab-bootstrap:latest
+    depends_on:
+      cleanup-env:
+        condition: service_completed_successfully
+    network_mode: host
+    volumes:
+      - .:/workspace
+      - ./data/logs:/workspace/data/logs
+    environment:
+      GITLAB_ROOT_PASSWORD: "${GITLAB_ROOT_PASSWORD:-changeme123}"
+      GITLAB_URL: "${GITLAB_URL:-http://localhost:8081}"
+      TEAMCITY_URL: "${TEAMCITY_URL:-http://localhost:8111}"
+    restart: "no"
+
   gitlab:
     image: gitlab/gitlab-ce:18.7.0-ce.0
     restart: unless-stopped
