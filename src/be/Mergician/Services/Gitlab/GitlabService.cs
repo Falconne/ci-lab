@@ -75,20 +75,59 @@ public class GitlabService
 
     private async Task<List<GitLabEvent>> FetchEvents(GitlabAccessUser user, string afterDate)
     {
-        var request = user.CreateRequest(
-            HttpMethod.Get,
-            $"events?after={afterDate}&per_page=100");
-
         var client = _httpClientFactory.CreateClient("GitLabOAuth");
-        var response = await client.SendAsync(request);
-        if (!response.IsSuccessStatusCode)
+        var allEvents = new List<GitLabEvent>();
+        var page = 1;
+
+        while (true)
         {
-            _logger.LogWarning("FetchEvents failed with status {StatusCode}", (int)response.StatusCode);
-            return [];
+            var request = user.CreateRequest(
+                HttpMethod.Get,
+                $"events?after={afterDate}&per_page=100&page={page}");
+
+            var response = await client.SendAsync(request);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning(
+                    "FetchEvents failed on page {Page} with status {StatusCode}",
+                    page,
+                    (int)response.StatusCode);
+
+                return [];
+            }
+
+            var json = await response.Content.ReadAsStringAsync();
+            var pageEvents = JsonSerializer.Deserialize<List<GitLabEvent>>(json, _jsonOptions) ?? [];
+            allEvents.AddRange(pageEvents);
+
+            _logger.LogDebug(
+                "Fetched {Count} GitLab events from page {Page} (after={AfterDate})",
+                pageEvents.Count,
+                page,
+                afterDate);
+
+            if (!response.Headers.TryGetValues("X-Next-Page", out var nextPageValues))
+            {
+                break;
+            }
+
+            var nextPage = nextPageValues.FirstOrDefault();
+            if (string.IsNullOrWhiteSpace(nextPage))
+            {
+                break;
+            }
+
+            if (!int.TryParse(nextPage, out page) || page <= 0)
+            {
+                _logger.LogWarning(
+                    "Unexpected X-Next-Page header value '{NextPage}' when fetching GitLab events",
+                    nextPage);
+                break;
+            }
         }
 
-        var json = await response.Content.ReadAsStringAsync();
-        return JsonSerializer.Deserialize<List<GitLabEvent>>(json, _jsonOptions) ?? [];
+        _logger.LogInformation("Fetched {Count} total GitLab events after {AfterDate}", allEvents.Count, afterDate);
+        return allEvents;
     }
 
     public async Task<GitLabProject?> GetProject(GitlabAccessUser user, int projectId)
