@@ -1,5 +1,4 @@
 using Mergician.Entities;
-using Mergician.Entities.Database;
 using Mergician.Services.Authentication;
 using Mergician.Services.Database;
 using System.Runtime.CompilerServices;
@@ -14,9 +13,12 @@ namespace Mergician.Services.Gitlab;
 public class GitlabActivityService
 {
     private readonly GitlabService _gitlabService;
-    private readonly IMergeGroupRepositoy _mergeGroupRepository;
-    private readonly IUserRepository _userRepository;
+
     private readonly ILogger<GitlabActivityService> _logger;
+
+    private readonly IMergeGroupRepositoy _mergeGroupRepository;
+
+    private readonly IUserRepository _userRepository;
 
     public GitlabActivityService(
         GitlabService gitlabService,
@@ -45,7 +47,10 @@ public class GitlabActivityService
         // 1. Return cached data from DB first
         _logger.LogInformation("Fetching cached branches for user {UserId} from database", gitlabUserId);
         var cachedBranches = _mergeGroupRepository.GetUserBranches(gitlabUserId, since);
-        _logger.LogInformation("Found {Count} cached branches for user {UserId}", cachedBranches.Count, gitlabUserId);
+        _logger.LogInformation(
+            "Found {Count} cached branches for user {UserId}",
+            cachedBranches.Count,
+            gitlabUserId);
 
         var returnedKeys = new HashSet<string>();
 
@@ -59,7 +64,9 @@ public class GitlabActivityService
             {
                 _logger.LogInformation(
                     "Cached branch '{BranchName}' in project {ProjectId} no longer exists, removing from DB",
-                    cached.BranchName, cached.ProjectId);
+                    cached.BranchName,
+                    cached.ProjectId);
+
                 RemoveBranchAndCleanup(cached.BranchInProjectId);
                 continue;
             }
@@ -72,7 +79,9 @@ public class GitlabActivityService
                 cached.BranchName,
                 cached.ProjectId,
                 cached.ProjectName,
-                null, null, null,
+                null,
+                null,
+                null,
                 new DateTimeOffset(cached.LastUpdateTime, TimeSpan.Zero),
                 cached.MergeGroupId);
 
@@ -90,11 +99,19 @@ public class GitlabActivityService
         var lastPoll = _userRepository.GetLastPollTimestamp(gitlabUserId);
         var fetchSince = lastPoll ?? since;
 
-        _logger.LogInformation("Fetching GitLab events for user {UserId} since {Since}", gitlabUserId, fetchSince);
+        _logger.LogInformation(
+            "Fetching GitLab events for user {UserId} since {Since}",
+            gitlabUserId,
+            fetchSince);
+
         var events = await _gitlabService.GetUserEventsSince(currentUser, fetchSince);
 
         await foreach (var branch in DiscoverAndStoreBranches(
-                           currentUser, gitlabUserId, events, returnedKeys, cancellationToken))
+                           currentUser,
+                           gitlabUserId,
+                           events,
+                           returnedKeys,
+                           cancellationToken))
         {
             // Yield initial record
             yield return branch;
@@ -134,7 +151,11 @@ public class GitlabActivityService
         var existingKeys = new HashSet<string>();
 
         await foreach (var branch in DiscoverAndStoreBranches(
-                           currentUser, gitlabUserId, events, existingKeys, cancellationToken))
+                           currentUser,
+                           gitlabUserId,
+                           events,
+                           existingKeys,
+                           cancellationToken))
         {
             var activity = await ResolveBranchActivity(
                 currentUser,
@@ -175,12 +196,14 @@ public class GitlabActivityService
             {
                 _logger.LogInformation(
                     "Branch '{BranchName}' in project {ProjectId} no longer exists during refresh",
-                    branch.BranchName, branch.ProjectId);
+                    branch.BranchName,
+                    branch.ProjectId);
 
                 // Find and remove from DB
                 var allBranches = _mergeGroupRepository.GetAllBranches();
-                var branchRecord = allBranches.FirstOrDefault(
-                    b => b.BranchName == branch.BranchName && b.ProjectId == branch.ProjectId);
+                var branchRecord = allBranches.FirstOrDefault(b =>
+                    b.BranchName == branch.BranchName && b.ProjectId == branch.ProjectId);
+
                 if (branchRecord != null)
                 {
                     RemoveBranchAndCleanup(branchRecord.Id);
@@ -223,7 +246,9 @@ public class GitlabActivityService
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         var activeBranches = ExtractActiveBranches(events);
-        _logger.LogInformation("Found {Count} unique branch/project combinations from events", activeBranches.Count);
+        _logger.LogInformation(
+            "Found {Count} unique branch/project combinations from events",
+            activeBranches.Count);
 
         foreach (var entry in activeBranches)
         {
@@ -236,7 +261,9 @@ public class GitlabActivityService
             {
                 _logger.LogDebug(
                     "Skipping branch '{BranchName}' in project {ProjectId} - no longer exists",
-                    entry.BranchName, entry.ProjectId);
+                    entry.BranchName,
+                    entry.ProjectId);
+
                 continue;
             }
 
@@ -244,7 +271,11 @@ public class GitlabActivityService
             var projectName = project?.NameWithNamespace ?? $"Project #{entry.ProjectId}";
 
             // Store in database
-            var branchRecord = _mergeGroupRepository.GetOrCreateBranch(entry.BranchName, entry.ProjectId, projectName);
+            var branchRecord = _mergeGroupRepository.GetOrCreateBranch(
+                entry.BranchName,
+                entry.ProjectId,
+                projectName);
+
             var mergeGroup = _mergeGroupRepository.GetOrCreateMergeGroup(entry.BranchName);
             _mergeGroupRepository.EnsureBranchInMergeGroup(mergeGroup.Id, branchRecord.Id);
             _mergeGroupRepository.EnsureUserInMergeGroup(gitlabUserId, mergeGroup.Id);
@@ -259,7 +290,9 @@ public class GitlabActivityService
             {
                 _logger.LogDebug(
                     "Branch '{BranchName}' in project {ProjectId} already returned, updating DB only",
-                    entry.BranchName, entry.ProjectId);
+                    entry.BranchName,
+                    entry.ProjectId);
+
                 continue;
             }
 
@@ -269,7 +302,9 @@ public class GitlabActivityService
                 entry.BranchName,
                 entry.ProjectId,
                 projectName,
-                null, null, null,
+                null,
+                null,
+                null,
                 entry.LastUpdated,
                 mergeGroup.Id);
         }
@@ -312,10 +347,14 @@ public class GitlabActivityService
         {
             _logger.LogDebug(
                 "Branch '{BranchName}' has {MrCount} open MR(s) in project {ProjectId}",
-                branchName, mergeRequests.Count, projectId);
+                branchName,
+                mergeRequests.Count,
+                projectId);
 
             var approval = await _gitlabService.GetMergeRequestApprovals(
-                user, projectId, mergeRequests[0].Iid);
+                user,
+                projectId,
+                mergeRequests[0].Iid);
 
             if (approval != null)
             {
@@ -346,7 +385,11 @@ public class GitlabActivityService
         var emptyGroups = _mergeGroupRepository.GetEmptyMergeGroups();
         foreach (var group in emptyGroups)
         {
-            _logger.LogInformation("Removing empty merge group {MergeGroupId} '{Name}'", group.Id, group.Name);
+            _logger.LogInformation(
+                "Removing empty merge group {MergeGroupId} '{Name}'",
+                group.Id,
+                group.Name);
+
             _mergeGroupRepository.DeleteMergeGroup(group.Id);
         }
     }
