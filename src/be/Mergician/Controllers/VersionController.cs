@@ -1,3 +1,4 @@
+using Mergician.Entities;
 using Mergician.Services;
 using Microsoft.AspNetCore.Mvc;
 
@@ -17,6 +18,6 @@ public class VersionController : ControllerBase
     [HttpGet]
     public IActionResult GetVersion()
     {
-        return Ok(new { version = _versionService.GetVersion() });
+        return Ok(new VersionResponse(_versionService.GetVersion()));
     }
 }

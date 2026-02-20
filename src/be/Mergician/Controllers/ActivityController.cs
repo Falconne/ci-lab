@@ -125,7 +125,7 @@ public class ActivityController : ControllerBase
         if (!_coreRepository.IsHealthy())
         {
             _logger.LogError("Database is unhealthy, cannot poll for activity");
-            return StatusCode(503, new { error = "Database is unavailable" });
+            return StatusCode(503, new ErrorResponse("Database is unavailable"));
         }
 
         var userInfo = await _gitlabService.GetCurrentUser(currentUser);
