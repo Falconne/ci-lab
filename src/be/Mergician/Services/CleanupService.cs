@@ -89,8 +89,12 @@ public class CleanupService : BackgroundService
         {
             if (stoppingToken.IsCancellationRequested) break;
 
-            var exists = await gitlabService.BranchExists(serviceUser, branch.ProjectId, branch.BranchName);
-            if (!exists)
+            var branchLookup = await gitlabService.GetBranchLookupResult(
+                serviceUser,
+                branch.ProjectId,
+                branch.BranchName);
+
+            if (branchLookup.IsMissing)
             {
                 _logger.LogInformation(
                     "CleanupService: branch '{BranchName}' in project {ProjectId} no longer exists, removing",
@@ -98,6 +102,13 @@ public class CleanupService : BackgroundService
 
                 mergeGroupRepository.DeleteBranch(branch.Id);
                 deletedCount++;
+            }
+            else if (branchLookup.IsUnavailable)
+            {
+                _logger.LogWarning(
+                    "CleanupService: branch lookup unavailable for '{BranchName}' in project {ProjectId}; skipping deletion this cycle",
+                    branch.BranchName,
+                    branch.ProjectId);
             }
         }
 

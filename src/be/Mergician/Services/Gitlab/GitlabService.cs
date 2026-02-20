@@ -167,9 +167,13 @@ public class GitlabService
     }
 
     /// <summary>
-    ///     Checks whether a branch exists in the given project.
+    ///     Checks branch lookup status in the given project.
+    ///     Returns Missing only for 404 responses; all other failures are Unavailable.
     /// </summary>
-    public async Task<bool> BranchExists(GitlabAccessUser user, int projectId, string branchName)
+    public async Task<GitLabBranchLookupResult> GetBranchLookupResult(
+        GitlabAccessUser user,
+        int projectId,
+        string branchName)
     {
         var encodedBranch = Uri.EscapeDataString(branchName);
         var request = user.CreateRequest(
@@ -177,21 +181,51 @@ public class GitlabService
             $"projects/{projectId}/repository/branches/{encodedBranch}");
 
         var client = _httpClientFactory.CreateClient("GitLabOAuth");
-        var response = await client.SendAsync(request);
+        HttpResponseMessage response;
+        try
+        {
+            response = await client.SendAsync(request);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Branch lookup failed for branch '{BranchName}' in project {ProjectId} due to request error",
+                branchName,
+                projectId);
+
+            return new GitLabBranchLookupResult(
+                GitLabBranchLookupStatus.Unavailable,
+                null,
+                ex.Message);
+        }
 
         if (response.IsSuccessStatusCode)
         {
             _logger.LogDebug("Branch '{BranchName}' exists in project {ProjectId}", branchName, projectId);
-            return true;
+            return new GitLabBranchLookupResult(GitLabBranchLookupStatus.Exists, (int)response.StatusCode);
         }
 
-        _logger.LogDebug(
-            "Branch '{BranchName}' does not exist in project {ProjectId} (status {StatusCode})",
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            _logger.LogDebug(
+                "Branch '{BranchName}' does not exist in project {ProjectId} (status {StatusCode})",
+                branchName,
+                projectId,
+                (int)response.StatusCode);
+
+            return new GitLabBranchLookupResult(GitLabBranchLookupStatus.Missing, (int)response.StatusCode);
+        }
+
+        _logger.LogWarning(
+            "Branch lookup unavailable for '{BranchName}' in project {ProjectId} (status {StatusCode})",
             branchName,
             projectId,
             (int)response.StatusCode);
 
-        return false;
+        return new GitLabBranchLookupResult(
+            GitLabBranchLookupStatus.Unavailable,
+            (int)response.StatusCode);
     }
 
     /// <summary>

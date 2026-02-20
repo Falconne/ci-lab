@@ -59,8 +59,12 @@ public class GitlabActivityService
             cancellationToken.ThrowIfCancellationRequested();
 
             // Check if branch still exists
-            var exists = await _gitlabService.BranchExists(currentUser, cached.ProjectId, cached.BranchName);
-            if (!exists)
+            var branchLookup = await _gitlabService.GetBranchLookupResult(
+                currentUser,
+                cached.ProjectId,
+                cached.BranchName);
+
+            if (branchLookup.IsMissing)
             {
                 _logger.LogInformation(
                     "Cached branch '{BranchName}' in project {ProjectId} no longer exists, removing from DB",
@@ -69,6 +73,14 @@ public class GitlabActivityService
 
                 RemoveBranchAndCleanup(cached.BranchInProjectId);
                 continue;
+            }
+
+            if (branchLookup.IsUnavailable)
+            {
+                _logger.LogWarning(
+                    "Branch lookup unavailable for cached branch '{BranchName}' in project {ProjectId}; skipping deletion and continuing",
+                    cached.BranchName,
+                    cached.ProjectId);
             }
 
             var key = $"{cached.BranchName}:{cached.ProjectId}";
@@ -190,8 +202,8 @@ public class GitlabActivityService
             cancellationToken.ThrowIfCancellationRequested();
 
             // Check if branch still exists
-            var exists = await _gitlabService.BranchExists(user, branch.ProjectId, branch.BranchName);
-            if (!exists)
+            var branchLookup = await _gitlabService.GetBranchLookupResult(user, branch.ProjectId, branch.BranchName);
+            if (branchLookup.IsMissing)
             {
                 _logger.LogInformation(
                     "Branch '{BranchName}' in project {ProjectId} no longer exists during refresh",
@@ -216,10 +228,26 @@ public class GitlabActivityService
                 continue;
             }
 
+            if (branchLookup.IsUnavailable)
+            {
+                _logger.LogWarning(
+                    "Branch lookup unavailable for branch '{BranchName}' in project {ProjectId} during refresh; skipping this branch update",
+                    branch.BranchName,
+                    branch.ProjectId);
+                continue;
+            }
+
             var project = await _gitlabService.GetProject(user, branch.ProjectId);
-            // TODO if project is null, return a 5XX error to the frontend immediately. Remove the
-            // null handling below.
-            var projectName = project?.NameWithNamespace ?? $"Project #{branch.ProjectId}";
+            if (project == null)
+            {
+                _logger.LogError(
+                    "Project metadata lookup returned null for project {ProjectId} during refresh",
+                    branch.ProjectId);
+                throw new InvalidOperationException(
+                    $"Project metadata lookup failed for project {branch.ProjectId} during refresh");
+            }
+
+            var projectName = project.NameWithNamespace;
 
             var pendingActivity = new BranchActivity(
                 branch.BranchName,
@@ -261,8 +289,8 @@ public class GitlabActivityService
 
             var key = $"{entry.BranchName}:{entry.ProjectId}";
 
-            var exists = await _gitlabService.BranchExists(user, entry.ProjectId, entry.BranchName);
-            if (!exists)
+            var branchLookup = await _gitlabService.GetBranchLookupResult(user, entry.ProjectId, entry.BranchName);
+            if (branchLookup.IsMissing)
             {
                 _logger.LogDebug(
                     "Skipping branch '{BranchName}' in project {ProjectId} - no longer exists",
@@ -272,10 +300,27 @@ public class GitlabActivityService
                 continue;
             }
 
+            if (branchLookup.IsUnavailable)
+            {
+                _logger.LogWarning(
+                    "Skipping branch '{BranchName}' in project {ProjectId} because branch lookup is unavailable",
+                    entry.BranchName,
+                    entry.ProjectId);
+
+                continue;
+            }
+
             var project = await _gitlabService.GetProject(user, entry.ProjectId);
-            // TODO if project is null, return a 5XX error to the frontend immediately. Remove the
-            // null handling below.
-            var projectName = project?.NameWithNamespace ?? $"Project #{entry.ProjectId}";
+            if (project == null)
+            {
+                _logger.LogError(
+                    "Project metadata lookup returned null for project {ProjectId} while storing branch activity",
+                    entry.ProjectId);
+                throw new InvalidOperationException(
+                    $"Project metadata lookup failed for project {entry.ProjectId} while storing branch activity");
+            }
+
+            var projectName = project.NameWithNamespace;
 
             // Store in database
             var branchRecord = _mergeGroupRepository.GetOrCreateBranchRecord(
