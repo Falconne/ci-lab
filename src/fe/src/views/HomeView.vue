@@ -323,10 +323,15 @@ function startStreaming() {
     eventSource?.close()
     eventSource = null
     console.error('SSE stream error:', event)
+    startPolling()
   }
 }
 
 function startPolling() {
+  if (pollIntervalId !== null || refreshIntervalId !== null) {
+    return
+  }
+
   lastUpdateTime = new Date()
   pollIntervalId = setInterval(pollForActivity, 5000)
   refreshIntervalId = setInterval(refreshExistingBranches, 15000)

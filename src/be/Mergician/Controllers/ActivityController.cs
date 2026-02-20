@@ -18,6 +18,8 @@ public class ActivityController : ControllerBase
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
+    private static readonly TimeSpan _heartbeatInterval = TimeSpan.FromSeconds(15);
+
     private readonly GitlabActivityService _activityService;
 
     private readonly ICoreRepository _coreRepository;
@@ -69,8 +71,13 @@ public class ActivityController : ControllerBase
         Response.Headers.ContentType = "text/event-stream";
         Response.Headers.CacheControl = "no-cache";
         Response.Headers.Connection = "keep-alive";
+        Response.Headers["X-Accel-Buffering"] = "no";
 
         _logger.LogInformation("Starting SSE activity stream for user {UserId}", userInfo.Id);
+
+        using var writeLock = new SemaphoreSlim(1, 1);
+        using var heartbeatCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var heartbeatTask = RunHeartbeat(heartbeatCts.Token, writeLock);
 
         try
         {
@@ -79,19 +86,28 @@ public class ActivityController : ControllerBase
                                userInfo.Id,
                                cancellationToken))
             {
-                var json = JsonSerializer.Serialize(activity, _jsonOptions);
-                await Response.WriteAsync($"data: {json}\n\n", cancellationToken);
-                await Response.Body.FlushAsync(cancellationToken);
+                await WriteSseEvent(activity, cancellationToken, writeLock);
             }
 
             // Signal the end of the stream
-            await Response.WriteAsync("event: done\ndata: {}\n\n", cancellationToken);
-            await Response.Body.FlushAsync(cancellationToken);
+            await WriteSseRaw("event: done\ndata: {}\n\n", cancellationToken, writeLock);
             _logger.LogInformation("SSE activity stream completed");
         }
         catch (OperationCanceledException)
         {
             _logger.LogInformation("SSE activity stream cancelled by client");
+        }
+        finally
+        {
+            heartbeatCts.Cancel();
+            try
+            {
+                await heartbeatTask;
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected during cancellation
+            }
         }
     }
 
@@ -153,8 +169,13 @@ public class ActivityController : ControllerBase
         Response.Headers.ContentType = "text/event-stream";
         Response.Headers.CacheControl = "no-cache";
         Response.Headers.Connection = "keep-alive";
+        Response.Headers["X-Accel-Buffering"] = "no";
 
         _logger.LogInformation("Starting SSE refresh stream for {Count} branches", branches.Count);
+
+        using var writeLock = new SemaphoreSlim(1, 1);
+        using var heartbeatCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var heartbeatTask = RunHeartbeat(heartbeatCts.Token, writeLock);
 
         try
         {
@@ -163,28 +184,71 @@ public class ActivityController : ControllerBase
                                branches,
                                cancellationToken))
             {
-                string json;
                 if (item is BranchDeletedNotification deleted)
                 {
-                    json = JsonSerializer.Serialize(deleted, _jsonOptions);
-                    await Response.WriteAsync($"event: deleted\ndata: {json}\n\n", cancellationToken);
+                    await WriteSseEvent(deleted, cancellationToken, writeLock, "deleted");
                 }
                 else
                 {
-                    json = JsonSerializer.Serialize(item, _jsonOptions);
-                    await Response.WriteAsync($"data: {json}\n\n", cancellationToken);
+                    await WriteSseEvent(item, cancellationToken, writeLock);
                 }
-
-                await Response.Body.FlushAsync(cancellationToken);
             }
 
-            await Response.WriteAsync("event: done\ndata: {}\n\n", cancellationToken);
-            await Response.Body.FlushAsync(cancellationToken);
+            await WriteSseRaw("event: done\ndata: {}\n\n", cancellationToken, writeLock);
             _logger.LogInformation("SSE refresh stream completed");
         }
         catch (OperationCanceledException)
         {
             _logger.LogInformation("SSE refresh stream cancelled by client");
+        }
+        finally
+        {
+            heartbeatCts.Cancel();
+            try
+            {
+                await heartbeatTask;
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected during cancellation
+            }
+        }
+    }
+
+    private async Task RunHeartbeat(CancellationToken cancellationToken, SemaphoreSlim writeLock)
+    {
+        using var timer = new PeriodicTimer(_heartbeatInterval);
+        while (await timer.WaitForNextTickAsync(cancellationToken))
+        {
+            await WriteSseRaw(": heartbeat\n\n", cancellationToken, writeLock);
+        }
+    }
+
+    private async Task WriteSseEvent(
+        object payload,
+        CancellationToken cancellationToken,
+        SemaphoreSlim writeLock,
+        string? eventName = null)
+    {
+        var json = JsonSerializer.Serialize(payload, _jsonOptions);
+        var frame = eventName == null
+            ? $"data: {json}\n\n"
+            : $"event: {eventName}\ndata: {json}\n\n";
+
+        await WriteSseRaw(frame, cancellationToken, writeLock);
+    }
+
+    private async Task WriteSseRaw(string frame, CancellationToken cancellationToken, SemaphoreSlim writeLock)
+    {
+        await writeLock.WaitAsync(cancellationToken);
+        try
+        {
+            await Response.WriteAsync(frame, cancellationToken);
+            await Response.Body.FlushAsync(cancellationToken);
+        }
+        finally
+        {
+            writeLock.Release();
         }
     }
 }
