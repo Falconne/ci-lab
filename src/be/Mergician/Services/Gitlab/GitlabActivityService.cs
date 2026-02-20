@@ -143,7 +143,7 @@ public class GitlabActivityService
         DateTime since,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Polling for activity for user {UserId} since {Since}", gitlabUserId, since);
+        _logger.LogDebug("Polling for activity for user {UserId} since {Since}", gitlabUserId, since);
         var events = await _gitlabService.GetUserEventsSince(currentUser, since);
 
         var results = new List<BranchActivity>();
