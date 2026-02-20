@@ -82,6 +82,8 @@ public class GitlabActivityService
                     "Branch lookup unavailable for cached branch '{BranchName}' in project {ProjectId}; skipping deletion and continuing",
                     cached.BranchName,
                     cached.ProjectId);
+
+                continue;
             }
 
             var key = $"{cached.BranchName}:{cached.ProjectId}";
