@@ -240,6 +240,16 @@ public class MergeGroupRepository : IMergeGroupRepository
             .ToList();
     }
 
+    public BranchInProjectRecord? GetBranchRecord(string branchName, int projectId)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        connection.Open();
+
+        return connection.QueryFirstOrDefault<BranchInProjectRecord>(
+            "SELECT id AS Id, branch_name AS BranchName, project_id AS ProjectId, project_name AS ProjectName FROM branch_in_project WHERE branch_name = @BranchName AND project_id = @ProjectId",
+            new { BranchName = branchName, ProjectId = projectId });
+    }
+
     public List<int> GetMergeGroupIdsForBranch(int branchInProjectId)
     {
         using var connection = _connectionFactory.CreateConnection();

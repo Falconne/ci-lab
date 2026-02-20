@@ -211,9 +211,7 @@ public class GitlabActivityService
                     branch.ProjectId);
 
                 // Find and remove from DB
-                var allBranches = _mergeGroupRepository.GetAllBranches();
-                var branchRecord = allBranches.FirstOrDefault(b =>
-                    b.BranchName == branch.BranchName && b.ProjectId == branch.ProjectId);
+                var branchRecord = _mergeGroupRepository.GetBranchRecord(branch.BranchName, branch.ProjectId);
 
                 if (branchRecord != null)
                 {
