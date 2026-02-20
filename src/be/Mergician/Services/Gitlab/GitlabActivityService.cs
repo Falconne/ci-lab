@@ -345,6 +345,8 @@ public class GitlabActivityService
         DateTimeOffset? lastUpdated,
         int? mergeGroupId)
     {
+        // TODO Rename this method to `ResolveBranchActivityIn` and make it take in an actual `BranchActivity` record instead of individual parameters.
+        // Change `BranchActivity` into a class so it can be mutated in place and returned here. 
         var mergeRequests = await _gitlabService.GetMergeRequests(user, projectId, branchName);
 
         var hasMr = mergeRequests.Count > 0;
@@ -367,6 +369,9 @@ public class GitlabActivityService
             if (approval != null)
             {
                 approvalsGiven = approval.ApprovedBy.Count;
+                // TODO get the actual approvals required from the MR data via appropriate Gitlab API usage. Note that the free tier of
+                // Gitlab we use for testing with CI Lab does not support "approvals required", but the Premium tier we will use in production
+                // does, so ensure the check handles this. If no approvals are needed or we are in free tier mode, set `approvalsRequired` to 0.
                 approvalsRequired = approvalsGiven > 0 ? approvalsGiven : null;
             }
         }

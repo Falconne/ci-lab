@@ -1,7 +1,1 @@
 Fix all the TODOs in this repo's codebase.
-
-Fix the typo Repositoy to Repository and update all relevant derived classes and references.
-
-Commit and push the changes till now.
-
-Afterwards, do a thorough review of the Mergician frontend and backend code. If any recommendations for code quality improvements or optimizations are found, write them up in a markdown file. Do no suggest changes for the sake of change, only those that will improve code quality, maintainability, non trivial performance improvements, or implement best practices.
