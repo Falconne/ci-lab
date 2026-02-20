@@ -68,6 +68,7 @@ public class ActivityController : ControllerBase
             return;
         }
 
+        // TODO Explain what each of these headers do
         Response.Headers.ContentType = "text/event-stream";
         Response.Headers.CacheControl = "no-cache";
         Response.Headers.Connection = "keep-alive";
