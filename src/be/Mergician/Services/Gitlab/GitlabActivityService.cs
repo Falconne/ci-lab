@@ -93,8 +93,18 @@ public class GitlabActivityService
 
         // 2. Fetch new data from GitLab
         var lastPoll = _userRepository.GetLastPollTimestamp(gitlabUserId);
-        // TODO if `lastPoll` is older than `since`, use `since`.
-        var fetchSince = lastPoll ?? since;
+        var fetchSince = lastPoll.HasValue && lastPoll.Value > since
+            ? lastPoll.Value
+            : since;
+
+        if (lastPoll.HasValue && fetchSince == since)
+        {
+            _logger.LogDebug(
+                "Using 14-day window start {Since} instead of stale last poll timestamp {LastPoll} for user {UserId}",
+                since,
+                lastPoll.Value,
+                gitlabUserId);
+        }
 
         _logger.LogInformation(
             "Fetching GitLab events for user {UserId} since {Since}",
