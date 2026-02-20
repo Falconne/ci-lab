@@ -16,6 +16,7 @@ Mergician is a tool to help developers in environments where any one product is 
   - Be careful not to make code review changes for the sake of making changes. Only do so if the code quality can be improved in a meaningful way.
 - Add logging in code whenever any significant action is performed, especially when conditional logic is executed (e.g. in branches of if/switch statements) with the intention of diagnosing the flow.
 - When refactoring, never leave compatiblity shims behind. Always update references to changed code. All the usages of the code in this repo is within this repo so there is no reason to leave compatibility shims.
+- If there is a likely typo in the user's instructions for symbol names that will be written to code (e.g. in new class names specified in the prompt), ask for clarification early with a suggested correction.
 
 ## CI Lab Specific
 - The intention is to spin up a test CI/CD environment with test data for integration testing Mergician.

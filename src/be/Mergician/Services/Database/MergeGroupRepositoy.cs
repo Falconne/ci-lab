@@ -4,9 +4,9 @@ using Mergician.Entities.Database;
 namespace Mergician.Services.Database;
 
 /// <summary>
-/// Dapper-based implementation of merge-group and branch operations.
-/// All timestamps are stored and returned in UTC.
-/// Uses INSERT ... ON CONFLICT for thread-safe upserts.
+///     Dapper-based implementation of merge-group and branch operations.
+///     All timestamps are stored and returned in UTC.
+///     Uses INSERT ... ON CONFLICT for thread-safe upserts.
 /// </summary>
 public class MergeGroupRepositoy : IMergeGroupRepositoy
 {
@@ -20,7 +20,7 @@ public class MergeGroupRepositoy : IMergeGroupRepositoy
         _logger = logger;
     }
 
-    public BranchInProjectRecord GetOrCreateBranch(string branchName, int projectId, string projectName)
+    public BranchInProjectRecord GetOrCreateBranchRecord(string branchName, int projectId, string projectName)
     {
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();
@@ -36,11 +36,16 @@ public class MergeGroupRepositoy : IMergeGroupRepositoy
             new { BranchName = branchName, ProjectId = projectId, ProjectName = projectName });
 
         if (record == null)
+        {
             throw new InvalidOperationException(
                 $"Failed to get or create branch '{branchName}' in project {projectId}");
+        }
 
-        _logger.LogDebug("Got/created branch record {Id} for '{BranchName}' in project {ProjectId}",
-            record.Id, branchName, projectId);
+        _logger.LogDebug(
+            "Got/created branch record {Id} for '{BranchName}' in project {ProjectId}",
+            record.Id,
+            branchName,
+            projectId);
 
         return record;
     }
@@ -61,7 +66,9 @@ public class MergeGroupRepositoy : IMergeGroupRepositoy
             new { Name = name, Now = DateTime.UtcNow });
 
         if (record == null)
+        {
             throw new InvalidOperationException($"Failed to get or create merge group '{name}'");
+        }
 
         _logger.LogDebug("Got/created merge group {Id} with name '{Name}'", record.Id, name);
         record.LastUpdateTime = DateTime.SpecifyKind(record.LastUpdateTime, DateTimeKind.Utc);
@@ -81,8 +88,10 @@ public class MergeGroupRepositoy : IMergeGroupRepositoy
             """,
             new { MergeGroupId = mergeGroupId, BranchInProjectId = branchInProjectId });
 
-        _logger.LogDebug("Ensured branch {BranchId} is in merge group {MergeGroupId}",
-            branchInProjectId, mergeGroupId);
+        _logger.LogDebug(
+            "Ensured branch {BranchId} is in merge group {MergeGroupId}",
+            branchInProjectId,
+            mergeGroupId);
     }
 
     public void EnsureUserInMergeGroup(int gitlabUserId, int mergeGroupId)
@@ -98,8 +107,10 @@ public class MergeGroupRepositoy : IMergeGroupRepositoy
             """,
             new { GitlabUserId = gitlabUserId, MergeGroupId = mergeGroupId });
 
-        _logger.LogDebug("Ensured user {UserId} is in merge group {MergeGroupId}",
-            gitlabUserId, mergeGroupId);
+        _logger.LogDebug(
+            "Ensured user {UserId} is in merge group {MergeGroupId}",
+            gitlabUserId,
+            mergeGroupId);
     }
 
     public void UpdateMergeGroupTimestamp(int mergeGroupId, DateTime lastUpdateTime)
@@ -113,8 +124,10 @@ public class MergeGroupRepositoy : IMergeGroupRepositoy
             "UPDATE merge_group SET last_update_time = @Timestamp WHERE id = @Id",
             new { Id = mergeGroupId, Timestamp = utcTimestamp });
 
-        _logger.LogDebug("Updated merge group {MergeGroupId} timestamp to {Timestamp}",
-            mergeGroupId, utcTimestamp);
+        _logger.LogDebug(
+            "Updated merge group {MergeGroupId} timestamp to {Timestamp}",
+            mergeGroupId,
+            utcTimestamp);
     }
 
     public List<BranchWithMergeGroupInfo> GetUserBranches(int gitlabUserId, DateTime since)
@@ -125,32 +138,36 @@ public class MergeGroupRepositoy : IMergeGroupRepositoy
         connection.Open();
 
         var results = connection.Query<BranchWithMergeGroupInfo>(
-            """
-            SELECT
-                bp.id AS BranchInProjectId,
-                bp.branch_name AS BranchName,
-                bp.project_id AS ProjectId,
-                bp.project_name AS ProjectName,
-                mg.id AS MergeGroupId,
-                mg.name AS MergeGroupName,
-                mg.last_update_time AS LastUpdateTime
-            FROM users_in_merge_groups umg
-            INNER JOIN merge_group mg ON mg.id = umg.merge_group_id
-            INNER JOIN branches_in_merge_group bmg ON bmg.merge_group_id = mg.id
-            INNER JOIN branch_in_project bp ON bp.id = bmg.branch_in_project_id
-            WHERE umg.gitlab_user_id = @GitlabUserId
-              AND mg.last_update_time >= @Since
-            ORDER BY mg.last_update_time DESC, bp.branch_name, bp.project_name
-            """,
-            new { GitlabUserId = gitlabUserId, Since = utcSince }).ToList();
+                """
+                SELECT
+                    bp.id AS BranchInProjectId,
+                    bp.branch_name AS BranchName,
+                    bp.project_id AS ProjectId,
+                    bp.project_name AS ProjectName,
+                    mg.id AS MergeGroupId,
+                    mg.name AS MergeGroupName,
+                    mg.last_update_time AS LastUpdateTime
+                FROM users_in_merge_groups umg
+                INNER JOIN merge_group mg ON mg.id = umg.merge_group_id
+                INNER JOIN branches_in_merge_group bmg ON bmg.merge_group_id = mg.id
+                INNER JOIN branch_in_project bp ON bp.id = bmg.branch_in_project_id
+                WHERE umg.gitlab_user_id = @GitlabUserId
+                  AND mg.last_update_time >= @Since
+                ORDER BY mg.last_update_time DESC, bp.branch_name, bp.project_name
+                """,
+                new { GitlabUserId = gitlabUserId, Since = utcSince })
+            .ToList();
 
         foreach (var r in results)
         {
             r.LastUpdateTime = DateTime.SpecifyKind(r.LastUpdateTime, DateTimeKind.Utc);
         }
 
-        _logger.LogDebug("Retrieved {Count} branches for user {UserId} since {Since}",
-            results.Count, gitlabUserId, utcSince);
+        _logger.LogDebug(
+            "Retrieved {Count} branches for user {UserId} since {Since}",
+            results.Count,
+            gitlabUserId,
+            utcSince);
 
         return results;
     }
@@ -164,15 +181,19 @@ public class MergeGroupRepositoy : IMergeGroupRepositoy
 
         connection.Execute(
             "DELETE FROM branches_in_merge_group WHERE branch_in_project_id = @Id",
-            new { Id = branchInProjectId }, transaction);
+            new { Id = branchInProjectId },
+            transaction);
 
         connection.Execute(
             "DELETE FROM branch_in_project WHERE id = @Id",
-            new { Id = branchInProjectId }, transaction);
+            new { Id = branchInProjectId },
+            transaction);
 
         transaction.Commit();
 
-        _logger.LogInformation("Deleted branch record {BranchId} and its merge group associations", branchInProjectId);
+        _logger.LogInformation(
+            "Deleted branch record {BranchId} and its merge group associations",
+            branchInProjectId);
     }
 
     public void DeleteMergeGroup(int mergeGroupId)
@@ -193,12 +214,13 @@ public class MergeGroupRepositoy : IMergeGroupRepositoy
         connection.Open();
 
         var results = connection.Query<MergeGroupRecord>(
-            """
-            SELECT mg.id AS Id, mg.name AS Name, mg.last_update_time AS LastUpdateTime
-            FROM merge_group mg
-            LEFT JOIN branches_in_merge_group bmg ON bmg.merge_group_id = mg.id
-            WHERE bmg.id IS NULL
-            """).ToList();
+                """
+                SELECT mg.id AS Id, mg.name AS Name, mg.last_update_time AS LastUpdateTime
+                FROM merge_group mg
+                LEFT JOIN branches_in_merge_group bmg ON bmg.merge_group_id = mg.id
+                WHERE bmg.id IS NULL
+                """)
+            .ToList();
 
         foreach (var r in results)
         {
@@ -224,7 +246,8 @@ public class MergeGroupRepositoy : IMergeGroupRepositoy
         connection.Open();
 
         return connection.Query<int>(
-            "SELECT merge_group_id FROM branches_in_merge_group WHERE branch_in_project_id = @Id",
-            new { Id = branchInProjectId }).ToList();
+                "SELECT merge_group_id FROM branches_in_merge_group WHERE branch_in_project_id = @Id",
+                new { Id = branchInProjectId })
+            .ToList();
     }
 }

@@ -97,6 +97,7 @@ public class GitlabActivityService
 
         // 2. Fetch new data from GitLab
         var lastPoll = _userRepository.GetLastPollTimestamp(gitlabUserId);
+        // TODO if `lastPoll` is older than `since`, use `since`.
         var fetchSince = lastPoll ?? since;
 
         _logger.LogInformation(
@@ -106,17 +107,19 @@ public class GitlabActivityService
 
         var events = await _gitlabService.GetUserEventsSince(currentUser, fetchSince);
 
-        await foreach (var branch in DiscoverAndStoreBranches(
-                           currentUser,
-                           gitlabUserId,
-                           events,
-                           returnedKeys,
-                           cancellationToken))
+        var records = FetchAndStoreBranchActivityRecords(
+            currentUser,
+            gitlabUserId,
+            events,
+            returnedKeys,
+            cancellationToken);
+
+        await foreach (var branch in records)
         {
-            // Yield initial record
+            // Yield skeleton record to the UI immediately.
             yield return branch;
 
-            // Yield resolved MR/approval data
+            // Resolve MR/approval data
             yield return await ResolveBranchActivity(
                 currentUser,
                 branch.BranchName,
@@ -150,12 +153,14 @@ public class GitlabActivityService
         var deletedBranches = new List<BranchDeletedNotification>();
         var existingKeys = new HashSet<string>();
 
-        await foreach (var branch in DiscoverAndStoreBranches(
-                           currentUser,
-                           gitlabUserId,
-                           events,
-                           existingKeys,
-                           cancellationToken))
+        var records = FetchAndStoreBranchActivityRecords(
+            currentUser,
+            gitlabUserId,
+            events,
+            existingKeys,
+            cancellationToken);
+
+        await foreach (var branch in records)
         {
             var activity = await ResolveBranchActivity(
                 currentUser,
@@ -218,6 +223,8 @@ public class GitlabActivityService
             }
 
             var project = await _gitlabService.GetProject(user, branch.ProjectId);
+            // TODO if project is null, return a 5XX error to the frontend immediately. Remove the
+            // null handling below.
             var projectName = project?.NameWithNamespace ?? $"Project #{branch.ProjectId}";
 
             var activity = await ResolveBranchActivity(
@@ -238,14 +245,14 @@ public class GitlabActivityService
     ///     Discovers branches from events, stores them in the DB, and yields BranchActivity records
     ///     for branches not already in the returnedKeys set. Updates the set as discoveries are made.
     /// </summary>
-    private async IAsyncEnumerable<BranchActivity> DiscoverAndStoreBranches(
+    private async IAsyncEnumerable<BranchActivity> FetchAndStoreBranchActivityRecords(
         GitlabAccessUser user,
         int gitlabUserId,
         List<GitLabEvent> events,
         HashSet<string> returnedKeys,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        var activeBranches = ExtractActiveBranches(events);
+        var activeBranches = ExtractBranchesFromActivity(events);
         _logger.LogInformation(
             "Found {Count} unique branch/project combinations from events",
             activeBranches.Count);
@@ -268,10 +275,12 @@ public class GitlabActivityService
             }
 
             var project = await _gitlabService.GetProject(user, entry.ProjectId);
+            // TODO if project is null, return a 5XX error to the frontend immediately. Remove the
+            // null handling below.
             var projectName = project?.NameWithNamespace ?? $"Project #{entry.ProjectId}";
 
             // Store in database
-            var branchRecord = _mergeGroupRepository.GetOrCreateBranch(
+            var branchRecord = _mergeGroupRepository.GetOrCreateBranchRecord(
                 entry.BranchName,
                 entry.ProjectId,
                 projectName);
@@ -286,7 +295,7 @@ public class GitlabActivityService
                 _mergeGroupRepository.UpdateMergeGroupTimestamp(mergeGroup.Id, lastUpdated);
             }
 
-            if (returnedKeys.Contains(key))
+            if (!returnedKeys.Add(key))
             {
                 _logger.LogDebug(
                     "Branch '{BranchName}' in project {ProjectId} already returned, updating DB only",
@@ -295,8 +304,6 @@ public class GitlabActivityService
 
                 continue;
             }
-
-            returnedKeys.Add(key);
 
             yield return new BranchActivity(
                 entry.BranchName,
@@ -314,8 +321,9 @@ public class GitlabActivityService
     ///     Extracts distinct branch-project pairs from push events, excluding default branches.
     ///     Returns the latest push timestamp for each branch.
     /// </summary>
-    private static List<(string BranchName, int ProjectId, DateTimeOffset LastUpdated)> ExtractActiveBranches(
-        List<GitLabEvent> events)
+    private static List<(string BranchName, int ProjectId, DateTimeOffset LastUpdated)>
+        ExtractBranchesFromActivity(
+            List<GitLabEvent> events)
     {
         return events
             .Where(e => e.PushData is { RefType: "branch", Ref: not null })
