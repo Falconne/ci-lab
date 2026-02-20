@@ -52,6 +52,7 @@ public class GitlabActivityService
             cachedBranches.Count,
             gitlabUserId);
 
+        // Track returned branches to avoid sending duplicates to the UI when checking through DB and activity events.
         var returnedKeys = new HashSet<string>();
 
         foreach (var cached in cachedBranches)
@@ -108,15 +109,6 @@ public class GitlabActivityService
         var fetchSince = lastPoll.HasValue && lastPoll.Value > since
             ? lastPoll.Value
             : since;
-
-        if (lastPoll.HasValue && fetchSince == since)
-        {
-            _logger.LogDebug(
-                "Using 14-day window start {Since} instead of stale last poll timestamp {LastPoll} for user {UserId}",
-                since,
-                lastPoll.Value,
-                gitlabUserId);
-        }
 
         _logger.LogInformation(
             "Fetching GitLab events for user {UserId} since {Since}",
@@ -202,7 +194,11 @@ public class GitlabActivityService
             cancellationToken.ThrowIfCancellationRequested();
 
             // Check if branch still exists
-            var branchLookup = await _gitlabService.GetBranchLookupResult(user, branch.ProjectId, branch.BranchName);
+            var branchLookup = await _gitlabService.GetBranchLookupResult(
+                user,
+                branch.ProjectId,
+                branch.BranchName);
+
             if (branchLookup.IsMissing)
             {
                 _logger.LogInformation(
@@ -232,6 +228,7 @@ public class GitlabActivityService
                     "Branch lookup unavailable for branch '{BranchName}' in project {ProjectId} during refresh; skipping this branch update",
                     branch.BranchName,
                     branch.ProjectId);
+
                 continue;
             }
 
@@ -241,6 +238,7 @@ public class GitlabActivityService
                 _logger.LogError(
                     "Project metadata lookup returned null for project {ProjectId} during refresh",
                     branch.ProjectId);
+
                 throw new InvalidOperationException(
                     $"Project metadata lookup failed for project {branch.ProjectId} during refresh");
             }
@@ -287,7 +285,11 @@ public class GitlabActivityService
 
             var key = $"{entry.BranchName}:{entry.ProjectId}";
 
-            var branchLookup = await _gitlabService.GetBranchLookupResult(user, entry.ProjectId, entry.BranchName);
+            var branchLookup = await _gitlabService.GetBranchLookupResult(
+                user,
+                entry.ProjectId,
+                entry.BranchName);
+
             if (branchLookup.IsMissing)
             {
                 _logger.LogDebug(
@@ -314,6 +316,7 @@ public class GitlabActivityService
                 _logger.LogError(
                     "Project metadata lookup returned null for project {ProjectId} while storing branch activity",
                     entry.ProjectId);
+
                 throw new InvalidOperationException(
                     $"Project metadata lookup failed for project {entry.ProjectId} while storing branch activity");
             }
@@ -382,7 +385,10 @@ public class GitlabActivityService
         GitlabAccessUser user,
         BranchActivity activity)
     {
-        var mergeRequests = await _gitlabService.GetMergeRequests(user, activity.ProjectId, activity.BranchName);
+        var mergeRequests = await _gitlabService.GetMergeRequests(
+            user,
+            activity.ProjectId,
+            activity.BranchName);
 
         var hasMr = mergeRequests.Count > 0;
         int? approvalsRequired = null;

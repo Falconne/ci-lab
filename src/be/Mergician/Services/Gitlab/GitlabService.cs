@@ -1,6 +1,6 @@
 using Mergician.Entities;
 using Mergician.Services.Authentication;
-using Mergician.Services;
+using System.Net;
 using System.Text.Json;
 
 namespace Mergician.Services.Gitlab;
@@ -61,7 +61,7 @@ public class GitlabService
         // GitLab events API 'after' param is date-only, so use the day before to avoid
         // missing events near midnight boundaries
         var afterDate = since.AddDays(-1).ToString("yyyy-MM-dd");
-        var events = await FetchEvents(user, afterDate);
+        var events = await GetPushEvents(user, afterDate);
 
         var filtered = events.Where(e => e.CreatedAt >= since).ToList();
         _logger.LogDebug(
@@ -73,14 +73,31 @@ public class GitlabService
         return filtered;
     }
 
-    private async Task<List<GitLabEvent>> FetchEvents(GitlabAccessUser user, string afterDate)
+    private async Task<List<GitLabEvent>> GetPushEvents(GitlabAccessUser user, string afterDate)
     {
+        // TODO Change this method to yield one event at a time and update the call-sites to handle this. 
+
+        // TODO instead of taking in `afterDate`, take in `since` as a DateTimeOffset, and handle the date-only granularity internally,
+        // and only yield return the events that are >= the provided DateTimeOffset. Remove the custom handling in the call-sites for
+        // these actions currently. Remove the redundant `GetUserEventsSince` and use this method directly.
+
+        // TODO Instead of using `GitLabEvent` which deserializes all event types, create a new `GitLabPushEvent` class that only has the
+        // properties relevant to push events, and use that for deserialization here.
+
+        // TODO Make this method return a tuple of `(string BranchName, int ProjectId, DateTimeOffset CreatedAt)` as that's all the callers
+        // care about. Update the call chain to handle this. Also, keep track of the events sent back and do not send back events for
+        // the same branch+project combination. We only care about the most recent push event time, so there is no need to send others back
+        // after we sent the latest (see the comment below to enforce sorting on the API call so this is guaranteed). Methods like
+        // `ExtractBranchesFromActivity` can now be simplified.
+
         var client = _httpClientFactory.CreateClient("GitLabOAuth");
         var allEvents = new List<GitLabEvent>();
         var page = 1;
 
         while (true)
         {
+            // TODO use the action filter on in the events API call to only fetch push events. Also, explicitly set the sorting so that more
+            // recent events are arrive first.
             var request = user.CreateRequest(
                 HttpMethod.Get,
                 $"events?after={afterDate}&per_page=100&page={page}");
@@ -88,8 +105,8 @@ public class GitlabService
             var response = await client.SendAsync(request);
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogWarning(
-                    "FetchEvents failed on page {Page} with status {StatusCode}",
+                _logger.LogError(
+                    "GetPushEvents failed on page {Page} with status {StatusCode}",
                     page,
                     (int)response.StatusCode);
 
@@ -122,11 +139,16 @@ public class GitlabService
                 _logger.LogWarning(
                     "Unexpected X-Next-Page header value '{NextPage}' when fetching GitLab events",
                     nextPage);
+
                 break;
             }
         }
 
-        _logger.LogInformation("Fetched {Count} total GitLab events after {AfterDate}", allEvents.Count, afterDate);
+        _logger.LogInformation(
+            "Fetched {Count} total GitLab events after {AfterDate}",
+            allEvents.Count,
+            afterDate);
+
         return allEvents;
     }
 
@@ -206,7 +228,7 @@ public class GitlabService
             return new GitLabBranchLookupResult(GitLabBranchLookupStatus.Exists, (int)response.StatusCode);
         }
 
-        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+        if (response.StatusCode == HttpStatusCode.NotFound)
         {
             _logger.LogDebug(
                 "Branch '{BranchName}' does not exist in project {ProjectId} (status {StatusCode})",
@@ -274,7 +296,7 @@ public class GitlabService
         var response = await client.SendAsync(request);
         if (!response.IsSuccessStatusCode)
         {
-            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            if (response.StatusCode == HttpStatusCode.NotFound)
             {
                 _logger.LogInformation(
                     "GetMergeRequestApprovals is not available for project {ProjectId}, MR {MergeRequestIid} (status {StatusCode}); assuming 0 approvals required",
@@ -282,14 +304,13 @@ public class GitlabService
                     mergeRequestIid,
                     (int)response.StatusCode);
 
-                return new GitLabApprovalState
-                {
-                    ApprovalsRequired = 0,
-                    ApprovedBy = []
-                };
+                return new GitLabApprovalState { ApprovalsRequired = 0, ApprovedBy = [] };
             }
 
-            _logger.LogWarning("GetMergeRequestApprovals failed with status {StatusCode}", (int)response.StatusCode);
+            _logger.LogWarning(
+                "GetMergeRequestApprovals failed with status {StatusCode}",
+                (int)response.StatusCode);
+
             return null;
         }
 
