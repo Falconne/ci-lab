@@ -63,7 +63,7 @@ public class CleanupService : BackgroundService
 
         using var scope = _serviceProvider.CreateScope();
         var coreRepository = scope.ServiceProvider.GetRequiredService<ICoreRepository>();
-        var mergeGroupRepository = scope.ServiceProvider.GetRequiredService<IMergeGroupRepositoy>();
+        var mergeGroupRepository = scope.ServiceProvider.GetRequiredService<IMergeGroupRepository>();
         var gitlabService = scope.ServiceProvider.GetRequiredService<GitlabService>();
         var userFactory = scope.ServiceProvider.GetRequiredService<GitlabUserFactory>();
 

@@ -5,7 +5,7 @@ namespace Mergician.Services.Database;
 /// <summary>
 ///     Repository interface for merge-group and branch database operations.
 /// </summary>
-public interface IMergeGroupRepositoy
+public interface IMergeGroupRepository
 {
     /// <summary>
     ///     Gets or creates a BranchInProject record. Returns the existing or new record.

@@ -16,13 +16,13 @@ public class GitlabActivityService
 
     private readonly ILogger<GitlabActivityService> _logger;
 
-    private readonly IMergeGroupRepositoy _mergeGroupRepository;
+    private readonly IMergeGroupRepository _mergeGroupRepository;
 
     private readonly IUserRepository _userRepository;
 
     public GitlabActivityService(
         GitlabService gitlabService,
-        IMergeGroupRepositoy mergeGroupRepository,
+        IMergeGroupRepository mergeGroupRepository,
         IUserRepository userRepository,
         ILogger<GitlabActivityService> logger)
     {

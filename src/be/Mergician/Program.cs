@@ -39,7 +39,7 @@ try
     builder.Services.AddSingleton<IDbConnectionFactory>(
         new NpgsqlConnectionFactory(mergicianSettings.Database));
 
-    builder.Services.AddSingleton<IMergeGroupRepositoy, MergeGroupRepositoy>();
+    builder.Services.AddSingleton<IMergeGroupRepository, MergeGroupRepository>();
     builder.Services.AddSingleton<IUserRepository, UserRepository>();
     builder.Services.AddSingleton<ICoreRepository, CoreRepository>();
 

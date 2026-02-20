@@ -8,13 +8,13 @@ namespace Mergician.Services.Database;
 ///     All timestamps are stored and returned in UTC.
 ///     Uses INSERT ... ON CONFLICT for thread-safe upserts.
 /// </summary>
-public class MergeGroupRepositoy : IMergeGroupRepositoy
+public class MergeGroupRepository : IMergeGroupRepository
 {
     private readonly IDbConnectionFactory _connectionFactory;
 
-    private readonly ILogger<MergeGroupRepositoy> _logger;
+    private readonly ILogger<MergeGroupRepository> _logger;
 
-    public MergeGroupRepositoy(IDbConnectionFactory connectionFactory, ILogger<MergeGroupRepositoy> logger)
+    public MergeGroupRepository(IDbConnectionFactory connectionFactory, ILogger<MergeGroupRepository> logger)
     {
         _connectionFactory = connectionFactory;
         _logger = logger;
