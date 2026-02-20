@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Authentication;
 using Serilog;
 
 Log.Logger = new LoggerConfiguration()
-    .MinimumLevel.Information()
+    .MinimumLevel.Debug()
     .WriteTo.Console()
     .CreateLogger();
 
@@ -22,12 +22,16 @@ try
     builder.Configuration.GetSection("Mergician").Bind(mergicianSettings);
 
     if (string.IsNullOrWhiteSpace(mergicianSettings.GitLab.Url))
+    {
         throw new InvalidOperationException(
             "Mergician:GitLab:Url is not configured. Set it via appsettings.json or the Mergician__GitLab__Url environment variable.");
+    }
 
     if (string.IsNullOrWhiteSpace(mergicianSettings.Database.Host))
+    {
         throw new InvalidOperationException(
             "Mergician:Database:Host is not configured. Set it via appsettings.json or the Mergician__Database__Host environment variable.");
+    }
 
     builder.Services.AddSingleton(mergicianSettings);
     builder.Services.AddSingleton(mergicianSettings.Database);
@@ -39,7 +43,9 @@ try
     Log.Information("Database migrations completed");
 
     // Register database services
-    builder.Services.AddSingleton<IDbConnectionFactory>(new NpgsqlConnectionFactory(mergicianSettings.Database));
+    builder.Services.AddSingleton<IDbConnectionFactory>(
+        new NpgsqlConnectionFactory(mergicianSettings.Database));
+
     builder.Services.AddSingleton<IMergeGroupRepositoy, MergeGroupRepositoy>();
     builder.Services.AddSingleton<IUserRepository, UserRepository>();
     builder.Services.AddSingleton<ICoreRepository, CoreRepository>();
@@ -54,6 +60,7 @@ try
         {
             ServerCertificateCustomValidationCallback = (_, _, _, _) => true
         });
+
     builder.Services.AddHttpContextAccessor();
     builder.Services.AddSingleton<GitLabOAuthService>();
     builder.Services.AddSingleton(new CacheService<int, GitLabProject>());
@@ -65,13 +72,16 @@ try
     builder.Services.AddSingleton(new GitLabAuthSettings { ApiBaseUrl = gitlabApiBaseUrl });
     builder.Services.AddAuthentication(GitLabCookieAuthenticationHandler.SchemeName)
         .AddScheme<AuthenticationSchemeOptions, GitLabCookieAuthenticationHandler>(
-            GitLabCookieAuthenticationHandler.SchemeName, null);
+            GitLabCookieAuthenticationHandler.SchemeName,
+            null);
+
     builder.Services.AddAuthorization();
 
     // GitlabUserFactory is still needed for service user access (background tasks, health checks)
-    builder.Services.AddSingleton(new GitlabUserFactory(
-        gitlabApiBaseUrl,
-        mergicianSettings.GitLab.ServiceToken));
+    builder.Services.AddSingleton(
+        new GitlabUserFactory(
+            gitlabApiBaseUrl,
+            mergicianSettings.GitLab.ServiceToken));
 
     // Register background cleanup service
     builder.Services.AddHostedService<CleanupService>();
@@ -110,7 +120,11 @@ try
     app.MapFallbackToFile("index.html");
 
     var versionService = app.Services.GetRequiredService<VersionService>();
-    Log.Information("Mergician v{Version} starting on {Urls}", versionService.GetVersion(), string.Join(", ", app.Urls));
+    Log.Information(
+        "Mergician v{Version} starting on {Urls}",
+        versionService.GetVersion(),
+        string.Join(", ", app.Urls));
+
     app.Run();
 }
 catch (Exception ex)
