@@ -13,9 +13,17 @@ namespace Mergician.Controllers;
 [Route("api/[controller]")]
 public class ActivityController : ControllerBase
 {
+    private static readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
     private readonly GitlabActivityService _activityService;
-    private readonly GitlabService _gitlabService;
+
     private readonly ICoreRepository _coreRepository;
+
+    private readonly GitlabService _gitlabService;
+
     private readonly ILogger<ActivityController> _logger;
 
     public ActivityController(
@@ -30,17 +38,12 @@ public class ActivityController : ControllerBase
         _logger = logger;
     }
 
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
-
     /// <summary>
-    /// Streams branch activity as Server-Sent Events.
-    /// Each event is a JSON-serialized BranchActivity record.
-    /// Initial records have HasMergeRequest=null (loading state),
-    /// followed by updates with full MR/approval data.
-    /// A final event with type "done" signals the end of the stream.
+    ///     Streams branch activity as Server-Sent Events.
+    ///     Each event is a JSON-serialized BranchActivity record.
+    ///     Initial records have HasMergeRequest=null (loading state),
+    ///     followed by updates with full MR/approval data.
+    ///     A final event with type "done" signals the end of the stream.
     /// </summary>
     [HttpGet("stream")]
     public async Task StreamPushActivity(CancellationToken cancellationToken)
@@ -72,9 +75,11 @@ public class ActivityController : ControllerBase
         try
         {
             await foreach (var activity in _activityService.StreamBranchActivity(
-                               currentUser, userInfo.Id, cancellationToken))
+                               currentUser,
+                               userInfo.Id,
+                               cancellationToken))
             {
-                var json = JsonSerializer.Serialize(activity, JsonOptions);
+                var json = JsonSerializer.Serialize(activity, _jsonOptions);
                 await Response.WriteAsync($"data: {json}\n\n", cancellationToken);
                 await Response.Body.FlushAsync(cancellationToken);
             }
@@ -91,11 +96,13 @@ public class ActivityController : ControllerBase
     }
 
     /// <summary>
-    /// Returns branch activity for events that occurred since the given time.
-    /// Used by the frontend to poll for new activity after the initial SSE stream completes.
+    ///     Returns branch activity for events that occurred since the given time.
+    ///     Used by the frontend to poll for new activity after the initial SSE stream completes.
     /// </summary>
     [HttpGet("poll")]
-    public async Task<IActionResult> PollActivity([FromQuery] DateTime since, CancellationToken cancellationToken)
+    public async Task<IActionResult> PollActivity(
+        [FromQuery] DateTime since,
+        CancellationToken cancellationToken)
     {
         var currentUser = HttpContext.GetGitlabUser();
 
@@ -107,24 +114,31 @@ public class ActivityController : ControllerBase
 
         var userInfo = await _gitlabService.GetCurrentUser(currentUser);
         if (userInfo == null)
+        {
             return Unauthorized();
+        }
 
         _logger.LogInformation("Polling for activity for user {UserId} since {Since}", userInfo.Id, since);
 
         var result = await _activityService.GetActivitySince(
-            currentUser, userInfo.Id, since, cancellationToken);
+            currentUser,
+            userInfo.Id,
+            since,
+            cancellationToken);
 
         _logger.LogInformation("Returning {Count} poll results", result.Activities.Count);
         return Ok(result);
     }
 
     /// <summary>
-    /// Streams refreshed MR and approval status for the specified branch-project pairs
-    /// as Server-Sent Events. Each event is a JSON-serialized BranchActivity or BranchDeletedNotification.
-    /// A final event with type "done" signals the end of the stream.
+    ///     Streams refreshed MR and approval status for the specified branch-project pairs
+    ///     as Server-Sent Events. Each event is a JSON-serialized BranchActivity or BranchDeletedNotification.
+    ///     A final event with type "done" signals the end of the stream.
     /// </summary>
     [HttpPost("refresh")]
-    public async Task RefreshActivity([FromBody] List<BranchRefreshRequest> branches, CancellationToken cancellationToken)
+    public async Task RefreshActivity(
+        [FromBody] List<BranchRefreshRequest> branches,
+        CancellationToken cancellationToken)
     {
         var currentUser = HttpContext.GetGitlabUser();
 
@@ -145,19 +159,22 @@ public class ActivityController : ControllerBase
         try
         {
             await foreach (var item in _activityService.StreamRefreshBranchStatus(
-                               currentUser, branches, cancellationToken))
+                               currentUser,
+                               branches,
+                               cancellationToken))
             {
                 string json;
                 if (item is BranchDeletedNotification deleted)
                 {
-                    json = JsonSerializer.Serialize(deleted, JsonOptions);
+                    json = JsonSerializer.Serialize(deleted, _jsonOptions);
                     await Response.WriteAsync($"event: deleted\ndata: {json}\n\n", cancellationToken);
                 }
                 else
                 {
-                    json = JsonSerializer.Serialize(item, JsonOptions);
+                    json = JsonSerializer.Serialize(item, _jsonOptions);
                     await Response.WriteAsync($"data: {json}\n\n", cancellationToken);
                 }
+
                 await Response.Body.FlushAsync(cancellationToken);
             }
 
