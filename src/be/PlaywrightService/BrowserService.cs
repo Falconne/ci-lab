@@ -53,7 +53,12 @@ public class BrowserService : IDisposable
 
             _playwright = await Playwright.CreateAsync();
             _browser = await _playwright.Chromium.LaunchAsync(
-                new BrowserTypeLaunchOptions { Headless = headless, Timeout = 60000 });
+                new BrowserTypeLaunchOptions
+                {
+                    Headless = headless,
+                    Timeout = 60000,
+                    Args = ["--no-sandbox"]
+                });
 
             _context = await _browser.NewContextAsync(
                 new BrowserNewContextOptions { IgnoreHTTPSErrors = true });

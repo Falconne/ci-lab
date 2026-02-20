@@ -41,15 +41,22 @@ RUN GIT_HASH=$(git rev-parse HEAD 2>/dev/null || echo "unknown") && \
 # --- Stage 3: Production runtime ---
 FROM mcr.microsoft.com/dotnet/aspnet:9.0
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN groupadd -g 1000 mergician && \
+    useradd -u 1000 -g 1000 -m -s /bin/bash mergician
+
 WORKDIR /app
 
-COPY --from=backend-build /app/publish .
-COPY --from=frontend-build /app/dist ./wwwroot/
+COPY --from=backend-build --chown=mergician:mergician /app/publish .
+COPY --from=frontend-build --chown=mergician:mergician /app/dist ./wwwroot/
 
 ENV ASPNETCORE_URLS=http://0.0.0.0:5000
 ENV ASPNETCORE_ENVIRONMENT=Production
 
 EXPOSE 5000
+
+USER mergician
 
 HEALTHCHECK --interval=10s --timeout=5s --retries=5 --start-period=5s \
     CMD curl -f http://localhost:5000/api/health || exit 1

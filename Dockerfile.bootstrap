@@ -25,6 +25,10 @@ RUN apt-get update && \
     libx11-xcb1 \
     && rm -rf /var/lib/apt/lists/*
 
+# Create non-root user
+RUN groupadd -g 1000 mergician && \
+    useradd -u 1000 -g 1000 -m -s /bin/bash mergician
+
 WORKDIR /workspace
 
 # Copy project files (including PlaywrightService dependency)
@@ -39,12 +43,21 @@ COPY src/be/Bootstrap/ src/be/Bootstrap/
 # Build the project
 RUN dotnet build src/be/Bootstrap/Bootstrap.csproj -c Release
 
-# Install Playwright browsers
+# Install Playwright browsers to a shared location accessible by the non-root user
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 RUN dotnet tool install --global Microsoft.Playwright.CLI && \
     export PATH="$PATH:/root/.dotnet/tools" && \
     cd src/be/Bootstrap && \
     dotnet build && \
-    playwright install chromium
+    playwright install chromium && \
+    chown -R mergician:mergician /ms-playwright
+
+# Set up dotnet environment for the non-root user
+ENV DOTNET_CLI_HOME=/home/mergician
+RUN cp -r /root/.nuget /home/mergician/.nuget 2>/dev/null || true && \
+    chown -R mergician:mergician /home/mergician
+
+USER mergician
 
 WORKDIR /workspace/src/be/Bootstrap
 
