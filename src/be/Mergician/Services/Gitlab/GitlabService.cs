@@ -201,6 +201,21 @@ public class GitlabService
         var response = await client.SendAsync(request);
         if (!response.IsSuccessStatusCode)
         {
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                _logger.LogInformation(
+                    "GetMergeRequestApprovals is not available for project {ProjectId}, MR {MergeRequestIid} (status {StatusCode}); assuming 0 approvals required",
+                    projectId,
+                    mergeRequestIid,
+                    (int)response.StatusCode);
+
+                return new GitLabApprovalState
+                {
+                    ApprovalsRequired = 0,
+                    ApprovedBy = []
+                };
+            }
+
             _logger.LogWarning("GetMergeRequestApprovals failed with status {StatusCode}", (int)response.StatusCode);
             return null;
         }

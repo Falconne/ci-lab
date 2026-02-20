@@ -75,7 +75,7 @@ public class GitlabActivityService
             returnedKeys.Add(key);
 
             // Yield initial record with unknown MR status
-            yield return new BranchActivity(
+            var cachedActivity = new BranchActivity(
                 cached.BranchName,
                 cached.ProjectId,
                 cached.ProjectName,
@@ -85,14 +85,10 @@ public class GitlabActivityService
                 new DateTimeOffset(cached.LastUpdateTime, TimeSpan.Zero),
                 cached.MergeGroupId);
 
+            yield return cachedActivity;
+
             // Yield resolved MR/approval data
-            yield return await ResolveBranchActivity(
-                currentUser,
-                cached.BranchName,
-                cached.ProjectId,
-                cached.ProjectName,
-                new DateTimeOffset(cached.LastUpdateTime, TimeSpan.Zero),
-                cached.MergeGroupId);
+            yield return await ResolveBranchActivityIn(currentUser, cachedActivity);
         }
 
         // 2. Fetch new data from GitLab
@@ -120,13 +116,7 @@ public class GitlabActivityService
             yield return branch;
 
             // Resolve MR/approval data
-            yield return await ResolveBranchActivity(
-                currentUser,
-                branch.BranchName,
-                branch.ProjectId,
-                branch.ProjectName,
-                branch.LastUpdated,
-                branch.MergeGroupId);
+            yield return await ResolveBranchActivityIn(currentUser, branch);
         }
 
         // Update last poll timestamp
@@ -162,13 +152,7 @@ public class GitlabActivityService
 
         await foreach (var branch in records)
         {
-            var activity = await ResolveBranchActivity(
-                currentUser,
-                branch.BranchName,
-                branch.ProjectId,
-                branch.ProjectName,
-                branch.LastUpdated,
-                branch.MergeGroupId);
+            var activity = await ResolveBranchActivityIn(currentUser, branch);
 
             results.Add(activity);
         }
@@ -227,13 +211,17 @@ public class GitlabActivityService
             // null handling below.
             var projectName = project?.NameWithNamespace ?? $"Project #{branch.ProjectId}";
 
-            var activity = await ResolveBranchActivity(
-                user,
+            var pendingActivity = new BranchActivity(
                 branch.BranchName,
                 branch.ProjectId,
                 projectName,
+                null,
+                null,
+                null,
                 branch.LastUpdated,
                 branch.MergeGroupId);
+
+            var activity = await ResolveBranchActivityIn(user, pendingActivity);
 
             yield return activity;
         }
@@ -337,17 +325,11 @@ public class GitlabActivityService
     /// <summary>
     ///     Resolves a branch's MR and approval status into a fully populated BranchActivity record.
     /// </summary>
-    private async Task<BranchActivity> ResolveBranchActivity(
+    private async Task<BranchActivity> ResolveBranchActivityIn(
         GitlabAccessUser user,
-        string branchName,
-        int projectId,
-        string projectName,
-        DateTimeOffset? lastUpdated,
-        int? mergeGroupId)
+        BranchActivity activity)
     {
-        // TODO Rename this method to `ResolveBranchActivityIn` and make it take in an actual `BranchActivity` record instead of individual parameters.
-        // Change `BranchActivity` into a class so it can be mutated in place and returned here. 
-        var mergeRequests = await _gitlabService.GetMergeRequests(user, projectId, branchName);
+        var mergeRequests = await _gitlabService.GetMergeRequests(user, activity.ProjectId, activity.BranchName);
 
         var hasMr = mergeRequests.Count > 0;
         int? approvalsRequired = null;
@@ -357,34 +339,28 @@ public class GitlabActivityService
         {
             _logger.LogDebug(
                 "Branch '{BranchName}' has {MrCount} open MR(s) in project {ProjectId}",
-                branchName,
+                activity.BranchName,
                 mergeRequests.Count,
-                projectId);
+                activity.ProjectId);
 
             var approval = await _gitlabService.GetMergeRequestApprovals(
                 user,
-                projectId,
+                activity.ProjectId,
                 mergeRequests[0].Iid);
 
             if (approval != null)
             {
                 approvalsGiven = approval.ApprovedBy.Count;
-                // TODO get the actual approvals required from the MR data via appropriate Gitlab API usage. Note that the free tier of
-                // Gitlab we use for testing with CI Lab does not support "approvals required", but the Premium tier we will use in production
-                // does, so ensure the check handles this. If no approvals are needed or we are in free tier mode, set `approvalsRequired` to 0.
-                approvalsRequired = approvalsGiven > 0 ? approvalsGiven : null;
+                approvalsRequired = Math.Max(approval.ApprovalsRequired ?? 0, 0);
             }
         }
 
-        return new BranchActivity(
-            branchName,
-            projectId,
-            projectName,
-            hasMr,
-            approvalsRequired,
-            approvalsGiven,
-            lastUpdated,
-            mergeGroupId);
+        return activity with
+        {
+            HasMergeRequest = hasMr,
+            ApprovalsRequired = approvalsRequired,
+            ApprovalsGiven = approvalsGiven
+        };
     }
 
     /// <summary>

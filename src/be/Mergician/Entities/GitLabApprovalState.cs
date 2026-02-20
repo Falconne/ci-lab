@@ -7,6 +7,9 @@ public class GitLabApprovalState
     [JsonPropertyName("approved")]
     public bool Approved { get; set; }
 
+    [JsonPropertyName("approvals_required")]
+    public int? ApprovalsRequired { get; set; }
+
     [JsonPropertyName("approved_by")]
     public List<GitLabApprovalEntry> ApprovedBy { get; set; } = [];
 }
