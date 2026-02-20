@@ -1,5 +1,3 @@
-using Serilog;
-
 namespace Mergician.Services;
 
 /// <summary>
@@ -14,10 +12,13 @@ public class CacheService<TKey, TValue> where TKey : notnull
 
     private readonly Lock _lock = new();
 
+    private readonly ILogger<CacheService<TKey, TValue>> _logger;
+
     private DateTime _lastReset = DateTime.UtcNow;
 
-    public CacheService(TimeSpan? expiration = null)
+    public CacheService(ILogger<CacheService<TKey, TValue>> logger, TimeSpan? expiration = null)
     {
+        _logger = logger;
         _expiration = expiration ?? TimeSpan.FromHours(24);
     }
 
@@ -27,7 +28,7 @@ public class CacheService<TKey, TValue> where TKey : notnull
         {
             if (IsExpired())
             {
-                Log.Debug("Cache expired, clearing all entries");
+                _logger.LogDebug("Cache expired, clearing all entries");
                 _cache.Clear();
                 _lastReset = DateTime.UtcNow;
                 value = default;
@@ -44,7 +45,7 @@ public class CacheService<TKey, TValue> where TKey : notnull
         {
             if (IsExpired())
             {
-                Log.Debug("Cache expired on write, clearing all entries");
+                _logger.LogDebug("Cache expired on write, clearing all entries");
                 _cache.Clear();
                 _lastReset = DateTime.UtcNow;
             }

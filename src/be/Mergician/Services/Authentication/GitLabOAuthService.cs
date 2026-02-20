@@ -1,18 +1,24 @@
 using System.Text.Json;
 using Mergician.Entities;
-using Serilog;
 
 namespace Mergician.Services.Authentication;
 
 public class GitLabOAuthService
 {
-    private readonly MergicianSettings _settings;
     private readonly IHttpClientFactory _httpClientFactory;
 
-    public GitLabOAuthService(MergicianSettings settings, IHttpClientFactory httpClientFactory)
+    private readonly ILogger<GitLabOAuthService> _logger;
+
+    private readonly MergicianSettings _settings;
+
+    public GitLabOAuthService(
+        MergicianSettings settings,
+        IHttpClientFactory httpClientFactory,
+        ILogger<GitLabOAuthService> logger)
     {
         _settings = settings;
         _httpClientFactory = httpClientFactory;
+        _logger = logger;
     }
 
     public string GetAuthorizationUrl(string redirectUri, string state)
@@ -44,7 +50,7 @@ public class GitLabOAuthService
         if (!response.IsSuccessStatusCode)
         {
             var errorBody = await response.Content.ReadAsStringAsync();
-            Log.Error("GitLab token exchange failed: {StatusCode} {Body} (redirect_uri={RedirectUri})",
+            _logger.LogError("GitLab token exchange failed: {StatusCode} {Body} (redirect_uri={RedirectUri})",
                 (int)response.StatusCode, errorBody, redirectUri);
             return null;
         }
@@ -70,7 +76,7 @@ public class GitLabOAuthService
         if (!response.IsSuccessStatusCode)
         {
             var errorBody = await response.Content.ReadAsStringAsync();
-            Log.Error("GitLab token refresh failed: {StatusCode} {Body}",
+            _logger.LogError("GitLab token refresh failed: {StatusCode} {Body}",
                 (int)response.StatusCode, errorBody);
             return null;
         }

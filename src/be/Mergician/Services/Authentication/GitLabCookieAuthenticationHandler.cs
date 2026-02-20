@@ -4,7 +4,6 @@ using System.Text.Encodings.Web;
 using Mergician.Entities;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Options;
-using Serilog;
 
 namespace Mergician.Services.Authentication;
 
@@ -45,24 +44,24 @@ public class GitLabCookieAuthenticationHandler : AuthenticationHandler<Authentic
         {
             if (await ValidateToken(accessToken))
             {
-                Log.Debug("Access token from cookie is valid");
+                Logger.LogDebug("Access token from cookie is valid");
                 return SuccessResult(accessToken);
             }
 
-            Log.Debug("Access token from cookie is invalid, attempting refresh");
+            Logger.LogDebug("Access token from cookie is invalid, attempting refresh");
         }
 
         var refreshToken = Request.Cookies["gl_refresh_token"];
         if (string.IsNullOrEmpty(refreshToken))
         {
-            Log.Debug("No valid access or refresh token available");
+            Logger.LogDebug("No valid access or refresh token available");
             return AuthenticateResult.NoResult();
         }
 
         var tokenResponse = await _oauthService.RefreshToken(refreshToken);
         if (tokenResponse == null)
         {
-            Log.Warning("Token refresh failed");
+            Logger.LogWarning("Token refresh failed");
             return AuthenticateResult.Fail("Token refresh failed");
         }
 
@@ -77,7 +76,7 @@ public class GitLabCookieAuthenticationHandler : AuthenticationHandler<Authentic
         Response.Cookies.Append("gl_access_token", tokenResponse.AccessToken, cookieOptions);
         Response.Cookies.Append("gl_refresh_token", tokenResponse.RefreshToken, cookieOptions);
 
-        Log.Debug("Token refreshed successfully via authentication handler");
+        Logger.LogDebug("Token refreshed successfully via authentication handler");
         return SuccessResult(tokenResponse.AccessToken);
     }
 

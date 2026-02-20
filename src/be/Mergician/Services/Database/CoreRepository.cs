@@ -1,5 +1,4 @@
 using Dapper;
-using Serilog;
 
 namespace Mergician.Services.Database;
 
@@ -10,9 +9,12 @@ public class CoreRepository : ICoreRepository
 {
     private readonly IDbConnectionFactory _connectionFactory;
 
-    public CoreRepository(IDbConnectionFactory connectionFactory)
+    private readonly ILogger<CoreRepository> _logger;
+
+    public CoreRepository(IDbConnectionFactory connectionFactory, ILogger<CoreRepository> logger)
     {
         _connectionFactory = connectionFactory;
+        _logger = logger;
     }
 
     public bool IsHealthy()
@@ -26,7 +28,7 @@ public class CoreRepository : ICoreRepository
         }
         catch (Exception ex)
         {
-            Log.Warning(ex, "Database health check failed");
+            _logger.LogWarning(ex, "Database health check failed");
             return false;
         }
     }

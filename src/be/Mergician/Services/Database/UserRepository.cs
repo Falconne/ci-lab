@@ -1,5 +1,4 @@
 using Dapper;
-using Serilog;
 
 namespace Mergician.Services.Database;
 
@@ -11,9 +10,12 @@ public class UserRepository : IUserRepository
 {
     private readonly IDbConnectionFactory _connectionFactory;
 
-    public UserRepository(IDbConnectionFactory connectionFactory)
+    private readonly ILogger<UserRepository> _logger;
+
+    public UserRepository(IDbConnectionFactory connectionFactory, ILogger<UserRepository> logger)
     {
         _connectionFactory = connectionFactory;
+        _logger = logger;
     }
 
     public DateTime? GetLastPollTimestamp(int gitlabUserId)
@@ -27,11 +29,11 @@ public class UserRepository : IUserRepository
 
         if (result.HasValue)
         {
-            Log.Debug("Retrieved last poll timestamp for user {UserId}: {Timestamp}", gitlabUserId, result.Value);
+            _logger.LogDebug("Retrieved last poll timestamp for user {UserId}: {Timestamp}", gitlabUserId, result.Value);
         }
         else
         {
-            Log.Debug("No last poll timestamp found for user {UserId}", gitlabUserId);
+            _logger.LogDebug("No last poll timestamp found for user {UserId}", gitlabUserId);
         }
 
         return result.HasValue ? DateTime.SpecifyKind(result.Value, DateTimeKind.Utc) : null;
@@ -53,6 +55,6 @@ public class UserRepository : IUserRepository
             """,
             new { GitlabUserId = gitlabUserId, Timestamp = utcTimestamp });
 
-        Log.Debug("Upserted last poll timestamp for user {UserId}: {Timestamp}", gitlabUserId, utcTimestamp);
+        _logger.LogDebug("Upserted last poll timestamp for user {UserId}: {Timestamp}", gitlabUserId, utcTimestamp);
     }
 }

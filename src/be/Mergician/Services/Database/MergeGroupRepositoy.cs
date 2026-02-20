@@ -1,6 +1,5 @@
 using Dapper;
 using Mergician.Entities.Database;
-using Serilog;
 
 namespace Mergician.Services.Database;
 
@@ -13,9 +12,12 @@ public class MergeGroupRepositoy : IMergeGroupRepositoy
 {
     private readonly IDbConnectionFactory _connectionFactory;
 
-    public MergeGroupRepositoy(IDbConnectionFactory connectionFactory)
+    private readonly ILogger<MergeGroupRepositoy> _logger;
+
+    public MergeGroupRepositoy(IDbConnectionFactory connectionFactory, ILogger<MergeGroupRepositoy> logger)
     {
         _connectionFactory = connectionFactory;
+        _logger = logger;
     }
 
     public BranchInProjectRecord GetOrCreateBranch(string branchName, int projectId, string projectName)
@@ -37,7 +39,7 @@ public class MergeGroupRepositoy : IMergeGroupRepositoy
             throw new InvalidOperationException(
                 $"Failed to get or create branch '{branchName}' in project {projectId}");
 
-        Log.Debug("Got/created branch record {Id} for '{BranchName}' in project {ProjectId}",
+        _logger.LogDebug("Got/created branch record {Id} for '{BranchName}' in project {ProjectId}",
             record.Id, branchName, projectId);
 
         return record;
@@ -61,7 +63,7 @@ public class MergeGroupRepositoy : IMergeGroupRepositoy
         if (record == null)
             throw new InvalidOperationException($"Failed to get or create merge group '{name}'");
 
-        Log.Debug("Got/created merge group {Id} with name '{Name}'", record.Id, name);
+        _logger.LogDebug("Got/created merge group {Id} with name '{Name}'", record.Id, name);
         record.LastUpdateTime = DateTime.SpecifyKind(record.LastUpdateTime, DateTimeKind.Utc);
         return record;
     }
@@ -79,7 +81,7 @@ public class MergeGroupRepositoy : IMergeGroupRepositoy
             """,
             new { MergeGroupId = mergeGroupId, BranchInProjectId = branchInProjectId });
 
-        Log.Debug("Ensured branch {BranchId} is in merge group {MergeGroupId}",
+        _logger.LogDebug("Ensured branch {BranchId} is in merge group {MergeGroupId}",
             branchInProjectId, mergeGroupId);
     }
 
@@ -96,7 +98,7 @@ public class MergeGroupRepositoy : IMergeGroupRepositoy
             """,
             new { GitlabUserId = gitlabUserId, MergeGroupId = mergeGroupId });
 
-        Log.Debug("Ensured user {UserId} is in merge group {MergeGroupId}",
+        _logger.LogDebug("Ensured user {UserId} is in merge group {MergeGroupId}",
             gitlabUserId, mergeGroupId);
     }
 
@@ -111,7 +113,7 @@ public class MergeGroupRepositoy : IMergeGroupRepositoy
             "UPDATE merge_group SET last_update_time = @Timestamp WHERE id = @Id",
             new { Id = mergeGroupId, Timestamp = utcTimestamp });
 
-        Log.Debug("Updated merge group {MergeGroupId} timestamp to {Timestamp}",
+        _logger.LogDebug("Updated merge group {MergeGroupId} timestamp to {Timestamp}",
             mergeGroupId, utcTimestamp);
     }
 
@@ -147,7 +149,7 @@ public class MergeGroupRepositoy : IMergeGroupRepositoy
             r.LastUpdateTime = DateTime.SpecifyKind(r.LastUpdateTime, DateTimeKind.Utc);
         }
 
-        Log.Debug("Retrieved {Count} branches for user {UserId} since {Since}",
+        _logger.LogDebug("Retrieved {Count} branches for user {UserId} since {Since}",
             results.Count, gitlabUserId, utcSince);
 
         return results;
@@ -170,7 +172,7 @@ public class MergeGroupRepositoy : IMergeGroupRepositoy
 
         transaction.Commit();
 
-        Log.Information("Deleted branch record {BranchId} and its merge group associations", branchInProjectId);
+        _logger.LogInformation("Deleted branch record {BranchId} and its merge group associations", branchInProjectId);
     }
 
     public void DeleteMergeGroup(int mergeGroupId)
@@ -182,7 +184,7 @@ public class MergeGroupRepositoy : IMergeGroupRepositoy
             "DELETE FROM merge_group WHERE id = @Id",
             new { Id = mergeGroupId });
 
-        Log.Information("Deleted merge group {MergeGroupId} and all its associations", mergeGroupId);
+        _logger.LogInformation("Deleted merge group {MergeGroupId} and all its associations", mergeGroupId);
     }
 
     public List<MergeGroupRecord> GetEmptyMergeGroups()

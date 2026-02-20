@@ -1,5 +1,3 @@
-using Serilog;
-
 namespace Mergician.Services.Authentication;
 
 /// <summary>
@@ -11,19 +9,23 @@ namespace Mergician.Services.Authentication;
 public class GitlabUserFactory
 {
     private readonly string _apiBaseUrl;
+
+    private readonly ILogger<GitlabUserFactory> _logger;
+
     private readonly string? _serviceToken;
 
     public bool IsServiceTokenConfigured => !string.IsNullOrWhiteSpace(_serviceToken);
 
-    public GitlabUserFactory(string apiBaseUrl, string? serviceToken)
+    public GitlabUserFactory(string apiBaseUrl, string? serviceToken, ILogger<GitlabUserFactory> logger)
     {
         _apiBaseUrl = apiBaseUrl;
         _serviceToken = serviceToken;
+        _logger = logger;
 
         if (!IsServiceTokenConfigured)
-            Log.Warning("GitLab service token is not configured. Set the Mergician:GitLab:ServiceToken setting");
+            _logger.LogWarning("GitLab service token is not configured. Set the Mergician:GitLab:ServiceToken setting");
         else
-            Log.Information("GitLab service user configured");
+            _logger.LogInformation("GitLab service user configured");
     }
 
     /// <summary>
@@ -35,7 +37,7 @@ public class GitlabUserFactory
     {
         if (!IsServiceTokenConfigured)
         {
-            Log.Error("GitLab service token is not configured — service user cannot be created");
+            _logger.LogError("GitLab service token is not configured — service user cannot be created");
             throw new InvalidOperationException("GitLab service token is not configured");
         }
 

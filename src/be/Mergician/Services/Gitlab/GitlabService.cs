@@ -1,7 +1,6 @@
 using Mergician.Entities;
 using Mergician.Services.Authentication;
 using Mergician.Services;
-using Serilog;
 using System.Text.Json;
 
 namespace Mergician.Services.Gitlab;
@@ -12,12 +11,19 @@ public class GitlabService
         new() { PropertyNameCaseInsensitive = true };
 
     private readonly IHttpClientFactory _httpClientFactory;
+
+    private readonly ILogger<GitlabService> _logger;
+
     private readonly CacheService<int, GitLabProject> _projectCache;
 
-    public GitlabService(IHttpClientFactory httpClientFactory, CacheService<int, GitLabProject> projectCache)
+    public GitlabService(
+        IHttpClientFactory httpClientFactory,
+        CacheService<int, GitLabProject> projectCache,
+        ILogger<GitlabService> logger)
     {
         _httpClientFactory = httpClientFactory;
         _projectCache = projectCache;
+        _logger = logger;
     }
 
     /// <summary>
@@ -36,7 +42,7 @@ public class GitlabService
         var response = await client.SendAsync(request);
         if (!response.IsSuccessStatusCode)
         {
-            Log.Warning("GetCurrentUser failed with status {StatusCode}", (int)response.StatusCode);
+            _logger.LogWarning("GetCurrentUser failed with status {StatusCode}", (int)response.StatusCode);
             return null;
         }
 
@@ -58,7 +64,7 @@ public class GitlabService
         var events = await FetchEvents(user, afterDate);
 
         var filtered = events.Where(e => e.CreatedAt >= since).ToList();
-        Log.Debug(
+        _logger.LogDebug(
             "Filtered {Total} events to {Filtered} events since {Since}",
             events.Count,
             filtered.Count,
@@ -77,7 +83,7 @@ public class GitlabService
         var response = await client.SendAsync(request);
         if (!response.IsSuccessStatusCode)
         {
-            Log.Warning("FetchEvents failed with status {StatusCode}", (int)response.StatusCode);
+            _logger.LogWarning("FetchEvents failed with status {StatusCode}", (int)response.StatusCode);
             return [];
         }
 
@@ -89,7 +95,7 @@ public class GitlabService
     {
         if (_projectCache.TryGet(projectId, out var cached))
         {
-            Log.Debug("Returning cached project info for project {ProjectId}", projectId);
+            _logger.LogDebug("Returning cached project info for project {ProjectId}", projectId);
             return cached;
         }
 
@@ -101,7 +107,7 @@ public class GitlabService
         var response = await client.SendAsync(request);
         if (!response.IsSuccessStatusCode)
         {
-            Log.Warning(
+            _logger.LogWarning(
                 "GetProject({ProjectId}) failed with status {StatusCode}",
                 projectId,
                 (int)response.StatusCode);
@@ -115,7 +121,7 @@ public class GitlabService
         if (project != null)
         {
             _projectCache.Set(projectId, project);
-            Log.Debug("Cached project info for project {ProjectId}", projectId);
+            _logger.LogDebug("Cached project info for project {ProjectId}", projectId);
         }
 
         return project;
@@ -136,11 +142,11 @@ public class GitlabService
 
         if (response.IsSuccessStatusCode)
         {
-            Log.Debug("Branch '{BranchName}' exists in project {ProjectId}", branchName, projectId);
+            _logger.LogDebug("Branch '{BranchName}' exists in project {ProjectId}", branchName, projectId);
             return true;
         }
 
-        Log.Debug(
+        _logger.LogDebug(
             "Branch '{BranchName}' does not exist in project {ProjectId} (status {StatusCode})",
             branchName,
             projectId,
@@ -166,7 +172,7 @@ public class GitlabService
         var response = await client.SendAsync(request);
         if (!response.IsSuccessStatusCode)
         {
-            Log.Warning(
+            _logger.LogWarning(
                 "GetMergeRequests failed with status {StatusCode} for project {ProjectId}, branch '{BranchName}'",
                 (int)response.StatusCode,
                 projectId,
@@ -195,7 +201,7 @@ public class GitlabService
         var response = await client.SendAsync(request);
         if (!response.IsSuccessStatusCode)
         {
-            Log.Warning("GetMergeRequestApprovals failed with status {StatusCode}", (int)response.StatusCode);
+            _logger.LogWarning("GetMergeRequestApprovals failed with status {StatusCode}", (int)response.StatusCode);
             return null;
         }
 

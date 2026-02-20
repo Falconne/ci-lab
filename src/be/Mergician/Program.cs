@@ -6,17 +6,18 @@ using Mergician.Services.Gitlab;
 using Microsoft.AspNetCore.Authentication;
 using Serilog;
 
-Log.Logger = new LoggerConfiguration()
-    .MinimumLevel.Information()
-    .WriteTo.Console()
-    .CreateLogger();
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Host.UseSerilog((context, _, loggerConfiguration) =>
+    loggerConfiguration
+        .MinimumLevel.Information()
+        .ReadFrom.Configuration(context.Configuration)
+        .Enrich.FromLogContext()
+        .WriteTo.Console(outputTemplate:
+            "[{Timestamp:HH:mm:ss} {Level:u3}] [{SourceContext}] {Message:lj} {Properties:j}{NewLine}{Exception}"));
 
 try
 {
-    var builder = WebApplication.CreateBuilder(args);
-
-    builder.Host.UseSerilog();
-
     // Bind Mergician settings from configuration
     var mergicianSettings = new MergicianSettings();
     builder.Configuration.GetSection("Mergician").Bind(mergicianSettings);
@@ -33,99 +34,104 @@ try
             "Mergician:Database:Host is not configured. Set it via appsettings.json or the Mergician__Database__Host environment variable.");
     }
 
-    builder.Services.AddSingleton(mergicianSettings);
-    builder.Services.AddSingleton(mergicianSettings.Database);
-
-    // Run database migrations
-    Log.Information("Running database migrations");
-    var migrationService = new DatabaseMigrationService(mergicianSettings.Database);
-    migrationService.MigrateDatabase();
-    Log.Information("Database migrations completed");
+builder.Services.AddSingleton(mergicianSettings);
+builder.Services.AddSingleton(mergicianSettings.Database);
+builder.Services.AddSingleton<DatabaseMigrationService>();
 
     // Register database services
-    builder.Services.AddSingleton<IDbConnectionFactory>(
-        new NpgsqlConnectionFactory(mergicianSettings.Database));
+builder.Services.AddSingleton<IDbConnectionFactory>(
+    new NpgsqlConnectionFactory(mergicianSettings.Database));
 
-    builder.Services.AddSingleton<IMergeGroupRepositoy, MergeGroupRepositoy>();
-    builder.Services.AddSingleton<IUserRepository, UserRepository>();
-    builder.Services.AddSingleton<ICoreRepository, CoreRepository>();
+builder.Services.AddSingleton<IMergeGroupRepositoy, MergeGroupRepositoy>();
+builder.Services.AddSingleton<IUserRepository, UserRepository>();
+builder.Services.AddSingleton<ICoreRepository, CoreRepository>();
 
     // Compute GitLab API base URL once at startup from configuration
-    var gitlabApiBaseUrl = $"{mergicianSettings.GitLab.ServerUrl.TrimEnd('/')}/api/v4";
-    Log.Information("GitLab API base URL: {GitLabApiBaseUrl}", gitlabApiBaseUrl);
+var gitlabApiBaseUrl = $"{mergicianSettings.GitLab.ServerUrl.TrimEnd('/')}/api/v4";
 
     // Register HttpClient factory and GitLab services
-    builder.Services.AddHttpClient("GitLabOAuth")
-        .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
-        {
-            ServerCertificateCustomValidationCallback = (_, _, _, _) => true
-        });
-
-    builder.Services.AddHttpContextAccessor();
-    builder.Services.AddSingleton<GitLabOAuthService>();
-    builder.Services.AddSingleton(new CacheService<int, GitLabProject>());
-    builder.Services.AddSingleton<GitlabService>();
-    builder.Services.AddSingleton<VersionService>();
-    builder.Services.AddScoped<GitlabActivityService>();
-
-    // Register GitLab authentication handler
-    builder.Services.AddSingleton(new GitLabAuthSettings { ApiBaseUrl = gitlabApiBaseUrl });
-    builder.Services.AddAuthentication(GitLabCookieAuthenticationHandler.SchemeName)
-        .AddScheme<AuthenticationSchemeOptions, GitLabCookieAuthenticationHandler>(
-            GitLabCookieAuthenticationHandler.SchemeName,
-            null);
-
-    builder.Services.AddAuthorization();
-
-    // GitlabUserFactory is still needed for service user access (background tasks, health checks)
-    builder.Services.AddSingleton(
-        new GitlabUserFactory(
-            gitlabApiBaseUrl,
-            mergicianSettings.GitLab.ServiceToken));
-
-    // Register background cleanup service
-    builder.Services.AddHostedService<CleanupService>();
-
-    // Add services
-    builder.Services.AddControllers();
-
-    // Configure CORS for native development (Vue dev server on different port)
-    builder.Services.AddCors(options =>
+builder.Services.AddHttpClient("GitLabOAuth")
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
     {
-        options.AddDefaultPolicy(policy =>
-        {
-            policy.WithOrigins("http://localhost:5173")
-                .AllowAnyHeader()
-                .AllowAnyMethod()
-                .AllowCredentials();
-        });
+        ServerCertificateCustomValidationCallback = (_, _, _, _) => true
     });
 
-    var app = builder.Build();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddSingleton<GitLabOAuthService>();
+builder.Services.AddSingleton<CacheService<int, GitLabProject>>();
+builder.Services.AddSingleton<GitlabService>();
+builder.Services.AddSingleton<VersionService>();
+builder.Services.AddScoped<GitlabActivityService>();
 
-    app.UseSerilogRequestLogging();
-    app.UseCors();
+    // Register GitLab authentication handler
+builder.Services.AddSingleton(new GitLabAuthSettings { ApiBaseUrl = gitlabApiBaseUrl });
+builder.Services.AddAuthentication(GitLabCookieAuthenticationHandler.SchemeName)
+    .AddScheme<AuthenticationSchemeOptions, GitLabCookieAuthenticationHandler>(
+        GitLabCookieAuthenticationHandler.SchemeName,
+        null);
+
+builder.Services.AddAuthorization();
+
+    // GitlabUserFactory is still needed for service user access (background tasks, health checks)
+builder.Services.AddSingleton(sp =>
+{
+    var logger = sp.GetRequiredService<ILogger<GitlabUserFactory>>();
+    return new GitlabUserFactory(
+        gitlabApiBaseUrl,
+        mergicianSettings.GitLab.ServiceToken,
+        logger);
+});
+
+    // Register background cleanup service
+builder.Services.AddHostedService<CleanupService>();
+
+    // Add services
+builder.Services.AddControllers();
+
+    // Configure CORS for native development (Vue dev server on different port)
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.WithOrigins("http://localhost:5173")
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials();
+    });
+});
+
+var app = builder.Build();
+
+Log.Information("Running database migrations");
+var migrationService = app.Services.GetRequiredService<DatabaseMigrationService>();
+migrationService.MigrateDatabase();
+Log.Information("Database migrations completed");
+
+Log.Information("GitLab API base URL: {GitLabApiBaseUrl}", gitlabApiBaseUrl);
+
+app.UseSerilogRequestLogging();
+app.UseCors();
 
     // Authentication and authorization middleware
-    app.UseAuthentication();
-    app.UseAuthorization();
+app.UseAuthentication();
+app.UseAuthorization();
 
     // Serve static files from wwwroot (for production builds of the Vue frontend)
-    app.UseDefaultFiles();
-    app.UseStaticFiles();
+app.UseDefaultFiles();
+app.UseStaticFiles();
 
-    app.MapControllers();
+app.MapControllers();
 
     // Fallback to index.html for SPA routing (must be after MapControllers)
-    app.MapFallbackToFile("index.html");
+app.MapFallbackToFile("index.html");
 
-    var versionService = app.Services.GetRequiredService<VersionService>();
-    Log.Information(
-        "Mergician v{Version} starting on {Urls}",
-        versionService.GetVersion(),
-        string.Join(", ", app.Urls));
+var versionService = app.Services.GetRequiredService<VersionService>();
+Log.Information(
+    "Mergician v{Version} starting on {Urls}",
+    versionService.GetVersion(),
+    string.Join(", ", app.Urls));
 
-    app.Run();
+app.Run();
 }
 catch (Exception ex)
 {

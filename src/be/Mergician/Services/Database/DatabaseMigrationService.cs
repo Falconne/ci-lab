@@ -1,7 +1,6 @@
 using DbUp;
 using Mergician.Entities;
 using Npgsql;
-using Serilog;
 
 namespace Mergician.Services.Database;
 
@@ -11,11 +10,14 @@ namespace Mergician.Services.Database;
 /// </summary>
 public class DatabaseMigrationService
 {
+    private readonly ILogger<DatabaseMigrationService> _logger;
+
     private readonly DatabaseSettings _settings;
 
-    public DatabaseMigrationService(DatabaseSettings settings)
+    public DatabaseMigrationService(DatabaseSettings settings, ILogger<DatabaseMigrationService> logger)
     {
         _settings = settings;
+        _logger = logger;
     }
 
     /// <summary>
@@ -30,7 +32,7 @@ public class DatabaseMigrationService
 
     private void EnsureDatabaseExists()
     {
-        Log.Information("Checking if database '{Database}' exists", _settings.Database);
+        _logger.LogInformation("Checking if database '{Database}' exists", _settings.Database);
 
         using var connection = new NpgsqlConnection(_settings.AdminConnectionString);
         connection.Open();
@@ -43,24 +45,24 @@ public class DatabaseMigrationService
 
         if (!exists)
         {
-            Log.Information("Database '{Database}' does not exist, creating it", _settings.Database);
+            _logger.LogInformation("Database '{Database}' does not exist, creating it", _settings.Database);
 
             using var createCmd = connection.CreateCommand();
             // Database names cannot be parameterized in CREATE DATABASE
             createCmd.CommandText = $"CREATE DATABASE \"{_settings.Database}\"";
             createCmd.ExecuteNonQuery();
 
-            Log.Information("Database '{Database}' created successfully", _settings.Database);
+            _logger.LogInformation("Database '{Database}' created successfully", _settings.Database);
         }
         else
         {
-            Log.Information("Database '{Database}' already exists", _settings.Database);
+            _logger.LogInformation("Database '{Database}' already exists", _settings.Database);
         }
     }
 
     private void RunMigrations()
     {
-        Log.Information("Running database migrations against '{Database}'", _settings.Database);
+        _logger.LogInformation("Running database migrations against '{Database}'", _settings.Database);
 
         var upgrader = DeployChanges.To
             .PostgresqlDatabase(_settings.ConnectionString)
@@ -72,12 +74,12 @@ public class DatabaseMigrationService
 
         if (!result.Successful)
         {
-            Log.Error(result.Error, "Database migration failed");
+            _logger.LogError(result.Error, "Database migration failed");
             throw new InvalidOperationException(
                 $"Database migration failed: {result.Error.Message}", result.Error);
         }
 
-        Log.Information("Database migrations completed successfully. Scripts executed: {Count}",
+        _logger.LogInformation("Database migrations completed successfully. Scripts executed: {Count}",
             result.Scripts.Count());
     }
 }
