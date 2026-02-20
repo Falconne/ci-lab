@@ -9,11 +9,11 @@
     </v-app-bar-title>
 
     <template v-slot:append>
-      <div v-if="user" class="d-flex align-center">
-        <v-avatar v-if="user.avatar_url" size="32" class="mr-2">
-          <v-img :src="user.avatar_url" />
+      <div v-if="currentUser" class="d-flex align-center">
+        <v-avatar v-if="currentUser.avatar_url" size="32" class="mr-2">
+          <v-img :src="currentUser.avatar_url" />
         </v-avatar>
-        <span class="mr-4 text-body-2">{{ user.name }}</span>
+        <span class="mr-4 text-body-2">{{ currentUser.name }}</span>
         <v-btn variant="outlined" size="small" @click="logout">
           Logout
         </v-btn>
@@ -24,27 +24,14 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useCurrentUser } from '@/composables/useCurrentUser'
 
-interface User {
-  id: number
-  username: string
-  name: string
-  avatar_url: string
-}
-
-const user = ref<User | null>(null)
 const frontendVersion = ref(__APP_VERSION__)
 const backendVersion = ref('unknown')
+const { currentUser, loadCurrentUser, clearCurrentUser } = useCurrentUser()
 
 onMounted(async () => {
-  try {
-    const response = await fetch('/api/auth/me')
-    if (response.ok) {
-      user.value = await response.json()
-    }
-  } catch {
-    // Not logged in
-  }
+  await loadCurrentUser()
 
   // Fetch backend version
   try {
@@ -60,7 +47,7 @@ onMounted(async () => {
 
 async function logout() {
   await fetch('/api/auth/logout', { method: 'POST' })
-  user.value = null
+  clearCurrentUser()
   window.location.href = '/'
 }
 </script>

@@ -152,6 +152,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useCurrentUser } from '@/composables/useCurrentUser'
 
 interface BranchActivity {
   branchName: string
@@ -183,10 +184,11 @@ interface MergeGroup {
 
 const route = useRoute()
 const router = useRouter()
+const { currentUser, loadCurrentUser } = useCurrentUser()
 
 const activities = ref<BranchActivity[]>([])
 const initialLoading = ref(true)
-const authenticated = ref(false)
+const authenticated = computed(() => currentUser.value !== null)
 const streaming = ref(false)
 const errorMessage = ref('')
 const now = ref(Date.now())
@@ -504,12 +506,12 @@ onMounted(async () => {
   }
 
   try {
-    const meResponse = await fetch('/api/auth/me')
-    if (meResponse.status === 401) {
+    await loadCurrentUser()
+    if (!currentUser.value) {
       initialLoading.value = false
       return
     }
-    authenticated.value = true
+
     initialLoading.value = false
 
     startStreaming()

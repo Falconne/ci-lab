@@ -1,0 +1,60 @@
+import { readonly, ref } from 'vue'
+
+export interface CurrentUser {
+  id: number
+  username: string
+  name: string
+  avatar_url: string
+}
+
+const currentUser = ref<CurrentUser | null>(null)
+const loaded = ref(false)
+let loadingPromise: Promise<CurrentUser | null> | null = null
+
+async function loadCurrentUser(): Promise<CurrentUser | null> {
+  if (loadingPromise) {
+    return loadingPromise
+  }
+
+  if (loaded.value) {
+    return currentUser.value
+  }
+
+  loadingPromise = (async () => {
+    try {
+      const response = await fetch('/api/auth/me')
+      if (response.ok) {
+        currentUser.value = await response.json()
+      } else if (response.status === 401) {
+        currentUser.value = null
+      } else {
+        console.warn(`[Mergician] Unexpected /api/auth/me status: ${response.status}`)
+        currentUser.value = null
+      }
+    } catch (err) {
+      console.error('[Mergician] Failed to load current user:', err)
+      currentUser.value = null
+    } finally {
+      loaded.value = true
+      loadingPromise = null
+    }
+
+    return currentUser.value
+  })()
+
+  return loadingPromise
+}
+
+function clearCurrentUser() {
+  currentUser.value = null
+  loaded.value = true
+}
+
+export function useCurrentUser() {
+  return {
+    currentUser: readonly(currentUser),
+    loaded: readonly(loaded),
+    loadCurrentUser,
+    clearCurrentUser
+  }
+}
