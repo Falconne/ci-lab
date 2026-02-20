@@ -5,57 +5,17 @@ using Serilog;
 namespace Mergician.Services.Database;
 
 /// <summary>
-/// Dapper-based implementation of IMergicianRepository.
+/// Dapper-based implementation of merge-group and branch operations.
 /// All timestamps are stored and returned in UTC.
 /// Uses INSERT ... ON CONFLICT for thread-safe upserts.
 /// </summary>
-public class MergicianRepository : IMergicianRepository
+public class MergeGroupRepositoy : IMergeGroupRepositoy
 {
     private readonly IDbConnectionFactory _connectionFactory;
 
-    public MergicianRepository(IDbConnectionFactory connectionFactory)
+    public MergeGroupRepositoy(IDbConnectionFactory connectionFactory)
     {
         _connectionFactory = connectionFactory;
-    }
-
-    public DateTime? GetLastPollTimestamp(int gitlabUserId)
-    {
-        using var connection = _connectionFactory.CreateConnection();
-        connection.Open();
-
-        var result = connection.QueryFirstOrDefault<DateTime?>(
-            "SELECT last_poll_timestamp FROM user_activity WHERE gitlab_user_id = @GitlabUserId",
-            new { GitlabUserId = gitlabUserId });
-
-        if (result.HasValue)
-        {
-            Log.Debug("Retrieved last poll timestamp for user {UserId}: {Timestamp}", gitlabUserId, result.Value);
-        }
-        else
-        {
-            Log.Debug("No last poll timestamp found for user {UserId}", gitlabUserId);
-        }
-
-        return result.HasValue ? DateTime.SpecifyKind(result.Value, DateTimeKind.Utc) : null;
-    }
-
-    public void UpsertLastPollTimestamp(int gitlabUserId, DateTime timestamp)
-    {
-        var utcTimestamp = DateTime.SpecifyKind(timestamp, DateTimeKind.Utc);
-
-        using var connection = _connectionFactory.CreateConnection();
-        connection.Open();
-
-        connection.Execute(
-            """
-            INSERT INTO user_activity (gitlab_user_id, last_poll_timestamp)
-            VALUES (@GitlabUserId, @Timestamp)
-            ON CONFLICT (gitlab_user_id)
-            DO UPDATE SET last_poll_timestamp = @Timestamp
-            """,
-            new { GitlabUserId = gitlabUserId, Timestamp = utcTimestamp });
-
-        Log.Debug("Upserted last poll timestamp for user {UserId}: {Timestamp}", gitlabUserId, utcTimestamp);
     }
 
     public BranchInProjectRecord GetOrCreateBranch(string branchName, int projectId, string projectName)
@@ -88,9 +48,6 @@ public class MergicianRepository : IMergicianRepository
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();
 
-        // Uses INSERT ON CONFLICT on the unique constraint on name.
-        // If the name already exists, update last_update_time to a no-op (keep existing value)
-        // to allow RETURNING to work for both insert and conflict cases.
         var record = connection.QueryFirstOrDefault<MergeGroupRecord>(
             """
             INSERT INTO merge_group (name, last_update_time)
@@ -203,12 +160,10 @@ public class MergicianRepository : IMergicianRepository
 
         using var transaction = connection.BeginTransaction();
 
-        // Delete from branches_in_merge_group first (FK)
         connection.Execute(
             "DELETE FROM branches_in_merge_group WHERE branch_in_project_id = @Id",
             new { Id = branchInProjectId }, transaction);
 
-        // Delete the branch record
         connection.Execute(
             "DELETE FROM branch_in_project WHERE id = @Id",
             new { Id = branchInProjectId }, transaction);
@@ -223,7 +178,6 @@ public class MergicianRepository : IMergicianRepository
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();
 
-        // CASCADE handles branches_in_merge_group and users_in_merge_groups
         connection.Execute(
             "DELETE FROM merge_group WHERE id = @Id",
             new { Id = mergeGroupId });
@@ -258,7 +212,7 @@ public class MergicianRepository : IMergicianRepository
         connection.Open();
 
         return connection.Query<BranchInProjectRecord>(
-            "SELECT id AS Id, branch_name AS BranchName, project_id AS ProjectId, project_name AS ProjectName FROM branch_in_project")
+                "SELECT id AS Id, branch_name AS BranchName, project_id AS ProjectId, project_name AS ProjectName FROM branch_in_project")
             .ToList();
     }
 
@@ -270,21 +224,5 @@ public class MergicianRepository : IMergicianRepository
         return connection.Query<int>(
             "SELECT merge_group_id FROM branches_in_merge_group WHERE branch_in_project_id = @Id",
             new { Id = branchInProjectId }).ToList();
-    }
-
-    public bool IsHealthy()
-    {
-        try
-        {
-            using var connection = _connectionFactory.CreateConnection();
-            connection.Open();
-            connection.Execute("SELECT 1");
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Log.Warning(ex, "Database health check failed");
-            return false;
-        }
     }
 }

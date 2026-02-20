@@ -15,18 +15,18 @@ public class ActivityController : ControllerBase
 {
     private readonly GitlabActivityService _activityService;
     private readonly GitlabService _gitlabService;
-    private readonly IMergicianRepository _repository;
+    private readonly ICoreRepository _coreRepository;
     private readonly ILogger<ActivityController> _logger;
 
     public ActivityController(
         GitlabActivityService activityService,
         GitlabService gitlabService,
-        IMergicianRepository repository,
+        ICoreRepository coreRepository,
         ILogger<ActivityController> logger)
     {
         _activityService = activityService;
         _gitlabService = gitlabService;
-        _repository = repository;
+        _coreRepository = coreRepository;
         _logger = logger;
     }
 
@@ -47,7 +47,7 @@ public class ActivityController : ControllerBase
     {
         var currentUser = HttpContext.GetGitlabUser();
 
-        if (!_repository.IsHealthy())
+        if (!_coreRepository.IsHealthy())
         {
             _logger.LogError("Database is unhealthy, cannot stream activity");
             Response.StatusCode = 503;
@@ -99,7 +99,7 @@ public class ActivityController : ControllerBase
     {
         var currentUser = HttpContext.GetGitlabUser();
 
-        if (!_repository.IsHealthy())
+        if (!_coreRepository.IsHealthy())
         {
             _logger.LogError("Database is unhealthy, cannot poll for activity");
             return StatusCode(503, new { error = "Database is unavailable" });
@@ -128,7 +128,7 @@ public class ActivityController : ControllerBase
     {
         var currentUser = HttpContext.GetGitlabUser();
 
-        if (!_repository.IsHealthy())
+        if (!_coreRepository.IsHealthy())
         {
             _logger.LogError("Database is unhealthy, cannot refresh activity");
             Response.StatusCode = 503;

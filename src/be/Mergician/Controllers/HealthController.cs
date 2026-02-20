@@ -10,12 +10,12 @@ namespace Mergician.Controllers;
 public class HealthController : ControllerBase
 {
     private readonly GitlabUserFactory _userFactory;
-    private readonly IMergicianRepository _repository;
+    private readonly ICoreRepository _coreRepository;
 
-    public HealthController(GitlabUserFactory userFactory, IMergicianRepository repository)
+    public HealthController(GitlabUserFactory userFactory, ICoreRepository coreRepository)
     {
         _userFactory = userFactory;
-        _repository = repository;
+        _coreRepository = coreRepository;
     }
 
     [HttpGet]
@@ -26,7 +26,7 @@ public class HealthController : ControllerBase
         if (!_userFactory.IsServiceTokenConfigured)
             errors.Add("GitLab service token is not configured. Set the Mergician:GitLab:ServiceToken setting.");
 
-        if (!_repository.IsHealthy())
+        if (!_coreRepository.IsHealthy())
             errors.Add("Database is not reachable. Check the Mergician:Database settings.");
 
         return Ok(new HealthStatus

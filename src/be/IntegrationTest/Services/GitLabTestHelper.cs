@@ -1,6 +1,7 @@
 using IntegrationTest.Entities;
 using RestSharp;
 using Serilog;
+using System.Net;
 using System.Text.Json;
 
 namespace IntegrationTest.Services;
@@ -170,5 +171,27 @@ public class GitLabTestHelper
             mrIid,
             projectId,
             approverUsername);
+    }
+
+    /// <summary>
+    ///     Deletes a branch from a project.
+    /// </summary>
+    public void DeleteBranch(int projectId, string branchName)
+    {
+        var encodedBranch = Uri.EscapeDataString(branchName);
+        var request = new RestRequest($"/api/v4/projects/{projectId}/repository/branches/{encodedBranch}", Method.Delete);
+        var response = _adminClient.Execute(request);
+
+        if (!response.IsSuccessful && response.StatusCode != HttpStatusCode.NotFound)
+            throw new InvalidOperationException(
+                $"Failed to delete branch '{branchName}': {response.StatusCode} {response.Content}");
+
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            Log.Information("Branch '{BranchName}' in project {ProjectId} was already deleted", branchName, projectId);
+            return;
+        }
+
+        Log.Information("Deleted branch '{BranchName}' in project {ProjectId}", branchName, projectId);
     }
 }

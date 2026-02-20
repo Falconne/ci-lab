@@ -29,6 +29,7 @@ public class DashboardLiveUpdateTest : IDisposable
 
         await TestNewBranchAppearsOnDashboard();
         await TestMrStatusUpdatesOnDashboard();
+        await TestDeletedBranchDisappearsAndStaysGoneAfterReload();
 
         Log.Information("Dashboard live update tests passed");
     }
@@ -172,6 +173,53 @@ public class DashboardLiveUpdateTest : IDisposable
         await _browser.Navigate(TestConfig.MergicianUrl);
         await Task.Delay(2000);
 
+        await WaitForDashboardLoadComplete();
+    }
+
+    /// <summary>
+    ///     Verifies that when a tracked branch is deleted in GitLab, it disappears from
+    ///     the already open dashboard and stays gone after a full page reload.
+    /// </summary>
+    private async Task TestDeletedBranchDisappearsAndStaysGoneAfterReload()
+    {
+        Log.Information("Testing: deleted branch disappears and stays gone after reload...");
+
+        await LoginAndWaitForDashboard("test1");
+        await _browser.TakeScreenshot("live_06_before_delete_branch_test");
+
+        var projectId = _gitLab.GetProjectId("primary-1");
+        var branchName = $"feature/delete-test-{DateTime.UtcNow:yyyyMMddHHmmss}";
+        _gitLab.CreateBranchWithCommit(projectId, branchName, "test1");
+
+        var appeared = await WaitForBranchOnDashboard(branchName, 60);
+        if (!appeared)
+            throw new InvalidOperationException(
+                $"Branch '{branchName}' did not appear on dashboard before delete test");
+
+        _gitLab.DeleteBranch(projectId, branchName);
+        Log.Information("Deleted branch '{BranchName}', waiting for dashboard removal", branchName);
+
+        var disappeared = await WaitForBranchToDisappearFromDashboard(branchName, 90);
+        await _browser.TakeScreenshot("live_07_after_delete_branch_live_update");
+
+        if (!disappeared)
+            throw new InvalidOperationException(
+                $"Deleted branch '{branchName}' did not disappear from dashboard within timeout");
+
+        // Fresh reload: branch should not come back from server cache.
+        await _browser.Navigate(TestConfig.MergicianUrl);
+        await Task.Delay(2000);
+        await WaitForDashboardLoadComplete();
+
+        await EnsureBranchStaysAbsent(branchName, 20);
+        await _browser.TakeScreenshot("live_08_after_delete_branch_reload");
+
+        Log.Information("Deleted branch '{BranchName}' remained absent after dashboard reload", branchName);
+    }
+
+    private async Task WaitForDashboardLoadComplete()
+    {
+
         Log.Information("Waiting for initial SSE stream to complete...");
         for (var s = 0; s < 120; s++)
         {
@@ -191,6 +239,20 @@ public class DashboardLiveUpdateTest : IDisposable
         }
 
         throw new InvalidOperationException("Dashboard SSE stream did not complete within 120s");
+    }
+
+    private async Task EnsureBranchStaysAbsent(string branchName, int durationSeconds)
+    {
+        for (var second = 0; second < durationSeconds; second++)
+        {
+            if (await IsBranchOnDashboard(branchName))
+            {
+                throw new InvalidOperationException(
+                    $"Deleted branch '{branchName}' reappeared on dashboard after reload (at {second}s)");
+            }
+
+            await Task.Delay(1000);
+        }
     }
 
     /// <summary>
@@ -221,6 +283,44 @@ public class DashboardLiveUpdateTest : IDisposable
             }
 
             await Task.Delay(1000);
+        }
+
+        return false;
+    }
+
+    private async Task<bool> WaitForBranchToDisappearFromDashboard(string branchName, int timeoutSeconds)
+    {
+        for (var s = 0; s < timeoutSeconds; s++)
+        {
+            if (!await IsBranchOnDashboard(branchName))
+            {
+                Log.Information("Branch '{BranchName}' disappeared from dashboard after ~{Seconds}s", branchName, s);
+                return true;
+            }
+
+            if (s % 10 == 0)
+            {
+                Log.Information("Waiting for branch '{BranchName}' to disappear... {Seconds}s", branchName, s);
+            }
+
+            await Task.Delay(1000);
+        }
+
+        return false;
+    }
+
+    private async Task<bool> IsBranchOnDashboard(string branchName)
+    {
+        var branchCells = _browser.Page.Locator(".dashboard-table .branch-name-cell");
+        var count = await branchCells.CountAsync();
+
+        for (var i = 0; i < count; i++)
+        {
+            var text = (await branchCells.Nth(i).InnerTextAsync()).Trim();
+            if (text.Contains(branchName))
+            {
+                return true;
+            }
         }
 
         return false;

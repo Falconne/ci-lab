@@ -62,7 +62,8 @@ public class CleanupService : BackgroundService
         _logger.LogInformation("CleanupService starting cleanup run");
 
         using var scope = _serviceProvider.CreateScope();
-        var repository = scope.ServiceProvider.GetRequiredService<IMergicianRepository>();
+        var coreRepository = scope.ServiceProvider.GetRequiredService<ICoreRepository>();
+        var mergeGroupRepository = scope.ServiceProvider.GetRequiredService<IMergeGroupRepositoy>();
         var gitlabService = scope.ServiceProvider.GetRequiredService<GitlabService>();
         var userFactory = scope.ServiceProvider.GetRequiredService<GitlabUserFactory>();
 
@@ -72,14 +73,14 @@ public class CleanupService : BackgroundService
             return;
         }
 
-        if (!repository.IsHealthy())
+        if (!coreRepository.IsHealthy())
         {
             _logger.LogWarning("CleanupService skipping: database is not healthy");
             return;
         }
 
         var serviceUser = userFactory.GetServiceUser();
-        var allBranches = repository.GetAllBranches();
+        var allBranches = mergeGroupRepository.GetAllBranches();
         _logger.LogInformation("CleanupService checking {Count} tracked branches", allBranches.Count);
 
         var deletedCount = 0;
@@ -95,19 +96,19 @@ public class CleanupService : BackgroundService
                     "CleanupService: branch '{BranchName}' in project {ProjectId} no longer exists, removing",
                     branch.BranchName, branch.ProjectId);
 
-                repository.DeleteBranch(branch.Id);
+                mergeGroupRepository.DeleteBranch(branch.Id);
                 deletedCount++;
             }
         }
 
         // Clean up any empty merge groups
-        var emptyGroups = repository.GetEmptyMergeGroups();
+        var emptyGroups = mergeGroupRepository.GetEmptyMergeGroups();
         foreach (var group in emptyGroups)
         {
             _logger.LogInformation(
                 "CleanupService: removing empty merge group {MergeGroupId} '{Name}'",
                 group.Id, group.Name);
-            repository.DeleteMergeGroup(group.Id);
+            mergeGroupRepository.DeleteMergeGroup(group.Id);
         }
 
         _logger.LogInformation(

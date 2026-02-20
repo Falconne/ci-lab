@@ -14,16 +14,19 @@ namespace Mergician.Services.Gitlab;
 public class GitlabActivityService
 {
     private readonly GitlabService _gitlabService;
-    private readonly IMergicianRepository _repository;
+    private readonly IMergeGroupRepositoy _mergeGroupRepository;
+    private readonly IUserRepository _userRepository;
     private readonly ILogger<GitlabActivityService> _logger;
 
     public GitlabActivityService(
         GitlabService gitlabService,
-        IMergicianRepository repository,
+        IMergeGroupRepositoy mergeGroupRepository,
+        IUserRepository userRepository,
         ILogger<GitlabActivityService> logger)
     {
         _gitlabService = gitlabService;
-        _repository = repository;
+        _mergeGroupRepository = mergeGroupRepository;
+        _userRepository = userRepository;
         _logger = logger;
     }
 
@@ -41,7 +44,7 @@ public class GitlabActivityService
 
         // 1. Return cached data from DB first
         _logger.LogInformation("Fetching cached branches for user {UserId} from database", gitlabUserId);
-        var cachedBranches = _repository.GetUserBranches(gitlabUserId, since);
+        var cachedBranches = _mergeGroupRepository.GetUserBranches(gitlabUserId, since);
         _logger.LogInformation("Found {Count} cached branches for user {UserId}", cachedBranches.Count, gitlabUserId);
 
         var returnedKeys = new HashSet<string>();
@@ -84,7 +87,7 @@ public class GitlabActivityService
         }
 
         // 2. Fetch new data from GitLab
-        var lastPoll = _repository.GetLastPollTimestamp(gitlabUserId);
+        var lastPoll = _userRepository.GetLastPollTimestamp(gitlabUserId);
         var fetchSince = lastPoll ?? since;
 
         _logger.LogInformation("Fetching GitLab events for user {UserId} since {Since}", gitlabUserId, fetchSince);
@@ -107,7 +110,7 @@ public class GitlabActivityService
         }
 
         // Update last poll timestamp
-        _repository.UpsertLastPollTimestamp(gitlabUserId, DateTime.UtcNow);
+        _userRepository.UpsertLastPollTimestamp(gitlabUserId, DateTime.UtcNow);
 
         _logger.LogInformation("Finished streaming branch activity for user {UserId}", gitlabUserId);
     }
@@ -145,7 +148,7 @@ public class GitlabActivityService
         }
 
         // Update poll timestamp
-        _repository.UpsertLastPollTimestamp(gitlabUserId, DateTime.UtcNow);
+        _userRepository.UpsertLastPollTimestamp(gitlabUserId, DateTime.UtcNow);
 
         _logger.LogInformation("Returning {Count} branch activity records from poll", results.Count);
         return new ActivityPollResponse(results, deletedBranches);
@@ -175,7 +178,7 @@ public class GitlabActivityService
                     branch.BranchName, branch.ProjectId);
 
                 // Find and remove from DB
-                var allBranches = _repository.GetAllBranches();
+                var allBranches = _mergeGroupRepository.GetAllBranches();
                 var branchRecord = allBranches.FirstOrDefault(
                     b => b.BranchName == branch.BranchName && b.ProjectId == branch.ProjectId);
                 if (branchRecord != null)
@@ -241,15 +244,15 @@ public class GitlabActivityService
             var projectName = project?.NameWithNamespace ?? $"Project #{entry.ProjectId}";
 
             // Store in database
-            var branchRecord = _repository.GetOrCreateBranch(entry.BranchName, entry.ProjectId, projectName);
-            var mergeGroup = _repository.GetOrCreateMergeGroup(entry.BranchName);
-            _repository.EnsureBranchInMergeGroup(mergeGroup.Id, branchRecord.Id);
-            _repository.EnsureUserInMergeGroup(gitlabUserId, mergeGroup.Id);
+            var branchRecord = _mergeGroupRepository.GetOrCreateBranch(entry.BranchName, entry.ProjectId, projectName);
+            var mergeGroup = _mergeGroupRepository.GetOrCreateMergeGroup(entry.BranchName);
+            _mergeGroupRepository.EnsureBranchInMergeGroup(mergeGroup.Id, branchRecord.Id);
+            _mergeGroupRepository.EnsureUserInMergeGroup(gitlabUserId, mergeGroup.Id);
 
             var lastUpdated = entry.LastUpdated.UtcDateTime;
             if (lastUpdated > mergeGroup.LastUpdateTime)
             {
-                _repository.UpdateMergeGroupTimestamp(mergeGroup.Id, lastUpdated);
+                _mergeGroupRepository.UpdateMergeGroupTimestamp(mergeGroup.Id, lastUpdated);
             }
 
             if (returnedKeys.Contains(key))
@@ -337,14 +340,14 @@ public class GitlabActivityService
     /// </summary>
     private void RemoveBranchAndCleanup(int branchInProjectId)
     {
-        _repository.DeleteBranch(branchInProjectId);
+        _mergeGroupRepository.DeleteBranch(branchInProjectId);
 
         // Clean up any merge groups that are now empty
-        var emptyGroups = _repository.GetEmptyMergeGroups();
+        var emptyGroups = _mergeGroupRepository.GetEmptyMergeGroups();
         foreach (var group in emptyGroups)
         {
             _logger.LogInformation("Removing empty merge group {MergeGroupId} '{Name}'", group.Id, group.Name);
-            _repository.DeleteMergeGroup(group.Id);
+            _mergeGroupRepository.DeleteMergeGroup(group.Id);
         }
     }
 }

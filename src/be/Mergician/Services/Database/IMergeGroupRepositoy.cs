@@ -3,21 +3,10 @@ using Mergician.Entities.Database;
 namespace Mergician.Services.Database;
 
 /// <summary>
-/// Repository interface for all Mergician database operations.
-/// Abstracted for testability through dependency injection.
+/// Repository interface for merge-group and branch database operations.
 /// </summary>
-public interface IMergicianRepository
+public interface IMergeGroupRepositoy
 {
-    /// <summary>
-    /// Gets the last poll timestamp for a GitLab user, or null if the user has never been polled.
-    /// </summary>
-    DateTime? GetLastPollTimestamp(int gitlabUserId);
-
-    /// <summary>
-    /// Updates the last poll timestamp for a user, creating the record if needed.
-    /// </summary>
-    void UpsertLastPollTimestamp(int gitlabUserId, DateTime timestamp);
-
     /// <summary>
     /// Gets or creates a BranchInProject record. Returns the existing or new record.
     /// Thread-safe: uses INSERT ON CONFLICT to avoid duplicates from concurrent callers.
@@ -77,9 +66,4 @@ public interface IMergicianRepository
     /// Returns the merge group IDs that a branch belongs to.
     /// </summary>
     List<int> GetMergeGroupIdsForBranch(int branchInProjectId);
-
-    /// <summary>
-    /// Checks if the database is reachable by executing a simple query.
-    /// </summary>
-    bool IsHealthy();
 }
