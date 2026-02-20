@@ -70,7 +70,8 @@ public class GitLabCookieAuthenticationHandler : AuthenticationHandler<Authentic
             HttpOnly = true,
             SameSite = SameSiteMode.Lax,
             MaxAge = TimeSpan.FromDays(30),
-            Path = "/"
+            Path = "/",
+            Secure = CookieSecurity.ShouldUseSecureCookies(Request)
         };
 
         Response.Cookies.Append("gl_access_token", tokenResponse.AccessToken, cookieOptions);

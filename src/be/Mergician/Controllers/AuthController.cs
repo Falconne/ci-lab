@@ -29,12 +29,14 @@ public class AuthController : ControllerBase
     {
         var redirectUri = GetRedirectUri();
         var state = Guid.NewGuid().ToString("N");
+        var useSecureCookies = CookieSecurity.ShouldUseSecureCookies(Request);
 
         Response.Cookies.Append("oauth_state", state, new CookieOptions
         {
             HttpOnly = true,
             SameSite = SameSiteMode.Lax,
-            MaxAge = TimeSpan.FromMinutes(10)
+            MaxAge = TimeSpan.FromMinutes(10),
+            Secure = useSecureCookies
         });
 
         var authUrl = _oauthService.GetAuthorizationUrl(redirectUri, state);
@@ -52,7 +54,11 @@ public class AuthController : ControllerBase
             return BadRequest("Invalid OAuth state");
         }
 
-        Response.Cookies.Delete("oauth_state");
+        Response.Cookies.Delete("oauth_state", new CookieOptions
+        {
+            SameSite = SameSiteMode.Lax,
+            Secure = CookieSecurity.ShouldUseSecureCookies(Request)
+        });
 
         var redirectUri = GetRedirectUri();
 
@@ -80,12 +86,14 @@ public class AuthController : ControllerBase
         }
 
         // Store tokens in secure cookies
+        var useSecureCookies = CookieSecurity.ShouldUseSecureCookies(Request);
         var cookieOptions = new CookieOptions
         {
             HttpOnly = true,
             SameSite = SameSiteMode.Lax,
             MaxAge = TimeSpan.FromDays(30),
-            Path = "/"
+            Path = "/",
+            Secure = useSecureCookies
         };
 
         Response.Cookies.Append("gl_access_token", tokenResponse.AccessToken, cookieOptions);
@@ -111,8 +119,22 @@ public class AuthController : ControllerBase
     [HttpPost("logout")]
     public IActionResult Logout()
     {
-        Response.Cookies.Delete("gl_access_token", new CookieOptions { Path = "/" });
-        Response.Cookies.Delete("gl_refresh_token", new CookieOptions { Path = "/" });
+        var useSecureCookies = CookieSecurity.ShouldUseSecureCookies(Request);
+
+        Response.Cookies.Delete("gl_access_token", new CookieOptions
+        {
+            Path = "/",
+            Secure = useSecureCookies,
+            SameSite = SameSiteMode.Lax
+        });
+
+        Response.Cookies.Delete("gl_refresh_token", new CookieOptions
+        {
+            Path = "/",
+            Secure = useSecureCookies,
+            SameSite = SameSiteMode.Lax
+        });
+
         return Ok();
     }
 
