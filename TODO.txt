@@ -1,1 +1,3 @@
-No pending TODO items.
+When the Mergician backend gets activity update requests, we don't need to pass a time from the frontend to check from. The backend already knows the user's last poll time so it can return activity from that point. And if there is no last activity time, (or it's older than 14 days), we are hardcoding the initial check to be from 14 days anyway. So remove the ActivityController's support for taking in "time since" parameters (similarly in `GetActivitySince` params) and just use last poll time in the backend.
+
+Change the backend to use DateTimeOffset everywhere possible and remove DateTime usage unless absolutely necessary.
