@@ -8,6 +8,6 @@ Add the same option to the bootstrap.sh script and have it pass the option to th
 
 There is currently a poplated CI Lab running. Test that this option can be used to reset and recreate the initial state of the CI Lab. If retesting is needed, run the Integration Tests to populate commits in Gitlab and builds in TeamCity, then run the bootstrapper with the reset option to verify they have both been reset to a fresh state. Fix any idempotency issues that arise.
 
-Update the copilot instructions file to say: prefer using the bootstrapper reset option instead of doing a fresh start of the CI Lab when possible, but if CI Lab is not running or testing changes to the CI Lab docker setup itself, it is ok to run the CI Lab from scratch.
+Update the copilot instructions file to say: prefer using the bootstrapper reset option instead of doing a fresh start of the CI Lab when possible. Say that if CI Lab is not running or we are testing changes to the CI Lab docker setup itself, then it is ok to run the CI Lab from scratch.
 
 Commit and push these changes.
