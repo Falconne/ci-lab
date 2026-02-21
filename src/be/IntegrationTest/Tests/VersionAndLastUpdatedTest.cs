@@ -60,12 +60,12 @@ public class VersionAndLastUpdatedTest : IDisposable
         }
 
         var homeViewContent = await File.ReadAllTextAsync(homeViewPath);
-        if (!homeViewContent.Contains("Last Updated"))
+        if (!homeViewContent.Contains("lastUpdated") || !homeViewContent.Contains("formatTimeAgo"))
         {
-            throw new Exception("HomeView.vue does not contain 'Last Updated' column definition");
+            throw new Exception("HomeView.vue does not contain lastUpdated field and formatTimeAgo rendering");
         }
 
-        Log.Information("HomeView.vue confirmed to include Last Updated column");
+        Log.Information("HomeView.vue confirmed to include last-updated time display");
 
         // Verify AppBar.vue includes version display
         var appBarPath = Path.Combine(TestConfig.RepositoryRoot, "src", "fe", "src", "components", "AppBar.vue");
@@ -80,7 +80,12 @@ public class VersionAndLastUpdatedTest : IDisposable
             throw new Exception("AppBar.vue does not contain version display with fe: and be: labels");
         }
 
-        Log.Information("AppBar.vue confirmed to include version display");
+        if (!appBarContent.Contains("page-title"))
+        {
+            throw new Exception("AppBar.vue does not contain the page title zone");
+        }
+
+        Log.Information("AppBar.vue confirmed to include version display and page title zone");
 
         Log.Information("Version and Last Updated test passed");
     }

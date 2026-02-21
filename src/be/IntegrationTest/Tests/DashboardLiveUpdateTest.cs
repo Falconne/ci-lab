@@ -8,8 +8,8 @@ namespace IntegrationTest.Tests;
 /// <summary>
 ///     Tests that the dashboard dynamically updates when new branches are pushed
 ///     and when MR/approval status changes, while the dashboard is already loaded.
-///     Uses Playwright to interact with the UI and GitLab API to create test data
-///     in real time.
+///     Uses Playwright to interact with the card-based UI and GitLab API to create
+///     test data in real time.
 /// </summary>
 public class DashboardLiveUpdateTest : IDisposable
 {
@@ -92,25 +92,25 @@ public class DashboardLiveUpdateTest : IDisposable
 
         await _browser.TakeScreenshot("live_04_branch_without_mr");
 
-        // Verify that the branch row does NOT have an MR icon initially
-        var hasMrBefore = await BranchRowHasMrIcon(branchName);
-        if (hasMrBefore)
+        // Verify that the branch card shows "Waiting" status (no MR)
+        var hasWaitingStatus = await BranchCardHasStatus(branchName, "Waiting");
+        if (!hasWaitingStatus)
             throw new InvalidOperationException(
-                $"Branch '{branchName}' should not have MR icon before MR creation");
+                $"Branch '{branchName}' should show 'Waiting' status before MR creation");
 
-        Log.Information("Branch '{BranchName}' correctly shows no MR icon", branchName);
+        Log.Information("Branch '{BranchName}' correctly shows 'Waiting' status", branchName);
 
         // Create an MR on the branch
         _gitLab.CreateMergeRequest(projectId, branchName, "test1");
         Log.Information("Created MR for branch '{BranchName}', waiting for dashboard update...", branchName);
 
-        // Wait for the MR icon to appear (refresh polling is every 15s)
-        var mrUpdated = await WaitForMrIconOnBranch(branchName, 60);
+        // Wait for the status to change from "Waiting" to "Open" or "Ready"
+        var mrUpdated = await WaitForBranchStatusChange(branchName, "Waiting", 60);
         await _browser.TakeScreenshot("live_05_branch_with_mr");
 
         if (!mrUpdated)
             throw new InvalidOperationException(
-                $"MR icon did not appear for branch '{branchName}' within timeout");
+                $"Status did not change from 'Waiting' for branch '{branchName}' within timeout");
 
         Log.Information("MR status updated on dashboard for '{BranchName}'", branchName);
     }
@@ -219,16 +219,18 @@ public class DashboardLiveUpdateTest : IDisposable
 
     private async Task WaitForDashboardLoadComplete()
     {
-
         Log.Information("Waiting for initial SSE stream to complete...");
         for (var s = 0; s < 120; s++)
         {
-            var tableExists = await _browser.Page.Locator(".dashboard-table").CountAsync() > 0;
-            if (tableExists)
+            var cardCount = await _browser.Page.Locator(".merge-group-card").CountAsync();
+            if (cardCount > 0)
             {
                 var spinnerCount =
-                    await _browser.Page.Locator(".dashboard-table .v-progress-circular").CountAsync();
-                if (spinnerCount == 0)
+                    await _browser.Page.Locator(".merge-group-card .v-progress-circular").CountAsync();
+                var streamingIndicator =
+                    await _browser.Page.Locator(".streaming-indicator").CountAsync();
+
+                if (spinnerCount == 0 && streamingIndicator == 0)
                 {
                     Log.Information("Dashboard loaded after ~{Seconds}s", s);
                     return;
@@ -256,24 +258,17 @@ public class DashboardLiveUpdateTest : IDisposable
     }
 
     /// <summary>
-    ///     Waits for a branch name to appear in the dashboard table.
+    ///     Waits for a branch name to appear in the dashboard cards.
     /// </summary>
     private async Task<bool> WaitForBranchOnDashboard(string branchName, int timeoutSeconds)
     {
         for (var s = 0; s < timeoutSeconds; s++)
         {
-            var branchCells = _browser.Page.Locator(".dashboard-table .branch-name-cell");
-            var count = await branchCells.CountAsync();
-
-            for (var i = 0; i < count; i++)
+            if (await IsBranchOnDashboard(branchName))
             {
-                var text = (await branchCells.Nth(i).InnerTextAsync()).Trim();
-                if (text.Contains(branchName))
-                {
-                    Log.Information("Branch '{BranchName}' found on dashboard after ~{Seconds}s",
-                        branchName, s);
-                    return true;
-                }
+                Log.Information("Branch '{BranchName}' found on dashboard after ~{Seconds}s",
+                    branchName, s);
+                return true;
             }
 
             if (s % 10 == 0)
@@ -311,15 +306,41 @@ public class DashboardLiveUpdateTest : IDisposable
 
     private async Task<bool> IsBranchOnDashboard(string branchName)
     {
-        var branchCells = _browser.Page.Locator(".dashboard-table .branch-name-cell");
-        var count = await branchCells.CountAsync();
+        var branchElements = _browser.Page.Locator(".merge-group-card .branch-name");
+        var count = await branchElements.CountAsync();
 
         for (var i = 0; i < count; i++)
         {
-            var text = (await branchCells.Nth(i).InnerTextAsync()).Trim();
+            var text = (await branchElements.Nth(i).InnerTextAsync()).Trim();
             if (text.Contains(branchName))
-            {
                 return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    ///     Checks if a branch card has a specific item status label (e.g. "Waiting", "Open", "Ready").
+    /// </summary>
+    private async Task<bool> BranchCardHasStatus(string branchName, string expectedStatus)
+    {
+        var cards = _browser.Page.Locator(".merge-group-card");
+        var cardCount = await cards.CountAsync();
+
+        for (var i = 0; i < cardCount; i++)
+        {
+            var card = cards.Nth(i);
+            var name = (await card.Locator(".branch-name").InnerTextAsync()).Trim();
+            if (!name.Contains(branchName)) continue;
+
+            var statusBadges = card.Locator(".item-status-badge");
+            var badgeCount = await statusBadges.CountAsync();
+
+            for (var j = 0; j < badgeCount; j++)
+            {
+                var statusText = (await statusBadges.Nth(j).InnerTextAsync()).Trim();
+                if (statusText.Equals(expectedStatus, StringComparison.OrdinalIgnoreCase))
+                    return true;
             }
         }
 
@@ -327,49 +348,24 @@ public class DashboardLiveUpdateTest : IDisposable
     }
 
     /// <summary>
-    ///     Checks if a branch row has the MR check icon.
+    ///     Waits for a branch card's item status to change from the given status.
     /// </summary>
-    private async Task<bool> BranchRowHasMrIcon(string branchName)
-    {
-        var rows = _browser.Page.Locator(".dashboard-table tbody tr");
-        var rowCount = await rows.CountAsync();
-        var currentBranch = "";
-
-        for (var i = 0; i < rowCount; i++)
-        {
-            var row = rows.Nth(i);
-            var branchCell = row.Locator(".branch-name-cell");
-            if (await branchCell.CountAsync() > 0)
-                currentBranch = (await branchCell.InnerTextAsync()).Trim();
-
-            if (!currentBranch.Contains(branchName))
-                continue;
-
-            var hasMr = await row.Locator(".mdi-check-circle").CountAsync() > 0;
-            return hasMr;
-        }
-
-        return false;
-    }
-
-    /// <summary>
-    ///     Waits for the MR icon to appear on a branch row.
-    /// </summary>
-    private async Task<bool> WaitForMrIconOnBranch(string branchName, int timeoutSeconds)
+    private async Task<bool> WaitForBranchStatusChange(string branchName, string fromStatus, int timeoutSeconds)
     {
         for (var s = 0; s < timeoutSeconds; s++)
         {
-            if (await BranchRowHasMrIcon(branchName))
+            var stillHasOldStatus = await BranchCardHasStatus(branchName, fromStatus);
+            if (!stillHasOldStatus && await IsBranchOnDashboard(branchName))
             {
-                Log.Information("MR icon appeared for '{BranchName}' after ~{Seconds}s",
-                    branchName, s);
+                Log.Information("Status changed from '{FromStatus}' for '{BranchName}' after ~{Seconds}s",
+                    fromStatus, branchName, s);
                 return true;
             }
 
             if (s % 10 == 0)
             {
-                Log.Information("Waiting for MR icon on '{BranchName}'... {Seconds}s",
-                    branchName, s);
+                Log.Information("Waiting for status change from '{FromStatus}' on '{BranchName}'... {Seconds}s",
+                    fromStatus, branchName, s);
             }
 
             await Task.Delay(1000);

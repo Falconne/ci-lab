@@ -1,11 +1,15 @@
 <template>
   <v-app-bar color="primary" density="comfortable">
     <v-app-bar-title>
-      <v-icon icon="mdi-source-merge" class="mr-2" />
-      Mergician
-      <span class="version-text ml-3">
-        fe: {{ frontendVersion.slice(0, 7) }} | be: {{ backendVersion.slice(0, 7) }}
-      </span>
+      <div class="d-flex align-center">
+        <v-icon icon="mdi-source-merge" class="mr-2" />
+        Mergician
+        <span class="version-text ml-3">
+          fe: {{ frontendVersion.slice(0, 7) }} | be: {{ backendVersion.slice(0, 7) }}
+        </span>
+        <v-divider vertical class="mx-4 title-divider" />
+        <span class="page-title">{{ pageTitle }}</span>
+      </div>
     </v-app-bar-title>
 
     <template v-slot:append>
@@ -23,12 +27,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { useCurrentUser } from '@/composables/useCurrentUser'
 
+const route = useRoute()
 const frontendVersion = ref(__APP_VERSION__)
 const backendVersion = ref('unknown')
 const { currentUser, loadCurrentUser, clearCurrentUser } = useCurrentUser()
+const pageTitle = computed(() => (route.meta?.title as string) ?? '')
 
 onMounted(async () => {
   await loadCurrentUser()
@@ -57,5 +64,17 @@ async function logout() {
   font-size: 0.75rem;
   opacity: 0.7;
   font-weight: normal;
+}
+
+.title-divider {
+  opacity: 0.4;
+  height: 24px;
+  align-self: center;
+}
+
+.page-title {
+  font-size: 1rem;
+  font-weight: 500;
+  opacity: 0.95;
 }
 </style>

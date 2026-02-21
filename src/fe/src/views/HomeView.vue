@@ -37,112 +37,82 @@
           <p class="mt-4 text-body-1">Loading dashboard...</p>
         </div>
 
-        <div v-else-if="mergeGroups.length === 0 && !streaming" class="text-center pa-8">
+        <div v-else-if="sortedMergeGroups.length === 0 && !streaming" class="text-center pa-8">
           <v-icon icon="mdi-source-branch" size="64" color="grey" class="mb-4" />
           <p class="text-h6 text-grey">No active branches in the last 14 days</p>
         </div>
 
-        <div v-else>
-          <h2 class="text-h5 mb-4">
-            Dashboard
-            <v-progress-circular
-              v-if="streaming"
-              indeterminate
-              color="primary"
-              size="18"
-              width="2"
-              class="ml-2"
-            />
-          </h2>
-          <v-table class="dashboard-table" density="comfortable">
-            <thead>
-              <tr>
-                <th>Branch</th>
-                <th>Repository</th>
-                <th class="text-center">MR</th>
-                <th class="text-center">Approvals</th>
-                <th class="text-end">Last Updated</th>
-              </tr>
-            </thead>
-            <tbody>
-              <template v-for="group in mergeGroups" :key="group.groupKey">
-                <tr v-for="(item, idx) in group.items" :key="`${group.groupKey}-${item.projectId}`">
-                  <!-- Branch name cell: only show on first row of group, span all rows -->
-                  <td
-                    v-if="idx === 0"
-                    :rowspan="group.items.length"
-                    class="branch-name-cell font-weight-medium"
+        <div v-else class="dashboard-cards">
+          <v-progress-circular
+            v-if="streaming"
+            indeterminate
+            color="primary"
+            size="18"
+            width="2"
+            class="mb-2 streaming-indicator"
+          />
+
+          <TransitionGroup name="card-list" tag="div" class="card-container">
+            <div
+              v-for="group in sortedMergeGroups"
+              :key="group.groupKey"
+              class="merge-group-card"
+              :data-group-key="group.groupKey"
+              @mouseenter="onCardMouseEnter"
+              @mouseleave="onCardMouseLeave"
+            >
+              <div class="card-accent" :class="groupStatusClass(group)" />
+              <div class="card-body">
+                <div class="card-header">
+                  <div class="branch-info">
+                    <v-icon icon="mdi-source-branch" size="small" class="branch-icon" />
+                    <span class="branch-name">{{ group.branchName }}</span>
+                  </div>
+                  <div class="card-header-right">
+                    <span class="card-status-badge" :class="groupStatusClass(group)">
+                      <span class="status-dot" />
+                      {{ groupStatusLabel(group) }}
+                    </span>
+                    <span class="card-approvals">{{ groupApprovalsText(group) }}</span>
+                    <span class="card-time">{{ groupTimeAgo(group) }}</span>
+                  </div>
+                </div>
+                <div class="card-items">
+                  <div
+                    v-for="item in group.items"
+                    :key="`${group.groupKey}-${item.projectId}`"
+                    class="card-item"
                   >
-                    <v-icon icon="mdi-source-branch" size="small" class="mr-1" />
-                    {{ group.branchName }}
-                  </td>
-
-                  <!-- Repository name -->
-                  <td>{{ item.projectName }}</td>
-
-                  <!-- MR status -->
-                  <td class="text-center">
-                    <v-progress-circular
-                      v-if="item.hasMergeRequest === null"
-                      indeterminate
-                      color="grey"
-                      size="16"
-                      width="2"
-                    />
-                    <v-icon
-                      v-else-if="item.hasMergeRequest"
-                      icon="mdi-check-circle"
-                      color="primary"
-                      size="small"
-                    />
-                    <v-icon
-                      v-else
-                      icon="mdi-minus-circle-outline"
-                      color="grey"
-                      size="small"
-                    />
-                  </td>
-
-                  <!-- Approval status -->
-                  <td class="text-center">
-                    <v-progress-circular
-                      v-if="item.hasMergeRequest === null"
-                      indeterminate
-                      color="grey"
-                      size="16"
-                      width="2"
-                    />
-                    <template v-else-if="item.hasMergeRequest && item.approvalsRequired != null && item.approvalsGiven != null">
-                      <v-chip
-                        :color="item.approvalsGiven >= item.approvalsRequired ? 'success' : 'warning'"
-                        size="small"
-                        variant="tonal"
-                      >
-                        <v-icon
-                          v-if="item.approvalsGiven >= item.approvalsRequired"
-                          icon="mdi-check"
-                          size="x-small"
-                          class="mr-1"
-                        />
-                        {{ item.approvalsGiven }}/{{ item.approvalsRequired }}
-                      </v-chip>
-                    </template>
-                    <span v-else class="text-grey">—</span>
-                  </td>
-
-                  <!-- Last Updated -->
-                  <td class="text-end">
-                    <v-tooltip v-if="item.lastUpdated" location="top" :text="formatDateTime(item.lastUpdated)">
-                      <template v-slot:activator="{ props }">
-                        <span v-bind="props">{{ formatTimeAgo(item.lastUpdated) }}</span>
+                    <span class="item-project">{{ item.projectName }}</span>
+                    <span class="item-status">
+                      <v-progress-circular
+                        v-if="item.hasMergeRequest === null"
+                        indeterminate
+                        color="grey"
+                        size="14"
+                        width="2"
+                      />
+                      <template v-else>
+                        <span class="item-status-badge" :class="itemStatusClass(item)">
+                          <span class="status-dot" />
+                          {{ itemStatusLabel(item) }}
+                        </span>
+                        <span class="item-approvals">{{ itemApprovalsText(item) }}</span>
                       </template>
-                    </v-tooltip>
-                    <span v-else class="text-grey">—</span>
-                  </td>
-                </tr>
-              </template>
-            </tbody>
-          </v-table>
+                    </span>
+                    <span class="item-time">
+                      <v-tooltip v-if="item.lastUpdated" location="top" :text="formatDateTime(item.lastUpdated)">
+                        <template v-slot:activator="{ props }">
+                          <span v-bind="props">{{ formatTimeAgo(item.lastUpdated) }}</span>
+                        </template>
+                      </v-tooltip>
+                      <span v-else class="text-grey">—</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </TransitionGroup>
         </div>
       </v-col>
     </v-row>
@@ -182,6 +152,8 @@ interface MergeGroup {
   items: BranchActivity[]
 }
 
+type GroupStatus = 'ready' | 'open' | 'waiting'
+
 const route = useRoute()
 const router = useRouter()
 const { currentUser, loadCurrentUser } = useCurrentUser()
@@ -193,11 +165,108 @@ const streaming = ref(false)
 const errorMessage = ref('')
 const now = ref(Date.now())
 
+// Hover-pause state for reordering
+const isHoveringCard = ref(false)
+const lastHoverLeaveTime = ref(0)
+const HOVER_COOLDOWN_MS = 2000
+
 let eventSource: EventSource | null = null
 let pollIntervalId: ReturnType<typeof setInterval> | null = null
 let refreshIntervalId: ReturnType<typeof setInterval> | null = null
 let timeIntervalId: ReturnType<typeof setInterval> | null = null
 let lastUpdateTime: Date | null = null
+
+// --- Status logic ---
+
+function getItemStatus(item: BranchActivity): GroupStatus {
+  if (item.hasMergeRequest === null || !item.hasMergeRequest) return 'waiting'
+  if (item.approvalsRequired != null && item.approvalsGiven != null
+    && item.approvalsGiven >= item.approvalsRequired) return 'ready'
+  return 'open'
+}
+
+function getGroupStatus(group: MergeGroup): GroupStatus {
+  const statusPriority: GroupStatus[] = ['waiting', 'open', 'ready']
+  let worstIndex = 2 // start with 'ready' (best)
+  for (const item of group.items) {
+    const s = getItemStatus(item)
+    const idx = statusPriority.indexOf(s)
+    if (idx < worstIndex) worstIndex = idx
+  }
+  return statusPriority[worstIndex]
+}
+
+function groupStatusLabel(group: MergeGroup): string {
+  const s = getGroupStatus(group)
+  return s === 'ready' ? 'Ready' : s === 'open' ? 'Open' : 'Waiting'
+}
+
+function groupStatusClass(group: MergeGroup): string {
+  return `status-${getGroupStatus(group)}`
+}
+
+function itemStatusLabel(item: BranchActivity): string {
+  const s = getItemStatus(item)
+  return s === 'ready' ? 'Ready' : s === 'open' ? 'Open' : 'Waiting'
+}
+
+function itemStatusClass(item: BranchActivity): string {
+  return `status-${getItemStatus(item)}`
+}
+
+function groupApprovalsText(group: MergeGroup): string {
+  let totalGiven = 0
+  let totalRequired = 0
+  for (const item of group.items) {
+    if (item.hasMergeRequest && item.approvalsGiven != null && item.approvalsRequired != null) {
+      totalGiven += item.approvalsGiven
+      totalRequired += item.approvalsRequired
+    }
+  }
+  return `${totalGiven}/${totalRequired}`
+}
+
+function itemApprovalsText(item: BranchActivity): string {
+  if (!item.hasMergeRequest || item.approvalsGiven == null || item.approvalsRequired == null) return ''
+  return `${item.approvalsGiven}/${item.approvalsRequired}`
+}
+
+function groupTimeAgo(group: MergeGroup): string {
+  let latest: string | null = null
+  for (const item of group.items) {
+    if (item.lastUpdated && (!latest || item.lastUpdated > latest)) {
+      latest = item.lastUpdated
+    }
+  }
+  return latest ? formatTimeAgo(latest) : ''
+}
+
+function getGroupLatestTime(group: MergeGroup): number {
+  let latest = 0
+  for (const item of group.items) {
+    if (item.lastUpdated) {
+      const t = new Date(item.lastUpdated).getTime()
+      if (t > latest) latest = t
+    }
+  }
+  return latest
+}
+
+// --- Hover-pause logic ---
+
+function onCardMouseEnter() {
+  isHoveringCard.value = true
+}
+
+function onCardMouseLeave() {
+  isHoveringCard.value = false
+  lastHoverLeaveTime.value = Date.now()
+}
+
+function canReorder(): boolean {
+  if (isHoveringCard.value) return false
+  return (Date.now() - lastHoverLeaveTime.value) >= HOVER_COOLDOWN_MS
+}
 
 /**
  * Groups activities by mergeGroupId (from DB) when available,
@@ -223,6 +292,48 @@ const mergeGroups = computed<MergeGroup[]>(() => {
     branchName,
     items
   }))
+})
+
+/**
+ * Sorted merge groups — most recently updated first.
+ * Respects hover-pause: when the user is hovering or recently hovered,
+ * returns the previous sort order with new items appended at the bottom.
+ */
+const lastSortedKeys = ref<string[]>([])
+
+const sortedMergeGroups = computed<MergeGroup[]>(() => {
+  const groups = mergeGroups.value
+  if (groups.length === 0) return []
+
+  if (canReorder() || lastSortedKeys.value.length === 0) {
+    // Sort by most recently updated first
+    const sorted = [...groups].sort((a, b) => getGroupLatestTime(b) - getGroupLatestTime(a))
+    lastSortedKeys.value = sorted.map(g => g.groupKey)
+    return sorted
+  }
+
+  // Maintain previous order, append new items at the bottom
+  const keyToGroup = new Map(groups.map(g => [g.groupKey, g]))
+  const result: MergeGroup[] = []
+  const seen = new Set<string>()
+
+  for (const key of lastSortedKeys.value) {
+    const g = keyToGroup.get(key)
+    if (g) {
+      result.push(g)
+      seen.add(key)
+    }
+  }
+
+  // Append any new groups at the bottom
+  for (const g of groups) {
+    if (!seen.has(g.groupKey)) {
+      result.push(g)
+    }
+  }
+
+  lastSortedKeys.value = result.map(g => g.groupKey)
+  return result
 })
 
 /**
@@ -530,13 +641,236 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.dashboard-table {
-  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
-  border-radius: 4px;
+/* ---- Card container ---- */
+.dashboard-cards {
+  position: relative;
 }
 
-.branch-name-cell {
-  vertical-align: top;
-  border-right: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+.streaming-indicator {
+  display: block;
+  margin: 0 auto 8px;
+}
+
+.card-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  position: relative;
+}
+
+/* ---- Individual card ---- */
+.merge-group-card {
+  display: flex;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+  transition: box-shadow 0.2s ease;
+}
+
+.merge-group-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+/* Left accent bar */
+.card-accent {
+  width: 5px;
+  flex-shrink: 0;
+}
+
+.card-accent.status-ready { background: #4caf50; }
+.card-accent.status-open { background: #1976d2; }
+.card-accent.status-waiting { background: #fb8c00; }
+
+.card-body {
+  flex: 1;
+  padding: 14px 18px;
+  min-width: 0;
+}
+
+/* ---- Card header ---- */
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.branch-info {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.branch-icon {
+  color: #5f6368;
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+
+.branch-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #1a1a2e;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card-header-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+}
+
+/* ---- Status badges ---- */
+.card-status-badge,
+.item-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 2px 10px;
+  border-radius: 12px;
+  line-height: 1.4;
+}
+
+.card-status-badge .status-dot,
+.item-status-badge .status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-ready { background: #e8f5e9; color: #2e7d32; }
+.status-ready .status-dot { background: #4caf50; }
+
+.status-open { background: #e3f2fd; color: #1565c0; }
+.status-open .status-dot { background: #1976d2; }
+
+.status-waiting { background: #fff3e0; color: #e65100; }
+.status-waiting .status-dot { background: #fb8c00; }
+
+.card-approvals {
+  font-size: 0.82rem;
+  color: #5f6368;
+  font-weight: 500;
+}
+
+.card-time {
+  font-size: 0.78rem;
+  color: #9e9e9e;
+  white-space: nowrap;
+}
+
+/* ---- Card items (repo rows) ---- */
+.card-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.card-item {
+  display: flex;
+  align-items: center;
+  padding: 6px 0;
+  border-top: 1px solid #f0f0f0;
+  font-size: 0.85rem;
+  gap: 12px;
+}
+
+.item-project {
+  font-weight: 500;
+  color: #37474f;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.item-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.item-status-badge {
+  font-size: 0.72rem;
+  padding: 1px 8px;
+}
+
+.item-approvals {
+  font-size: 0.78rem;
+  color: #78909c;
+  font-weight: 500;
+}
+
+.item-time {
+  font-size: 0.75rem;
+  color: #9e9e9e;
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-width: 70px;
+  text-align: right;
+}
+
+/* ---- TransitionGroup animations ---- */
+
+/* Enter: fade + slide down */
+.card-list-enter-active {
+  transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+/* Leave: fade + shrink */
+.card-list-leave-active {
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  position: absolute;
+  width: 100%;
+}
+
+.card-list-enter-from {
+  opacity: 0;
+  transform: translateY(-16px);
+}
+
+.card-list-leave-to {
+  opacity: 0;
+  transform: translateY(8px) scale(0.97);
+}
+
+/* FLIP move transition for reordering */
+.card-list-move {
+  transition: transform 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 600px) {
+  .card-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .card-header-right {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .card-item {
+    flex-wrap: wrap;
+  }
+
+  .item-time {
+    width: 100%;
+    text-align: left;
+    margin-top: 2px;
+  }
 }
 </style>

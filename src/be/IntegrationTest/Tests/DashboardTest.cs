@@ -6,8 +6,8 @@ namespace IntegrationTest.Tests;
 
 /// <summary>
 ///     Tests that the dashboard UI displays the expected branch activity data
-///     after SSE streaming completes. Uses Playwright to interact with the actual
-///     frontend, just as a real user would.
+///     after SSE streaming completes, using the card-based layout.
+///     Uses Playwright to interact with the actual frontend, just as a real user would.
 ///     Expected data per user (created by ProjectSetupService.SetupTestBranchData):
 ///     test1: feature/alpha (primary-1 with MR+approval, secondary-1 with MR),
 ///     feature/beta (primary-2 with MR, no approval)
@@ -19,10 +19,10 @@ public class DashboardTest : IDisposable
     private readonly BrowserService _browser = new();
 
     /// <summary>
-    ///     Cached table rows from the dashboard, populated by WaitForDashboard.
-    ///     Each tuple is (branchName, repoName, hasMrIcon, approvalsText).
+    ///     Cached card data from the dashboard, populated by WaitForDashboard.
+    ///     Each entry is a parsed card with branch name, group status, and per-repo items.
     /// </summary>
-    private List<(string Branch, string Repo, bool HasMr, string Approvals)> _parsedRows = [];
+    private List<ParsedCard> _parsedCards = [];
 
     public void Dispose()
     {
@@ -40,9 +40,13 @@ public class DashboardTest : IDisposable
             "test1",
             () =>
             {
-                AssertBranchRow("feature/alpha", "primary-1", true, true);
-                AssertBranchRow("feature/alpha", "secondary-1", true, false);
-                AssertBranchRow("feature/beta", "primary-2", true, false);
+                // On free-tier GitLab, approvalsRequired is always 0, so
+                // any branch with an MR is "Ready" (0 >= 0 = all approvals met)
+                AssertCardItem("feature/alpha", "primary-1", "Ready", "1/0");
+                AssertCardItem("feature/alpha", "secondary-1", "Ready", "0/0");
+                AssertCardItem("feature/beta", "primary-2", "Ready", "0/0");
+                AssertCardGroupStatus("feature/alpha", "Ready");
+                AssertCardGroupStatus("feature/beta", "Ready");
                 Log.Information("test1 dashboard data verified");
             });
 
@@ -51,9 +55,10 @@ public class DashboardTest : IDisposable
             "test2",
             () =>
             {
-                AssertBranchRow("feature/gamma", "primary-1", true, false);
-                AssertBranchRow("feature/gamma", "secondary-1", true, true);
-                AssertBranchRow("feature/gamma", "secondary-2", true, false);
+                AssertCardItem("feature/gamma", "primary-1", "Ready", "0/0");
+                AssertCardItem("feature/gamma", "secondary-1", "Ready", "1/0");
+                AssertCardItem("feature/gamma", "secondary-2", "Ready", "0/0");
+                AssertCardGroupStatus("feature/gamma", "Ready");
                 Log.Information("test2 dashboard data verified");
             });
 
@@ -62,16 +67,20 @@ public class DashboardTest : IDisposable
             "test3",
             () =>
             {
-                AssertBranchRow("feature/delta", "secondary-3", false, false);
+                AssertCardItem("feature/delta", "secondary-3", "Waiting", "");
+                AssertCardGroupStatus("feature/delta", "Waiting");
                 Log.Information("test3 dashboard data verified");
             });
+
+        // Test responsive layout at mobile viewport
+        await TestResponsiveLayout();
 
         Log.Information("Dashboard test passed for all users");
     }
 
     private async Task TestUserDashboard(string username, Action verify)
     {
-        Log.Information($"Testing dashboard for user '{username}'...");
+        Log.Information("Testing dashboard for user '{Username}'...", username);
 
         // Clear all cookies/state from previous logins to ensure clean session
         await _browser.Page.Context.ClearCookiesAsync();
@@ -94,7 +103,7 @@ public class DashboardTest : IDisposable
         await _browser.TakeScreenshot($"dashboard_{username}_01_login_redirect");
 
         var currentUrl = _browser.Page.Url;
-        Log.Information($"URL after login redirect: {currentUrl}");
+        Log.Information("URL after login redirect: {Url}", currentUrl);
 
         if (currentUrl.Contains("/users/sign_in"))
         {
@@ -113,7 +122,7 @@ public class DashboardTest : IDisposable
             await _browser.TakeScreenshot($"dashboard_{username}_02_after_sign_in");
 
             currentUrl = _browser.Page.Url;
-            Log.Information($"URL after sign in: {currentUrl}");
+            Log.Information("URL after sign in: {Url}", currentUrl);
         }
 
         // Handle OAuth authorization if needed
@@ -138,19 +147,19 @@ public class DashboardTest : IDisposable
             }
             catch
             {
-                Log.Warning($"OAuth authorize didn't redirect. URL: {_browser.Page.Url}");
+                Log.Warning("OAuth authorize didn't redirect. URL: {Url}", _browser.Page.Url);
             }
 
             await _browser.TakeScreenshot($"dashboard_{username}_03_after_authorize");
         }
 
-        Log.Information($"Logged into Mergician as {username}");
+        Log.Information("Logged into Mergician as {Username}", username);
     }
 
     /// <summary>
     ///     Navigates to the Mergician home page and waits for the SSE activity stream
-    ///     to finish (the loading spinner disappears and the dashboard table is rendered).
-    ///     Parses the rendered table rows into _parsedRows for assertion.
+    ///     to finish (the streaming indicator disappears and the cards are rendered).
+    ///     Parses the rendered cards into <see cref="_parsedCards" /> for assertion.
     /// </summary>
     private async Task WaitForDashboard(string username)
     {
@@ -158,10 +167,6 @@ public class DashboardTest : IDisposable
         await Task.Delay(2000);
         await _browser.TakeScreenshot($"dashboard_{username}_04_initial_load");
 
-        // Wait for SSE streaming to complete — the v-progress-circular spinner in the
-        // Dashboard heading disappears once the "done" SSE event is received.
-        // We detect this by waiting for all loading spinners in the table to disappear,
-        // meaning all MR/approval data has been resolved.
         Log.Information("Waiting for SSE activity stream to complete...");
         var streamComplete = await WaitForStreamCompletion(120);
         if (!streamComplete)
@@ -173,51 +178,59 @@ public class DashboardTest : IDisposable
 
         await _browser.TakeScreenshot($"dashboard_{username}_05_stream_complete");
 
-        // Parse the rendered dashboard table
-        _parsedRows = await ParseDashboardTable();
+        // Parse the rendered dashboard cards
+        _parsedCards = await ParseDashboardCards();
 
-        Log.Information($"Dashboard rendered {_parsedRows.Count} rows for '{username}':");
-        foreach (var row in _parsedRows)
+        Log.Information("Dashboard rendered {Count} cards for '{Username}':", _parsedCards.Count, username);
+        foreach (var card in _parsedCards)
         {
-            Log.Information($"  {row.Branch} / {row.Repo} — MR={row.HasMr}, Approvals={row.Approvals}");
+            Log.Information("  Card: {Branch} — Status={Status}", card.BranchName, card.GroupStatus);
+            foreach (var item in card.Items)
+            {
+                Log.Information("    {Repo} — Status={Status}, Approvals={Approvals}",
+                    item.Repo, item.Status, item.Approvals);
+            }
         }
     }
 
     /// <summary>
-    ///     Waits until there are no more loading spinners in the dashboard table,
+    ///     Waits until there are no more loading spinners in the dashboard cards,
     ///     meaning all data has been resolved via SSE.
     /// </summary>
     private async Task<bool> WaitForStreamCompletion(int timeoutSeconds)
     {
         for (var s = 0; s < timeoutSeconds; s++)
         {
-            // Check if the dashboard table exists
-            var tableExists = await _browser.Page.Locator(".dashboard-table").CountAsync() > 0;
-            if (!tableExists)
+            // Check if any cards exist
+            var cardCount = await _browser.Page.Locator(".merge-group-card").CountAsync();
+            if (cardCount == 0)
             {
                 if (s % 10 == 0)
-                {
-                    Log.Information($"Waiting for dashboard table to appear... {s}s");
-                }
+                    Log.Information("Waiting for dashboard cards to appear... {Seconds}s", s);
 
                 await Task.Delay(1000);
                 continue;
             }
 
-            // Check for loading spinners in the table (v-progress-circular elements)
+            // Check for loading spinners in cards
             var spinnerCount =
-                await _browser.Page.Locator(".dashboard-table .v-progress-circular").CountAsync();
+                await _browser.Page.Locator(".merge-group-card .v-progress-circular").CountAsync();
 
-            if (spinnerCount == 0)
+            // Also check for the streaming indicator at the top
+            var streamingIndicator =
+                await _browser.Page.Locator(".streaming-indicator").CountAsync();
+
+            if (spinnerCount == 0 && streamingIndicator == 0)
             {
-                Log.Information($"Dashboard stream completed after ~{s}s (no spinners remaining)");
+                Log.Information("Dashboard stream completed after ~{Seconds}s (no spinners remaining)", s);
                 return true;
             }
 
             if (s % 10 == 0)
             {
                 Log.Information(
-                    $"Waiting for stream to resolve... {spinnerCount} spinners remaining, {s}s elapsed");
+                    "Waiting for stream to resolve... {SpinnerCount} spinners, streaming={Streaming}, {Seconds}s elapsed",
+                    spinnerCount, streamingIndicator > 0, s);
             }
 
             await Task.Delay(1000);
@@ -227,109 +240,173 @@ public class DashboardTest : IDisposable
     }
 
     /// <summary>
-    ///     Parses the rendered dashboard HTML table into structured row data.
-    ///     The table uses rowspan for branch names, so we track the current branch
-    ///     across rows that don't have a branch cell.
+    ///     Parses the rendered dashboard cards into structured data for assertions.
     /// </summary>
-    private async Task<List<(string Branch, string Repo, bool HasMr, string Approvals)>> ParseDashboardTable()
+    private async Task<List<ParsedCard>> ParseDashboardCards()
     {
-        var rows = new List<(string Branch, string Repo, bool HasMr, string Approvals)>();
+        var cards = new List<ParsedCard>();
+        var cardElements = _browser.Page.Locator(".merge-group-card");
+        var cardCount = await cardElements.CountAsync();
 
-        var tableRows = _browser.Page.Locator(".dashboard-table tbody tr");
-        var rowCount = await tableRows.CountAsync();
-
-        var currentBranch = "";
-
-        for (var i = 0; i < rowCount; i++)
+        for (var i = 0; i < cardCount; i++)
         {
-            var row = tableRows.Nth(i);
-            var cells = row.Locator("td");
-            var cellCount = await cells.CountAsync();
+            var card = cardElements.Nth(i);
 
-            // If the row has a branch-name-cell (rowspan cell), it's the first row of a group
-            var branchCell = row.Locator(".branch-name-cell");
-            var hasBranchCell = await branchCell.CountAsync() > 0;
+            var branchName = (await card.Locator(".branch-name").InnerTextAsync()).Trim();
+            var groupStatusBadge = card.Locator(".card-status-badge");
+            var groupStatus = await groupStatusBadge.CountAsync() > 0
+                ? (await groupStatusBadge.InnerTextAsync()).Trim()
+                : "";
 
-            int repoIndex;
-            if (hasBranchCell)
+            var items = new List<ParsedCardItem>();
+            var itemElements = card.Locator(".card-item");
+            var itemCount = await itemElements.CountAsync();
+
+            for (var j = 0; j < itemCount; j++)
             {
-                currentBranch = (await branchCell.InnerTextAsync()).Trim();
-                repoIndex = 1; // repo is the second cell
+                var item = itemElements.Nth(j);
+                var repo = (await item.Locator(".item-project").InnerTextAsync()).Trim();
+
+                var statusBadge = item.Locator(".item-status-badge");
+                var status = await statusBadge.CountAsync() > 0
+                    ? (await statusBadge.InnerTextAsync()).Trim()
+                    : "";
+
+                var approvalEl = item.Locator(".item-approvals");
+                var approvals = await approvalEl.CountAsync() > 0
+                    ? (await approvalEl.InnerTextAsync()).Trim()
+                    : "";
+
+                items.Add(new ParsedCardItem(repo, status, approvals));
             }
-            else
-            {
-                repoIndex = 0; // no branch cell, repo is the first cell
-            }
 
-            var repoName = (await cells.Nth(repoIndex).InnerTextAsync()).Trim();
-
-            // MR column: check for mdi-check-circle (has MR) vs mdi-minus-circle-outline (no MR)
-            var mrCell = cells.Nth(repoIndex + 1);
-            var hasMr = await mrCell.Locator(".mdi-check-circle").CountAsync() > 0;
-
-            // Approvals column: get the text content (e.g. "1/1" or "—")
-            var approvalsCell = cells.Nth(repoIndex + 2);
-            var approvalsText = (await approvalsCell.InnerTextAsync()).Trim();
-
-            rows.Add((currentBranch, repoName, hasMr, approvalsText));
+            cards.Add(new ParsedCard(branchName, groupStatus, items));
         }
 
-        return rows;
+        return cards;
     }
 
     /// <summary>
-    ///     Asserts that a specific branch/repo combination exists in the parsed dashboard rows
-    ///     with the expected MR and approval status.
+    ///     Asserts that a specific branch/repo combination exists in the parsed cards
+    ///     with the expected item status and approvals text.
     /// </summary>
-    private void AssertBranchRow(
+    private void AssertCardItem(
         string branchName,
         string repoContains,
-        bool hasMr,
-        bool expectApproval)
+        string expectedStatus,
+        string expectedApprovals)
     {
-        var match = _parsedRows.FirstOrDefault(r =>
-            r.Branch.Contains(branchName, StringComparison.OrdinalIgnoreCase)
-            && r.Repo.Contains(repoContains, StringComparison.OrdinalIgnoreCase));
+        var card = _parsedCards.FirstOrDefault(c =>
+            c.BranchName.Contains(branchName, StringComparison.OrdinalIgnoreCase));
 
-        if (match == default)
+        if (card == null)
         {
-            var available = string.Join(
-                ", ",
-                _parsedRows.Select(r => $"{r.Branch}@{r.Repo}"));
-
+            var available = string.Join(", ", _parsedCards.Select(c => c.BranchName));
             throw new InvalidOperationException(
-                $"Expected branch '{branchName}' in repo containing '{repoContains}' "
-                + $"not found in dashboard UI. Available: [{available}]");
+                $"Expected card for branch '{branchName}' not found. Available: [{available}]");
         }
 
-        if (match.HasMr != hasMr)
+        var item = card.Items.FirstOrDefault(i =>
+            i.Repo.Contains(repoContains, StringComparison.OrdinalIgnoreCase));
+
+        if (item == null)
         {
+            var repos = string.Join(", ", card.Items.Select(i => i.Repo));
             throw new InvalidOperationException(
-                $"Branch '{branchName}' in '{repoContains}': "
-                + $"expected MR icon={hasMr}, got {match.HasMr}");
+                $"Expected repo containing '{repoContains}' in branch '{branchName}' not found. Available: [{repos}]");
         }
 
-        if (expectApproval)
+        if (!item.Status.Equals(expectedStatus, StringComparison.OrdinalIgnoreCase))
         {
-            // Approvals text should be something like "1/1", not "—"
-            if (match.Approvals == "—" || string.IsNullOrWhiteSpace(match.Approvals))
-            {
-                throw new InvalidOperationException(
-                    $"Branch '{branchName}' in '{repoContains}': "
-                    + $"expected approvals, got '{match.Approvals}'");
-            }
+            throw new InvalidOperationException(
+                $"Branch '{branchName}' repo '{repoContains}': expected status '{expectedStatus}', got '{item.Status}'");
+        }
 
-            // Parse "X/Y" and verify X > 0
-            var parts = match.Approvals.Split('/');
-            if (parts.Length != 2 || !int.TryParse(parts[0], out var given) || given <= 0)
-            {
-                throw new InvalidOperationException(
-                    $"Branch '{branchName}' in '{repoContains}': "
-                    + $"expected approvals given > 0, got '{match.Approvals}'");
-            }
+        if (expectedApprovals != "" && item.Approvals != expectedApprovals)
+        {
+            throw new InvalidOperationException(
+                $"Branch '{branchName}' repo '{repoContains}': expected approvals '{expectedApprovals}', got '{item.Approvals}'");
         }
 
         Log.Information(
-            $"  Verified: {branchName} in {repoContains} — MR={match.HasMr}, Approvals={match.Approvals}");
+            "  Verified: {Branch} / {Repo} — Status={Status}, Approvals={Approvals}",
+            branchName, repoContains, item.Status, item.Approvals);
     }
+
+    /// <summary>
+    ///     Asserts the overall group status badge on a card.
+    /// </summary>
+    private void AssertCardGroupStatus(string branchName, string expectedStatus)
+    {
+        var card = _parsedCards.FirstOrDefault(c =>
+            c.BranchName.Contains(branchName, StringComparison.OrdinalIgnoreCase));
+
+        if (card == null)
+        {
+            throw new InvalidOperationException(
+                $"Expected card for branch '{branchName}' not found for group status assertion");
+        }
+
+        if (!card.GroupStatus.Equals(expectedStatus, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"Branch '{branchName}': expected group status '{expectedStatus}', got '{card.GroupStatus}'");
+        }
+
+        Log.Information("  Verified group status: {Branch} = {Status}", branchName, card.GroupStatus);
+    }
+
+    /// <summary>
+    ///     Tests that the dashboard card layout is responsive at mobile viewport width.
+    ///     Verifies that cards render properly and content is visible at small screen sizes.
+    /// </summary>
+    private async Task TestResponsiveLayout()
+    {
+        Log.Information("Testing responsive card layout...");
+
+        // Login as test1
+        await _browser.Page.Context.ClearCookiesAsync();
+        await Task.Delay(500);
+        await LoginToMergician("test1");
+
+        // Set a mobile-sized viewport
+        await _browser.Page.SetViewportSizeAsync(375, 812);
+        await _browser.Navigate(TestConfig.MergicianUrl);
+        await Task.Delay(2000);
+        await WaitForStreamCompletion(120);
+        await _browser.TakeScreenshot("dashboard_responsive_mobile");
+
+        var cardCount = await _browser.Page.Locator(".merge-group-card").CountAsync();
+        if (cardCount == 0)
+            throw new InvalidOperationException("No cards visible at mobile viewport");
+
+        // Verify cards are visible and branch names are not clipped to zero width
+        var firstCard = _browser.Page.Locator(".merge-group-card").First;
+        var box = await firstCard.BoundingBoxAsync();
+        if (box == null || box.Width < 200)
+            throw new InvalidOperationException($"Card unexpectedly narrow at mobile viewport: {box?.Width}px");
+
+        Log.Information("Mobile viewport: {Count} cards visible, first card width={Width}px", cardCount, box.Width);
+
+        // Set a tablet-sized viewport
+        await _browser.Page.SetViewportSizeAsync(768, 1024);
+        await Task.Delay(1000);
+        await _browser.TakeScreenshot("dashboard_responsive_tablet");
+
+        cardCount = await _browser.Page.Locator(".merge-group-card").CountAsync();
+        if (cardCount == 0)
+            throw new InvalidOperationException("No cards visible at tablet viewport");
+
+        Log.Information("Tablet viewport: {Count} cards visible", cardCount);
+
+        // Reset viewport to default desktop size
+        await _browser.Page.SetViewportSizeAsync(1280, 720);
+        await Task.Delay(500);
+
+        Log.Information("Responsive layout test passed");
+    }
+
+    private record ParsedCardItem(string Repo, string Status, string Approvals);
+
+    private record ParsedCard(string BranchName, string GroupStatus, List<ParsedCardItem> Items);
 }
