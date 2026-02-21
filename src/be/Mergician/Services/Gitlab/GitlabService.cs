@@ -1,6 +1,7 @@
 using Mergician.Entities;
 using Mergician.Services.Authentication;
 using System.Net;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 
 namespace Mergician.Services.Gitlab;
@@ -51,77 +52,77 @@ public class GitlabService
     }
 
     /// <summary>
-    ///     Fetches user events created at or after the given timestamp.
-    ///     Uses the date portion of <paramref name="since" /> for the GitLab API query
-    ///     (which only supports date-level granularity), then filters results
-    ///     to only include events with CreatedAt >= <paramref name="since" />.
+    ///     Streams unique branch push events at or after the given timestamp.
+    ///     Uses date-level filtering in the GitLab API call and applies timestamp-level
+    ///     filtering in-process to preserve sub-day precision.
     /// </summary>
-    public async Task<List<GitLabEvent>> GetUserEventsSince(GitlabAccessUser user, DateTime since)
+    public async IAsyncEnumerable<(string BranchName, int ProjectId, DateTimeOffset CreatedAt)> StreamPushEventsSince(
+        GitlabAccessUser user,
+        DateTimeOffset since,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        // GitLab events API 'after' param is date-only, so use the day before to avoid
-        // missing events near midnight boundaries
-        var afterDate = since.AddDays(-1).ToString("yyyy-MM-dd");
-        var events = await GetPushEvents(user, afterDate);
+        var sinceUtc = since.ToUniversalTime();
 
-        var filtered = events.Where(e => e.CreatedAt >= since).ToList();
-        _logger.LogDebug(
-            "Filtered {Total} events to {Filtered} events since {Since}",
-            events.Count,
-            filtered.Count,
-            since);
-
-        return filtered;
-    }
-
-    private async Task<List<GitLabEvent>> GetPushEvents(GitlabAccessUser user, string afterDate)
-    {
-        // TODO Change this method to yield one event at a time and update the call-sites to handle this. 
-
-        // TODO instead of taking in `afterDate`, take in `since` as a DateTimeOffset, and handle the date-only granularity internally,
-        // and only yield return the events that are >= the provided DateTimeOffset. Remove the custom handling in the call-sites for
-        // these actions currently. Remove the redundant `GetUserEventsSince` and use this method directly.
-
-        // TODO Instead of using `GitLabEvent` which deserializes all event types, create a new `GitLabPushEvent` class that only has the
-        // properties relevant to push events, and use that for deserialization here.
-
-        // TODO Make this method return a tuple of `(string BranchName, int ProjectId, DateTimeOffset CreatedAt)` as that's all the callers
-        // care about. Update the call chain to handle this. Also, keep track of the events sent back and do not send back events for
-        // the same branch+project combination. We only care about the most recent push event time, so there is no need to send others back
-        // after we sent the latest (see the comment below to enforce sorting on the API call so this is guaranteed). Methods like
-        // `ExtractBranchesFromActivity` can now be simplified.
+        // GitLab events API 'after' is date-only, so query from the previous day
+        // and enforce timestamp-level filtering locally.
+        var afterDate = sinceUtc.AddDays(-1).ToString("yyyy-MM-dd");
 
         var client = _httpClientFactory.CreateClient("GitLabOAuth");
-        var allEvents = new List<GitLabEvent>();
         var page = 1;
+        var yieldedCount = 0;
+        var emittedBranchProjects = new HashSet<string>();
 
         while (true)
         {
-            // TODO use the action filter on in the events API call to only fetch push events. Also, explicitly set the sorting so that more
-            // recent events are arrive first.
+            cancellationToken.ThrowIfCancellationRequested();
+
             var request = user.CreateRequest(
                 HttpMethod.Get,
-                $"events?after={afterDate}&per_page=100&page={page}");
+                $"events?after={afterDate}&action=pushed&sort=desc&per_page=100&page={page}");
 
-            var response = await client.SendAsync(request);
+            var response = await client.SendAsync(request, cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogError(
-                    "GetPushEvents failed on page {Page} with status {StatusCode}",
+                    "StreamPushEventsSince failed on page {Page} with status {StatusCode}",
                     page,
                     (int)response.StatusCode);
 
-                return [];
+                yield break;
             }
 
-            var json = await response.Content.ReadAsStringAsync();
-            var pageEvents = JsonSerializer.Deserialize<List<GitLabEvent>>(json, _jsonOptions) ?? [];
-            allEvents.AddRange(pageEvents);
+            var json = await response.Content.ReadAsStringAsync(cancellationToken);
+            var pageEvents = JsonSerializer.Deserialize<List<GitLabPushEvent>>(json, _jsonOptions) ?? [];
 
             _logger.LogDebug(
-                "Fetched {Count} GitLab events from page {Page} (after={AfterDate})",
+                "Fetched {Count} GitLab push events from page {Page} (after={AfterDate})",
                 pageEvents.Count,
                 page,
                 afterDate);
+
+            foreach (var pushEvent in pageEvents)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                if (pushEvent.CreatedAt < sinceUtc)
+                {
+                    continue;
+                }
+
+                if (pushEvent.PushData is not { RefType: "branch", Ref: not null })
+                {
+                    continue;
+                }
+
+                var key = $"{pushEvent.PushData.Ref}:{pushEvent.ProjectId}";
+                if (!emittedBranchProjects.Add(key))
+                {
+                    continue;
+                }
+
+                yieldedCount++;
+                yield return (pushEvent.PushData.Ref, pushEvent.ProjectId, pushEvent.CreatedAt);
+            }
 
             if (!response.Headers.TryGetValues("X-Next-Page", out var nextPageValues))
             {
@@ -137,7 +138,7 @@ public class GitlabService
             if (!int.TryParse(nextPage, out page) || page <= 0)
             {
                 _logger.LogWarning(
-                    "Unexpected X-Next-Page header value '{NextPage}' when fetching GitLab events",
+                    "Unexpected X-Next-Page header value '{NextPage}' when fetching GitLab push events",
                     nextPage);
 
                 break;
@@ -145,11 +146,9 @@ public class GitlabService
         }
 
         _logger.LogInformation(
-            "Fetched {Count} total GitLab events after {AfterDate}",
-            allEvents.Count,
-            afterDate);
-
-        return allEvents;
+            "Streamed {Count} unique branch push events since {Since}",
+            yieldedCount,
+            sinceUtc);
     }
 
     public async Task<GitLabProject?> GetProject(GitlabAccessUser user, int projectId)

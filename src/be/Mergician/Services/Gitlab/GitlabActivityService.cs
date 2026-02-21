@@ -117,12 +117,15 @@ public class GitlabActivityService
             gitlabUserId,
             fetchSince);
 
-        var events = await _gitlabService.GetUserEventsSince(currentUser, fetchSince);
+        var pushEvents = _gitlabService.StreamPushEventsSince(
+            currentUser,
+            AsUtcOffset(fetchSince),
+            cancellationToken);
 
         var records = FetchAndStoreBranchActivityRecords(
             currentUser,
             gitlabUserId,
-            events,
+            pushEvents,
             returnedKeys,
             cancellationToken);
 
@@ -153,7 +156,10 @@ public class GitlabActivityService
         CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("Polling for activity for user {UserId} since {Since}", gitlabUserId, since);
-        var events = await _gitlabService.GetUserEventsSince(currentUser, since);
+        var pushEvents = _gitlabService.StreamPushEventsSince(
+            currentUser,
+            AsUtcOffset(since),
+            cancellationToken);
 
         var results = new List<BranchActivity>();
         var deletedBranches = new List<BranchDeletedNotification>();
@@ -162,7 +168,7 @@ public class GitlabActivityService
         var records = FetchAndStoreBranchActivityRecords(
             currentUser,
             gitlabUserId,
-            events,
+            pushEvents,
             existingKeys,
             cancellationToken);
 
@@ -266,38 +272,43 @@ public class GitlabActivityService
     }
 
     /// <summary>
-    ///     Discovers branches from events, stores them in the DB, and yields BranchActivity records
+    ///     Discovers branches from push events, stores them in the DB, and yields BranchActivity records
     ///     for branches not already in the returnedKeys set. Updates the set as discoveries are made.
     /// </summary>
     private async IAsyncEnumerable<BranchActivity> FetchAndStoreBranchActivityRecords(
         GitlabAccessUser user,
         int gitlabUserId,
-        List<GitLabEvent> events,
+        IAsyncEnumerable<(string BranchName, int ProjectId, DateTimeOffset CreatedAt)> pushEvents,
         HashSet<string> returnedKeys,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        var activeBranches = ExtractBranchesFromActivity(events);
-        _logger.LogInformation(
-            "Found {Count} unique branch/project combinations from events",
-            activeBranches.Count);
-
-        foreach (var entry in activeBranches)
+        await foreach (var pushEvent in pushEvents.WithCancellation(cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var key = $"{entry.BranchName}:{entry.ProjectId}";
+            if (GitlabService.IsPossibleDefaultBranch(pushEvent.BranchName))
+            {
+                _logger.LogDebug(
+                    "Skipping default branch '{BranchName}' in project {ProjectId}",
+                    pushEvent.BranchName,
+                    pushEvent.ProjectId);
+
+                continue;
+            }
+
+            var key = $"{pushEvent.BranchName}:{pushEvent.ProjectId}";
 
             var branchLookup = await _gitlabService.GetBranchLookupResult(
                 user,
-                entry.ProjectId,
-                entry.BranchName);
+                pushEvent.ProjectId,
+                pushEvent.BranchName);
 
             if (branchLookup.IsMissing)
             {
                 _logger.LogDebug(
                     "Skipping branch '{BranchName}' in project {ProjectId} - no longer exists",
-                    entry.BranchName,
-                    entry.ProjectId);
+                    pushEvent.BranchName,
+                    pushEvent.ProjectId);
 
                 continue;
             }
@@ -306,36 +317,36 @@ public class GitlabActivityService
             {
                 _logger.LogWarning(
                     "Skipping branch '{BranchName}' in project {ProjectId} because branch lookup is unavailable",
-                    entry.BranchName,
-                    entry.ProjectId);
+                    pushEvent.BranchName,
+                    pushEvent.ProjectId);
 
                 continue;
             }
 
-            var project = await _gitlabService.GetProject(user, entry.ProjectId);
+            var project = await _gitlabService.GetProject(user, pushEvent.ProjectId);
             if (project == null)
             {
                 _logger.LogError(
                     "Project metadata lookup returned null for project {ProjectId} while storing branch activity",
-                    entry.ProjectId);
+                    pushEvent.ProjectId);
 
                 throw new InvalidOperationException(
-                    $"Project metadata lookup failed for project {entry.ProjectId} while storing branch activity");
+                    $"Project metadata lookup failed for project {pushEvent.ProjectId} while storing branch activity");
             }
 
             var projectName = project.NameWithNamespace;
 
             // Store in database
             var branchRecord = _mergeGroupRepository.GetOrCreateBranchRecord(
-                entry.BranchName,
-                entry.ProjectId,
+                pushEvent.BranchName,
+                pushEvent.ProjectId,
                 projectName);
 
-            var mergeGroup = _mergeGroupRepository.GetOrCreateMergeGroup(entry.BranchName);
+            var mergeGroup = _mergeGroupRepository.GetOrCreateMergeGroup(pushEvent.BranchName);
             _mergeGroupRepository.EnsureBranchInMergeGroup(mergeGroup.Id, branchRecord.Id);
             _mergeGroupRepository.EnsureUserInMergeGroup(gitlabUserId, mergeGroup.Id);
 
-            var lastUpdated = entry.LastUpdated.UtcDateTime;
+            var lastUpdated = pushEvent.CreatedAt.UtcDateTime;
             if (lastUpdated > mergeGroup.LastUpdateTime)
             {
                 _mergeGroupRepository.UpdateMergeGroupTimestamp(mergeGroup.Id, lastUpdated);
@@ -345,39 +356,34 @@ public class GitlabActivityService
             {
                 _logger.LogDebug(
                     "Branch '{BranchName}' in project {ProjectId} already returned, updating DB only",
-                    entry.BranchName,
-                    entry.ProjectId);
+                    pushEvent.BranchName,
+                    pushEvent.ProjectId);
 
                 continue;
             }
 
             yield return new BranchActivity(
-                entry.BranchName,
-                entry.ProjectId,
+                pushEvent.BranchName,
+                pushEvent.ProjectId,
                 projectName,
                 null,
                 null,
                 null,
-                entry.LastUpdated,
+                pushEvent.CreatedAt,
                 mergeGroup.Id);
         }
     }
 
-    /// <summary>
-    ///     Extracts distinct branch-project pairs from push events, excluding default branches.
-    ///     Returns the latest push timestamp for each branch.
-    /// </summary>
-    private static List<(string BranchName, int ProjectId, DateTimeOffset LastUpdated)>
-        ExtractBranchesFromActivity(
-            List<GitLabEvent> events)
+    private static DateTimeOffset AsUtcOffset(DateTime timestamp)
     {
-        return events
-            .Where(e => e.PushData is { RefType: "branch", Ref: not null })
-            .Where(e => !GitlabService.IsPossibleDefaultBranch(e.PushData!.Ref!))
-            .GroupBy(e => (BranchName: e.PushData!.Ref!, e.ProjectId))
-            .Select(g => (g.Key.BranchName, g.Key.ProjectId,
-                LastUpdated: (DateTimeOffset)g.Max(e => e.CreatedAt)))
-            .ToList();
+        var utcTimestamp = timestamp.Kind switch
+        {
+            DateTimeKind.Utc => timestamp,
+            DateTimeKind.Local => timestamp.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(timestamp, DateTimeKind.Utc)
+        };
+
+        return new DateTimeOffset(utcTimestamp);
     }
 
     /// <summary>

@@ -50,17 +50,10 @@ public class ActivityController : ControllerBase
     [HttpGet("stream")]
     public async Task StreamPushActivity(CancellationToken cancellationToken)
     {
-        // TODO This method and the RefreshActivity method have a lot of duplicated code. Try to consolidate common logic,
-        // perhaps make a helper method that takes in a callback to perform the unique logic. It is ok to have
-        // some duplication for clarity.
-        // Also, move the RefreshActivity method below this one so the two similar methods are together.
         var currentUser = HttpContext.GetGitlabUser();
 
-        if (!_coreRepository.IsHealthy())
+        if (!await EnsureDatabaseHealthyForSse(cancellationToken, "stream activity"))
         {
-            _logger.LogError("Database is unhealthy, cannot stream activity");
-            Response.StatusCode = 503;
-            await Response.WriteAsync("{\"error\":\"Database is unavailable\"}", cancellationToken);
             return;
         }
 
@@ -72,51 +65,62 @@ public class ActivityController : ControllerBase
             return;
         }
 
-        // TODO Explain what each of these headers do
-        Response.Headers.ContentType = "text/event-stream";
-        Response.Headers.CacheControl = "no-cache";
-        Response.Headers.Connection = "keep-alive";
-        Response.Headers["X-Accel-Buffering"] = "no";
-
         _logger.LogInformation("Starting SSE activity stream for user {UserId}", userInfo.Id);
 
-        using var writeLock = new SemaphoreSlim(1, 1);
-        using var heartbeatCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        var heartbeatTask = RunHeartbeat(heartbeatCts.Token, writeLock);
+        await StreamSse(
+            "activity",
+            async (streamToken, writeLock) =>
+            {
+                await foreach (var activity in _activityService.StreamBranchActivity(
+                                   currentUser,
+                                   userInfo.Id,
+                                   streamToken))
+                {
+                    await WriteSseEvent(activity, streamToken, writeLock);
+                }
+            },
+            cancellationToken);
+    }
 
-        try
-        {
-            await foreach (var activity in _activityService.StreamBranchActivity(
-                               currentUser,
-                               userInfo.Id,
-                               // ReSharper disable once PossiblyMistakenUseOfCancellationToken
-                               cancellationToken))
-            {
-                // ReSharper disable once PossiblyMistakenUseOfCancellationToken
-                await WriteSseEvent(activity, cancellationToken, writeLock);
-            }
+    /// <summary>
+    ///     Streams refreshed MR and approval status for the specified branch-project pairs
+    ///     as Server-Sent Events. Each event is a JSON-serialized BranchActivity or BranchDeletedNotification.
+    ///     A final event with type "done" signals the end of the stream.
+    /// </summary>
+    [HttpPost("refresh")]
+    public async Task RefreshActivity(
+        [FromBody] List<BranchRefreshRequest> branches,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = HttpContext.GetGitlabUser();
 
-            // Signal the end of the stream
-            // ReSharper disable once PossiblyMistakenUseOfCancellationToken
-            await WriteSseRaw("event: done\ndata: {}\n\n", cancellationToken, writeLock);
-            _logger.LogInformation("SSE activity stream completed");
-        }
-        catch (OperationCanceledException)
+        if (!await EnsureDatabaseHealthyForSse(cancellationToken, "refresh activity"))
         {
-            _logger.LogInformation("SSE activity stream cancelled by client");
+            return;
         }
-        finally
-        {
-            await heartbeatCts.CancelAsync();
-            try
+
+        _logger.LogInformation("Starting SSE refresh stream for {Count} branches", branches.Count);
+
+        await StreamSse(
+            "refresh",
+            async (streamToken, writeLock) =>
             {
-                await heartbeatTask;
-            }
-            catch (OperationCanceledException)
-            {
-                // Expected during cancellation
-            }
-        }
+                await foreach (var item in _activityService.StreamRefreshBranchStatus(
+                                   currentUser,
+                                   branches,
+                                   streamToken))
+                {
+                    if (item is BranchDeletedNotification deleted)
+                    {
+                        await WriteSseEvent(deleted, streamToken, writeLock, "deleted");
+                    }
+                    else
+                    {
+                        await WriteSseEvent(item, streamToken, writeLock);
+                    }
+                }
+            },
+            cancellationToken);
     }
 
     /// <summary>
@@ -154,32 +158,27 @@ public class ActivityController : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>
-    ///     Streams refreshed MR and approval status for the specified branch-project pairs
-    ///     as Server-Sent Events. Each event is a JSON-serialized BranchActivity or BranchDeletedNotification.
-    ///     A final event with type "done" signals the end of the stream.
-    /// </summary>
-    [HttpPost("refresh")]
-    public async Task RefreshActivity(
-        [FromBody] List<BranchRefreshRequest> branches,
-        CancellationToken cancellationToken)
+    private async Task<bool> EnsureDatabaseHealthyForSse(
+        CancellationToken cancellationToken,
+        string operationName)
     {
-        var currentUser = HttpContext.GetGitlabUser();
-
-        if (!_coreRepository.IsHealthy())
+        if (_coreRepository.IsHealthy())
         {
-            _logger.LogError("Database is unhealthy, cannot refresh activity");
-            Response.StatusCode = 503;
-            await Response.WriteAsync("{\"error\":\"Database is unavailable\"}", cancellationToken);
-            return;
+            return true;
         }
 
-        Response.Headers.ContentType = "text/event-stream";
-        Response.Headers.CacheControl = "no-cache";
-        Response.Headers.Connection = "keep-alive";
-        Response.Headers["X-Accel-Buffering"] = "no";
+        _logger.LogError("Database is unhealthy, cannot {OperationName}", operationName);
+        Response.StatusCode = 503;
+        await Response.WriteAsync("{\"error\":\"Database is unavailable\"}", cancellationToken);
+        return false;
+    }
 
-        _logger.LogInformation("Starting SSE refresh stream for {Count} branches", branches.Count);
+    private async Task StreamSse(
+        string streamName,
+        Func<CancellationToken, SemaphoreSlim, Task> streamWriter,
+        CancellationToken cancellationToken)
+    {
+        ConfigureSseHeaders();
 
         using var writeLock = new SemaphoreSlim(1, 1);
         using var heartbeatCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -187,31 +186,14 @@ public class ActivityController : ControllerBase
 
         try
         {
-            await foreach (var item in _activityService.StreamRefreshBranchStatus(
-                               currentUser,
-                               branches,
-                               // ReSharper disable once PossiblyMistakenUseOfCancellationToken
-                               cancellationToken))
-            {
-                if (item is BranchDeletedNotification deleted)
-                {
-                    // ReSharper disable once PossiblyMistakenUseOfCancellationToken
-                    await WriteSseEvent(deleted, cancellationToken, writeLock, "deleted");
-                }
-                else
-                {
-                    // ReSharper disable once PossiblyMistakenUseOfCancellationToken
-                    await WriteSseEvent(item, cancellationToken, writeLock);
-                }
-            }
-
-            // ReSharper disable once PossiblyMistakenUseOfCancellationToken
+            await streamWriter(cancellationToken, writeLock);
             await WriteSseRaw("event: done\ndata: {}\n\n", cancellationToken, writeLock);
-            _logger.LogInformation("SSE refresh stream completed");
+
+            _logger.LogInformation("SSE {StreamName} stream completed", streamName);
         }
         catch (OperationCanceledException)
         {
-            _logger.LogInformation("SSE refresh stream cancelled by client");
+            _logger.LogInformation("SSE {StreamName} stream cancelled by client", streamName);
         }
         finally
         {
@@ -225,6 +207,18 @@ public class ActivityController : ControllerBase
                 // Expected during cancellation
             }
         }
+    }
+
+    private void ConfigureSseHeaders()
+    {
+        // Required MIME type so browsers parse response frames as Server-Sent Events.
+        Response.Headers.ContentType = "text/event-stream";
+        // Prevent proxies and browsers from caching event data.
+        Response.Headers.CacheControl = "no-cache";
+        // Keep the HTTP connection open for incremental event delivery.
+        Response.Headers.Connection = "keep-alive";
+        // Disable NGINX buffering so each event is flushed to the client immediately.
+        Response.Headers["X-Accel-Buffering"] = "no";
     }
 
     private async Task RunHeartbeat(CancellationToken cancellationToken, SemaphoreSlim writeLock)
