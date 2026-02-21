@@ -1,1 +1,13 @@
-Fix all the TODOs in this repo's codebase.
+Doing a fresh start of the CI Lab takes a long time due to how long Gitlab takes to start. It would suffice to keep the CI Lab running and just delete all the projects from Gitlab and TeamCity to reset.
+
+Add a command line option to the bootstrap project "--reset" that will first delete all projects from Gitlab and TeamCity, then continue with the ProjectSetupService steps (skipping over the Gitlab and TeamCity initial configuration). This should end with the same effect as doing a fresh start of the CI Lab, without having to to configure Gitlab or go through the TeamCity account setup, etc.
+
+Check that the Bootstrapper is idempotent so that this reset process works and it handles the fact that some setup operations have already been done.
+
+Add the same option to the bootstrap.sh script and have it pass the option to the bootstrap app if given.
+
+There is currently a poplated CI Lab running. Test that this option can be used to reset and recreate the initial state of the CI Lab. If retesting is needed, run the Integration Tests to populate commits in Gitlab and builds in TeamCity, then run the bootstrapper with the reset option to verify they have both been reset to a fresh state. Fix any idempotency issues that arise.
+
+Update the copilot instructions file to say: prefer using the bootstrapper reset option instead of doing a fresh start of the CI Lab when possible, but if CI Lab is not running or testing changes to the CI Lab docker setup itself, it is ok to run the CI Lab from scratch.
+
+Commit and push these changes.
