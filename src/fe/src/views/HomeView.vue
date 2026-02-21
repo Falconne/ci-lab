@@ -83,7 +83,48 @@
                     class="card-item"
                   >
                     <span class="item-project">{{ item.projectName }}</span>
-                    <span v-if="itemApprovalsText(item)" class="item-approvals">{{ itemApprovalsText(item) }}</span>
+                    <!-- MR status icon: grey when no MR, blue when MR exists -->
+                    <v-tooltip
+                      location="top"
+                      :text="mrTooltip(item)"
+                    >
+                      <template #activator="{ props }">
+                        <span
+                          v-bind="props"
+                          class="item-mr-icon"
+                          :title="mrTooltip(item)"
+                        >
+                          <v-icon
+                            icon="mdi-merge"
+                            size="small"
+                            :color="mrIconColor(item)"
+                            :data-mr-color="mrIconColor(item)"
+                          />
+                        </span>
+                      </template>
+                    </v-tooltip>
+                    <v-tooltip
+                      v-if="itemApprovalsText(item)"
+                      location="top"
+                      :text="approvalsTooltip(item)"
+                    >
+                      <template #activator="{ props }">
+                        <span
+                          v-bind="props"
+                          class="item-approvals"
+                          :title="approvalsTooltip(item)"
+                        >
+                          <v-icon
+                            icon="mdi-thumb-up"
+                            size="small"
+                            :color="approvalIconColor(item)"
+                            :data-approval-color="approvalIconColor(item)"
+                            class="approval-icon"
+                          />
+                          <span class="approval-text">{{ itemApprovalsText(item) }}</span>
+                        </span>
+                      </template>
+                    </v-tooltip>
                     <span class="item-time">
                       <v-tooltip v-if="item.lastUpdated" location="top" :text="formatDateTime(item.lastUpdated)">
                         <template v-slot:activator="{ props }">
@@ -191,6 +232,40 @@ function groupStatusClass(group: MergeGroup): string {
 function itemApprovalsText(item: BranchActivity): string {
   if (!item.hasMergeRequest || item.approvalsGiven == null || item.approvalsRequired == null) return ''
   return `${item.approvalsGiven}/${item.approvalsRequired}`
+}
+
+function approvalIconColor(item: BranchActivity): string {
+  // grey by default; green when sufficient approvals (or zero required)
+  if (!item.hasMergeRequest || item.approvalsGiven == null || item.approvalsRequired == null) {
+    return 'grey'
+  }
+  if (item.approvalsGiven >= item.approvalsRequired) {
+    return 'green'
+  }
+  return 'grey'
+}
+
+function approvalsTooltip(item: BranchActivity): string {
+  if (!item.hasMergeRequest || item.approvalsGiven == null || item.approvalsRequired == null) {
+    return ''
+  }
+  if (item.approvalsRequired === 0) {
+    return 'No approval needed'
+  }
+  if (item.approvalsGiven >= item.approvalsRequired) {
+    return 'All required approvals given'
+  }
+  return `${item.approvalsGiven} of ${item.approvalsRequired} needed approvals given`
+}
+
+function mrIconColor(item: BranchActivity): string {
+  // blue if there's a merge request, grey otherwise
+  if (item.hasMergeRequest) return 'blue'
+  return 'grey'
+}
+
+function mrTooltip(item: BranchActivity): string {
+  return item.hasMergeRequest ? 'MR exists' : 'MR not created'
 }
 
 function groupTimeAgo(group: MergeGroup): string {
@@ -758,6 +833,23 @@ onUnmounted(() => {
   font-size: 0.78rem;
   color: #78909c;
   font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.item-mr-icon {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 6px;
+}
+
+.approval-icon {
+  line-height: 0; /* shrink to icon size */
+}
+
+.approval-text {
+  white-space: nowrap;
 }
 
 .item-time {

@@ -100,6 +100,14 @@ public class DashboardLiveUpdateTest : IDisposable
 
         Log.Information("Branch '{BranchName}' correctly shows 'Waiting' status", branchName);
 
+        // also verify MR icon is grey and tooltip indicates no MR
+        var card = _browser.Page.Locator(".merge-group-card").Filter(new() { HasTextString = branchName }).First;
+        var mrSpan = card.Locator(".item-mr-icon");
+        var mrTooltip = await mrSpan.GetAttributeAsync("title") ?? "";
+        var mrColor = await mrSpan.Locator(".v-icon").GetAttributeAsync("data-mr-color") ?? "";
+        if (mrTooltip != "MR not created" || mrColor != "grey")
+            throw new InvalidOperationException($"Expected MR icon grey/not created before MR, got tooltip='{mrTooltip}' color='{mrColor}'");
+
         // Create an MR on the branch
         _gitLab.CreateMergeRequest(projectId, branchName, "test1");
         Log.Information("Created MR for branch '{BranchName}', waiting for dashboard update...", branchName);
@@ -113,6 +121,12 @@ public class DashboardLiveUpdateTest : IDisposable
                 $"Status did not change from 'Waiting' for branch '{branchName}' within timeout");
 
         Log.Information("MR status updated on dashboard for '{BranchName}'", branchName);
+
+        // verify MR icon turned blue with 'MR exists' tooltip
+        mrTooltip = await mrSpan.GetAttributeAsync("title") ?? "";
+        mrColor = await mrSpan.Locator(".v-icon").GetAttributeAsync("data-mr-color") ?? "";
+        if (mrTooltip != "MR exists" || mrColor != "blue")
+            throw new InvalidOperationException($"Expected MR icon blue/exists after MR creation, got tooltip='{mrTooltip}' color='{mrColor}'");
     }
 
     private async Task LoginAndWaitForDashboard(string username)

@@ -87,6 +87,15 @@ try
         Logging.LogSection("Resetting CI Lab Projects");
         var resetService = new ResetService(gitlabService, teamCityService, teamCityVersionedSettingsService);
         await resetService.Execute();
+
+        Logging.LogSection("Resetting Mergician Database");
+        var dbHost     = envService.GetValue("MERGICIAN_DB_HOST")     ?? "localhost";
+        var dbPort     = int.TryParse(envService.GetValue("MERGICIAN_DB_PORT"), out var p) ? p : 5432;
+        var dbUsername = envService.GetValue("MERGICIAN_DB_USERNAME") ?? "mergician";
+        var dbPassword = envService.GetValue("MERGICIAN_DB_PASSWORD") ?? "mergician";
+        var dbName     = envService.GetValue("MERGICIAN_DB_DATABASE") ?? "mergician";
+        var mergicianDb = new MergicianDatabaseService(dbHost, dbPort, dbUsername, dbPassword, dbName);
+        mergicianDb.Reset();
     }
 
     var projectSetupService = new ProjectSetupService(
