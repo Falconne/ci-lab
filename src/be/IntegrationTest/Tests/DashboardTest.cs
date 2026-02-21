@@ -21,6 +21,7 @@ public class DashboardTest : IDisposable
     /// <summary>
     ///     Cached card data from the dashboard, populated by WaitForDashboard.
     ///     Each entry is a parsed card with branch name, group status, and per-repo items.
+    ///     Items contain repository name and approvals count only (no per-item status).
     /// </summary>
     private List<ParsedCard> _parsedCards = [];
 
@@ -42,9 +43,9 @@ public class DashboardTest : IDisposable
             {
                 // On free-tier GitLab, approvalsRequired is always 0, so
                 // any branch with an MR is "Ready" (0 >= 0 = all approvals met)
-                AssertCardItem("feature/alpha", "primary-1", "Ready", "1/0");
-                AssertCardItem("feature/alpha", "secondary-1", "Ready", "0/0");
-                AssertCardItem("feature/beta", "primary-2", "Ready", "0/0");
+                AssertCardItem("feature/alpha", "primary-1", "1/0");
+                AssertCardItem("feature/alpha", "secondary-1", "0/0");
+                AssertCardItem("feature/beta", "primary-2", "0/0");
                 AssertCardGroupStatus("feature/alpha", "Ready");
                 AssertCardGroupStatus("feature/beta", "Ready");
                 Log.Information("test1 dashboard data verified");
@@ -55,9 +56,9 @@ public class DashboardTest : IDisposable
             "test2",
             () =>
             {
-                AssertCardItem("feature/gamma", "primary-1", "Ready", "0/0");
-                AssertCardItem("feature/gamma", "secondary-1", "Ready", "1/0");
-                AssertCardItem("feature/gamma", "secondary-2", "Ready", "0/0");
+                AssertCardItem("feature/gamma", "primary-1", "0/0");
+                AssertCardItem("feature/gamma", "secondary-1", "1/0");
+                AssertCardItem("feature/gamma", "secondary-2", "0/0");
                 AssertCardGroupStatus("feature/gamma", "Ready");
                 Log.Information("test2 dashboard data verified");
             });
@@ -67,7 +68,7 @@ public class DashboardTest : IDisposable
             "test3",
             () =>
             {
-                AssertCardItem("feature/delta", "secondary-3", "Waiting", "");
+                AssertCardItem("feature/delta", "secondary-3", "");
                 AssertCardGroupStatus("feature/delta", "Waiting");
                 Log.Information("test3 dashboard data verified");
             });
@@ -187,8 +188,8 @@ public class DashboardTest : IDisposable
             Log.Information("  Card: {Branch} — Status={Status}", card.BranchName, card.GroupStatus);
             foreach (var item in card.Items)
             {
-                Log.Information("    {Repo} — Status={Status}, Approvals={Approvals}",
-                    item.Repo, item.Status, item.Approvals);
+                Log.Information("    {Repo} — Approvals={Approvals}",
+                    item.Repo, item.Approvals);
             }
         }
     }
@@ -267,17 +268,12 @@ public class DashboardTest : IDisposable
                 var item = itemElements.Nth(j);
                 var repo = (await item.Locator(".item-project").InnerTextAsync()).Trim();
 
-                var statusBadge = item.Locator(".item-status-badge");
-                var status = await statusBadge.CountAsync() > 0
-                    ? (await statusBadge.InnerTextAsync()).Trim()
-                    : "";
-
                 var approvalEl = item.Locator(".item-approvals");
                 var approvals = await approvalEl.CountAsync() > 0
                     ? (await approvalEl.InnerTextAsync()).Trim()
                     : "";
 
-                items.Add(new ParsedCardItem(repo, status, approvals));
+                items.Add(new ParsedCardItem(repo, approvals));
             }
 
             cards.Add(new ParsedCard(branchName, groupStatus, items));
@@ -288,12 +284,11 @@ public class DashboardTest : IDisposable
 
     /// <summary>
     ///     Asserts that a specific branch/repo combination exists in the parsed cards
-    ///     with the expected item status and approvals text.
+    ///     with the expected approvals text.
     /// </summary>
     private void AssertCardItem(
         string branchName,
         string repoContains,
-        string expectedStatus,
         string expectedApprovals)
     {
         var card = _parsedCards.FirstOrDefault(c =>
@@ -316,12 +311,6 @@ public class DashboardTest : IDisposable
                 $"Expected repo containing '{repoContains}' in branch '{branchName}' not found. Available: [{repos}]");
         }
 
-        if (!item.Status.Equals(expectedStatus, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException(
-                $"Branch '{branchName}' repo '{repoContains}': expected status '{expectedStatus}', got '{item.Status}'");
-        }
-
         if (expectedApprovals != "" && item.Approvals != expectedApprovals)
         {
             throw new InvalidOperationException(
@@ -329,8 +318,8 @@ public class DashboardTest : IDisposable
         }
 
         Log.Information(
-            "  Verified: {Branch} / {Repo} — Status={Status}, Approvals={Approvals}",
-            branchName, repoContains, item.Status, item.Approvals);
+            "  Verified: {Branch} / {Repo} — Approvals={Approvals}",
+            branchName, repoContains, item.Approvals);
     }
 
     /// <summary>
@@ -406,7 +395,7 @@ public class DashboardTest : IDisposable
         Log.Information("Responsive layout test passed");
     }
 
-    private record ParsedCardItem(string Repo, string Status, string Approvals);
+    private record ParsedCardItem(string Repo, string Approvals);
 
     private record ParsedCard(string BranchName, string GroupStatus, List<ParsedCardItem> Items);
 }

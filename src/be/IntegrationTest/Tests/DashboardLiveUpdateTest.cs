@@ -320,7 +320,7 @@ public class DashboardLiveUpdateTest : IDisposable
     }
 
     /// <summary>
-    ///     Checks if a branch card has a specific item status label (e.g. "Waiting", "Open", "Ready").
+    ///     Checks if a branch card has a specific group status label (e.g. "Waiting", "Open", "Ready").
     /// </summary>
     private async Task<bool> BranchCardHasStatus(string branchName, string expectedStatus)
     {
@@ -333,12 +333,10 @@ public class DashboardLiveUpdateTest : IDisposable
             var name = (await card.Locator(".branch-name").InnerTextAsync()).Trim();
             if (!name.Contains(branchName)) continue;
 
-            var statusBadges = card.Locator(".item-status-badge");
-            var badgeCount = await statusBadges.CountAsync();
-
-            for (var j = 0; j < badgeCount; j++)
+            var badge = card.Locator(".card-status-badge");
+            if (await badge.CountAsync() > 0)
             {
-                var statusText = (await statusBadges.Nth(j).InnerTextAsync()).Trim();
+                var statusText = (await badge.InnerTextAsync()).Trim();
                 if (statusText.Equals(expectedStatus, StringComparison.OrdinalIgnoreCase))
                     return true;
             }

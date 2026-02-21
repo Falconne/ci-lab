@@ -73,7 +73,6 @@
                       <span class="status-dot" />
                       {{ groupStatusLabel(group) }}
                     </span>
-                    <span class="card-approvals">{{ groupApprovalsText(group) }}</span>
                     <span class="card-time">{{ groupTimeAgo(group) }}</span>
                   </div>
                 </div>
@@ -84,22 +83,7 @@
                     class="card-item"
                   >
                     <span class="item-project">{{ item.projectName }}</span>
-                    <span class="item-status">
-                      <v-progress-circular
-                        v-if="item.hasMergeRequest === null"
-                        indeterminate
-                        color="grey"
-                        size="14"
-                        width="2"
-                      />
-                      <template v-else>
-                        <span class="item-status-badge" :class="itemStatusClass(item)">
-                          <span class="status-dot" />
-                          {{ itemStatusLabel(item) }}
-                        </span>
-                        <span class="item-approvals">{{ itemApprovalsText(item) }}</span>
-                      </template>
-                    </span>
+                    <span v-if="itemApprovalsText(item)" class="item-approvals">{{ itemApprovalsText(item) }}</span>
                     <span class="item-time">
                       <v-tooltip v-if="item.lastUpdated" location="top" :text="formatDateTime(item.lastUpdated)">
                         <template v-slot:activator="{ props }">
@@ -178,18 +162,17 @@ let lastUpdateTime: Date | null = null
 
 // --- Status logic ---
 
-function getItemStatus(item: BranchActivity): GroupStatus {
-  if (item.hasMergeRequest === null || !item.hasMergeRequest) return 'waiting'
-  if (item.approvalsRequired != null && item.approvalsGiven != null
-    && item.approvalsGiven >= item.approvalsRequired) return 'ready'
-  return 'open'
-}
-
 function getGroupStatus(group: MergeGroup): GroupStatus {
   const statusPriority: GroupStatus[] = ['waiting', 'open', 'ready']
   let worstIndex = 2 // start with 'ready' (best)
   for (const item of group.items) {
-    const s = getItemStatus(item)
+    // derive status per item: waiting if no MR, ready if approvalsMet, else open
+    let s: GroupStatus = 'waiting'
+    if (item.hasMergeRequest) {
+      if (item.approvalsRequired != null && item.approvalsGiven != null
+        && item.approvalsGiven >= item.approvalsRequired) s = 'ready'
+      else s = 'open'
+    }
     const idx = statusPriority.indexOf(s)
     if (idx < worstIndex) worstIndex = idx
   }
@@ -203,27 +186,6 @@ function groupStatusLabel(group: MergeGroup): string {
 
 function groupStatusClass(group: MergeGroup): string {
   return `status-${getGroupStatus(group)}`
-}
-
-function itemStatusLabel(item: BranchActivity): string {
-  const s = getItemStatus(item)
-  return s === 'ready' ? 'Ready' : s === 'open' ? 'Open' : 'Waiting'
-}
-
-function itemStatusClass(item: BranchActivity): string {
-  return `status-${getItemStatus(item)}`
-}
-
-function groupApprovalsText(group: MergeGroup): string {
-  let totalGiven = 0
-  let totalRequired = 0
-  for (const item of group.items) {
-    if (item.hasMergeRequest && item.approvalsGiven != null && item.approvalsRequired != null) {
-      totalGiven += item.approvalsGiven
-      totalRequired += item.approvalsRequired
-    }
-  }
-  return `${totalGiven}/${totalRequired}`
 }
 
 function itemApprovalsText(item: BranchActivity): string {
@@ -733,8 +695,7 @@ onUnmounted(() => {
 }
 
 /* ---- Status badges ---- */
-.card-status-badge,
-.item-status-badge {
+.card-status-badge {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -745,8 +706,7 @@ onUnmounted(() => {
   line-height: 1.4;
 }
 
-.card-status-badge .status-dot,
-.item-status-badge .status-dot {
+.card-status-badge .status-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
@@ -761,12 +721,6 @@ onUnmounted(() => {
 
 .status-waiting { background: #fff3e0; color: #e65100; }
 .status-waiting .status-dot { background: #fb8c00; }
-
-.card-approvals {
-  font-size: 0.82rem;
-  color: #5f6368;
-  font-weight: 500;
-}
 
 .card-time {
   font-size: 0.78rem;
@@ -798,18 +752,6 @@ onUnmounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.item-status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.item-status-badge {
-  font-size: 0.72rem;
-  padding: 1px 8px;
 }
 
 .item-approvals {
