@@ -51,8 +51,8 @@ public class VersionAndLastUpdatedTest : IDisposable
 
         Log.Information($"Frontend version: {frontendVersionData.Version}");
 
-        // Verify the HomeView.vue source includes Last Updated column
-        // (This is a code verification rather than runtime since the column is conditionally rendered based on data)
+        // Verify the HomeView.vue source includes a relative time display on each card
+        // (This is a code verification rather than runtime since the element is conditionally rendered based on data)
         var homeViewPath = Path.Combine(TestConfig.RepositoryRoot, "src", "fe", "src", "views", "HomeView.vue");
         if (!File.Exists(homeViewPath))
         {
@@ -60,12 +60,12 @@ public class VersionAndLastUpdatedTest : IDisposable
         }
 
         var homeViewContent = await File.ReadAllTextAsync(homeViewPath);
-        if (!homeViewContent.Contains("Last Updated"))
+        if (!homeViewContent.Contains("card-time") || !homeViewContent.Contains("groupTimeAgo"))
         {
-            throw new Exception("HomeView.vue does not contain 'Last Updated' column definition");
+            throw new Exception("HomeView.vue does not contain card-time / groupTimeAgo (last-updated display on cards)");
         }
 
-        Log.Information("HomeView.vue confirmed to include Last Updated column");
+        Log.Information("HomeView.vue confirmed to include card time (last-updated) display");
 
         // Verify AppBar.vue includes version display
         var appBarPath = Path.Combine(TestConfig.RepositoryRoot, "src", "fe", "src", "components", "AppBar.vue");
