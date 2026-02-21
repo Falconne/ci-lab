@@ -16,7 +16,7 @@ public class VersionAndLastUpdatedTest : IDisposable
 
     public async Task Run()
     {
-        Log.Information("Testing version endpoints and Last Updated column...");
+        Log.Information("Testing version endpoints, dashboard card layout markers, and app bar title zone...");
 
         // Test backend version endpoint
         using var httpClient = new HttpClient();
@@ -51,8 +51,7 @@ public class VersionAndLastUpdatedTest : IDisposable
 
         Log.Information($"Frontend version: {frontendVersionData.Version}");
 
-        // Verify the HomeView.vue source includes Last Updated column
-        // (This is a code verification rather than runtime since the column is conditionally rendered based on data)
+        // Verify HomeView.vue source includes card layout markers and last updated text marker.
         var homeViewPath = Path.Combine(TestConfig.RepositoryRoot, "src", "fe", "src", "views", "HomeView.vue");
         if (!File.Exists(homeViewPath))
         {
@@ -60,14 +59,14 @@ public class VersionAndLastUpdatedTest : IDisposable
         }
 
         var homeViewContent = await File.ReadAllTextAsync(homeViewPath);
-        if (!homeViewContent.Contains("Last Updated"))
+        if (!homeViewContent.Contains("merge-group-card") || !homeViewContent.Contains("repo-last-updated"))
         {
-            throw new Exception("HomeView.vue does not contain 'Last Updated' column definition");
+            throw new Exception("HomeView.vue does not contain expected dashboard card layout markers");
         }
 
-        Log.Information("HomeView.vue confirmed to include Last Updated column");
+        Log.Information("HomeView.vue confirmed to include dashboard card and last-updated markers");
 
-        // Verify AppBar.vue includes version display
+        // Verify AppBar.vue includes version display and route-driven page title zone.
         var appBarPath = Path.Combine(TestConfig.RepositoryRoot, "src", "fe", "src", "components", "AppBar.vue");
         if (!File.Exists(appBarPath))
         {
@@ -80,9 +79,14 @@ public class VersionAndLastUpdatedTest : IDisposable
             throw new Exception("AppBar.vue does not contain version display with fe: and be: labels");
         }
 
-        Log.Information("AppBar.vue confirmed to include version display");
+        if (!appBarContent.Contains("page-title-text") || !appBarContent.Contains("title-divider"))
+        {
+            throw new Exception("AppBar.vue does not contain the expected page title zone and divider");
+        }
 
-        Log.Information("Version and Last Updated test passed");
+        Log.Information("AppBar.vue confirmed to include version display and page title zone");
+
+        Log.Information("Version and dashboard UI source checks passed");
     }
 
     private record VersionResponse(string Version);

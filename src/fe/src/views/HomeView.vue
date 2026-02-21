@@ -37,112 +37,112 @@
           <p class="mt-4 text-body-1">Loading dashboard...</p>
         </div>
 
-        <div v-else-if="mergeGroups.length === 0 && !streaming" class="text-center pa-8">
+        <div v-else-if="displayedMergeGroups.length === 0 && !streaming" class="text-center pa-8">
           <v-icon icon="mdi-source-branch" size="64" color="grey" class="mb-4" />
           <p class="text-h6 text-grey">No active branches in the last 14 days</p>
         </div>
 
         <div v-else>
-          <h2 class="text-h5 mb-4">
-            Dashboard
+          <div class="d-flex align-center mb-3" style="min-height: 24px;">
             <v-progress-circular
               v-if="streaming"
               indeterminate
               color="primary"
               size="18"
               width="2"
-              class="ml-2"
             />
-          </h2>
-          <v-table class="dashboard-table" density="comfortable">
-            <thead>
-              <tr>
-                <th>Branch</th>
-                <th>Repository</th>
-                <th class="text-center">MR</th>
-                <th class="text-center">Approvals</th>
-                <th class="text-end">Last Updated</th>
-              </tr>
-            </thead>
-            <tbody>
-              <template v-for="group in mergeGroups" :key="group.groupKey">
-                <tr v-for="(item, idx) in group.items" :key="`${group.groupKey}-${item.projectId}`">
-                  <!-- Branch name cell: only show on first row of group, span all rows -->
-                  <td
-                    v-if="idx === 0"
-                    :rowspan="group.items.length"
-                    class="branch-name-cell font-weight-medium"
+          </div>
+
+          <TransitionGroup name="dashboard-cards" tag="div" class="dashboard-card-list">
+            <v-card
+              v-for="group in displayedMergeGroups"
+              :key="group.groupKey"
+              class="merge-group-card"
+              variant="outlined"
+              :data-branch-name="group.branchName"
+              @mouseenter="onCardMouseEnter"
+              @mouseleave="onCardMouseLeave"
+            >
+              <v-card-item class="py-3">
+                <template #prepend>
+                  <v-icon icon="mdi-source-branch" size="small" class="mr-2" />
+                </template>
+                <v-card-title class="text-body-1 font-weight-medium merge-group-branch">
+                  {{ group.branchName }}
+                </v-card-title>
+                <template #append>
+                  <v-chip
+                    class="group-status-chip"
+                    :color="getGroupStatus(group).color"
+                    size="small"
+                    variant="tonal"
                   >
-                    <v-icon icon="mdi-source-branch" size="small" class="mr-1" />
-                    {{ group.branchName }}
-                  </td>
+                    {{ getGroupStatus(group).label }}
+                  </v-chip>
+                </template>
+              </v-card-item>
 
-                  <!-- Repository name -->
-                  <td>{{ item.projectName }}</td>
+              <v-divider />
 
-                  <!-- MR status -->
-                  <td class="text-center">
-                    <v-progress-circular
-                      v-if="item.hasMergeRequest === null"
-                      indeterminate
-                      color="grey"
-                      size="16"
-                      width="2"
-                    />
-                    <v-icon
-                      v-else-if="item.hasMergeRequest"
-                      icon="mdi-check-circle"
-                      color="primary"
-                      size="small"
-                    />
-                    <v-icon
-                      v-else
-                      icon="mdi-minus-circle-outline"
-                      color="grey"
-                      size="small"
-                    />
-                  </td>
+              <v-card-text class="py-2">
+                <div
+                  v-for="(item, idx) in group.items"
+                  :key="`${group.groupKey}-${item.projectId}`"
+                  class="repo-row py-2"
+                  :data-repo-name="item.projectName"
+                >
+                  <v-row align="center" no-gutters>
+                    <v-col cols="12" md="5" class="pr-md-3">
+                      <div class="text-body-2 font-weight-medium">
+                        {{ item.projectName }}
+                      </div>
+                    </v-col>
 
-                  <!-- Approval status -->
-                  <td class="text-center">
-                    <v-progress-circular
-                      v-if="item.hasMergeRequest === null"
-                      indeterminate
-                      color="grey"
-                      size="16"
-                      width="2"
-                    />
-                    <template v-else-if="item.hasMergeRequest && item.approvalsRequired != null && item.approvalsGiven != null">
+                    <v-col cols="12" sm="4" md="2" class="mt-2 mt-sm-0">
+                      <v-progress-circular
+                        v-if="item.hasMergeRequest === null"
+                        indeterminate
+                        color="grey"
+                        size="16"
+                        width="2"
+                      />
                       <v-chip
-                        :color="item.approvalsGiven >= item.approvalsRequired ? 'success' : 'warning'"
+                        v-else
+                        class="repo-status-chip"
+                        :color="getItemStatus(item).color"
                         size="small"
                         variant="tonal"
                       >
-                        <v-icon
-                          v-if="item.approvalsGiven >= item.approvalsRequired"
-                          icon="mdi-check"
-                          size="x-small"
-                          class="mr-1"
-                        />
-                        {{ item.approvalsGiven }}/{{ item.approvalsRequired }}
+                        {{ getItemStatus(item).label }}
                       </v-chip>
-                    </template>
-                    <span v-else class="text-grey">—</span>
-                  </td>
+                    </v-col>
 
-                  <!-- Last Updated -->
-                  <td class="text-end">
-                    <v-tooltip v-if="item.lastUpdated" location="top" :text="formatDateTime(item.lastUpdated)">
-                      <template v-slot:activator="{ props }">
-                        <span v-bind="props">{{ formatTimeAgo(item.lastUpdated) }}</span>
-                      </template>
-                    </v-tooltip>
-                    <span v-else class="text-grey">—</span>
-                  </td>
-                </tr>
-              </template>
-            </tbody>
-          </v-table>
+                    <v-col cols="6" sm="4" md="2" class="mt-2 mt-sm-0">
+                      <v-chip
+                        class="repo-approvals-chip"
+                        size="small"
+                        variant="outlined"
+                        :color="item.hasMergeRequest ? (getItemStatus(item).label === 'Ready' ? 'success' : 'info') : 'warning'"
+                      >
+                        {{ formatApprovals(item) }}
+                      </v-chip>
+                    </v-col>
+
+                    <v-col cols="6" sm="4" md="3" class="text-end mt-2 mt-sm-0">
+                      <v-tooltip v-if="item.lastUpdated" location="top" :text="formatDateTime(item.lastUpdated)">
+                        <template v-slot:activator="{ props }">
+                          <span v-bind="props" class="repo-last-updated">{{ formatTimeAgo(item.lastUpdated) }}</span>
+                        </template>
+                      </v-tooltip>
+                      <span v-else class="text-grey repo-last-updated">—</span>
+                    </v-col>
+                  </v-row>
+
+                  <v-divider v-if="idx < group.items.length - 1" class="mt-2" />
+                </div>
+              </v-card-text>
+            </v-card>
+          </TransitionGroup>
         </div>
       </v-col>
     </v-row>
@@ -150,7 +150,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useCurrentUser } from '@/composables/useCurrentUser'
 
@@ -182,6 +182,26 @@ interface MergeGroup {
   items: BranchActivity[]
 }
 
+const statusDefinitions = {
+  ready: {
+    label: 'Ready',
+    color: 'success',
+    priority: 1
+  },
+  open: {
+    label: 'Open',
+    color: 'info',
+    priority: 2
+  },
+  waiting: {
+    label: 'Waiting',
+    color: 'warning',
+    priority: 3
+  }
+} as const
+
+type DashboardStatus = typeof statusDefinitions[keyof typeof statusDefinitions]
+
 const route = useRoute()
 const router = useRouter()
 const { currentUser, loadCurrentUser } = useCurrentUser()
@@ -192,18 +212,21 @@ const authenticated = computed(() => currentUser.value !== null)
 const streaming = ref(false)
 const errorMessage = ref('')
 const now = ref(Date.now())
+const cardOrder = ref<string[]>([])
+const reorderLocked = ref(false)
 
 let eventSource: EventSource | null = null
 let pollIntervalId: ReturnType<typeof setInterval> | null = null
 let refreshIntervalId: ReturnType<typeof setInterval> | null = null
 let timeIntervalId: ReturnType<typeof setInterval> | null = null
+let reorderUnlockTimeoutId: ReturnType<typeof setTimeout> | null = null
 let lastUpdateTime: Date | null = null
 
 /**
  * Groups activities by mergeGroupId (from DB) when available,
  * falling back to branchName for items without a mergeGroupId.
  */
-const mergeGroups = computed<MergeGroup[]>(() => {
+const rawMergeGroups = computed<MergeGroup[]>(() => {
   const groups = new Map<string, { branchName: string; items: BranchActivity[] }>()
   for (const item of activities.value) {
     // Use mergeGroupId as the grouping key when available, fallback to branchName
@@ -224,6 +247,141 @@ const mergeGroups = computed<MergeGroup[]>(() => {
     items
   }))
 })
+
+const displayedMergeGroups = computed<MergeGroup[]>(() => {
+  const mergeGroupByKey = new Map(rawMergeGroups.value.map(group => [group.groupKey, group]))
+  const orderedGroups = cardOrder.value
+    .map(groupKey => mergeGroupByKey.get(groupKey))
+    .filter((group): group is MergeGroup => group !== undefined)
+
+  if (orderedGroups.length === rawMergeGroups.value.length) {
+    return orderedGroups
+  }
+
+  const orderedKeys = new Set(orderedGroups.map(group => group.groupKey))
+  const missingGroups = rawMergeGroups.value.filter(group => !orderedKeys.has(group.groupKey))
+  return [...orderedGroups, ...missingGroups]
+})
+
+watch(rawMergeGroups, groups => {
+  syncCardOrder(groups)
+}, { immediate: true })
+
+function getItemStatus(item: BranchActivity): DashboardStatus {
+  if (!item.hasMergeRequest) {
+    return statusDefinitions.waiting
+  }
+
+  const approvalsRequired = item.approvalsRequired ?? 0
+  const approvalsGiven = item.approvalsGiven ?? 0
+
+  if (approvalsGiven >= approvalsRequired) {
+    return statusDefinitions.ready
+  }
+
+  return statusDefinitions.open
+}
+
+function getGroupStatus(group: MergeGroup): DashboardStatus {
+  let leastReady: DashboardStatus = statusDefinitions.ready
+
+  for (const item of group.items) {
+    const status = getItemStatus(item)
+    if (status.priority > leastReady.priority) {
+      leastReady = status
+    }
+  }
+
+  return leastReady
+}
+
+function formatApprovals(item: BranchActivity): string {
+  if (!item.hasMergeRequest) {
+    return '—'
+  }
+
+  const approvalsRequired = item.approvalsRequired ?? 0
+  const approvalsGiven = item.approvalsGiven ?? 0
+  return `${approvalsGiven}/${approvalsRequired}`
+}
+
+function getGroupLatestUpdatedMs(group: MergeGroup): number {
+  return group.items.reduce((latest, item) => {
+    if (!item.lastUpdated) {
+      return latest
+    }
+
+    const itemTime = Date.parse(item.lastUpdated)
+    if (Number.isNaN(itemTime)) {
+      return latest
+    }
+
+    return Math.max(latest, itemTime)
+  }, 0)
+}
+
+function getSortedGroupKeys(groups: MergeGroup[]): string[] {
+  return [...groups]
+    .sort((a, b) => {
+      const latestDiff = getGroupLatestUpdatedMs(b) - getGroupLatestUpdatedMs(a)
+      if (latestDiff !== 0) {
+        return latestDiff
+      }
+
+      return a.branchName.localeCompare(b.branchName)
+    })
+    .map(group => group.groupKey)
+}
+
+function syncCardOrder(groups: MergeGroup[]) {
+  const incomingKeys = groups.map(group => group.groupKey)
+  const incomingKeySet = new Set(incomingKeys)
+  const persistedKeys = cardOrder.value.filter(groupKey => incomingKeySet.has(groupKey))
+  const persistedKeySet = new Set(persistedKeys)
+  const newKeys = incomingKeys.filter(groupKey => !persistedKeySet.has(groupKey))
+
+  if (reorderLocked.value) {
+    cardOrder.value = [...persistedKeys, ...newKeys]
+    return
+  }
+
+  const sortedKeys = getSortedGroupKeys(groups)
+  if (newKeys.length === 0) {
+    cardOrder.value = sortedKeys
+    return
+  }
+
+  const newKeySet = new Set(newKeys)
+  const sortedNewKeys = sortedKeys.filter(groupKey => newKeySet.has(groupKey))
+  const sortedExistingKeys = sortedKeys.filter(groupKey => !newKeySet.has(groupKey))
+  cardOrder.value = [...sortedNewKeys, ...sortedExistingKeys]
+}
+
+function onCardMouseEnter() {
+  if (reorderUnlockTimeoutId !== null) {
+    clearTimeout(reorderUnlockTimeoutId)
+    reorderUnlockTimeoutId = null
+  }
+
+  if (!reorderLocked.value) {
+    console.info('[Mergician] Dashboard card reorder locked while cursor is over cards')
+  }
+
+  reorderLocked.value = true
+}
+
+function onCardMouseLeave() {
+  if (reorderUnlockTimeoutId !== null) {
+    clearTimeout(reorderUnlockTimeoutId)
+  }
+
+  reorderUnlockTimeoutId = setTimeout(() => {
+    reorderLocked.value = false
+    console.info('[Mergician] Dashboard card reorder unlocked after hover idle threshold')
+    syncCardOrder(rawMergeGroups.value)
+    reorderUnlockTimeoutId = null
+  }, 2000)
+}
 
 /**
  * Formats an ISO datetime string to local date/time for display.
@@ -523,6 +681,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   if (timeIntervalId) clearInterval(timeIntervalId)
+  if (reorderUnlockTimeoutId) clearTimeout(reorderUnlockTimeoutId)
   eventSource?.close()
   eventSource = null
   stopPolling()
@@ -530,13 +689,39 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.dashboard-table {
-  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
-  border-radius: 4px;
+.dashboard-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
 }
 
-.branch-name-cell {
-  vertical-align: top;
-  border-right: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+.merge-group-card {
+  border-radius: 8px;
+}
+
+.merge-group-branch {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.repo-last-updated {
+  white-space: nowrap;
+}
+
+.dashboard-cards-move {
+  transition: transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.dashboard-cards-enter-active,
+.dashboard-cards-leave-active {
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.dashboard-cards-enter-from,
+.dashboard-cards-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
 }
 </style>

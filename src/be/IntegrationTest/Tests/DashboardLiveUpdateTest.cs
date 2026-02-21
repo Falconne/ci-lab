@@ -6,14 +6,13 @@ using Serilog;
 namespace IntegrationTest.Tests;
 
 /// <summary>
-///     Tests that the dashboard dynamically updates when new branches are pushed
-///     and when MR/approval status changes, while the dashboard is already loaded.
-///     Uses Playwright to interact with the UI and GitLab API to create test data
-///     in real time.
+///     Tests that the dashboard dynamically updates when new branches are pushed,
+///     when MR status changes, and when card ordering changes while polling.
 /// </summary>
 public class DashboardLiveUpdateTest : IDisposable
 {
     private readonly BrowserService _browser = new();
+
     private readonly GitLabTestHelper _gitLab = new();
 
     public void Dispose()
@@ -30,23 +29,18 @@ public class DashboardLiveUpdateTest : IDisposable
         await TestNewBranchAppearsOnDashboard();
         await TestMrStatusUpdatesOnDashboard();
         await TestDeletedBranchDisappearsAndStaysGoneAfterReload();
+        await TestCardReorderAndHoverLockBehavior();
 
         Log.Information("Dashboard live update tests passed");
     }
 
-    /// <summary>
-    ///     Verifies that when a user pushes a new branch while the dashboard is loaded,
-    ///     the branch appears on the dashboard via polling without requiring a page refresh.
-    /// </summary>
     private async Task TestNewBranchAppearsOnDashboard()
     {
         Log.Information("Testing: new branch appears on loaded dashboard...");
 
-        // Login as test1 and wait for the initial dashboard to fully load
         await LoginAndWaitForDashboard("test1");
         await _browser.TakeScreenshot("live_01_initial_dashboard");
 
-        // Push a new branch via GitLab API as test1
         var projectId = _gitLab.GetProjectId("primary-1");
         var branchName = $"feature/live-test-{DateTime.UtcNow:yyyyMMddHHmmss}";
         _gitLab.CreateBranchWithCommit(projectId, branchName, "test1");
@@ -56,72 +50,198 @@ public class DashboardLiveUpdateTest : IDisposable
             branchName,
             projectId);
 
-        // Wait for the branch to appear on the dashboard (polling interval is 5s)
         var appeared = await WaitForBranchOnDashboard(branchName, 60);
         await _browser.TakeScreenshot("live_02_after_new_branch");
 
         if (!appeared)
+        {
             throw new InvalidOperationException(
                 $"Branch '{branchName}' did not appear on dashboard within timeout");
+        }
 
         Log.Information("New branch '{BranchName}' appeared on dashboard successfully", branchName);
     }
 
-    /// <summary>
-    ///     Verifies that when an MR is created on an existing branch,
-    ///     the dashboard updates the MR status via the refresh polling.
-    /// </summary>
     private async Task TestMrStatusUpdatesOnDashboard()
     {
-        Log.Information("Testing: MR status updates on loaded dashboard...");
+        Log.Information("Testing: branch status changes from Waiting to Open/Ready after MR creation...");
 
-        // Login as test1 and wait for the dashboard
         await LoginAndWaitForDashboard("test1");
         await _browser.TakeScreenshot("live_03_dashboard_before_mr");
 
-        // Push a branch without MR first
         var projectId = _gitLab.GetProjectId("primary-1");
         var branchName = $"feature/mr-test-{DateTime.UtcNow:yyyyMMddHHmmss}";
         _gitLab.CreateBranchWithCommit(projectId, branchName, "test1");
 
-        // Wait for the branch to appear
         var appeared = await WaitForBranchOnDashboard(branchName, 60);
         if (!appeared)
+        {
             throw new InvalidOperationException(
                 $"Branch '{branchName}' did not appear on dashboard within timeout");
+        }
 
         await _browser.TakeScreenshot("live_04_branch_without_mr");
 
-        // Verify that the branch row does NOT have an MR icon initially
-        var hasMrBefore = await BranchRowHasMrIcon(branchName);
-        if (hasMrBefore)
+        var statusBefore = await GetGroupStatusForBranch(branchName);
+        if (!string.Equals(statusBefore, "Waiting", StringComparison.OrdinalIgnoreCase))
+        {
             throw new InvalidOperationException(
-                $"Branch '{branchName}' should not have MR icon before MR creation");
+                $"Branch '{branchName}' should be Waiting before MR creation but was '{statusBefore ?? "(null)"}'");
+        }
 
-        Log.Information("Branch '{BranchName}' correctly shows no MR icon", branchName);
+        Log.Information("Branch '{BranchName}' correctly shows Waiting before MR creation", branchName);
 
-        // Create an MR on the branch
         _gitLab.CreateMergeRequest(projectId, branchName, "test1");
         Log.Information("Created MR for branch '{BranchName}', waiting for dashboard update...", branchName);
 
-        // Wait for the MR icon to appear (refresh polling is every 15s)
-        var mrUpdated = await WaitForMrIconOnBranch(branchName, 60);
+        var mrUpdated = await WaitForBranchStatus(
+            branchName,
+            status => string.Equals(status, "Open", StringComparison.OrdinalIgnoreCase)
+                      || string.Equals(status, "Ready", StringComparison.OrdinalIgnoreCase),
+            60);
+
         await _browser.TakeScreenshot("live_05_branch_with_mr");
 
         if (!mrUpdated)
+        {
             throw new InvalidOperationException(
-                $"MR icon did not appear for branch '{branchName}' within timeout");
+                $"Branch '{branchName}' did not transition to Open/Ready within timeout");
+        }
 
         Log.Information("MR status updated on dashboard for '{BranchName}'", branchName);
     }
 
+    private async Task TestDeletedBranchDisappearsAndStaysGoneAfterReload()
+    {
+        Log.Information("Testing: deleted branch disappears and stays gone after reload...");
+
+        await LoginAndWaitForDashboard("test1");
+        await _browser.TakeScreenshot("live_06_before_delete_branch_test");
+
+        var projectId = _gitLab.GetProjectId("primary-1");
+        var branchName = $"feature/delete-test-{DateTime.UtcNow:yyyyMMddHHmmss}";
+        _gitLab.CreateBranchWithCommit(projectId, branchName, "test1");
+
+        var appeared = await WaitForBranchOnDashboard(branchName, 60);
+        if (!appeared)
+        {
+            throw new InvalidOperationException(
+                $"Branch '{branchName}' did not appear on dashboard before delete test");
+        }
+
+        _gitLab.DeleteBranch(projectId, branchName);
+        Log.Information("Deleted branch '{BranchName}', waiting for dashboard removal", branchName);
+
+        var disappeared = await WaitForBranchToDisappearFromDashboard(branchName, 90);
+        await _browser.TakeScreenshot("live_07_after_delete_branch_live_update");
+
+        if (!disappeared)
+        {
+            throw new InvalidOperationException(
+                $"Deleted branch '{branchName}' did not disappear from dashboard within timeout");
+        }
+
+        await _browser.Navigate(TestConfig.MergicianUrl);
+        await Task.Delay(2000);
+        await WaitForDashboardLoadComplete();
+
+        await EnsureBranchStaysAbsent(branchName, 20);
+        await _browser.TakeScreenshot("live_08_after_delete_branch_reload");
+
+        Log.Information("Deleted branch '{BranchName}' remained absent after dashboard reload", branchName);
+    }
+
+    private async Task TestCardReorderAndHoverLockBehavior()
+    {
+        Log.Information("Testing: card reorder by recency and hover-lock behavior...");
+
+        await LoginAndWaitForDashboard("test1");
+        await _browser.TakeScreenshot("live_09_reorder_before_setup");
+        await MoveMouseAwayFromCardsAndWaitForUnlock();
+
+        var projectId = _gitLab.GetProjectId("primary-1");
+        var olderBranch = $"feature/reorder-old-{DateTime.UtcNow:yyyyMMddHHmmss}";
+        _gitLab.CreateBranchWithCommit(projectId, olderBranch, "test1");
+
+        if (!await WaitForBranchOnDashboard(olderBranch, 60))
+        {
+            throw new InvalidOperationException($"Branch '{olderBranch}' did not appear on dashboard");
+        }
+
+        await Task.Delay(1200);
+
+        var newerBranch = $"feature/reorder-new-{DateTime.UtcNow:yyyyMMddHHmmss}";
+        _gitLab.CreateBranchWithCommit(projectId, newerBranch, "test1");
+
+        if (!await WaitForBranchOnDashboard(newerBranch, 60))
+        {
+            throw new InvalidOperationException($"Branch '{newerBranch}' did not appear on dashboard");
+        }
+
+        await MoveMouseAwayFromCardsAndWaitForUnlock();
+
+        var reorderedByRecency = await WaitForBranchOrder(newerBranch, olderBranch, 60);
+        if (!reorderedByRecency)
+        {
+            throw new InvalidOperationException(
+                $"Expected newer branch '{newerBranch}' to move above '{olderBranch}'");
+        }
+
+        Log.Information("Verified recency reorder: '{Newer}' appears above '{Older}'", newerBranch, olderBranch);
+
+        var hoverCard = _browser.Page.Locator($".merge-group-card[data-branch-name='{olderBranch}']").First;
+        await hoverCard.HoverAsync();
+        Log.Information("Hovering branch card '{BranchName}' to lock reordering", olderBranch);
+
+        var lockedBranch = $"feature/reorder-locked-{DateTime.UtcNow:yyyyMMddHHmmss}";
+        _gitLab.CreateBranchWithCommit(projectId, lockedBranch, "test1");
+
+        if (!await WaitForBranchOnDashboard(lockedBranch, 60))
+        {
+            throw new InvalidOperationException($"Branch '{lockedBranch}' did not appear while hover lock was active");
+        }
+
+        var isAtBottomWhileLocked = await WaitForBranchAtBottom(lockedBranch, 30);
+        if (!isAtBottomWhileLocked)
+        {
+            throw new InvalidOperationException(
+                $"Expected new branch '{lockedBranch}' to remain at bottom while hover lock is active");
+        }
+
+        await _browser.TakeScreenshot("live_10_hover_lock_bottom_insertion");
+
+        await _browser.Page.Mouse.MoveAsync(2, 2);
+        Log.Information("Moved mouse off cards; waiting to verify 2s unlock threshold");
+
+        await Task.Delay(1200);
+        if (!await IsBranchAtBottom(lockedBranch))
+        {
+            throw new InvalidOperationException(
+                $"Branch '{lockedBranch}' moved before hover unlock threshold elapsed");
+        }
+
+        var movedAfterUnlock = await WaitForBranchToMoveUpFromBottom(lockedBranch, 30);
+        if (!movedAfterUnlock)
+        {
+            throw new InvalidOperationException(
+                $"Branch '{lockedBranch}' did not reorder after hover unlock threshold");
+        }
+
+        await _browser.TakeScreenshot("live_11_hover_unlock_reordered");
+        Log.Information("Verified hover-lock behavior with delayed unlock and reorder");
+    }
+
+    private async Task MoveMouseAwayFromCardsAndWaitForUnlock()
+    {
+        await _browser.Page.Mouse.MoveAsync(2, 2);
+        await Task.Delay(2300);
+    }
+
     private async Task LoginAndWaitForDashboard(string username)
     {
-        // Clear cookies/state
         await _browser.Page.Context.ClearCookiesAsync();
         await Task.Delay(500);
 
-        // Login via OAuth flow
         await _browser.Navigate($"{TestConfig.MergicianUrl}/api/auth/login");
         await Task.Delay(2000);
 
@@ -169,68 +289,25 @@ public class DashboardLiveUpdateTest : IDisposable
             }
         }
 
-        // Navigate to dashboard and wait for SSE to complete
         await _browser.Navigate(TestConfig.MergicianUrl);
         await Task.Delay(2000);
 
         await WaitForDashboardLoadComplete();
-    }
-
-    /// <summary>
-    ///     Verifies that when a tracked branch is deleted in GitLab, it disappears from
-    ///     the already open dashboard and stays gone after a full page reload.
-    /// </summary>
-    private async Task TestDeletedBranchDisappearsAndStaysGoneAfterReload()
-    {
-        Log.Information("Testing: deleted branch disappears and stays gone after reload...");
-
-        await LoginAndWaitForDashboard("test1");
-        await _browser.TakeScreenshot("live_06_before_delete_branch_test");
-
-        var projectId = _gitLab.GetProjectId("primary-1");
-        var branchName = $"feature/delete-test-{DateTime.UtcNow:yyyyMMddHHmmss}";
-        _gitLab.CreateBranchWithCommit(projectId, branchName, "test1");
-
-        var appeared = await WaitForBranchOnDashboard(branchName, 60);
-        if (!appeared)
-            throw new InvalidOperationException(
-                $"Branch '{branchName}' did not appear on dashboard before delete test");
-
-        _gitLab.DeleteBranch(projectId, branchName);
-        Log.Information("Deleted branch '{BranchName}', waiting for dashboard removal", branchName);
-
-        var disappeared = await WaitForBranchToDisappearFromDashboard(branchName, 90);
-        await _browser.TakeScreenshot("live_07_after_delete_branch_live_update");
-
-        if (!disappeared)
-            throw new InvalidOperationException(
-                $"Deleted branch '{branchName}' did not disappear from dashboard within timeout");
-
-        // Fresh reload: branch should not come back from server cache.
-        await _browser.Navigate(TestConfig.MergicianUrl);
-        await Task.Delay(2000);
-        await WaitForDashboardLoadComplete();
-
-        await EnsureBranchStaysAbsent(branchName, 20);
-        await _browser.TakeScreenshot("live_08_after_delete_branch_reload");
-
-        Log.Information("Deleted branch '{BranchName}' remained absent after dashboard reload", branchName);
     }
 
     private async Task WaitForDashboardLoadComplete()
     {
-
         Log.Information("Waiting for initial SSE stream to complete...");
-        for (var s = 0; s < 120; s++)
+        for (var second = 0; second < 120; second++)
         {
-            var tableExists = await _browser.Page.Locator(".dashboard-table").CountAsync() > 0;
-            if (tableExists)
+            var cardsExist = await _browser.Page.Locator(".merge-group-card").CountAsync() > 0;
+            if (cardsExist)
             {
                 var spinnerCount =
-                    await _browser.Page.Locator(".dashboard-table .v-progress-circular").CountAsync();
+                    await _browser.Page.Locator(".merge-group-card .v-progress-circular").CountAsync();
                 if (spinnerCount == 0)
                 {
-                    Log.Information("Dashboard loaded after ~{Seconds}s", s);
+                    Log.Information("Dashboard loaded after ~{Seconds}s", second);
                     return;
                 }
             }
@@ -255,31 +332,19 @@ public class DashboardLiveUpdateTest : IDisposable
         }
     }
 
-    /// <summary>
-    ///     Waits for a branch name to appear in the dashboard table.
-    /// </summary>
     private async Task<bool> WaitForBranchOnDashboard(string branchName, int timeoutSeconds)
     {
-        for (var s = 0; s < timeoutSeconds; s++)
+        for (var second = 0; second < timeoutSeconds; second++)
         {
-            var branchCells = _browser.Page.Locator(".dashboard-table .branch-name-cell");
-            var count = await branchCells.CountAsync();
-
-            for (var i = 0; i < count; i++)
+            if (await IsBranchOnDashboard(branchName))
             {
-                var text = (await branchCells.Nth(i).InnerTextAsync()).Trim();
-                if (text.Contains(branchName))
-                {
-                    Log.Information("Branch '{BranchName}' found on dashboard after ~{Seconds}s",
-                        branchName, s);
-                    return true;
-                }
+                Log.Information("Branch '{BranchName}' found on dashboard after ~{Seconds}s", branchName, second);
+                return true;
             }
 
-            if (s % 10 == 0)
+            if (second % 10 == 0)
             {
-                Log.Information("Waiting for branch '{BranchName}' to appear... {Seconds}s",
-                    branchName, s);
+                Log.Information("Waiting for branch '{BranchName}' to appear... {Seconds}s", branchName, second);
             }
 
             await Task.Delay(1000);
@@ -290,17 +355,17 @@ public class DashboardLiveUpdateTest : IDisposable
 
     private async Task<bool> WaitForBranchToDisappearFromDashboard(string branchName, int timeoutSeconds)
     {
-        for (var s = 0; s < timeoutSeconds; s++)
+        for (var second = 0; second < timeoutSeconds; second++)
         {
             if (!await IsBranchOnDashboard(branchName))
             {
-                Log.Information("Branch '{BranchName}' disappeared from dashboard after ~{Seconds}s", branchName, s);
+                Log.Information("Branch '{BranchName}' disappeared from dashboard after ~{Seconds}s", branchName, second);
                 return true;
             }
 
-            if (s % 10 == 0)
+            if (second % 10 == 0)
             {
-                Log.Information("Waiting for branch '{BranchName}' to disappear... {Seconds}s", branchName, s);
+                Log.Information("Waiting for branch '{BranchName}' to disappear... {Seconds}s", branchName, second);
             }
 
             await Task.Delay(1000);
@@ -311,65 +376,165 @@ public class DashboardLiveUpdateTest : IDisposable
 
     private async Task<bool> IsBranchOnDashboard(string branchName)
     {
-        var branchCells = _browser.Page.Locator(".dashboard-table .branch-name-cell");
-        var count = await branchCells.CountAsync();
+        var branches = await GetCardBranchOrder();
+        return branches.Any(branch =>
+            branch.Contains(branchName, StringComparison.OrdinalIgnoreCase));
+    }
 
-        for (var i = 0; i < count; i++)
+    private async Task<bool> WaitForBranchStatus(string branchName, Func<string?, bool> predicate, int timeoutSeconds)
+    {
+        for (var second = 0; second < timeoutSeconds; second++)
         {
-            var text = (await branchCells.Nth(i).InnerTextAsync()).Trim();
-            if (text.Contains(branchName))
+            var status = await GetGroupStatusForBranch(branchName);
+            if (predicate(status))
             {
+                Log.Information(
+                    "Branch '{BranchName}' reached expected status '{Status}' after ~{Seconds}s",
+                    branchName,
+                    status,
+                    second);
                 return true;
             }
+
+            if (second % 10 == 0)
+            {
+                Log.Information(
+                    "Waiting for branch '{BranchName}' status transition... current='{Status}', {Seconds}s",
+                    branchName,
+                    status ?? "(null)",
+                    second);
+            }
+
+            await Task.Delay(1000);
         }
 
         return false;
     }
 
-    /// <summary>
-    ///     Checks if a branch row has the MR check icon.
-    /// </summary>
-    private async Task<bool> BranchRowHasMrIcon(string branchName)
+    private async Task<string?> GetGroupStatusForBranch(string branchName)
     {
-        var rows = _browser.Page.Locator(".dashboard-table tbody tr");
-        var rowCount = await rows.CountAsync();
-        var currentBranch = "";
+        var cards = _browser.Page.Locator(".merge-group-card");
+        var cardCount = await cards.CountAsync();
 
-        for (var i = 0; i < rowCount; i++)
+        for (var i = 0; i < cardCount; i++)
         {
-            var row = rows.Nth(i);
-            var branchCell = row.Locator(".branch-name-cell");
-            if (await branchCell.CountAsync() > 0)
-                currentBranch = (await branchCell.InnerTextAsync()).Trim();
-
-            if (!currentBranch.Contains(branchName))
+            var card = cards.Nth(i);
+            var candidate = (await card.GetAttributeAsync("data-branch-name") ?? string.Empty).Trim();
+            if (!candidate.Contains(branchName, StringComparison.OrdinalIgnoreCase))
+            {
                 continue;
+            }
 
-            var hasMr = await row.Locator(".mdi-check-circle").CountAsync() > 0;
-            return hasMr;
+            var statusChip = card.Locator(".group-status-chip");
+            if (await statusChip.CountAsync() == 0)
+            {
+                return null;
+            }
+
+            return (await statusChip.First.InnerTextAsync()).Trim();
+        }
+
+        return null;
+    }
+
+    private async Task<List<string>> GetCardBranchOrder()
+    {
+        var cards = _browser.Page.Locator(".merge-group-card");
+        var cardCount = await cards.CountAsync();
+        var branches = new List<string>(cardCount);
+
+        for (var i = 0; i < cardCount; i++)
+        {
+            var card = cards.Nth(i);
+            var branch = (await card.GetAttributeAsync("data-branch-name") ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(branch))
+            {
+                branch = (await card.Locator(".merge-group-branch").First.InnerTextAsync()).Trim();
+            }
+
+            if (!string.IsNullOrWhiteSpace(branch))
+            {
+                branches.Add(branch);
+            }
+        }
+
+        return branches;
+    }
+
+    private async Task<bool> WaitForBranchOrder(string branchThatShouldComeFirst, string branchThatShouldComeAfter, int timeoutSeconds)
+    {
+        for (var second = 0; second < timeoutSeconds; second++)
+        {
+            var order = await GetCardBranchOrder();
+            var firstIndex = order.FindIndex(branch =>
+                branch.Contains(branchThatShouldComeFirst, StringComparison.OrdinalIgnoreCase));
+            var secondIndex = order.FindIndex(branch =>
+                branch.Contains(branchThatShouldComeAfter, StringComparison.OrdinalIgnoreCase));
+
+            if (firstIndex >= 0 && secondIndex >= 0 && firstIndex < secondIndex)
+            {
+                return true;
+            }
+
+            await Task.Delay(1000);
         }
 
         return false;
     }
 
-    /// <summary>
-    ///     Waits for the MR icon to appear on a branch row.
-    /// </summary>
-    private async Task<bool> WaitForMrIconOnBranch(string branchName, int timeoutSeconds)
+    private async Task<bool> WaitForBranchAtBottom(string branchName, int timeoutSeconds)
     {
-        for (var s = 0; s < timeoutSeconds; s++)
+        for (var second = 0; second < timeoutSeconds; second++)
         {
-            if (await BranchRowHasMrIcon(branchName))
+            if (await IsBranchAtBottom(branchName))
             {
-                Log.Information("MR icon appeared for '{BranchName}' after ~{Seconds}s",
-                    branchName, s);
+                Log.Information("Branch '{BranchName}' reached bottom position after ~{Seconds}s", branchName, second);
                 return true;
             }
 
-            if (s % 10 == 0)
+            await Task.Delay(1000);
+        }
+
+        return false;
+    }
+
+    private async Task<bool> IsBranchAtBottom(string branchName)
+    {
+        var order = await GetCardBranchOrder();
+        if (order.Count == 0)
+        {
+            return false;
+        }
+
+        var index = order.FindIndex(branch =>
+            branch.Contains(branchName, StringComparison.OrdinalIgnoreCase));
+
+        return index == order.Count - 1;
+    }
+
+    private async Task<bool> WaitForBranchToMoveUpFromBottom(string branchName, int timeoutSeconds)
+    {
+        for (var second = 0; second < timeoutSeconds; second++)
+        {
+            var order = await GetCardBranchOrder();
+            if (order.Count == 0)
             {
-                Log.Information("Waiting for MR icon on '{BranchName}'... {Seconds}s",
-                    branchName, s);
+                await Task.Delay(1000);
+                continue;
+            }
+
+            var index = order.FindIndex(branch =>
+                branch.Contains(branchName, StringComparison.OrdinalIgnoreCase));
+
+            if (index >= 0 && index < order.Count - 1)
+            {
+                Log.Information(
+                    "Branch '{BranchName}' moved up from bottom after ~{Seconds}s (index {Index} of {Count})",
+                    branchName,
+                    second,
+                    index,
+                    order.Count);
+                return true;
             }
 
             await Task.Delay(1000);
