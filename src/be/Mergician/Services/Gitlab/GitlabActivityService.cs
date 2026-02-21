@@ -86,6 +86,18 @@ public class GitlabActivityService
                 continue;
             }
 
+            if (GitlabService.IsScheduledForDeletion(cached.ProjectName))
+            {
+                _logger.LogInformation(
+                    "Cached branch '{BranchName}' in project {ProjectId} belongs to a project/group scheduled for deletion ('{ProjectName}'); removing from DB",
+                    cached.BranchName,
+                    cached.ProjectId,
+                    cached.ProjectName);
+
+                RemoveBranchAndCleanup(cached.BranchInProjectId);
+                continue;
+            }
+
             var key = $"{cached.BranchName}:{cached.ProjectId}";
             returnedKeys.Add(key);
 
@@ -241,14 +253,30 @@ public class GitlabActivityService
             }
 
             var project = await _gitlabService.GetProject(user, branch.ProjectId);
-            if (project == null)
+            if (project == null || GitlabService.IsScheduledForDeletion(project.NameWithNamespace))
             {
-                _logger.LogError(
-                    "Project metadata lookup returned null for project {ProjectId} during refresh",
-                    branch.ProjectId);
+                var reason = project == null
+                    ? "project not found"
+                    : $"project/group is scheduled for deletion ('{project.NameWithNamespace}')";
 
-                throw new InvalidOperationException(
-                    $"Project metadata lookup failed for project {branch.ProjectId} during refresh");
+                _logger.LogInformation(
+                    "Branch '{BranchName}' in project {ProjectId} treated as deleted during refresh: {Reason}",
+                    branch.BranchName,
+                    branch.ProjectId,
+                    reason);
+
+                var branchRecord = _mergeGroupRepository.GetBranchRecord(branch.BranchName, branch.ProjectId);
+                if (branchRecord != null)
+                {
+                    RemoveBranchAndCleanup(branchRecord.Id);
+                }
+
+                yield return new BranchDeletedNotification(
+                    branch.BranchName,
+                    branch.ProjectId,
+                    branch.MergeGroupId);
+
+                continue;
             }
 
             var projectName = project.NameWithNamespace;
@@ -326,12 +354,23 @@ public class GitlabActivityService
             var project = await _gitlabService.GetProject(user, pushEvent.ProjectId);
             if (project == null)
             {
-                _logger.LogError(
-                    "Project metadata lookup returned null for project {ProjectId} while storing branch activity",
-                    pushEvent.ProjectId);
+                _logger.LogInformation(
+                    "Project {ProjectId} not found while processing push event for branch '{BranchName}'; skipping",
+                    pushEvent.ProjectId,
+                    pushEvent.BranchName);
 
-                throw new InvalidOperationException(
-                    $"Project metadata lookup failed for project {pushEvent.ProjectId} while storing branch activity");
+                continue;
+            }
+
+            if (GitlabService.IsScheduledForDeletion(project.NameWithNamespace))
+            {
+                _logger.LogInformation(
+                    "Skipping branch '{BranchName}' in project {ProjectId} ('{ProjectName}'): project/group is scheduled for deletion",
+                    pushEvent.BranchName,
+                    pushEvent.ProjectId,
+                    project.NameWithNamespace);
+
+                continue;
             }
 
             var projectName = project.NameWithNamespace;

@@ -35,6 +35,16 @@ public class GitlabService
         return branchName is "main" or "master" or "develop";
     }
 
+    /// <summary>
+    ///     Returns true if the project or group name indicates it is scheduled for deletion.
+    ///     GitLab renames groups and their projects to include "deletion_scheduled" in the
+    ///     namespace during its asynchronous deletion process.
+    /// </summary>
+    public static bool IsScheduledForDeletion(string nameWithNamespace)
+    {
+        return nameWithNamespace.Contains("deletion_scheduled", StringComparison.OrdinalIgnoreCase);
+    }
+
     public async Task<GitLabUserInfo?> GetCurrentUser(GitlabAccessUser user)
     {
         var request = user.CreateRequest(HttpMethod.Get, "user");
@@ -183,8 +193,18 @@ public class GitlabService
 
         if (project != null)
         {
-            _projectCache.Set(projectId, project);
-            _logger.LogDebug("Cached project info for project {ProjectId}", projectId);
+            if (IsScheduledForDeletion(project.NameWithNamespace))
+            {
+                _logger.LogDebug(
+                    "Not caching project {ProjectId} ('{NameWithNamespace}'): scheduled for deletion",
+                    projectId,
+                    project.NameWithNamespace);
+            }
+            else
+            {
+                _projectCache.Set(projectId, project);
+                _logger.LogDebug("Cached project info for project {ProjectId}", projectId);
+            }
         }
 
         return project;
