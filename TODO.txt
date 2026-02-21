@@ -1,1 +1,1 @@
-Review the use of dates in the Mergician backend and database. All dates should be in UTC in the backend and DB. There is a conversion to UTC in `StreamPushEventsSince` which implies the date passed to it was not in UTC, so check why that is. This includes API calls. It is only in the frontend that dates should be converted to the user's local timezone.
+No pending TODO items.

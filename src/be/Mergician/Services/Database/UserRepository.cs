@@ -1,4 +1,5 @@
 using Dapper;
+using Mergician.Services.Time;
 
 namespace Mergician.Services.Database;
 
@@ -36,12 +37,20 @@ public class UserRepository : IUserRepository
             _logger.LogDebug("No last poll timestamp found for user {UserId}", gitlabUserId);
         }
 
-        return result.HasValue ? DateTime.SpecifyKind(result.Value, DateTimeKind.Utc) : null;
+        return result.HasValue
+            ? UtcTimestamp.EnsureUtc(
+                result.Value,
+                $"UserRepository.GetLastPollTimestamp user {gitlabUserId}",
+                _logger)
+            : null;
     }
 
     public void UpsertLastPollTimestamp(int gitlabUserId, DateTime timestamp)
     {
-        var utcTimestamp = DateTime.SpecifyKind(timestamp, DateTimeKind.Utc);
+        var utcTimestamp = UtcTimestamp.EnsureUtc(
+            timestamp,
+            $"UserRepository.UpsertLastPollTimestamp user {gitlabUserId}",
+            _logger);
 
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();

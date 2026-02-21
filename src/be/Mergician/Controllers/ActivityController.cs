@@ -2,6 +2,7 @@ using Mergician.Entities;
 using Mergician.Services.Authentication;
 using Mergician.Services.Database;
 using Mergician.Services.Gitlab;
+using Mergician.Services.Time;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
@@ -129,7 +130,7 @@ public class ActivityController : ControllerBase
     /// </summary>
     [HttpGet("poll")]
     public async Task<IActionResult> PollActivity(
-        [FromQuery] DateTime since,
+        [FromQuery] DateTimeOffset since,
         CancellationToken cancellationToken)
     {
         var currentUser = HttpContext.GetGitlabUser();
@@ -146,12 +147,14 @@ public class ActivityController : ControllerBase
             return Unauthorized();
         }
 
-        _logger.LogInformation("Polling for activity for user {UserId} since {Since}", userInfo.Id, since);
+        var sinceUtc = UtcTimestamp.EnsureUtc(since, "ActivityController.PollActivity.since", _logger);
+
+        _logger.LogInformation("Polling for activity for user {UserId} since {SinceUtc}", userInfo.Id, sinceUtc);
 
         var result = await _activityService.GetActivitySince(
             currentUser,
             userInfo.Id,
-            since,
+            sinceUtc,
             cancellationToken);
 
         _logger.LogInformation("Returning {Count} poll results", result.Activities.Count);

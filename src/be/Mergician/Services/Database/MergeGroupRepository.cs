@@ -1,5 +1,6 @@
 using Dapper;
 using Mergician.Entities.Database;
+using Mergician.Services.Time;
 
 namespace Mergician.Services.Database;
 
@@ -71,7 +72,11 @@ public class MergeGroupRepository : IMergeGroupRepository
         }
 
         _logger.LogDebug("Got/created merge group {Id} with name '{Name}'", record.Id, name);
-        record.LastUpdateTime = DateTime.SpecifyKind(record.LastUpdateTime, DateTimeKind.Utc);
+        record.LastUpdateTime = UtcTimestamp.EnsureUtc(
+            record.LastUpdateTime,
+            $"MergeGroupRepository.GetOrCreateMergeGroup merge group {record.Id}",
+            _logger);
+
         return record;
     }
 
@@ -115,7 +120,10 @@ public class MergeGroupRepository : IMergeGroupRepository
 
     public void UpdateMergeGroupTimestamp(int mergeGroupId, DateTime lastUpdateTime)
     {
-        var utcTimestamp = DateTime.SpecifyKind(lastUpdateTime, DateTimeKind.Utc);
+        var utcTimestamp = UtcTimestamp.EnsureUtc(
+            lastUpdateTime,
+            $"MergeGroupRepository.UpdateMergeGroupTimestamp merge group {mergeGroupId}",
+            _logger);
 
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();
@@ -132,7 +140,10 @@ public class MergeGroupRepository : IMergeGroupRepository
 
     public List<BranchWithMergeGroupInfo> GetUserBranches(int gitlabUserId, DateTime since)
     {
-        var utcSince = DateTime.SpecifyKind(since, DateTimeKind.Utc);
+        var utcSince = UtcTimestamp.EnsureUtc(
+            since,
+            $"MergeGroupRepository.GetUserBranches user {gitlabUserId}",
+            _logger);
 
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();
@@ -160,7 +171,10 @@ public class MergeGroupRepository : IMergeGroupRepository
 
         foreach (var r in results)
         {
-            r.LastUpdateTime = DateTime.SpecifyKind(r.LastUpdateTime, DateTimeKind.Utc);
+            r.LastUpdateTime = UtcTimestamp.EnsureUtc(
+                r.LastUpdateTime,
+                $"MergeGroupRepository.GetUserBranches result merge group {r.MergeGroupId}",
+                _logger);
         }
 
         _logger.LogDebug(
@@ -224,7 +238,10 @@ public class MergeGroupRepository : IMergeGroupRepository
 
         foreach (var r in results)
         {
-            r.LastUpdateTime = DateTime.SpecifyKind(r.LastUpdateTime, DateTimeKind.Utc);
+            r.LastUpdateTime = UtcTimestamp.EnsureUtc(
+                r.LastUpdateTime,
+                $"MergeGroupRepository.GetEmptyMergeGroups result merge group {r.Id}",
+                _logger);
         }
 
         return results;

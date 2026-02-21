@@ -1,6 +1,7 @@
 using Mergician.Entities;
 using Mergician.Services.Authentication;
 using Mergician.Services.Database;
+using Mergician.Services.Time;
 using System.Runtime.CompilerServices;
 
 namespace Mergician.Services.Gitlab;
@@ -101,6 +102,11 @@ public class GitlabActivityService
             var key = $"{cached.BranchName}:{cached.ProjectId}";
             returnedKeys.Add(key);
 
+            var cachedLastUpdatedUtc = UtcTimestamp.EnsureUtc(
+                cached.LastUpdateTime,
+                $"GitlabActivityService.StreamBranchActivity cached branch '{cached.BranchName}'/{cached.ProjectId}",
+                _logger);
+
             // Yield initial record with unknown MR status
             var cachedActivity = new BranchActivity(
                 cached.BranchName,
@@ -109,7 +115,7 @@ public class GitlabActivityService
                 null,
                 null,
                 null,
-                new DateTimeOffset(cached.LastUpdateTime, TimeSpan.Zero),
+                new DateTimeOffset(cachedLastUpdatedUtc),
                 cached.MergeGroupId);
 
             yield return cachedActivity;
@@ -124,14 +130,19 @@ public class GitlabActivityService
             ? lastPoll.Value
             : since;
 
+        var fetchSinceUtc = UtcTimestamp.EnsureUtc(
+            fetchSince,
+            "GitlabActivityService.StreamBranchActivity fetchSince",
+            _logger);
+
         _logger.LogInformation(
             "Fetching GitLab events for user {UserId} since {Since}",
             gitlabUserId,
-            fetchSince);
+            fetchSinceUtc);
 
         var pushEvents = _gitlabService.StreamPushEventsSince(
             currentUser,
-            AsUtcOffset(fetchSince),
+            new DateTimeOffset(fetchSinceUtc),
             cancellationToken);
 
         var records = FetchAndStoreBranchActivityRecords(
@@ -164,13 +175,15 @@ public class GitlabActivityService
     public async Task<ActivityPollResponse> GetActivitySince(
         GitlabAccessUser currentUser,
         int gitlabUserId,
-        DateTime since,
+        DateTimeOffset since,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Polling for activity for user {UserId} since {Since}", gitlabUserId, since);
+        var sinceUtc = UtcTimestamp.EnsureUtc(since, "GitlabActivityService.GetActivitySince since", _logger);
+        _logger.LogDebug("Polling for activity for user {UserId} since {SinceUtc}", gitlabUserId, sinceUtc);
+
         var pushEvents = _gitlabService.StreamPushEventsSince(
             currentUser,
-            AsUtcOffset(since),
+            sinceUtc,
             cancellationToken);
 
         var results = new List<BranchActivity>();
@@ -411,18 +424,6 @@ public class GitlabActivityService
                 pushEvent.CreatedAt,
                 mergeGroup.Id);
         }
-    }
-
-    private static DateTimeOffset AsUtcOffset(DateTime timestamp)
-    {
-        var utcTimestamp = timestamp.Kind switch
-        {
-            DateTimeKind.Utc => timestamp,
-            DateTimeKind.Local => timestamp.ToUniversalTime(),
-            _ => DateTime.SpecifyKind(timestamp, DateTimeKind.Utc)
-        };
-
-        return new DateTimeOffset(utcTimestamp);
     }
 
     /// <summary>
