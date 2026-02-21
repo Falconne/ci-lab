@@ -50,6 +50,10 @@ public class ActivityController : ControllerBase
     [HttpGet("stream")]
     public async Task StreamPushActivity(CancellationToken cancellationToken)
     {
+        // TODO This method and the RefreshActivity method have a lot of duplicated code. Try to consolidate common logic,
+        // perhaps make a helper method that takes in a callback to perform the unique logic. It is ok to have
+        // some duplication for clarity.
+        // Also, move the RefreshActivity method below this one so the two similar methods are together.
         var currentUser = HttpContext.GetGitlabUser();
 
         if (!_coreRepository.IsHealthy())
