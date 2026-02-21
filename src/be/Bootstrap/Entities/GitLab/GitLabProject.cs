@@ -12,4 +12,13 @@ public sealed class GitlabProject
 
     [JsonPropertyName("http_url_to_repo")]
     public required string HttpURLToRepo { get; set; }
+
+    [JsonPropertyName("namespace")]
+    public GitlabProjectNamespace? Namespace { get; set; }
+}
+
+public sealed class GitlabProjectNamespace
+{
+    [JsonPropertyName("id")]
+    public int Id { get; set; }
 }

@@ -61,4 +61,4 @@ USER mergician
 
 WORKDIR /workspace/src/be/Bootstrap
 
-ENTRYPOINT ["dotnet", "run", "--project", "/workspace/src/be/Bootstrap/Bootstrap.csproj"]
+ENTRYPOINT ["dotnet", "run", "--project", "/workspace/src/be/Bootstrap/Bootstrap.csproj", "--"]

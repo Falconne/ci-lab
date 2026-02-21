@@ -24,7 +24,7 @@ if check_native_execution_possible; then
   # Run from the project directory so local relative paths match expectations
   cd "$ROOT_DIR/src/be/Bootstrap"
   dotnet restore "$ROOT_DIR/src/be/Bootstrap/Bootstrap.csproj"
-  dotnet run --project "$ROOT_DIR/src/be/Bootstrap/Bootstrap.csproj" --configuration Release
+  dotnet run --project "$ROOT_DIR/src/be/Bootstrap/Bootstrap.csproj" --configuration Release -- "$@"
   exit $?
 else
   echo "Missing dotnet 9 or Playwright dependencies — falling back to Docker."
@@ -43,4 +43,4 @@ docker run --net=host --rm -it \
   -e GITLAB_ROOT_PASSWORD="$GITLAB_ROOT_PASSWORD" \
   -e GITLAB_URL="${GITLAB_URL:-http://localhost:8081}" \
   -e TEAMCITY_URL="${TEAMCITY_URL:-http://localhost:8111}" \
-  ci-lab-bootstrap:latest
+  ci-lab-bootstrap:latest "$@"

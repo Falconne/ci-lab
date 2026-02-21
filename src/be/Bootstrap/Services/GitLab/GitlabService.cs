@@ -94,6 +94,13 @@ public class GitlabService : IDisposable
         var searchRequest = new RestRequest("projects")
             .AddQueryParameter("search", projectName);
 
+        // When a specific namespace is requested, filter the search so that stale
+        // projects from deleted or different namespaces are not mistakenly found.
+        if (namespaceId.HasValue)
+        {
+            searchRequest.AddQueryParameter("namespace_id", namespaceId.Value.ToString());
+        }
+
         var searchResponse = await _client.ExecuteGetAsync<GitlabProject[]>(searchRequest);
 
         if (searchResponse is { IsSuccessful: true, Data: not null })
@@ -102,6 +109,15 @@ public class GitlabService : IDisposable
             {
                 if (proj.Name == projectName)
                 {
+                    // If a specific namespace was requested, ensure the found project
+                    // belongs to that namespace. This prevents reusing stale projects
+                    // from a deleted namespace that are still visible during async deletion.
+                    if (namespaceId.HasValue && proj.Namespace?.Id != namespaceId.Value)
+                    {
+                        Log.Debug($"Project '{projectName}' found but in namespace {proj.Namespace?.Id}, expected {namespaceId.Value} - skipping");
+                        continue;
+                    }
+
                     Log.Information($"Project '{projectName}' already exists");
                     return proj;
                 }
@@ -831,6 +847,25 @@ public class GitlabService : IDisposable
 
         var userId = userSearchResponse.Data[0].Id;
 
+        // Revoke any existing tokens with the same name to ensure idempotency.
+        // Old token values cannot be retrieved from the GitLab API, so always
+        // revoke and recreate to guarantee the .env file has a valid token.
+        var existingTokensRequest = new RestRequest("personal_access_tokens")
+            .AddQueryParameter("user_id", userId.ToString())
+            .AddQueryParameter("state", "active");
+
+        var existingTokensResponse = await _client.ExecuteGetAsync<GitLabPersonalAccessToken[]>(existingTokensRequest);
+
+        if (existingTokensResponse is { IsSuccessful: true, Data: not null })
+        {
+            foreach (var existingToken in existingTokensResponse.Data.Where(t => t.Name == tokenName))
+            {
+                Log.Information($"Revoking existing token '{tokenName}' (ID: {existingToken.Id}) for user '{username}'");
+                var revokeRequest = new RestRequest($"personal_access_tokens/{existingToken.Id}", Method.Delete);
+                await _client.ExecuteAsync(revokeRequest);
+            }
+        }
+
         // Create personal access token via admin API
         var createRequest = new RestRequest($"users/{userId}/personal_access_tokens", Method.Post)
             .AddJsonBody(new
@@ -852,5 +887,161 @@ public class GitlabService : IDisposable
         Log.Error($"Failed to create personal access token: {(int)createResponse.StatusCode} - {createResponse.Content}");
         throw new InvalidOperationException(
             $"Failed to create personal access token '{tokenName}' for user '{username}': {(int)createResponse.StatusCode} - {createResponse.Content}");
+    }
+
+    /// <summary>
+    /// Deletes a GitLab group by name. This cascades and deletes all projects within the group.
+    /// Does nothing if the group does not exist.
+    /// </summary>
+    public async Task DeleteGroup(string groupName)
+    {
+        Log.Information($"Deleting GitLab group '{groupName}' (and all its projects)...");
+
+        var searchRequest = new RestRequest("groups")
+            .AddQueryParameter("search", groupName);
+
+        var searchResponse = await _client.ExecuteGetAsync<GitlabGroup[]>(searchRequest);
+
+        if (searchResponse is not { IsSuccessful: true, Data: not null })
+        {
+            Log.Warning($"Could not search for group '{groupName}': {searchResponse.Content}");
+            return;
+        }
+
+        var group = searchResponse.Data.FirstOrDefault(g => g.Name == groupName);
+        if (group == null)
+        {
+            Log.Information($"Group '{groupName}' not found, nothing to delete");
+            return;
+        }
+
+        var deleteRequest = new RestRequest($"groups/{group.Id}", Method.Delete);
+        var deleteResponse = await _client.ExecuteAsync(deleteRequest);
+
+        if (deleteResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Accepted or HttpStatusCode.NoContent)
+        {
+            Log.Information($"Group '{groupName}' (ID: {group.Id}) deleted successfully");
+            return;
+        }
+
+        Log.Error($"Failed to delete group '{groupName}': {(int)deleteResponse.StatusCode} - {deleteResponse.Content}");
+        throw new InvalidOperationException(
+            $"Failed to delete GitLab group '{groupName}': {(int)deleteResponse.StatusCode} - {deleteResponse.Content}");
+    }
+
+    /// <summary>
+    /// Polls until a GitLab group no longer exists. Throws if the group still exists after the timeout.
+    /// </summary>
+    public async Task WaitForGroupDeletion(string groupName, int timeoutSeconds = 120)
+    {
+        Log.Information($"Waiting for GitLab group '{groupName}' to finish deleting...");
+
+        var deadline = DateTime.UtcNow.AddSeconds(timeoutSeconds);
+        while (DateTime.UtcNow < deadline)
+        {
+            var exists = await GroupExists(groupName);
+            if (!exists)
+            {
+                Log.Information($"GitLab group '{groupName}' has been deleted");
+                return;
+            }
+
+            Log.Debug($"Group '{groupName}' still exists, waiting 5 seconds...");
+            await Task.Delay(5000);
+        }
+
+        throw new InvalidOperationException(
+            $"Timed out waiting for GitLab group '{groupName}' to be deleted after {timeoutSeconds} seconds");
+    }
+
+    /// <summary>
+    /// Deletes a GitLab project by exact name match (top-level, not within a group).
+    /// Does nothing if the project does not exist.
+    /// </summary>
+    public async Task DeleteProject(string projectName)
+    {
+        Log.Information($"Deleting GitLab project '{projectName}'...");
+
+        var searchRequest = new RestRequest("projects")
+            .AddQueryParameter("search", projectName);
+
+        var searchResponse = await _client.ExecuteGetAsync<GitlabProject[]>(searchRequest);
+
+        if (searchResponse is not { IsSuccessful: true, Data: not null })
+        {
+            Log.Warning($"Could not search for project '{projectName}': {searchResponse.Content}");
+            return;
+        }
+
+        var project = searchResponse.Data.FirstOrDefault(p => p.Name == projectName);
+        if (project == null)
+        {
+            Log.Information($"Project '{projectName}' not found, nothing to delete");
+            return;
+        }
+
+        var deleteRequest = new RestRequest($"projects/{project.Id}", Method.Delete);
+        var deleteResponse = await _client.ExecuteAsync(deleteRequest);
+
+        if (deleteResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Accepted or HttpStatusCode.NoContent)
+        {
+            Log.Information($"Project '{projectName}' (ID: {project.Id}) deleted successfully");
+            return;
+        }
+
+        Log.Error($"Failed to delete project '{projectName}': {(int)deleteResponse.StatusCode} - {deleteResponse.Content}");
+        throw new InvalidOperationException(
+            $"Failed to delete GitLab project '{projectName}': {(int)deleteResponse.StatusCode} - {deleteResponse.Content}");
+    }
+
+    /// <summary>
+    /// Polls until a GitLab project no longer exists. Throws if the project still exists after the timeout.
+    /// </summary>
+    public async Task WaitForProjectDeletion(string projectName, int timeoutSeconds = 120)
+    {
+        Log.Information($"Waiting for GitLab project '{projectName}' to finish deleting...");
+
+        var deadline = DateTime.UtcNow.AddSeconds(timeoutSeconds);
+        while (DateTime.UtcNow < deadline)
+        {
+            var exists = await ProjectExists(projectName);
+            if (!exists)
+            {
+                Log.Information($"GitLab project '{projectName}' has been deleted");
+                return;
+            }
+
+            Log.Debug($"Project '{projectName}' still exists, waiting 5 seconds...");
+            await Task.Delay(5000);
+        }
+
+        throw new InvalidOperationException(
+            $"Timed out waiting for GitLab project '{projectName}' to be deleted after {timeoutSeconds} seconds");
+    }
+
+    private async Task<bool> GroupExists(string groupName)
+    {
+        var request = new RestRequest("groups").AddQueryParameter("search", groupName);
+        var response = await _client.ExecuteGetAsync<GitlabGroup[]>(request);
+
+        if (response is not { IsSuccessful: true, Data: not null })
+        {
+            return false;
+        }
+
+        return response.Data.Any(g => g.Name == groupName);
+    }
+
+    private async Task<bool> ProjectExists(string projectName)
+    {
+        var request = new RestRequest("projects").AddQueryParameter("search", projectName);
+        var response = await _client.ExecuteGetAsync<GitlabProject[]>(request);
+
+        if (response is not { IsSuccessful: true, Data: not null })
+        {
+            return false;
+        }
+
+        return response.Data.Any(p => p.Name == projectName);
     }
 }

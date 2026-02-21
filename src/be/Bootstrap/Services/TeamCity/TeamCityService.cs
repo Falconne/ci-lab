@@ -259,4 +259,32 @@ public class TeamCityService : IDisposable
             $"Failed to create TeamCity user '{username}': {(int)createResponse.StatusCode} - {createResponse.Content}");
     }
 
+    /// <summary>
+    ///     Deletes a TeamCity project by its ID. Does nothing if the project does not exist.
+    /// </summary>
+    public async Task DeleteProject(string projectId)
+    {
+        Log.Information($"Deleting TeamCity project '{projectId}'...");
+
+        var project = await GetProject(projectId);
+        if (project == null)
+        {
+            Log.Information($"TeamCity project '{projectId}' not found, nothing to delete");
+            return;
+        }
+
+        var request = new RestRequest($"projects/id:{projectId}", Method.Delete);
+        var response = await _client.ExecuteAsync(request);
+
+        if (response.StatusCode is HttpStatusCode.OK or HttpStatusCode.NoContent)
+        {
+            Log.Information($"TeamCity project '{projectId}' deleted successfully");
+            return;
+        }
+
+        Log.Error($"Failed to delete TeamCity project '{projectId}': {(int)response.StatusCode} - {response.Content}");
+        throw new InvalidOperationException(
+            $"Failed to delete TeamCity project '{projectId}': {(int)response.StatusCode} - {response.Content}");
+    }
+
 }

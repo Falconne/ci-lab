@@ -313,11 +313,21 @@ public class ProjectSetupService
                 if (!nextLine.StartsWith("import "))
                 {
                     sb.AppendLine(line);
-                    // Add our additional imports
-                    sb.AppendLine("import jetbrains.buildServer.configs.kotlin.buildSteps.script");
-                    sb.AppendLine("import jetbrains.buildServer.configs.kotlin.vcs.GitVcsRoot");
-                    sb.AppendLine("import jetbrains.buildServer.configs.kotlin.buildFeatures.commitStatusPublisher");
-                    sb.AppendLine("import jetbrains.buildServer.configs.kotlin.triggers.vcs");
+                    // Add our additional imports, skipping any that are already present
+                    var importsToAdd = new[]
+                    {
+                        "import jetbrains.buildServer.configs.kotlin.buildSteps.script",
+                        "import jetbrains.buildServer.configs.kotlin.vcs.GitVcsRoot",
+                        "import jetbrains.buildServer.configs.kotlin.buildFeatures.commitStatusPublisher",
+                        "import jetbrains.buildServer.configs.kotlin.triggers.vcs"
+                    };
+                    foreach (var import in importsToAdd)
+                    {
+                        if (!existingContent.Contains(import))
+                        {
+                            sb.AppendLine(import);
+                        }
+                    }
                     addedImports = true;
                     continue;
                 }
@@ -341,14 +351,24 @@ public class ProjectSetupService
                 // Insert template and subProject references just before closing the root project
                 if (rootProjectBraceCount == 0)
                 {
-                    // Add params block with gitlab.token at Root level for template access
+                    // Only add params block if gitlab.token is not already defined
+                    if (!existingContent.Contains("gitlab.token"))
+                    {
+                        sb.AppendLine();
+                        sb.AppendLine("    params {");
+                        sb.AppendLine($@"        password(""gitlab.token"", ""{_gitlabToken}"", display = ParameterDisplay.HIDDEN)");
+                        sb.AppendLine("    }");
+                    }
+
                     sb.AppendLine();
-                    sb.AppendLine("    params {");
-                    sb.AppendLine($@"        password(""gitlab.token"", ""{_gitlabToken}"", display = ParameterDisplay.HIDDEN)");
-                    sb.AppendLine("    }");
-                    sb.AppendLine();
-                    // Insert template and subProject before the closing brace
-                    sb.AppendLine("    template(GitlabPipelinePublishing)");
+
+                    // Only add template(GitlabPipelinePublishing) if not already present
+                    if (!existingContent.Contains("template(GitlabPipelinePublishing)"))
+                    {
+                        sb.AppendLine("    template(GitlabPipelinePublishing)");
+                    }
+
+                    // subProject(CILab) is the reason we're here - always add it
                     sb.AppendLine("    subProject(CILab)");
                     insertedSubProject = true;
                     inRootProject = false;
@@ -358,9 +378,12 @@ public class ProjectSetupService
             sb.AppendLine(line);
         }
 
-        // Append the GitLab Pipeline Publishing template definition
-        sb.AppendLine();
-        sb.Append(GenerateGitlabPipelinePublishingTemplate());
+        // Append the GitLab Pipeline Publishing template definition only if not already present
+        if (!existingContent.Contains("object GitlabPipelinePublishing"))
+        {
+            sb.AppendLine();
+            sb.Append(GenerateGitlabPipelinePublishingTemplate());
+        }
 
         // Append the CI Lab project definition at the end
         sb.AppendLine();
@@ -545,11 +568,11 @@ public class ProjectSetupService
 
         // Poll for the CI Lab project to appear (TeamCity needs time to compile Kotlin DSL)
         // The project ID in TeamCity will be "Root_CILab" since it's a subproject of _Root
-        var projectFound = await _teamCityService.WaitForProject("CILab", 60);
+        var projectFound = await _teamCityService.WaitForProject("CILab", 120);
         if (!projectFound)
         {
             throw new InvalidOperationException(
-                "CI Lab project did not appear in TeamCity within 60 seconds - Kotlin DSL may have errors");
+                "CI Lab project did not appear in TeamCity within 120 seconds - Kotlin DSL may have errors");
         }
 
         // Verify build types exist

@@ -51,8 +51,10 @@ These are guideline for working on the Bootstrap C# project that creates test da
 
 ## CI Lab
 For testing changes to the CI Lab or bootstrapper, or for setting up the CI Lab environment for testing Mergician, follow this procedure:
-- When testing for the first time in a session, run the helper script `/scripts/cilab-start.sh` to clear previous sessions and start the environment. It is ok to stop and remove an existing session this way, as this is a test environment and you can assume you are the only thing using it.
-  - If the user has specified that the CI Lab is already running in the prompt, then you can skip this step and assume the environment is already running (but feel free to recreate it if any anomolies are found).
+- **Prefer using `./scripts/bootstrap.sh --reset` to reset the CI Lab to a fresh state instead of doing a full `cilab-start.sh` restart** wherever possible. The reset option deletes all GitLab and TeamCity projects and re-runs the project setup without restarting the Docker containers, saving significant time.
+  - Only run `cilab-start.sh` (a full restart) when the CI Lab containers are not running, or when you are specifically testing changes to the CI Lab Docker/compose setup itself.
+- When the CI Lab is not running, or a full restart is needed, run the helper script `./scripts/cilab-start.sh` to clear previous sessions and start the environment. It is ok to stop and remove an existing session this way, as this is a test environment and you can assume you are the only thing using it.
+  - If the user has specified that the CI Lab is already running in the prompt, then you can skip this step and use `--reset` instead.
   - For subsequent tests in the same session, you can choose to keep some or all of the lab environment running to save time, if recreation is not needed for the test.
 - Unless testing changes relating to the cilab itself, it is prudent to start the cilab in the background and immediately kick off the bootstrapper. The cilab takes a long time to finish and the bootstrapper can do work while this is starting, so this will save time.
 - If testing the docker compose or starting containers, note that Gitlab takes a long time to become healthy. Do not assume failure unless it takes more than 5 minutes.
@@ -67,6 +69,7 @@ The Bootstrapper sets up the initial data needed for Merigican to run, so make s
 - The bootstrap.sh script handles proper network configuration (--net=host) so the container can access localhost services.
 - Test the bootstrapper with a timeout, as otherwise it will retry for a long time: `timeout 600 ./scripts/bootstrap.sh || true` (adjust timeout as needed).
 - The bootstrapper builds its own Docker image (ci-lab-bootstrap:latest) that includes .NET 9 SDK and Playwright with browser dependencies.
+- To reset the CI Lab to a fresh project state without restarting Docker, run `./scripts/bootstrap.sh --reset`. This deletes all GitLab and TeamCity projects then re-runs the full project setup, leaving the underlying services (GitLab, TeamCity accounts, etc.) intact.
 
 ### Common Issues & Debugging
 - **Stale tokens after docker prune/restart**: If you see "401 Unauthorized" errors for GitLab or TeamCity tokens during bootstrap, the `.env` file may have stale tokens from a previous GitLab/TeamCity instance. The `cilab-start.sh` script automatically cleans these, but if running docker compose manually, remove the GITLAB_TOKEN and TEAMCITY_TOKEN lines from `.env` before starting.
