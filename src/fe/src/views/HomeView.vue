@@ -654,7 +654,8 @@ onUnmounted(() => {
 .card-container {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  /* more vertical space between cards for clarity */
+  gap: 20px;
   position: relative;
 }
 
@@ -663,6 +664,11 @@ onUnmounted(() => {
   display: flex;
   border-radius: 8px;
   background: #fff;
+  /* slightly thicker border on top/right/bottom to give cards more definition */
+  border-top: 1.5px solid #e0e0e0;
+  border-right: 1.5px solid #e0e0e0;
+  border-bottom: 1.5px solid #e0e0e0;
+  border-left: none; /* accent bar replaces left border */
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
   overflow: hidden;
   transition: box-shadow 0.2s ease;
