@@ -57,7 +57,13 @@ public class BrowserService : IDisposable
                 {
                     Headless = headless,
                     Timeout = 60000,
-                    Args = ["--no-sandbox"]
+                    // When running Chromium inside a Docker container as a
+                    // non-root user the kernel's setuid sandbox is not available.
+                    // Disabling the sandbox with `--no-sandbox` is necessary in
+                    // this environment, but it reduces process isolation and
+                    // weakens security — only use this flag in trusted
+                    // CI/test containers.
+                    Args = new[] { "--no-sandbox" }
                 });
 
             _context = await _browser.NewContextAsync(
