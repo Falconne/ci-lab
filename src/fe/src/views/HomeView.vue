@@ -95,7 +95,7 @@
                           :title="mrTooltip(item)"
                         >
                           <v-icon
-                            icon="mdi-merge"
+                            icon="mdi-source-merge"
                             size="small"
                             :color="mrIconColor(item)"
                             :data-mr-color="mrIconColor(item)"
