@@ -187,6 +187,7 @@ public class ActivityController : ControllerBase
         try
         {
             await streamWriter(cancellationToken, writeLock);
+            // ReSharper disable once PossiblyMistakenUseOfCancellationToken
             await WriteSseRaw("event: done\ndata: {}\n\n", cancellationToken, writeLock);
 
             _logger.LogInformation("SSE {StreamName} stream completed", streamName);

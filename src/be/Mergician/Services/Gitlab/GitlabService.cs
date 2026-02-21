@@ -56,10 +56,11 @@ public class GitlabService
     ///     Uses date-level filtering in the GitLab API call and applies timestamp-level
     ///     filtering in-process to preserve sub-day precision.
     /// </summary>
-    public async IAsyncEnumerable<(string BranchName, int ProjectId, DateTimeOffset CreatedAt)> StreamPushEventsSince(
-        GitlabAccessUser user,
-        DateTimeOffset since,
-        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    public async IAsyncEnumerable<(string BranchName, int ProjectId, DateTimeOffset CreatedAt)>
+        StreamPushEventsSince(
+            GitlabAccessUser user,
+            DateTimeOffset since,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         var sinceUtc = since.ToUniversalTime();
 
@@ -135,14 +136,16 @@ public class GitlabService
                 break;
             }
 
-            if (!int.TryParse(nextPage, out page) || page <= 0)
+            if (int.TryParse(nextPage, out page) && page > 0)
             {
-                _logger.LogWarning(
-                    "Unexpected X-Next-Page header value '{NextPage}' when fetching GitLab push events",
-                    nextPage);
-
-                break;
+                continue;
             }
+
+            _logger.LogWarning(
+                "Unexpected X-Next-Page header value '{NextPage}' when fetching GitLab push events",
+                nextPage);
+
+            break;
         }
 
         _logger.LogInformation(
