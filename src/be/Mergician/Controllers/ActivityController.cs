@@ -85,12 +85,15 @@ public class ActivityController : ControllerBase
             await foreach (var activity in _activityService.StreamBranchActivity(
                                currentUser,
                                userInfo.Id,
+                               // ReSharper disable once PossiblyMistakenUseOfCancellationToken
                                cancellationToken))
             {
+                // ReSharper disable once PossiblyMistakenUseOfCancellationToken
                 await WriteSseEvent(activity, cancellationToken, writeLock);
             }
 
             // Signal the end of the stream
+            // ReSharper disable once PossiblyMistakenUseOfCancellationToken
             await WriteSseRaw("event: done\ndata: {}\n\n", cancellationToken, writeLock);
             _logger.LogInformation("SSE activity stream completed");
         }
@@ -100,7 +103,7 @@ public class ActivityController : ControllerBase
         }
         finally
         {
-            heartbeatCts.Cancel();
+            await heartbeatCts.CancelAsync();
             try
             {
                 await heartbeatTask;
@@ -183,18 +186,22 @@ public class ActivityController : ControllerBase
             await foreach (var item in _activityService.StreamRefreshBranchStatus(
                                currentUser,
                                branches,
+                               // ReSharper disable once PossiblyMistakenUseOfCancellationToken
                                cancellationToken))
             {
                 if (item is BranchDeletedNotification deleted)
                 {
+                    // ReSharper disable once PossiblyMistakenUseOfCancellationToken
                     await WriteSseEvent(deleted, cancellationToken, writeLock, "deleted");
                 }
                 else
                 {
+                    // ReSharper disable once PossiblyMistakenUseOfCancellationToken
                     await WriteSseEvent(item, cancellationToken, writeLock);
                 }
             }
 
+            // ReSharper disable once PossiblyMistakenUseOfCancellationToken
             await WriteSseRaw("event: done\ndata: {}\n\n", cancellationToken, writeLock);
             _logger.LogInformation("SSE refresh stream completed");
         }
@@ -204,7 +211,7 @@ public class ActivityController : ControllerBase
         }
         finally
         {
-            heartbeatCts.Cancel();
+            await heartbeatCts.CancelAsync();
             try
             {
                 await heartbeatTask;
