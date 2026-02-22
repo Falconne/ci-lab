@@ -4,7 +4,6 @@ public static class UtcTimestamp
 {
     public static DateTime EnsureUtc(DateTime timestamp, Func<string> contextProvider, ILogger logger)
     {
-        // Don't construct the context string unless a log entry will actually be written.
         switch (timestamp.Kind)
         {
             case DateTimeKind.Utc:
