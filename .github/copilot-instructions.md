@@ -33,6 +33,8 @@ Mergician is a tool to help developers in environments where any one product is 
 
 After doing any non-trivial changes to the Mergician code, always run the integration tests to verify the changes work. When adding or changing functionality in Mergician, see if updating or adding to the integration tests is warrented.
 
+Testing
+
 ## CI Lab
 For testing changes to the CI Lab or bootstrapper, or for setting up the CI Lab environment for testing Mergician, follow this procedure:
 - **Prefer using `./scripts/bootstrap.sh --reset` to reset the CI Lab to a fresh state instead of doing a full `cilab-start.sh` restart** wherever possible. The reset option deletes all GitLab and TeamCity projects and re-runs the project setup without restarting the Docker containers, saving significant time.
@@ -44,7 +46,7 @@ For testing changes to the CI Lab or bootstrapper, or for setting up the CI Lab 
 - The TeamCity server should be accessible at `http://localhost:8111` after startup.
 - The Gitlab server should be accessible at `http://localhost:8080` after startup.
 
-### Running the Bootstrapper
+## Running the Bootstrapper
 The Bootstrapper sets up the initial data needed for Mergician to run, so make sure this is finished before starting Mergician.
 
 - The bootstrapper shoud be designed to wait for the CI Lab services it needs to be ready before it operates, so it can be run immediately after starting the environment without needing to wait for GitLab or TeamCity to be healthy first.
@@ -54,11 +56,6 @@ The Bootstrapper sets up the initial data needed for Mergician to run, so make s
 - The bootstrapper builds its own Docker image (ci-lab-bootstrap:latest) that includes .NET 9 SDK and Playwright with browser dependencies.
 - To reset the CI Lab to a fresh project state without restarting Docker, run `./scripts/bootstrap.sh --reset`. This deletes all GitLab and TeamCity projects then re-runs the full project setup, leaving the underlying services (GitLab, TeamCity accounts, etc.) intact.
 
-### Common Issues & Debugging
-- **Stale tokens after docker prune/restart**: If you see "401 Unauthorized" errors for GitLab or TeamCity tokens during bootstrap, the `.env` file may have stale tokens from a previous GitLab/TeamCity instance. The `cilab-start.sh` script automatically cleans these, but if running docker compose manually, remove the GITLAB_TOKEN and TEAMCITY_TOKEN lines from `.env` before starting.
-- **Token generator not running**: The `gitlab-token-generator` container depends on GitLab being healthy. If `docker compose up` is interrupted before GitLab becomes healthy, the token generator may be in "Created" state. Either wait for the compose command to complete, or manually start it with `docker start ci-lab-gitlab-token-generator-1` and check logs with `docker logs ci-lab-gitlab-token-generator-1`.
-- **GitLab health check timing**: GitLab takes 3-5 minutes to become healthy on first start. Don't assume failure unless it exceeds 5 minutes. Check status with: `docker inspect ci-lab-gitlab-1 --format '{{.State.Health.Status}}'`
-
 - ## Mergician
 If doing more than trivial changes to Mergician, it should be tested by running the application. Mergician needs services from CI Lab to be running, so before running Mergician, ensure the CI Lab environment is up and bootstrapped according to the instructions above.
 
@@ -66,6 +63,11 @@ If doing more than trivial changes to Mergician, it should be tested by running 
 - After most non trivial changes, run the Integration tests project and ensure it is passing. Use the `scripts/integration-test.sh` script to run it correctly.
 - Mergician is accessible at `http://localhost:5000` after startup (ASP.NET Core serves both API and frontend).
 - For native development: run backend with `cd src/be/Mergician && dotnet run`, frontend with `cd src/fe && npm run dev`. Access at `http://localhost:5173`.
+
+## Common Issues & Debugging
+- **Stale tokens after docker prune/restart**: If you see "401 Unauthorized" errors for GitLab or TeamCity tokens during bootstrap, the `.env` file may have stale tokens from a previous GitLab/TeamCity instance. The `cilab-start.sh` script automatically cleans these, but if running docker compose manually, remove the GITLAB_TOKEN and TEAMCITY_TOKEN lines from `.env` before starting.
+- **Token generator not running**: The `gitlab-token-generator` container depends on GitLab being healthy. If `docker compose up` is interrupted before GitLab becomes healthy, the token generator may be in "Created" state. Either wait for the compose command to complete, or manually start it with `docker start ci-lab-gitlab-token-generator-1` and check logs with `docker logs ci-lab-gitlab-token-generator-1`.
+- **GitLab health check timing**: GitLab takes 3-5 minutes to become healthy on first start. Don't assume failure unless it exceeds 5 minutes. Check status with: `docker inspect ci-lab-gitlab-1 --format '{{.State.Health.Status}}'`
 
 # Architectural gotchas & pitfalls
 
