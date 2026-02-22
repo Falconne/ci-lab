@@ -43,13 +43,13 @@ public class UserRepository : IUserRepository
 
             DateTimeOffset timestampOffset => UtcTimestamp.EnsureUtc(
                 timestampOffset,
-                $"UserRepository.GetLastPollTimestamp user {gitlabUserId} (DateTimeOffset)",
+                () => $"UserRepository.GetLastPollTimestamp user {gitlabUserId} (DateTimeOffset)",
                 _logger),
 
             DateTime timestamp => new DateTimeOffset(
                 UtcTimestamp.EnsureUtc(
                     timestamp,
-                    $"UserRepository.GetLastPollTimestamp user {gitlabUserId} (DateTime)",
+                    () => $"UserRepository.GetLastPollTimestamp user {gitlabUserId} (DateTime)",
                     _logger),
                 TimeSpan.Zero),
 
@@ -76,7 +76,7 @@ public class UserRepository : IUserRepository
     {
         var utcTimestamp = UtcTimestamp.EnsureUtc(
             timestamp,
-            $"UserRepository.UpsertLastPollTimestamp user {gitlabUserId}",
+            () => $"UserRepository.UpsertLastPollTimestamp user {gitlabUserId}",
             _logger);
 
         using var connection = _connectionFactory.CreateConnection();

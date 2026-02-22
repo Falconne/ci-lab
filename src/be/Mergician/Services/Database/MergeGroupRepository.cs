@@ -74,7 +74,7 @@ public class MergeGroupRepository : IMergeGroupRepository
         _logger.LogDebug("Got/created merge group {Id} with name '{Name}'", record.Id, name);
         record.LastUpdateTime = UtcTimestamp.EnsureUtc(
             record.LastUpdateTime,
-            $"MergeGroupRepository.GetOrCreateMergeGroup merge group {record.Id}",
+            () => $"MergeGroupRepository.GetOrCreateMergeGroup merge group {record.Id}",
             _logger);
 
         return record;
@@ -122,7 +122,7 @@ public class MergeGroupRepository : IMergeGroupRepository
     {
         var utcTimestamp = UtcTimestamp.EnsureUtc(
             lastUpdateTime,
-            $"MergeGroupRepository.UpdateMergeGroupTimestamp merge group {mergeGroupId}",
+            () => $"MergeGroupRepository.UpdateMergeGroupTimestamp merge group {mergeGroupId}",
             _logger);
 
         using var connection = _connectionFactory.CreateConnection();
@@ -142,7 +142,7 @@ public class MergeGroupRepository : IMergeGroupRepository
     {
         var utcSince = UtcTimestamp.EnsureUtc(
             since,
-            $"MergeGroupRepository.GetUserBranches user {gitlabUserId}",
+            () => $"MergeGroupRepository.GetUserBranches user {gitlabUserId}",
             _logger);
 
         using var connection = _connectionFactory.CreateConnection();
@@ -173,7 +173,7 @@ public class MergeGroupRepository : IMergeGroupRepository
         {
             r.LastUpdateTime = UtcTimestamp.EnsureUtc(
                 r.LastUpdateTime,
-                $"MergeGroupRepository.GetUserBranches result merge group {r.MergeGroupId}",
+                () => $"MergeGroupRepository.GetUserBranches result merge group {r.MergeGroupId}",
                 _logger);
         }
 
@@ -240,7 +240,7 @@ public class MergeGroupRepository : IMergeGroupRepository
         {
             r.LastUpdateTime = UtcTimestamp.EnsureUtc(
                 r.LastUpdateTime,
-                $"MergeGroupRepository.GetEmptyMergeGroups result merge group {r.Id}",
+                () => $"MergeGroupRepository.GetEmptyMergeGroups result merge group {r.Id}",
                 _logger);
         }
 

@@ -105,7 +105,7 @@ public class GitlabActivityService
 
             var cachedLastUpdatedUtc = UtcTimestamp.EnsureUtc(
                 cached.LastUpdateTime,
-                $"GitlabActivityService.StreamBranchActivity cached branch '{cached.BranchName}'/{cached.ProjectId}",
+                () => $"GitlabActivityService.StreamBranchActivity cached branch '{cached.BranchName}'/{cached.ProjectId}",
                 _logger);
 
             // Yield initial record with unknown MR status
@@ -133,7 +133,7 @@ public class GitlabActivityService
 
         var fetchSinceUtc = UtcTimestamp.EnsureUtc(
             fetchSince,
-            "GitlabActivityService.StreamBranchActivity fetchSince",
+            () => "GitlabActivityService.StreamBranchActivity fetchSince",
             _logger);
 
         _logger.LogInformation(
@@ -185,7 +185,7 @@ public class GitlabActivityService
 
         var fetchSinceUtc = UtcTimestamp.EnsureUtc(
             fetchSince,
-            "GitlabActivityService.GetActivitySince fetchSince",
+            () => "GitlabActivityService.GetActivitySince fetchSince",
             _logger);
 
         _logger.LogDebug(
