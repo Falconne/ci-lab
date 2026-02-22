@@ -40,7 +40,6 @@ try
         new NpgsqlConnectionFactory(mergicianSettings.Database));
 
     builder.Services.AddSingleton<IMergeGroupRepository, MergeGroupRepository>();
-    builder.Services.AddSingleton<IUserRepository, UserRepository>();
     builder.Services.AddSingleton<ICoreRepository, CoreRepository>();
 
     // Compute GitLab API base URL once at startup from configuration

@@ -186,6 +186,49 @@ public class MergeGroupRepository : IMergeGroupRepository
         return results;
     }
 
+    public List<BranchWithMergeGroupInfo> GetMergeGroupBranches(int gitlabUserId, int mergeGroupId)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        connection.Open();
+
+        var results = connection.Query<BranchWithMergeGroupInfo>(
+                """
+                SELECT
+                    bp.id AS BranchInProjectId,
+                    bp.branch_name AS BranchName,
+                    bp.project_id AS ProjectId,
+                    bp.project_name AS ProjectName,
+                    mg.id AS MergeGroupId,
+                    mg.name AS MergeGroupName,
+                    mg.last_update_time AS LastUpdateTime
+                FROM users_in_merge_groups umg
+                INNER JOIN merge_group mg ON mg.id = umg.merge_group_id
+                INNER JOIN branches_in_merge_group bmg ON bmg.merge_group_id = mg.id
+                INNER JOIN branch_in_project bp ON bp.id = bmg.branch_in_project_id
+                WHERE umg.gitlab_user_id = @GitlabUserId
+                  AND mg.id = @MergeGroupId
+                ORDER BY bp.project_name, bp.branch_name
+                """,
+                new { GitlabUserId = gitlabUserId, MergeGroupId = mergeGroupId })
+            .ToList();
+
+        foreach (var r in results)
+        {
+            r.LastUpdateTime = UtcTimestamp.EnsureUtc(
+                r.LastUpdateTime,
+                () => $"MergeGroupRepository.GetMergeGroupBranches merge group {r.MergeGroupId}",
+                _logger);
+        }
+
+        _logger.LogDebug(
+            "Retrieved {Count} branches for user {UserId} in merge group {MergeGroupId}",
+            results.Count,
+            gitlabUserId,
+            mergeGroupId);
+
+        return results;
+    }
+
     public void DeleteBranch(int branchInProjectId)
     {
         using var connection = _connectionFactory.CreateConnection();

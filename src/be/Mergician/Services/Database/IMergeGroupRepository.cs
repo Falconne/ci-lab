@@ -42,6 +42,11 @@ public interface IMergeGroupRepository
     List<BranchWithMergeGroupInfo> GetUserBranches(int gitlabUserId, DateTimeOffset since);
 
     /// <summary>
+    ///     Returns branches for a specific merge group that the user is associated with.
+    /// </summary>
+    List<BranchWithMergeGroupInfo> GetMergeGroupBranches(int gitlabUserId, int mergeGroupId);
+
+    /// <summary>
     ///     Deletes a branch record and its references in branches_in_merge_group.
     /// </summary>
     void DeleteBranch(int branchInProjectId);

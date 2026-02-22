@@ -1,10 +1,3 @@
-CREATE TABLE user_activity (
-    id SERIAL PRIMARY KEY,
-    gitlab_user_id INTEGER NOT NULL,
-    last_poll_timestamp TIMESTAMPTZ NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC'),
-    CONSTRAINT uq_user_activity_gitlab_user_id UNIQUE (gitlab_user_id)
-);
-
 CREATE TABLE branch_in_project (
     id SERIAL PRIMARY KEY,
     branch_name TEXT NOT NULL,
@@ -35,7 +28,6 @@ CREATE TABLE users_in_merge_groups (
 );
 
 -- Indexes for frequent lookups
-CREATE INDEX ix_user_activity_gitlab_user_id ON user_activity (gitlab_user_id);
 CREATE INDEX ix_branch_in_project_branch_name ON branch_in_project (branch_name);
 CREATE INDEX ix_branch_in_project_project_id ON branch_in_project (project_id);
 CREATE INDEX ix_branches_in_merge_group_merge_group_id ON branches_in_merge_group (merge_group_id);

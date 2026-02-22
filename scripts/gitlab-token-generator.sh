@@ -1,9 +1,16 @@
 #!/bin/sh
 set -euo pipefail
 
-mkdir -p /workspace/data/logs
-exec > /workspace/data/logs/gitlab-token-generator.log 2>&1
-apk add --no-cache docker-cli curl
+LOG_FILE="/workspace/data/logs/gitlab-token-generator.log"
+mkdir -p /workspace/data/logs 2>/dev/null || true
+if ! touch "$LOG_FILE" 2>/dev/null; then
+  rm -f "$LOG_FILE" 2>/dev/null || true
+fi
+if touch "$LOG_FILE" 2>/dev/null; then
+  exec > "$LOG_FILE" 2>&1
+else
+  echo "[token-gen] WARN: Cannot write $LOG_FILE; using container stdout/stderr instead"
+fi
 
 echo "[token-gen] Waiting for GitLab container..."
 CONTAINER=$(docker ps --filter "name=gitlab-1" --format "{{.Names}}" | head -n1)
@@ -24,13 +31,12 @@ if [ -n "$TOKEN" ] && [ ${#TOKEN} -gt 10 ]; then
   VALIDATED=0
   i=1
   while [ $i -le $MAX_RETRIES ]; do
-    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -H "PRIVATE-TOKEN: $TOKEN" http://gitlab:8081/api/v4/user)
-    if [ "$HTTP_CODE" = "200" ]; then
-      echo "[token-gen] Token validated successfully (HTTP $HTTP_CODE)"
+    if wget -qO- --header="PRIVATE-TOKEN: $TOKEN" http://gitlab:8081/api/v4/user >/dev/null 2>&1; then
+      echo "[token-gen] Token validated successfully (HTTP 200)"
       VALIDATED=1
       break
     else
-      echo "[token-gen] Token validation returned HTTP $HTTP_CODE (attempt $i/$MAX_RETRIES)"
+      echo "[token-gen] Token validation failed (attempt $i/$MAX_RETRIES)"
       if [ $i -lt $MAX_RETRIES ]; then
         sleep $RETRY_DELAY
       fi

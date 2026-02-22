@@ -2,7 +2,6 @@ using Mergician.Entities;
 using Mergician.Services.Authentication;
 using Mergician.Services.Database;
 using Mergician.Services.Gitlab;
-using Mergician.Services.Time;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
@@ -49,9 +48,17 @@ public class ActivityController : ControllerBase
     ///     A final event with type "done" signals the end of the stream.
     /// </summary>
     [HttpGet("stream")]
-    public async Task StreamPushActivity(CancellationToken cancellationToken)
+    public async Task StreamPushActivity([FromQuery] string? lastPollTime, CancellationToken cancellationToken)
     {
+        var requestReceivedAt = DateTimeOffset.UtcNow;
         var currentUser = HttpContext.GetGitlabUser();
+
+        if (!TryParseLastPollTime(lastPollTime, out var parsedLastPollTime, out var parseError))
+        {
+            Response.StatusCode = 400;
+            await Response.WriteAsJsonAsync(new ErrorResponse(parseError!), cancellationToken);
+            return;
+        }
 
         if (!await EnsureDatabaseHealthyForSse(cancellationToken, "stream activity"))
         {
@@ -72,9 +79,17 @@ public class ActivityController : ControllerBase
             "activity",
             async (streamToken, writeLock) =>
             {
+                await WriteSseEvent(
+                    new ActivityPollCursor(requestReceivedAt),
+                    streamToken,
+                    writeLock,
+                    "poll-cursor");
+
                 await foreach (var activity in _activityService.StreamBranchActivity(
                                    currentUser,
                                    userInfo.Id,
+                                   parsedLastPollTime,
+                                   requestReceivedAt,
                                    streamToken))
                 {
                     await WriteSseEvent(activity, streamToken, writeLock);
@@ -129,9 +144,15 @@ public class ActivityController : ControllerBase
     ///     Used by the frontend to poll for new activity after the initial SSE stream completes.
     /// </summary>
     [HttpGet("poll")]
-    public async Task<IActionResult> PollActivity(CancellationToken cancellationToken)
+    public async Task<IActionResult> PollActivity([FromQuery] string? lastPollTime, CancellationToken cancellationToken)
     {
+        var requestReceivedAt = DateTimeOffset.UtcNow;
         var currentUser = HttpContext.GetGitlabUser();
+
+        if (!TryParseLastPollTime(lastPollTime, out var parsedLastPollTime, out var parseError))
+        {
+            return BadRequest(new ErrorResponse(parseError!));
+        }
 
         if (!_coreRepository.IsHealthy())
         {
@@ -150,10 +171,53 @@ public class ActivityController : ControllerBase
         var result = await _activityService.GetActivitySince(
             currentUser,
             userInfo.Id,
+            parsedLastPollTime,
+            requestReceivedAt,
             cancellationToken);
 
         _logger.LogInformation("Returning {Count} poll results", result.Activities.Count);
         return Ok(result);
+    }
+
+    /// <summary>
+    ///     Returns fully resolved details for a single merge group.
+    /// </summary>
+    [HttpGet("merge-groups/{mergeGroupId:int}")]
+    public async Task<IActionResult> GetMergeGroupDetails(int mergeGroupId, CancellationToken cancellationToken)
+    {
+        var currentUser = HttpContext.GetGitlabUser();
+
+        if (!_coreRepository.IsHealthy())
+        {
+            _logger.LogError(
+                "Database is unhealthy, cannot fetch merge group details for merge group {MergeGroupId}",
+                mergeGroupId);
+            return StatusCode(503, new ErrorResponse("Database is unavailable"));
+        }
+
+        var userInfo = await _gitlabService.GetCurrentUser(currentUser);
+        if (userInfo == null)
+        {
+            return Unauthorized();
+        }
+
+        _logger.LogInformation(
+            "Fetching merge group details for user {UserId}, merge group {MergeGroupId}",
+            userInfo.Id,
+            mergeGroupId);
+
+        var details = await _activityService.GetMergeGroupDetails(
+            currentUser,
+            userInfo.Id,
+            mergeGroupId,
+            cancellationToken);
+
+        if (details == null)
+        {
+            return NotFound(new ErrorResponse("Merge group not found"));
+        }
+
+        return Ok(details);
     }
 
     private async Task<bool> EnsureDatabaseHealthyForSse(
@@ -255,5 +319,29 @@ public class ActivityController : ControllerBase
         {
             writeLock.Release();
         }
+    }
+
+    private bool TryParseLastPollTime(
+        string? lastPollTime,
+        out DateTimeOffset? parsedLastPollTime,
+        out string? error)
+    {
+        parsedLastPollTime = null;
+        error = null;
+
+        if (string.IsNullOrWhiteSpace(lastPollTime))
+        {
+            return true;
+        }
+
+        if (DateTimeOffset.TryParse(lastPollTime, out var parsed))
+        {
+            parsedLastPollTime = parsed.ToUniversalTime();
+            return true;
+        }
+
+        _logger.LogWarning("Invalid lastPollTime query value '{LastPollTime}'", lastPollTime);
+        error = "Invalid 'lastPollTime' query value. Use an ISO-8601 timestamp.";
+        return false;
     }
 }

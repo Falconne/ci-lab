@@ -13,23 +13,21 @@ namespace Mergician.Services.Gitlab;
 /// </summary>
 public class GitlabActivityService
 {
+    private static readonly TimeSpan _maxActivityLookback = TimeSpan.FromDays(14);
+
     private readonly GitlabService _gitlabService;
 
     private readonly ILogger<GitlabActivityService> _logger;
 
     private readonly IMergeGroupRepository _mergeGroupRepository;
 
-    private readonly IUserRepository _userRepository;
-
     public GitlabActivityService(
         GitlabService gitlabService,
         IMergeGroupRepository mergeGroupRepository,
-        IUserRepository userRepository,
         ILogger<GitlabActivityService> logger)
     {
         _gitlabService = gitlabService;
         _mergeGroupRepository = mergeGroupRepository;
-        _userRepository = userRepository;
         _logger = logger;
     }
 
@@ -41,18 +39,26 @@ public class GitlabActivityService
     public async IAsyncEnumerable<BranchActivity> StreamBranchActivity(
         GitlabAccessUser currentUser,
         int gitlabUserId,
+        DateTimeOffset? lastPollTime,
+        DateTimeOffset requestReceivedAt,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        var now = DateTimeOffset.UtcNow;
-        var since = now.AddDays(-14);
+        var requestReceivedAtUtc = UtcTimestamp.EnsureUtc(
+            requestReceivedAt,
+            () => "GitlabActivityService.StreamBranchActivity requestReceivedAt",
+            _logger);
+
+        var sinceLimit = requestReceivedAtUtc.Subtract(_maxActivityLookback);
 
         // 1. Return cached data from DB first
         _logger.LogInformation("Fetching cached branches for user {UserId} from database", gitlabUserId);
-        var cachedBranches = _mergeGroupRepository.GetUserBranches(gitlabUserId, since);
+        var cachedBranches = _mergeGroupRepository.GetUserBranches(gitlabUserId, sinceLimit);
         _logger.LogInformation(
             "Found {Count} cached branches for user {UserId}",
             cachedBranches.Count,
             gitlabUserId);
+
+        DateTimeOffset? latestCachedActivity = null;
 
         // Track returned branches to avoid sending duplicates to the UI when checking through DB and activity events.
         var returnedKeys = new HashSet<string>();
@@ -108,6 +114,11 @@ public class GitlabActivityService
                 () => $"GitlabActivityService.StreamBranchActivity cached branch '{cached.BranchName}'/{cached.ProjectId}",
                 _logger);
 
+            if (!latestCachedActivity.HasValue || cachedLastUpdatedUtc > latestCachedActivity.Value)
+            {
+                latestCachedActivity = cachedLastUpdatedUtc;
+            }
+
             var projectNameWithNamespace = cached.ProjectName;
             var projectName = GetProjectDisplayName(projectNameWithNamespace, cached.ProjectId);
 
@@ -126,14 +137,11 @@ public class GitlabActivityService
             yield return cachedActivity;
 
             // Yield resolved MR/approval data
-            yield return await ResolveBranchActivityIn(currentUser, cachedActivity);
+            yield return await ResolveBranchActivityIn(currentUser, cachedActivity, cancellationToken);
         }
 
         // 2. Fetch new data from GitLab
-        var lastPoll = _userRepository.GetLastPollTimestamp(gitlabUserId);
-        var fetchSince = lastPoll.HasValue && lastPoll.Value > since
-            ? lastPoll.Value
-            : since;
+        var fetchSince = DetermineFetchSince(lastPollTime, latestCachedActivity, sinceLimit);
 
         var fetchSinceUtc = UtcTimestamp.EnsureUtc(
             fetchSince,
@@ -163,11 +171,8 @@ public class GitlabActivityService
             yield return branch;
 
             // Resolve MR/approval data
-            yield return await ResolveBranchActivityIn(currentUser, branch);
+            yield return await ResolveBranchActivityIn(currentUser, branch, cancellationToken);
         }
-
-        // Update last poll timestamp
-        _userRepository.UpsertLastPollTimestamp(gitlabUserId, now);
 
         _logger.LogInformation("Finished streaming branch activity for user {UserId}", gitlabUserId);
     }
@@ -180,12 +185,17 @@ public class GitlabActivityService
     public async Task<ActivityPollResponse> GetActivitySince(
         GitlabAccessUser currentUser,
         int gitlabUserId,
+        DateTimeOffset? lastPollTime,
+        DateTimeOffset requestReceivedAt,
         CancellationToken cancellationToken = default)
     {
-        var now = DateTimeOffset.UtcNow;
-        var sinceLimit = now.AddDays(-14);
-        var lastPoll = _userRepository.GetLastPollTimestamp(gitlabUserId);
-        var fetchSince = lastPoll.HasValue && lastPoll.Value > sinceLimit ? lastPoll.Value : sinceLimit;
+        var requestReceivedAtUtc = UtcTimestamp.EnsureUtc(
+            requestReceivedAt,
+            () => "GitlabActivityService.GetActivitySince requestReceivedAt",
+            _logger);
+
+        var sinceLimit = requestReceivedAtUtc.Subtract(_maxActivityLookback);
+        var fetchSince = DetermineFetchSince(lastPollTime, null, sinceLimit);
 
         var fetchSinceUtc = UtcTimestamp.EnsureUtc(
             fetchSince,
@@ -215,16 +225,92 @@ public class GitlabActivityService
 
         await foreach (var branch in records)
         {
-            var activity = await ResolveBranchActivityIn(currentUser, branch);
+            var activity = await ResolveBranchActivityIn(currentUser, branch, cancellationToken);
 
             results.Add(activity);
         }
 
-        // Update poll timestamp
-        _userRepository.UpsertLastPollTimestamp(gitlabUserId, now);
-
         _logger.LogInformation("Returning {Count} branch activity records from poll", results.Count);
-        return new ActivityPollResponse(results, deletedBranches);
+        return new ActivityPollResponse(results, deletedBranches, requestReceivedAtUtc);
+    }
+
+    /// <summary>
+    ///     Returns fully resolved details for a single merge group.
+    /// </summary>
+    public async Task<MergeGroupDetailsResponse?> GetMergeGroupDetails(
+        GitlabAccessUser currentUser,
+        int gitlabUserId,
+        int mergeGroupId,
+        CancellationToken cancellationToken = default)
+    {
+        var branches = _mergeGroupRepository.GetMergeGroupBranches(gitlabUserId, mergeGroupId);
+        if (branches.Count == 0)
+        {
+            _logger.LogInformation(
+                "No merge group details found for user {UserId} and merge group {MergeGroupId}",
+                gitlabUserId,
+                mergeGroupId);
+
+            return null;
+        }
+
+        var resolvedActivities = new List<BranchActivity>();
+        foreach (var branch in branches)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var branchLookup = await _gitlabService.GetBranchLookupResult(
+                currentUser,
+                branch.ProjectId,
+                branch.BranchName);
+
+            if (branchLookup.IsMissing)
+            {
+                _logger.LogInformation(
+                    "Branch '{BranchName}' in project {ProjectId} is missing while loading merge group {MergeGroupId}; removing from DB",
+                    branch.BranchName,
+                    branch.ProjectId,
+                    mergeGroupId);
+
+                RemoveBranchAndCleanup(branch.BranchInProjectId);
+                continue;
+            }
+
+            if (branchLookup.IsUnavailable)
+            {
+                _logger.LogWarning(
+                    "Branch lookup unavailable for branch '{BranchName}' in project {ProjectId} while loading merge group {MergeGroupId}; skipping this branch",
+                    branch.BranchName,
+                    branch.ProjectId,
+                    mergeGroupId);
+
+                continue;
+            }
+
+            var projectNameWithNamespace = branch.ProjectName;
+            var projectName = GetProjectDisplayName(projectNameWithNamespace, branch.ProjectId);
+            var lastUpdated = UtcTimestamp.EnsureUtc(
+                branch.LastUpdateTime,
+                () => $"GitlabActivityService.GetMergeGroupDetails branch '{branch.BranchName}'/{branch.ProjectId}",
+                _logger);
+
+            var pending = new BranchActivity(
+                branch.BranchName,
+                branch.ProjectId,
+                projectName,
+                projectNameWithNamespace,
+                null,
+                null,
+                null,
+                lastUpdated,
+                branch.MergeGroupId);
+
+            var resolved = await ResolveBranchActivityIn(currentUser, pending, cancellationToken);
+            resolvedActivities.Add(resolved);
+        }
+
+        var mergeGroupName = branches[0].MergeGroupName;
+        return new MergeGroupDetailsResponse(mergeGroupId, mergeGroupName, resolvedActivities);
     }
 
     /// <summary>
@@ -322,9 +408,12 @@ public class GitlabActivityService
                 null,
                 null,
                 branch.LastUpdated,
-                branch.MergeGroupId);
+                branch.MergeGroupId,
+                null,
+                null,
+                project.WebUrl);
 
-            var activity = await ResolveBranchActivityIn(user, pendingActivity);
+            var activity = await ResolveBranchActivityIn(user, pendingActivity, cancellationToken);
 
             yield return activity;
         }
@@ -446,8 +535,53 @@ public class GitlabActivityService
                 null,
                 null,
                 pushEvent.CreatedAt,
-                mergeGroup.Id);
+                mergeGroup.Id,
+                null,
+                null,
+                project.WebUrl);
         }
+    }
+
+    private DateTimeOffset DetermineFetchSince(
+        DateTimeOffset? requestLastPollTime,
+        DateTimeOffset? latestCachedActivity,
+        DateTimeOffset sinceLimit)
+    {
+        if (requestLastPollTime.HasValue)
+        {
+            var requested = UtcTimestamp.EnsureUtc(
+                requestLastPollTime.Value,
+                () => "GitlabActivityService.DetermineFetchSince requestLastPollTime",
+                _logger);
+
+            if (requested < sinceLimit)
+            {
+                _logger.LogInformation(
+                    "Requested last poll time {Requested} is older than {Limit}; clamping to lookback limit",
+                    requested,
+                    sinceLimit);
+
+                return sinceLimit;
+            }
+
+            _logger.LogDebug(
+                "Using frontend-provided last poll time {Requested} as fetch since",
+                requested);
+            return requested;
+        }
+
+        if (latestCachedActivity.HasValue && latestCachedActivity.Value > sinceLimit)
+        {
+            _logger.LogDebug(
+                "Using latest cached activity timestamp {LatestCached} as fetch since",
+                latestCachedActivity.Value);
+            return latestCachedActivity.Value;
+        }
+
+        _logger.LogDebug(
+            "No valid frontend cursor or recent cached activity; using lookback limit {Limit}",
+            sinceLimit);
+        return sinceLimit;
     }
 
     private string GetProjectDisplayName(string projectNameWithNamespace, int projectId)
@@ -481,7 +615,8 @@ public class GitlabActivityService
     /// </summary>
     private async Task<BranchActivity> ResolveBranchActivityIn(
         GitlabAccessUser user,
-        BranchActivity activity)
+        BranchActivity activity,
+        CancellationToken cancellationToken = default)
     {
         var mergeRequests = await _gitlabService.GetMergeRequests(
             user,
@@ -492,6 +627,7 @@ public class GitlabActivityService
         int? approvalsRequired = null;
         int? approvalsGiven = null;
         string? mrTitle = null;
+        string? mrUrl = null;
 
         if (hasMr)
         {
@@ -503,6 +639,7 @@ public class GitlabActivityService
 
             var first = mergeRequests[0];
             mrTitle = first.Title;
+            mrUrl = first.WebUrl;
 
             var approval = await _gitlabService.GetMergeRequestApprovals(
                 user,
@@ -516,12 +653,26 @@ public class GitlabActivityService
             }
         }
 
+        var project = await _gitlabService.GetProject(user, activity.ProjectId);
+        var projectUrl = !string.IsNullOrWhiteSpace(project?.WebUrl)
+            ? project.WebUrl
+            : activity.ProjectUrl;
+
+        var buildJobs = await _gitlabService.GetLatestExternalJobsForBranch(
+            user,
+            activity.ProjectId,
+            activity.BranchName,
+            cancellationToken);
+
         return activity with
         {
             HasMergeRequest = hasMr,
             ApprovalsRequired = approvalsRequired,
             ApprovalsGiven = approvalsGiven,
-            MergeRequestTitle = mrTitle
+            MergeRequestTitle = mrTitle,
+            MergeRequestUrl = mrUrl,
+            ProjectUrl = projectUrl,
+            BuildJobs = buildJobs
         };
     }
 

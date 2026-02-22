@@ -21,4 +21,7 @@ public class GitLabMergeRequest
 
     [JsonPropertyName("title")]
     public string Title { get; set; } = "";
+
+    [JsonPropertyName("web_url")]
+    public string WebUrl { get; set; } = "";
 }

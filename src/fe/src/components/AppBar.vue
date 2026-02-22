@@ -1,7 +1,7 @@
 <template>
   <v-app-bar color="primary" density="comfortable">
     <v-app-bar-title>
-      <div class="d-flex align-center">
+      <div class="d-flex align-center app-title-link" @click="goHome" data-mergician-home-link>
         <v-icon icon="mdi-source-merge" class="mr-2" />
         Mergician
         <span class="version-text ml-3">
@@ -28,14 +28,22 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useCurrentUser } from '@/composables/useCurrentUser'
 
 const route = useRoute()
+const router = useRouter()
 const frontendVersion = ref(__APP_VERSION__)
 const backendVersion = ref('unknown')
 const { currentUser, loadCurrentUser, clearCurrentUser } = useCurrentUser()
-const pageTitle = computed(() => (route.meta?.title as string) ?? '')
+const pageTitle = computed(() => {
+  if (route.name === 'merge-group-details') {
+    const mergeGroupTitle = (route.query.title as string | undefined)?.trim()
+    return mergeGroupTitle ? `Merge Group: ${mergeGroupTitle}` : 'Merge Group'
+  }
+
+  return (route.meta?.title as string) ?? ''
+})
 
 onMounted(async () => {
   await loadCurrentUser()
@@ -57,9 +65,17 @@ async function logout() {
   clearCurrentUser()
   window.location.href = '/'
 }
+
+function goHome() {
+  router.push('/')
+}
 </script>
 
 <style scoped>
+.app-title-link {
+  cursor: pointer;
+}
+
 .version-text {
   font-size: 0.75rem;
   opacity: 0.7;

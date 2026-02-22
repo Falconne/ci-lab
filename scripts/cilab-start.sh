@@ -24,6 +24,10 @@ done
 
 pushd "$SCRIPT_DIR/.." >/dev/null
 
+export LOCAL_UID="$(id -u)"
+export LOCAL_GID="$(id -g)"
+export LOCAL_DOCKER_GID="$(stat -c '%g' /var/run/docker.sock)"
+
 docker compose -f cilab-compose.yaml down -v
 
 if [ "$WITH_BOOTSTRAP" = true ]; then

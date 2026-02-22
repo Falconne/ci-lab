@@ -1,6 +1,7 @@
 services:
   cleanup-env:
     image: alpine:latest
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
     volumes:
       - .:/workspace
     working_dir: /workspace
@@ -53,7 +54,10 @@ services:
       start_period: 120s
 
   gitlab-token-generator:
-    image: alpine:latest
+    image: docker:27.5.1-cli
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+    group_add:
+      - "${LOCAL_DOCKER_GID:-0}"
     depends_on:
       gitlab:
         condition: service_healthy

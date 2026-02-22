@@ -60,6 +60,7 @@
               :data-group-key="group.groupKey"
               @mouseenter="onCardMouseEnter"
               @mouseleave="onCardMouseLeave"
+              @click="openMergeGroupDetails(group)"
             >
               <div class="card-accent" :class="groupStatusClass(group)" />
               <div class="card-body">
@@ -97,27 +98,13 @@
                       >
                         | {{ truncateTitle(item.mergeRequestTitle as string) }}
                       </span>
+                      <span
+                        v-else-if="item.hasMergeRequest === false"
+                        class="item-no-mr"
+                      >
+                        | No Merge Request
+                      </span>
                     </span>
-                    <!-- MR status icon: grey when no MR, blue when MR exists -->
-                    <v-tooltip
-                      location="top"
-                      :text="mrTooltip(item)"
-                    >
-                      <template #activator="{ props }">
-                        <span
-                          v-bind="props"
-                          class="item-mr-icon"
-                          :title="mrTooltip(item)"
-                        >
-                          <v-icon
-                            icon="mdi-source-merge"
-                            size="small"
-                            :color="mrIconColor(item)"
-                            :data-mr-color="mrIconColor(item)"
-                          />
-                        </span>
-                      </template>
-                    </v-tooltip>
                     <v-tooltip
                       v-if="itemApprovalsText(item)"
                       location="top"
@@ -175,6 +162,15 @@ interface BranchActivity {
   lastUpdated: string | null
   mergeGroupId: number | null
   mergeRequestTitle?: string | null
+  mergeRequestUrl?: string | null
+  projectUrl?: string | null
+  buildJobs?: BranchBuildJob[] | null
+}
+
+interface BranchBuildJob {
+  name: string
+  status: string
+  url?: string | null
 }
 
 interface BranchDeletedNotification {
@@ -186,6 +182,11 @@ interface BranchDeletedNotification {
 interface ActivityPollResponse {
   activities: BranchActivity[]
   deletedBranches: BranchDeletedNotification[]
+  nextPollTime: string
+}
+
+interface ActivityPollCursor {
+  nextPollTime: string
 }
 
 interface MergeGroup {
@@ -216,7 +217,7 @@ let eventSource: EventSource | null = null
 let pollIntervalId: ReturnType<typeof setInterval> | null = null
 let refreshIntervalId: ReturnType<typeof setInterval> | null = null
 let timeIntervalId: ReturnType<typeof setInterval> | null = null
-let lastUpdateTime: Date | null = null
+let lastPollTime: string | null = null
 
 // --- Status logic ---
 
@@ -273,16 +274,6 @@ function approvalsTooltip(item: BranchActivity): string {
     return 'All required approvals given'
   }
   return `${item.approvalsGiven} of ${item.approvalsRequired} needed approvals given`
-}
-
-function mrIconColor(item: BranchActivity): string {
-  // blue if there's a merge request, grey otherwise
-  if (item.hasMergeRequest) return 'blue'
-  return 'grey'
-}
-
-function mrTooltip(item: BranchActivity): string {
-  return item.hasMergeRequest ? 'MR exists' : 'MR not created'
 }
 
 function groupTimeAgo(group: MergeGroup): string {
@@ -475,7 +466,21 @@ function findLastIndexOf<T>(arr: T[], predicate: (item: T) => boolean): number {
 
 function startStreaming() {
   streaming.value = true
-  eventSource = new EventSource('/api/activity/stream')
+  const streamUrl = lastPollTime
+    ? `/api/activity/stream?lastPollTime=${encodeURIComponent(lastPollTime)}`
+    : '/api/activity/stream'
+  eventSource = new EventSource(streamUrl)
+
+  eventSource.addEventListener('poll-cursor', (event) => {
+    try {
+      const pollCursor: ActivityPollCursor = JSON.parse((event as MessageEvent).data)
+      if (pollCursor.nextPollTime) {
+        lastPollTime = pollCursor.nextPollTime
+      }
+    } catch (err) {
+      console.error('Failed to parse poll-cursor SSE data:', err)
+    }
+  })
 
   eventSource.onmessage = (event) => {
     try {
@@ -507,7 +512,6 @@ function startPolling() {
     return
   }
 
-  lastUpdateTime = new Date()
   pollIntervalId = setInterval(pollForActivity, 5000)
   refreshIntervalId = setInterval(refreshExistingBranches, 15000)
 }
@@ -620,14 +624,12 @@ async function refreshExistingBranches() {
 }
 
 async function pollForActivity() {
-  if (!lastUpdateTime) return
-
-  // Check from 5 seconds before the last update time to avoid missing activity
-  const since = new Date(lastUpdateTime.getTime() - 5000)
-  const sinceParam = since.toISOString()
-
   try {
-    const response = await fetch('/api/activity/poll')
+    const pollUrl = lastPollTime
+      ? `/api/activity/poll?lastPollTime=${encodeURIComponent(lastPollTime)}`
+      : '/api/activity/poll'
+
+    const response = await fetch(pollUrl)
 
     if (response.status === 401) {
       console.warn('Poll returned 401, stopping polling')
@@ -648,6 +650,10 @@ async function pollForActivity() {
 
     const data: ActivityPollResponse = await response.json()
 
+    if (data.nextPollTime) {
+      lastPollTime = data.nextPollTime
+    }
+
     // Handle deletions
     if (data.deletedBranches) {
       for (const deleted of data.deletedBranches) {
@@ -662,10 +668,22 @@ async function pollForActivity() {
       }
     }
 
-    lastUpdateTime = new Date()
   } catch (err) {
     console.error('Poll request failed:', err)
   }
+}
+
+function openMergeGroupDetails(group: MergeGroup) {
+  const mergeGroupId = group.items.find(item => item.mergeGroupId != null)?.mergeGroupId
+  if (mergeGroupId == null) {
+    return
+  }
+
+  router.push({
+    name: 'merge-group-details',
+    params: { mergeGroupId: mergeGroupId.toString() },
+    query: { title: group.branchName }
+  })
 }
 
 onMounted(async () => {
@@ -734,6 +752,7 @@ onUnmounted(() => {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
   overflow: hidden;
   transition: box-shadow 0.2s ease;
+  cursor: pointer;
 }
 
 .merge-group-card:hover {
@@ -796,6 +815,13 @@ onUnmounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.item-no-mr {
+  font-size: 0.85rem;
+  color: #9e9e9e;
+  margin-left: 4px;
+  white-space: nowrap;
 }
 
 .item-main {
@@ -876,12 +902,6 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-}
-
-.item-mr-icon {
-  display: inline-flex;
-  align-items: center;
-  margin-right: 6px;
 }
 
 .approval-icon {

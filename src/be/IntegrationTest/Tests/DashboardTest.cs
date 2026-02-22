@@ -16,6 +16,7 @@ namespace IntegrationTest.Tests;
 ///
 ///     The UI should display the MR title next to the corresponding project entry
 ///     within the branch card when an MR exists.
+///     When no MR exists, the UI shows 'No Merge Request' in the MR title area.
 /// </summary>
 public class DashboardTest : IDisposable
 {
@@ -46,22 +47,27 @@ public class DashboardTest : IDisposable
             {
                 // On free-tier GitLab, approvalsRequired is always 0, so
                 // any branch with an MR is "Ready" (0 >= 0 = all approvals met)
-                AssertCardItem("feature/alpha", "primary-1", "1/0", "No approval needed", "green", "MR exists", "blue", "Alpha changes in primary-1", "Test Group / primary-1");
-                AssertCardItem("feature/alpha", "secondary-1", "0/0", "No approval needed", "green", "MR exists", "blue", "Alpha changes in secondary-1", "Test Group / secondary-1");
-                AssertCardItem("feature/beta", "primary-2", "0/0", "No approval needed", "green", "MR exists", "blue", "Beta changes in primary-2", "Test Group / primary-2");
+                AssertCardItem("feature/alpha", "primary-1", "1/0", "No approval needed", "green", "Alpha changes in primary-1", "Test Group / primary-1");
+                AssertCardItem("feature/alpha", "secondary-1", "0/0", "No approval needed", "green", "Alpha changes in secondary-1", "Test Group / secondary-1");
+                AssertCardItem("feature/beta", "primary-2", "0/0", "No approval needed", "green", "Beta changes in primary-2", "Test Group / primary-2");
                 AssertCardGroupStatus("feature/alpha", "Ready");
                 AssertCardGroupStatus("feature/beta", "Ready");
                 Log.Information("test1 dashboard data verified");
             });
+
+        await TestMergeGroupDetailsNavigationAndLinks(
+            "feature/alpha",
+            "primary-1",
+            "Alpha changes in primary-1");
 
         // Test with test2 — should see feature/gamma
         await TestUserDashboard(
             "test2",
             () =>
             {
-                AssertCardItem("feature/gamma", "primary-1", "0/0", "No approval needed", "green", "MR exists", "blue", "Gamma changes in primary-1", "Test Group / primary-1");
-                AssertCardItem("feature/gamma", "secondary-1", "1/0", "No approval needed", "green", "MR exists", "blue", "Gamma changes in secondary-1", "Test Group / secondary-1");
-                AssertCardItem("feature/gamma", "secondary-2", "0/0", "No approval needed", "green", "MR exists", "blue", "Gamma changes in secondary-2", "Test Group / secondary-2");
+                AssertCardItem("feature/gamma", "primary-1", "0/0", "No approval needed", "green", "Gamma changes in primary-1", "Test Group / primary-1");
+                AssertCardItem("feature/gamma", "secondary-1", "1/0", "No approval needed", "green", "Gamma changes in secondary-1", "Test Group / secondary-1");
+                AssertCardItem("feature/gamma", "secondary-2", "0/0", "No approval needed", "green", "Gamma changes in secondary-2", "Test Group / secondary-2");
                 AssertCardGroupStatus("feature/gamma", "Ready");
                 Log.Information("test2 dashboard data verified");
             });
@@ -71,7 +77,7 @@ public class DashboardTest : IDisposable
             "test3",
             () =>
             {
-                AssertCardItem("feature/delta", "secondary-3", "", null, null, "MR not created", "grey", null, "Test Group / secondary-3");
+                AssertCardItem("feature/delta", "secondary-3", "", null, null, null, "Test Group / secondary-3", "No Merge Request");
                 AssertCardGroupStatus("feature/delta", "Waiting");
                 Log.Information("test3 dashboard data verified");
             });
@@ -280,18 +286,11 @@ public class DashboardTest : IDisposable
                     mrTitle = (await mrTitleEl.InnerTextAsync()).Trim();
                 }
 
-                // MR icon info
-                var mrEl = item.Locator(".item-mr-icon");
-                var mrTooltip = "";
-                var mrColor = "";
-                if (await mrEl.CountAsync() > 0)
+                var noMrText = "";
+                var noMrEl = item.Locator(".item-no-mr");
+                if (await noMrEl.CountAsync() > 0)
                 {
-                    mrTooltip = (await mrEl.GetAttributeAsync("title"))?.Trim() ?? "";
-                    var mrIcon = mrEl.Locator(".v-icon");
-                    if (await mrIcon.CountAsync() > 0)
-                    {
-                        mrColor = (await mrIcon.GetAttributeAsync("data-mr-color")) ?? "";
-                    }
+                    noMrText = (await noMrEl.InnerTextAsync()).Trim();
                 }
 
                 var approvalEl = item.Locator(".item-approvals");
@@ -310,7 +309,7 @@ public class DashboardTest : IDisposable
                     }
                 }
 
-                items.Add(new ParsedCardItem(repo, projectTooltip, approvals, tooltip, iconColor, mrTooltip, mrColor, mrTitle));
+                items.Add(new ParsedCardItem(repo, projectTooltip, approvals, tooltip, iconColor, mrTitle, noMrText));
             }
 
             cards.Add(new ParsedCard(branchName, groupStatus, items));
@@ -329,10 +328,9 @@ public class DashboardTest : IDisposable
         string expectedApprovals,
         string? expectedTooltip = null,
         string? expectedIconColor = null,
-        string? expectedMrTooltip = null,
-        string? expectedMrIconColor = null,
         string? expectedMrTitle = null,
-        string? expectedProjectTooltip = null)
+        string? expectedProjectTooltip = null,
+        string? expectedNoMrText = null)
     {
         var card = _parsedCards.FirstOrDefault(c =>
             c.BranchName.Contains(branchName, StringComparison.OrdinalIgnoreCase));
@@ -378,24 +376,6 @@ public class DashboardTest : IDisposable
             }
         }
 
-        if (expectedMrTooltip != null)
-        {
-            if (item.MrTooltip != expectedMrTooltip)
-            {
-                throw new InvalidOperationException(
-                    $"Branch '{branchName}' repo '{repoContains}': expected MR tooltip '{expectedMrTooltip}', got '{item.MrTooltip}'");
-            }
-        }
-
-        if (expectedMrIconColor != null)
-        {
-            if (item.MrIconColor != expectedMrIconColor)
-            {
-                throw new InvalidOperationException(
-                    $"Branch '{branchName}' repo '{repoContains}': expected MR icon color '{expectedMrIconColor}', got '{item.MrIconColor}'");
-            }
-        }
-
         if (expectedMrTitle != null)
         {
             if (!item.MrTitle.Contains(expectedMrTitle, StringComparison.OrdinalIgnoreCase))
@@ -411,6 +391,15 @@ public class DashboardTest : IDisposable
             {
                 throw new InvalidOperationException(
                     $"Branch '{branchName}' repo '{repoContains}': expected project tooltip '{expectedProjectTooltip}', got '{item.ProjectTooltip}'");
+            }
+        }
+
+        if (expectedNoMrText != null)
+        {
+            if (!item.NoMergeRequestText.Contains(expectedNoMrText, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    $"Branch '{branchName}' repo '{repoContains}': expected no-MR text '{expectedNoMrText}', got '{item.NoMergeRequestText}'");
             }
         }
 
@@ -492,15 +481,106 @@ public class DashboardTest : IDisposable
         Log.Information("Responsive layout test passed");
     }
 
+    private async Task TestMergeGroupDetailsNavigationAndLinks(
+        string branchName,
+        string repoContains,
+        string expectedMrTitle)
+    {
+        Log.Information("Testing merge-group details navigation and links for '{BranchName}'", branchName);
+
+        var card = _browser.Page.Locator(".merge-group-card").Filter(new() { HasTextString = branchName }).First;
+        await card.ClickAsync();
+
+        await _browser.Page.WaitForURLAsync(
+            url => url.Contains("/merge-group/"),
+            new PageWaitForURLOptions { Timeout = 20000 });
+
+        await _browser.TakeScreenshot("dashboard_details_01_opened");
+
+        var pageTitle = (await _browser.Page.Locator(".page-title").InnerTextAsync()).Trim();
+        if (!pageTitle.Equals($"Merge Group: {branchName}", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"Expected app bar title 'Merge Group: {branchName}', got '{pageTitle}'");
+        }
+
+        var backButton = _browser.Page.Locator("button:has-text('Back to Dashboard')");
+        if (!await BrowserService.WaitForElement(backButton, timeoutMs: 10000))
+        {
+            throw new InvalidOperationException("Back to Dashboard button was not visible on details page");
+        }
+
+        var summaryCard = _browser.Page.Locator(".summary-list");
+        if (!await BrowserService.WaitForElement(summaryCard, timeoutMs: 10000))
+        {
+            throw new InvalidOperationException("Project summary was not visible on details page");
+        }
+
+        var repoCard = _browser.Page.Locator(".repo-card-list .v-card").Filter(new() { HasTextString = repoContains }).First;
+        if (!await BrowserService.WaitForElement(repoCard, timeoutMs: 10000))
+        {
+            throw new InvalidOperationException($"Could not find details card for repo '{repoContains}'");
+        }
+
+        var repoLink = repoCard.Locator(".repo-link").First;
+        var repoHref = (await repoLink.GetAttributeAsync("href")) ?? "";
+        if (string.IsNullOrWhiteSpace(repoHref))
+        {
+            throw new InvalidOperationException($"Repo link href was empty for repo '{repoContains}'");
+        }
+
+        var mrLink = repoCard.Locator(".mr-link").First;
+        var mrText = (await mrLink.InnerTextAsync()).Trim();
+        if (!mrText.Contains(expectedMrTitle, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"Expected MR title containing '{expectedMrTitle}' on details page, got '{mrText}'");
+        }
+
+        if (mrText.EndsWith("...", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"Details page MR title should not be truncated, but got '{mrText}'");
+        }
+
+        var externalJobsSection = repoCard.Locator("text=External Jobs:");
+        if (!await BrowserService.WaitForElement(externalJobsSection, timeoutMs: 10000))
+        {
+            throw new InvalidOperationException("External Jobs section was not visible on details page");
+        }
+
+        var homeLink = _browser.Page.Locator("[data-mergician-home-link]");
+        await homeLink.ClickAsync();
+        await _browser.Page.WaitForURLAsync(
+            url => url.TrimEnd('/').Equals(TestConfig.MergicianUrl, StringComparison.OrdinalIgnoreCase),
+            new PageWaitForURLOptions { Timeout = 20000 });
+
+        var streamComplete = await WaitForStreamCompletion(120);
+        if (!streamComplete)
+        {
+            throw new InvalidOperationException(
+                "Dashboard stream did not complete after navigating home from details page");
+        }
+
+        await _browser.TakeScreenshot("dashboard_details_02_back_home");
+
+        var cardsAfterReturn = await _browser.Page.Locator(".merge-group-card").CountAsync();
+        if (cardsAfterReturn == 0)
+        {
+            throw new InvalidOperationException("No dashboard cards visible after returning home via app bar title");
+        }
+
+        Log.Information("Merge-group details navigation and links verified for '{BranchName}'", branchName);
+    }
+
     private record ParsedCardItem(
         string Repo,
         string ProjectTooltip,
         string Approvals,
         string Tooltip,
         string IconColor,
-        string MrTooltip,
-        string MrIconColor,
-        string MrTitle);
+        string MrTitle,
+        string NoMergeRequestText);
 
     private record ParsedCard(string BranchName, string GroupStatus, List<ParsedCardItem> Items);
 }

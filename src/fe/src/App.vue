@@ -23,7 +23,11 @@
     <template v-else-if="healthChecked">
       <AppBar />
       <v-main>
-        <router-view />
+        <router-view v-slot="{ Component, route }">
+          <transition name="page-transition" mode="out-in">
+            <component :is="Component" :key="route.fullPath" />
+          </transition>
+        </router-view>
       </v-main>
 
       <!-- Non-blocking banner shown when a new version is deployed -->
@@ -52,3 +56,20 @@ import { useHealthCheck } from '@/composables/useHealthCheck'
 const { updateAvailable, reload } = useVersionCheck()
 const { configError, configErrors, healthChecked } = useHealthCheck()
 </script>
+
+<style scoped>
+.page-transition-enter-active,
+.page-transition-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.page-transition-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.page-transition-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+</style>

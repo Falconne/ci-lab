@@ -18,4 +18,7 @@ public record BranchActivity(
     int? ApprovalsGiven,
     DateTimeOffset? LastUpdated = null,
     int? MergeGroupId = null,
-    string? MergeRequestTitle = null);
+    string? MergeRequestTitle = null,
+    string? MergeRequestUrl = null,
+    string? ProjectUrl = null,
+    List<BranchBuildJob>? BuildJobs = null);

@@ -100,13 +100,11 @@ public class DashboardLiveUpdateTest : IDisposable
 
         Log.Information("Branch '{BranchName}' correctly shows 'Waiting' status", branchName);
 
-        // also verify MR icon is grey and tooltip indicates no MR
+        // verify explicit no-MR text is shown before an MR exists
         var card = _browser.Page.Locator(".merge-group-card").Filter(new() { HasTextString = branchName }).First;
-        var mrSpan = card.Locator(".item-mr-icon");
-        var mrTooltip = await mrSpan.GetAttributeAsync("title") ?? "";
-        var mrColor = await mrSpan.Locator(".v-icon").GetAttributeAsync("data-mr-color") ?? "";
-        if (mrTooltip != "MR not created" || mrColor != "grey")
-            throw new InvalidOperationException($"Expected MR icon grey/not created before MR, got tooltip='{mrTooltip}' color='{mrColor}'");
+        var noMrText = (await card.Locator(".item-no-mr").InnerTextAsync()).Trim();
+        if (!noMrText.Contains("No Merge Request", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException($"Expected 'No Merge Request' text before MR creation, got '{noMrText}'");
 
         // there should be no MR title element yet
         var titleCount = await card.Locator(".item-mr-title").CountAsync();
@@ -129,11 +127,9 @@ public class DashboardLiveUpdateTest : IDisposable
 
         Log.Information("MR status updated on dashboard for '{BranchName}'", branchName);
 
-        // verify MR icon turned blue with 'MR exists' tooltip
-        mrTooltip = await mrSpan.GetAttributeAsync("title") ?? "";
-        mrColor = await mrSpan.Locator(".v-icon").GetAttributeAsync("data-mr-color") ?? "";
-        if (mrTooltip != "MR exists" || mrColor != "blue")
-            throw new InvalidOperationException($"Expected MR icon blue/exists after MR creation, got tooltip='{mrTooltip}' color='{mrColor}'");
+        var noMrAfterMrCount = await card.Locator(".item-no-mr").CountAsync();
+        if (noMrAfterMrCount > 0)
+            throw new InvalidOperationException("No-MR text should disappear after MR creation");
 
         // now check the MR title element is present and has been truncated within the item
         var titleEl = card.Locator(".item-mr-title");

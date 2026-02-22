@@ -6,4 +6,5 @@ namespace Mergician.Entities;
 /// </summary>
 public record ActivityPollResponse(
     List<BranchActivity> Activities,
-    List<BranchDeletedNotification> DeletedBranches);
+    List<BranchDeletedNotification> DeletedBranches,
+    DateTimeOffset NextPollTime);
