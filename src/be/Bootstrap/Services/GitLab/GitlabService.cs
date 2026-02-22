@@ -33,8 +33,8 @@ public class GitlabService : IDisposable
     }
 
     /// <summary>
-    /// Creates a RestClient authenticated as a specific user (via their PAT).
-    /// Caller is responsible for disposing the returned client.
+    ///     Creates a RestClient authenticated as a specific user (via their PAT).
+    ///     Caller is responsible for disposing the returned client.
     /// </summary>
     private RestClient CreateUserClient(string token)
     {
@@ -45,6 +45,7 @@ public class GitlabService : IDisposable
                 RemoteCertificateValidationCallback = (_, _, _, _) => true,
                 Timeout = TimeSpan.FromSeconds(30)
             });
+
         client.AddDefaultHeader("PRIVATE-TOKEN", token);
         return client;
     }
@@ -71,7 +72,13 @@ public class GitlabService : IDisposable
         }
 
         var createRequest = new RestRequest("groups", Method.Post)
-            .AddJsonBody(new { name = groupName, path = groupName.ToLower().Replace(" ", "-"), visibility = "public" });
+            .AddJsonBody(
+                new
+                {
+                    name = groupName,
+                    path = groupName.ToLower().Replace(" ", "-"),
+                    visibility = "public"
+                });
 
         var createResponse = await _client.ExecutePostAsync<GitlabGroup>(createRequest);
 
@@ -105,6 +112,7 @@ public class GitlabService : IDisposable
 
         if (searchResponse is { IsSuccessful: true, Data: not null })
         {
+            Log.Debug($"Checking if '{projectName}' already exists");
             foreach (var proj in searchResponse.Data)
             {
                 if (proj.Name == projectName)
@@ -114,7 +122,9 @@ public class GitlabService : IDisposable
                     // from a deleted namespace that are still visible during async deletion.
                     if (namespaceId.HasValue && proj.Namespace?.Id != namespaceId.Value)
                     {
-                        Log.Debug($"Project '{projectName}' found but in namespace {proj.Namespace?.Id}, expected {namespaceId.Value} - skipping");
+                        Log.Debug(
+                            $"Project '{projectName}' found but in namespace {proj.Namespace?.Id}, expected {namespaceId.Value} - ignoring");
+
                         continue;
                     }
 
@@ -155,7 +165,8 @@ public class GitlabService : IDisposable
 
         var userSearchResponse = await _client.ExecuteGetAsync<GitlabUser[]>(userSearchRequest);
 
-        if (userSearchResponse is not { IsSuccessful: true, Data: not null } || userSearchResponse.Data.Length == 0)
+        if (userSearchResponse is not { IsSuccessful: true, Data: not null }
+            || userSearchResponse.Data.Length == 0)
         {
             Log.Error($"User '{username}' not found");
             throw new InvalidOperationException($"User '{username}' not found in GitLab");
@@ -187,22 +198,21 @@ public class GitlabService : IDisposable
                 return;
             }
 
-            Log.Error($"Failed to update group member: {(int)updateResponse.StatusCode} - {updateResponse.Content}");
+            Log.Error(
+                $"Failed to update group member: {(int)updateResponse.StatusCode} - {updateResponse.Content}");
+
             throw new InvalidOperationException(
                 $"Failed to update group member '{username}': {(int)updateResponse.StatusCode} - {updateResponse.Content}");
         }
 
         // Add user as a new group member
         var addRequest = new RestRequest($"groups/{groupId}/members", Method.Post)
-            .AddJsonBody(new
-            {
-                user_id = userId,
-                access_level = accessLevel
-            });
+            .AddJsonBody(new { user_id = userId, access_level = accessLevel });
 
         var addResponse = await _client.ExecutePostAsync<GitlabProjectMember>(addRequest);
 
-        if (addResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created && addResponse.Data is not null)
+        if (addResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created
+            && addResponse.Data is not null)
         {
             Log.Information($"User '{username}' added to group with access level {accessLevel}");
             return;
@@ -223,7 +233,8 @@ public class GitlabService : IDisposable
 
         var userSearchResponse = await _client.ExecuteGetAsync<GitlabUser[]>(userSearchRequest);
 
-        if (userSearchResponse is not { IsSuccessful: true, Data: not null } || userSearchResponse.Data.Length == 0)
+        if (userSearchResponse is not { IsSuccessful: true, Data: not null }
+            || userSearchResponse.Data.Length == 0)
         {
             Log.Error($"User '{username}' not found");
             throw new InvalidOperationException($"User '{username}' not found in GitLab");
@@ -256,22 +267,21 @@ public class GitlabService : IDisposable
                 return;
             }
 
-            Log.Error($"Failed to update project member: {(int)updateResponse.StatusCode} - {updateResponse.Content}");
+            Log.Error(
+                $"Failed to update project member: {(int)updateResponse.StatusCode} - {updateResponse.Content}");
+
             throw new InvalidOperationException(
                 $"Failed to update project member '{username}': {(int)updateResponse.StatusCode} - {updateResponse.Content}");
         }
 
         // Add user as a new member
         var addRequest = new RestRequest($"projects/{projectId}/members", Method.Post)
-            .AddJsonBody(new
-            {
-                user_id = userId,
-                access_level = accessLevel
-            });
+            .AddJsonBody(new { user_id = userId, access_level = accessLevel });
 
         var addResponse = await _client.ExecutePostAsync<GitlabProjectMember>(addRequest);
 
-        if (addResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created && addResponse.Data is not null)
+        if (addResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created
+            && addResponse.Data is not null)
         {
             Log.Information($"User '{username}' added to project with access level {accessLevel}");
             return;
@@ -364,13 +374,10 @@ public class GitlabService : IDisposable
     {
         Log.Information($"Creating file '{filePath}' in project {projectId}");
 
-        var request = new RestRequest($"projects/{projectId}/repository/files/{Uri.EscapeDataString(filePath)}", Method.Post)
-            .AddJsonBody(new
-            {
-                branch = branch,
-                content = content,
-                commit_message = commitMessage
-            });
+        var request = new RestRequest(
+                $"projects/{projectId}/repository/files/{Uri.EscapeDataString(filePath)}",
+                Method.Post)
+            .AddJsonBody(new { branch, content, commit_message = commitMessage });
 
         var response = await _client.ExecuteAsync(request);
 
@@ -381,7 +388,8 @@ public class GitlabService : IDisposable
         }
 
         // If file already exists, that's okay
-        if (response.StatusCode == HttpStatusCode.BadRequest && response.Content?.Contains("already exists") == true)
+        if (response.StatusCode == HttpStatusCode.BadRequest
+            && response.Content?.Contains("already exists") == true)
         {
             Log.Information($"File '{filePath}' already exists");
             return;
@@ -537,14 +545,15 @@ public class GitlabService : IDisposable
 
         // Create the user
         var createRequest = new RestRequest("users", Method.Post)
-            .AddJsonBody(new
-            {
-                username = username,
-                name = name,
-                email = email,
-                password = password,
-                skip_confirmation = true
-            });
+            .AddJsonBody(
+                new
+                {
+                    username,
+                    name,
+                    email,
+                    password,
+                    skip_confirmation = true
+                });
 
         var createResponse = await _client.ExecutePostAsync<GitlabUser>(createRequest);
 
@@ -555,7 +564,9 @@ public class GitlabService : IDisposable
             return true;
         }
 
-        Log.Error($"Failed to create user '{username}': {(int)createResponse.StatusCode} - {createResponse.Content}");
+        Log.Error(
+            $"Failed to create user '{username}': {(int)createResponse.StatusCode} - {createResponse.Content}");
+
         throw new InvalidOperationException(
             $"Failed to create GitLab user '{username}': {(int)createResponse.StatusCode} {createResponse.StatusCode} - {createResponse.Content}");
     }
@@ -572,8 +583,7 @@ public class GitlabService : IDisposable
         Log.Information($"Loaded {applications.Count} OAuth applications from GitLab");
 
         var expectedRedirectUris = redirectUri
-            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .ToArray();
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
         var existingApp = applications
             .Where(app => app.Name == name)
@@ -583,7 +593,8 @@ public class GitlabService : IDisposable
         if (existingApp is null)
         {
             existingApp = applications
-                .Where(app => expectedRedirectUris.Any(expected => app.CallbackUrl.Contains(expected, StringComparison.OrdinalIgnoreCase)))
+                .Where(app => expectedRedirectUris.Any(expected =>
+                    app.CallbackUrl.Contains(expected, StringComparison.OrdinalIgnoreCase)))
                 .OrderByDescending(app => app.Id)
                 .FirstOrDefault();
 
@@ -596,20 +607,16 @@ public class GitlabService : IDisposable
 
         if (existingApp is not null)
         {
-            Log.Information($"OAuth application '{existingApp.Name}' already exists (id={existingApp.Id}). Reusing existing credentials.");
+            Log.Information(
+                $"OAuth application '{existingApp.Name}' already exists (id={existingApp.Id}). Reusing existing credentials.");
+
             return existingApp;
         }
 
         Log.Information($"OAuth application '{name}' not found. Creating a new application.");
 
         var createRequest = new RestRequest("applications", Method.Post)
-            .AddJsonBody(new
-            {
-                name,
-                redirect_uri = redirectUri,
-                scopes,
-                confidential = true
-            });
+            .AddJsonBody(new { name, redirect_uri = redirectUri, scopes, confidential = true });
 
         var createResponse = await _client.ExecutePostAsync<GitLabOAuthApplication>(createRequest);
 
@@ -620,7 +627,9 @@ public class GitlabService : IDisposable
             return createResponse.Data;
         }
 
-        Log.Error($"Failed to create OAuth application: {(int)createResponse.StatusCode} - {createResponse.Content}");
+        Log.Error(
+            $"Failed to create OAuth application: {(int)createResponse.StatusCode} - {createResponse.Content}");
+
         throw new InvalidOperationException(
             $"Failed to create OAuth application: {(int)createResponse.StatusCode} - {createResponse.Content}");
     }
@@ -640,7 +649,9 @@ public class GitlabService : IDisposable
 
             if (listResponse is not { IsSuccessful: true, Data: not null })
             {
-                Log.Error($"Failed to list OAuth applications (page {page}): {(int)listResponse.StatusCode} - {listResponse.Content}");
+                Log.Error(
+                    $"Failed to list OAuth applications (page {page}): {(int)listResponse.StatusCode} - {listResponse.Content}");
+
                 throw new InvalidOperationException(
                     $"Failed to list OAuth applications (page {page}): {(int)listResponse.StatusCode} - {listResponse.Content}");
             }
@@ -649,7 +660,10 @@ public class GitlabService : IDisposable
             Log.Information($"OAuth applications page {page} loaded ({listResponse.Data.Length} entries)");
 
             var nextPageHeader = listResponse.Headers?
-                .FirstOrDefault(h => string.Equals(h.Name?.ToString(), "X-Next-Page", StringComparison.OrdinalIgnoreCase))
+                .FirstOrDefault(h => string.Equals(
+                    h.Name?.ToString(),
+                    "X-Next-Page",
+                    StringComparison.OrdinalIgnoreCase))
                 ?.Value?
                 .ToString();
 
@@ -660,7 +674,9 @@ public class GitlabService : IDisposable
 
             if (!int.TryParse(nextPageHeader, out page) || page <= 0)
             {
-                Log.Error($"Invalid X-Next-Page header value while listing OAuth applications: '{nextPageHeader}'");
+                Log.Error(
+                    $"Invalid X-Next-Page header value while listing OAuth applications: '{nextPageHeader}'");
+
                 throw new InvalidOperationException(
                     $"Invalid X-Next-Page header value while listing OAuth applications: '{nextPageHeader}'");
             }
@@ -674,10 +690,7 @@ public class GitlabService : IDisposable
         Log.Information($"Configuring merge request settings for project {projectId}");
 
         var updateRequest = new RestRequest($"projects/{projectId}", Method.Put)
-            .AddJsonBody(new
-            {
-                only_allow_merge_if_pipeline_succeeds = true,
-            });
+            .AddJsonBody(new { only_allow_merge_if_pipeline_succeeds = true });
 
         var updateResponse = await _client.ExecuteAsync(updateRequest);
 
@@ -687,14 +700,16 @@ public class GitlabService : IDisposable
             return;
         }
 
-        Log.Error($"Failed to configure project merge request settings: {(int)updateResponse.StatusCode} - {updateResponse.Content}");
+        Log.Error(
+            $"Failed to configure project merge request settings: {(int)updateResponse.StatusCode} - {updateResponse.Content}");
+
         throw new InvalidOperationException(
             $"Failed to configure project merge request settings: {(int)updateResponse.StatusCode} - {updateResponse.Content}");
     }
 
     /// <summary>
-    /// Creates a branch from the given ref (defaults to "main").
-    /// Returns the branch if created or already exists.
+    ///     Creates a branch from the given ref (defaults to "main").
+    ///     Returns the branch if created or already exists.
     /// </summary>
     public async Task<GitlabBranch> CreateBranch(int projectId, string branchName, string fromRef = "main")
     {
@@ -729,8 +744,8 @@ public class GitlabService : IDisposable
     }
 
     /// <summary>
-    /// Creates a file commit on a branch as a specific user (via their PAT).
-    /// If userToken is null, uses the admin token.
+    ///     Creates a file commit on a branch as a specific user (via their PAT).
+    ///     If userToken is null, uses the admin token.
     /// </summary>
     public async Task CreateCommitOnBranchAsUser(
         int projectId,
@@ -740,8 +755,9 @@ public class GitlabService : IDisposable
         string commitMessage,
         string? userToken)
     {
-        Log.Information($"Creating commit on branch '{branchName}' in project {projectId}" +
-                        (userToken != null ? " (as user)" : " (as admin)"));
+        Log.Information(
+            $"Creating commit on branch '{branchName}' in project {projectId}"
+            + (userToken != null ? " (as user)" : " (as admin)"));
 
         var client = _client;
         RestClient? userClient = null;
@@ -754,13 +770,10 @@ public class GitlabService : IDisposable
 
         try
         {
-            var request = new RestRequest($"projects/{projectId}/repository/files/{Uri.EscapeDataString(filePath)}", Method.Post)
-                .AddJsonBody(new
-                {
-                    branch = branchName,
-                    content,
-                    commit_message = commitMessage
-                });
+            var request = new RestRequest(
+                    $"projects/{projectId}/repository/files/{Uri.EscapeDataString(filePath)}",
+                    Method.Post)
+                .AddJsonBody(new { branch = branchName, content, commit_message = commitMessage });
 
             var response = await client.ExecuteAsync(request);
 
@@ -771,16 +784,14 @@ public class GitlabService : IDisposable
             }
 
             // If file already exists, update it instead
-            if (response.StatusCode == HttpStatusCode.BadRequest && response.Content?.Contains("already exists") == true)
+            if (response.StatusCode == HttpStatusCode.BadRequest
+                && response.Content?.Contains("already exists") == true)
             {
                 Log.Information($"File '{filePath}' already exists on branch '{branchName}', updating it");
-                var updateRequest = new RestRequest($"projects/{projectId}/repository/files/{Uri.EscapeDataString(filePath)}", Method.Put)
-                    .AddJsonBody(new
-                    {
-                        branch = branchName,
-                        content,
-                        commit_message = commitMessage
-                    });
+                var updateRequest = new RestRequest(
+                        $"projects/{projectId}/repository/files/{Uri.EscapeDataString(filePath)}",
+                        Method.Put)
+                    .AddJsonBody(new { branch = branchName, content, commit_message = commitMessage });
 
                 var updateResponse = await client.ExecuteAsync(updateRequest);
 
@@ -790,7 +801,9 @@ public class GitlabService : IDisposable
                     return;
                 }
 
-                Log.Error($"Failed to update file: {(int)updateResponse.StatusCode} - {updateResponse.Content}");
+                Log.Error(
+                    $"Failed to update file: {(int)updateResponse.StatusCode} - {updateResponse.Content}");
+
                 throw new InvalidOperationException(
                     $"Failed to update file on branch '{branchName}': {(int)updateResponse.StatusCode} - {updateResponse.Content}");
             }
@@ -806,7 +819,7 @@ public class GitlabService : IDisposable
     }
 
     /// <summary>
-    /// Creates a merge request. Returns it if created, or returns the existing one if already open.
+    ///     Creates a merge request. Returns it if created, or returns the existing one if already open.
     /// </summary>
     public async Task<GitlabMergeRequest> CreateMergeRequest(
         int projectId,
@@ -835,12 +848,7 @@ public class GitlabService : IDisposable
         }
 
         var createRequest = new RestRequest($"projects/{projectId}/merge_requests", Method.Post)
-            .AddJsonBody(new
-            {
-                source_branch = sourceBranch,
-                target_branch = targetBranch,
-                title
-            });
+            .AddJsonBody(new { source_branch = sourceBranch, target_branch = targetBranch, title });
 
         var createResponse = await userClient.ExecutePostAsync<GitlabMergeRequest>(createRequest);
 
@@ -857,7 +865,7 @@ public class GitlabService : IDisposable
     }
 
     /// <summary>
-    /// Approves a merge request as the given user.
+    ///     Approves a merge request as the given user.
     /// </summary>
     public async Task ApproveMergeRequest(int projectId, int mergeRequestIid, string approverToken)
     {
@@ -865,7 +873,10 @@ public class GitlabService : IDisposable
 
         using var approverClient = CreateUserClient(approverToken);
 
-        var request = new RestRequest($"projects/{projectId}/merge_requests/{mergeRequestIid}/approve", Method.Post);
+        var request = new RestRequest(
+            $"projects/{projectId}/merge_requests/{mergeRequestIid}/approve",
+            Method.Post);
+
         var response = await approverClient.ExecutePostAsync(request);
 
         if (response.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created)
@@ -875,7 +886,8 @@ public class GitlabService : IDisposable
         }
 
         // 401 can occur when already approved
-        if (response.StatusCode == HttpStatusCode.Unauthorized || response.Content?.Contains("already approved") == true)
+        if (response.StatusCode == HttpStatusCode.Unauthorized
+            || response.Content?.Contains("already approved") == true)
         {
             Log.Information($"MR !{mergeRequestIid} was already approved or cannot be approved again");
             return;
@@ -899,7 +911,8 @@ public class GitlabService : IDisposable
 
         var userSearchResponse = await _client.ExecuteGetAsync<GitlabUser[]>(userSearchRequest);
 
-        if (userSearchResponse is not { IsSuccessful: true, Data: not null } || userSearchResponse.Data.Length == 0)
+        if (userSearchResponse is not { IsSuccessful: true, Data: not null }
+            || userSearchResponse.Data.Length == 0)
         {
             throw new InvalidOperationException($"User '{username}' not found in GitLab");
         }
@@ -913,26 +926,33 @@ public class GitlabService : IDisposable
             .AddQueryParameter("user_id", userId.ToString())
             .AddQueryParameter("state", "active");
 
-        var existingTokensResponse = await _client.ExecuteGetAsync<GitLabPersonalAccessToken[]>(existingTokensRequest);
+        var existingTokensResponse =
+            await _client.ExecuteGetAsync<GitLabPersonalAccessToken[]>(existingTokensRequest);
 
         if (existingTokensResponse is { IsSuccessful: true, Data: not null })
         {
             foreach (var existingToken in existingTokensResponse.Data.Where(t => t.Name == tokenName))
             {
-                Log.Information($"Revoking existing token '{tokenName}' (ID: {existingToken.Id}) for user '{username}'");
-                var revokeRequest = new RestRequest($"personal_access_tokens/{existingToken.Id}", Method.Delete);
+                Log.Information(
+                    $"Revoking existing token '{tokenName}' (ID: {existingToken.Id}) for user '{username}'");
+
+                var revokeRequest = new RestRequest(
+                    $"personal_access_tokens/{existingToken.Id}",
+                    Method.Delete);
+
                 await _client.ExecuteAsync(revokeRequest);
             }
         }
 
         // Create personal access token via admin API
         var createRequest = new RestRequest($"users/{userId}/personal_access_tokens", Method.Post)
-            .AddJsonBody(new
-            {
-                name = tokenName,
-                scopes = scopes,
-                expires_at = DateTime.UtcNow.AddYears(1).ToString("yyyy-MM-dd")
-            });
+            .AddJsonBody(
+                new
+                {
+                    name = tokenName,
+                    scopes,
+                    expires_at = DateTime.UtcNow.AddYears(1).ToString("yyyy-MM-dd")
+                });
 
         var createResponse = await _client.ExecutePostAsync<GitLabPersonalAccessToken>(createRequest);
 
@@ -943,14 +963,16 @@ public class GitlabService : IDisposable
             return createResponse.Data;
         }
 
-        Log.Error($"Failed to create personal access token: {(int)createResponse.StatusCode} - {createResponse.Content}");
+        Log.Error(
+            $"Failed to create personal access token: {(int)createResponse.StatusCode} - {createResponse.Content}");
+
         throw new InvalidOperationException(
             $"Failed to create personal access token '{tokenName}' for user '{username}': {(int)createResponse.StatusCode} - {createResponse.Content}");
     }
 
     /// <summary>
-    /// Deletes a GitLab group by name. This cascades and deletes all projects within the group.
-    /// Does nothing if the group does not exist.
+    ///     Deletes a GitLab group by name. This cascades and deletes all projects within the group.
+    ///     Does nothing if the group does not exist.
     /// </summary>
     public async Task DeleteGroup(string groupName)
     {
@@ -977,19 +999,22 @@ public class GitlabService : IDisposable
         var deleteRequest = new RestRequest($"groups/{group.Id}", Method.Delete);
         var deleteResponse = await _client.ExecuteAsync(deleteRequest);
 
-        if (deleteResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Accepted or HttpStatusCode.NoContent)
+        if (deleteResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Accepted
+            or HttpStatusCode.NoContent)
         {
             Log.Information($"Group '{groupName}' (ID: {group.Id}) deleted successfully");
             return;
         }
 
-        Log.Error($"Failed to delete group '{groupName}': {(int)deleteResponse.StatusCode} - {deleteResponse.Content}");
+        Log.Error(
+            $"Failed to delete group '{groupName}': {(int)deleteResponse.StatusCode} - {deleteResponse.Content}");
+
         throw new InvalidOperationException(
             $"Failed to delete GitLab group '{groupName}': {(int)deleteResponse.StatusCode} - {deleteResponse.Content}");
     }
 
     /// <summary>
-    /// Polls until a GitLab group no longer exists. Throws if the group still exists after the timeout.
+    ///     Polls until a GitLab group no longer exists. Throws if the group still exists after the timeout.
     /// </summary>
     public async Task WaitForGroupDeletion(string groupName, int timeoutSeconds = 120)
     {
@@ -1014,8 +1039,8 @@ public class GitlabService : IDisposable
     }
 
     /// <summary>
-    /// Deletes a GitLab project by exact name match (top-level, not within a group).
-    /// Does nothing if the project does not exist.
+    ///     Deletes a GitLab project by exact name match (top-level, not within a group).
+    ///     Does nothing if the project does not exist.
     /// </summary>
     public async Task DeleteProject(string projectName)
     {
@@ -1042,19 +1067,22 @@ public class GitlabService : IDisposable
         var deleteRequest = new RestRequest($"projects/{project.Id}", Method.Delete);
         var deleteResponse = await _client.ExecuteAsync(deleteRequest);
 
-        if (deleteResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Accepted or HttpStatusCode.NoContent)
+        if (deleteResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Accepted
+            or HttpStatusCode.NoContent)
         {
             Log.Information($"Project '{projectName}' (ID: {project.Id}) deleted successfully");
             return;
         }
 
-        Log.Error($"Failed to delete project '{projectName}': {(int)deleteResponse.StatusCode} - {deleteResponse.Content}");
+        Log.Error(
+            $"Failed to delete project '{projectName}': {(int)deleteResponse.StatusCode} - {deleteResponse.Content}");
+
         throw new InvalidOperationException(
             $"Failed to delete GitLab project '{projectName}': {(int)deleteResponse.StatusCode} - {deleteResponse.Content}");
     }
 
     /// <summary>
-    /// Polls until a GitLab project no longer exists. Throws if the project still exists after the timeout.
+    ///     Polls until a GitLab project no longer exists. Throws if the project still exists after the timeout.
     /// </summary>
     public async Task WaitForProjectDeletion(string projectName, int timeoutSeconds = 120)
     {
