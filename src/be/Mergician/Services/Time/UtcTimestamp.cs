@@ -1,7 +1,5 @@
 namespace Mergician.Services.Time;
 
-// TODO make the methods that take `string context` instead take a `Func<string>` so that the context string is only created
-// by the caller if logging is actually needed.
 public static class UtcTimestamp
 {
     public static DateTime EnsureUtc(DateTime timestamp, Func<string> contextProvider, ILogger logger)
@@ -39,7 +37,10 @@ public static class UtcTimestamp
         }
     }
 
-    public static DateTimeOffset EnsureUtc(DateTimeOffset timestamp, Func<string> contextProvider, ILogger logger)
+    public static DateTimeOffset EnsureUtc(
+        DateTimeOffset timestamp,
+        Func<string> contextProvider,
+        ILogger logger)
     {
         if (timestamp.Offset == TimeSpan.Zero)
         {
