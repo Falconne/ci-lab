@@ -112,7 +112,7 @@ public class GitLabTestHelper
     /// <summary>
     ///     Creates a merge request as the specified test user.
     /// </summary>
-    public int CreateMergeRequest(int projectId, string sourceBranch, string username)
+    public int CreateMergeRequest(int projectId, string sourceBranch, string username, string? title = null)
     {
         var userToken = TestConfig.GetTestUserToken(username);
         var userClient = new RestClient(new RestClientOptions(TestConfig.GitLabUrl)
@@ -126,7 +126,7 @@ public class GitLabTestHelper
         {
             source_branch = sourceBranch,
             target_branch = "main",
-            title = $"MR for {sourceBranch} (integration test)"
+            title = title ?? $"MR for {sourceBranch} (integration test)"
         });
 
         var response = userClient.Execute(request);

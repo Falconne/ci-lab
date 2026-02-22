@@ -13,6 +13,9 @@ namespace IntegrationTest.Tests;
 ///     feature/beta (primary-2 with MR, no approval)
 ///     test2: feature/gamma (primary-1 with MR, secondary-1 with MR+approval, secondary-2 with MR)
 ///     test3: feature/delta (secondary-3, no MR)
+///
+///     The UI should display the MR title next to the corresponding project entry
+///     within the branch card when an MR exists.
 /// </summary>
 public class DashboardTest : IDisposable
 {
@@ -20,8 +23,9 @@ public class DashboardTest : IDisposable
 
     /// <summary>
     ///     Cached card data from the dashboard, populated by WaitForDashboard.
-    ///     Each entry is a parsed card with branch name, group status, and per-repo items.
-    ///     Items contain repository name and approvals count only (no per-item status).
+    ///     Each entry is a parsed card with branch name, optional MR title, group status,
+    ///     and per-repo items. Items contain repository name and approvals count only
+    ///     (no per-item status).
     /// </summary>
     private List<ParsedCard> _parsedCards = [];
 
@@ -43,9 +47,9 @@ public class DashboardTest : IDisposable
             {
                 // On free-tier GitLab, approvalsRequired is always 0, so
                 // any branch with an MR is "Ready" (0 >= 0 = all approvals met)
-                AssertCardItem("feature/alpha", "primary-1", "1/0", "No approval needed", "green", "MR exists", "blue");
-                AssertCardItem("feature/alpha", "secondary-1", "0/0", "No approval needed", "green", "MR exists", "blue");
-                AssertCardItem("feature/beta", "primary-2", "0/0", "No approval needed", "green", "MR exists", "blue");
+                AssertCardItem("feature/alpha", "primary-1", "1/0", "No approval needed", "green", "MR exists", "blue", "Alpha changes in primary-1");
+                AssertCardItem("feature/alpha", "secondary-1", "0/0", "No approval needed", "green", "MR exists", "blue", "Alpha changes in secondary-1");
+                AssertCardItem("feature/beta", "primary-2", "0/0", "No approval needed", "green", "MR exists", "blue", "Beta changes in primary-2");
                 AssertCardGroupStatus("feature/alpha", "Ready");
                 AssertCardGroupStatus("feature/beta", "Ready");
                 Log.Information("test1 dashboard data verified");
@@ -56,9 +60,9 @@ public class DashboardTest : IDisposable
             "test2",
             () =>
             {
-                AssertCardItem("feature/gamma", "primary-1", "0/0", "No approval needed", "green", "MR exists", "blue");
-                AssertCardItem("feature/gamma", "secondary-1", "1/0", "No approval needed", "green", "MR exists", "blue");
-                AssertCardItem("feature/gamma", "secondary-2", "0/0", "No approval needed", "green", "MR exists", "blue");
+                AssertCardItem("feature/gamma", "primary-1", "0/0", "No approval needed", "green", "MR exists", "blue", "Gamma changes in primary-1");
+                AssertCardItem("feature/gamma", "secondary-1", "1/0", "No approval needed", "green", "MR exists", "blue", "Gamma changes in secondary-1");
+                AssertCardItem("feature/gamma", "secondary-2", "0/0", "No approval needed", "green", "MR exists", "blue", "Gamma changes in secondary-2");
                 AssertCardGroupStatus("feature/gamma", "Ready");
                 Log.Information("test2 dashboard data verified");
             });
@@ -68,7 +72,7 @@ public class DashboardTest : IDisposable
             "test3",
             () =>
             {
-                AssertCardItem("feature/delta", "secondary-3", "", null, null, "MR not created", "grey");
+                AssertCardItem("feature/delta", "secondary-3", "", null, null, "MR not created", "grey", null);
                 AssertCardGroupStatus("feature/delta", "Waiting");
                 Log.Information("test3 dashboard data verified");
             });
@@ -267,6 +271,13 @@ public class DashboardTest : IDisposable
             {
                 var item = itemElements.Nth(j);
                 var repo = (await item.Locator(".item-project").InnerTextAsync()).Trim();
+            // MR title (if any)
+            var mrTitle = "";
+            var mrTitleEl = item.Locator(".item-mr-title");
+            if (await mrTitleEl.CountAsync() > 0)
+            {
+                mrTitle = (await mrTitleEl.InnerTextAsync()).Trim();
+            }
 
                 // MR icon info
                 var mrEl = item.Locator(".item-mr-icon");
@@ -298,10 +309,10 @@ public class DashboardTest : IDisposable
                     }
                 }
 
-                items.Add(new ParsedCardItem(repo, approvals, tooltip, iconColor, mrTooltip, mrColor));
+                items.Add(new ParsedCardItem(repo, approvals, tooltip, iconColor, mrTooltip, mrColor, mrTitle));
             }
 
-            cards.Add(new ParsedCard(branchName, groupStatus, items));
+            cards.Add(new ParsedCard(branchName, "", groupStatus, items));
         }
 
         return cards;
@@ -318,7 +329,8 @@ public class DashboardTest : IDisposable
         string? expectedTooltip = null,
         string? expectedIconColor = null,
         string? expectedMrTooltip = null,
-        string? expectedMrIconColor = null)
+        string? expectedMrIconColor = null,
+        string? expectedMrTitle = null)
     {
         var card = _parsedCards.FirstOrDefault(c =>
             c.BranchName.Contains(branchName, StringComparison.OrdinalIgnoreCase));
@@ -382,9 +394,18 @@ public class DashboardTest : IDisposable
             }
         }
 
+        if (expectedMrTitle != null)
+        {
+            if (!item.MrTitle.Contains(expectedMrTitle, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    $"Branch '{branchName}' repo '{repoContains}': expected MR title '{expectedMrTitle}', got '{item.MrTitle}'");
+            }
+        }
+
         Log.Information(
-            "  Verified: {Branch} / {Repo} — Approvals={Approvals} Tooltip={Tooltip}",
-            branchName, repoContains, item.Approvals, item.Tooltip);
+            "  Verified: {Branch} / {Repo} — Approvals={Approvals} Tooltip={Tooltip} MRTitle={MrTitle}",
+            branchName, repoContains, item.Approvals, item.Tooltip, item.MrTitle);
     }
 
     /// <summary>
@@ -406,9 +427,9 @@ public class DashboardTest : IDisposable
             throw new InvalidOperationException(
                 $"Branch '{branchName}': expected group status '{expectedStatus}', got '{card.GroupStatus}'");
         }
-
         Log.Information("  Verified group status: {Branch} = {Status}", branchName, card.GroupStatus);
     }
+
 
     /// <summary>
     ///     Tests that the dashboard card layout is responsive at mobile viewport width.
@@ -466,7 +487,8 @@ public class DashboardTest : IDisposable
         string Tooltip,
         string IconColor,
         string MrTooltip,
-        string MrIconColor);
+        string MrIconColor,
+        string MrTitle);
 
-    private record ParsedCard(string BranchName, string GroupStatus, List<ParsedCardItem> Items);
+    private record ParsedCard(string BranchName, string MrTitle, string GroupStatus, List<ParsedCardItem> Items);
 }

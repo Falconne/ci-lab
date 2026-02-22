@@ -453,6 +453,7 @@ public class GitlabActivityService
         var hasMr = mergeRequests.Count > 0;
         int? approvalsRequired = null;
         int? approvalsGiven = null;
+        string? mrTitle = null;
 
         if (hasMr)
         {
@@ -462,10 +463,13 @@ public class GitlabActivityService
                 mergeRequests.Count,
                 activity.ProjectId);
 
+            var first = mergeRequests[0];
+            mrTitle = first.Title;
+
             var approval = await _gitlabService.GetMergeRequestApprovals(
                 user,
                 activity.ProjectId,
-                mergeRequests[0].Iid);
+                first.Iid);
 
             if (approval != null)
             {
@@ -478,7 +482,8 @@ public class GitlabActivityService
         {
             HasMergeRequest = hasMr,
             ApprovalsRequired = approvalsRequired,
-            ApprovalsGiven = approvalsGiven
+            ApprovalsGiven = approvalsGiven,
+            MergeRequestTitle = mrTitle
         };
     }
 

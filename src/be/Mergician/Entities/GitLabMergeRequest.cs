@@ -18,4 +18,7 @@ public class GitLabMergeRequest
 
     [JsonPropertyName("target_branch")]
     public string TargetBranch { get; set; } = "";
+
+    [JsonPropertyName("title")]
+    public string Title { get; set; } = "";
 }

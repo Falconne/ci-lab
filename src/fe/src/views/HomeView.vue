@@ -64,10 +64,10 @@
               <div class="card-accent" :class="groupStatusClass(group)" />
               <div class="card-body">
                 <div class="card-header">
-                  <div class="branch-info">
-                    <v-icon icon="mdi-source-branch" size="small" class="branch-icon" />
-                    <span class="branch-name">{{ group.branchName }}</span>
-                  </div>
+                                  <div class="branch-info">
+                      <v-icon icon="mdi-source-branch" size="small" class="branch-icon" />
+                      <span class="branch-name">{{ group.branchName }}</span>
+                    </div>
                   <div class="card-header-right">
                     <span class="card-status-badge" :class="groupStatusClass(group)">
                       <span class="status-dot" />
@@ -83,6 +83,13 @@
                     class="card-item"
                   >
                     <span class="item-project">{{ item.projectName }}</span>
+                    <span
+                      v-if="item.mergeRequestTitle"
+                      class="item-mr-title"
+                      :title="item.mergeRequestTitle"
+                    >
+                      — {{ truncateTitle(item.mergeRequestTitle as string) }}
+                    </span>
                     <!-- MR status icon: grey when no MR, blue when MR exists -->
                     <v-tooltip
                       location="top"
@@ -158,6 +165,7 @@ interface BranchActivity {
   approvalsGiven: number | null
   lastUpdated: string | null
   mergeGroupId: number | null
+  mergeRequestTitle?: string | null
 }
 
 interface BranchDeletedNotification {
@@ -276,6 +284,20 @@ function groupTimeAgo(group: MergeGroup): string {
     }
   }
   return latest ? formatTimeAgo(latest) : ''
+}
+
+/**
+ * For a merge group, return the first non-empty MR title found in its items.
+ * This is displayed next to the branch name. Titles are optional because not
+ * every branch has an MR in every project.
+ */
+
+/**
+ * Truncates a title to 222 characters, appending "..." when it was longer.
+ */
+function truncateTitle(title: string): string {
+  if (title.length <= 222) return title
+  return title.slice(0, 222) + '...'
 }
 
 function getGroupLatestTime(group: MergeGroup): number {
@@ -760,6 +782,16 @@ onUnmounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.item-mr-title {
+  font-size: 0.85rem;
+  color: #5f6368;
+  margin-left: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 300px; /* keep within item row */
 }
 
 .card-header-right {

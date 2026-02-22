@@ -108,9 +108,16 @@ public class DashboardLiveUpdateTest : IDisposable
         if (mrTooltip != "MR not created" || mrColor != "grey")
             throw new InvalidOperationException($"Expected MR icon grey/not created before MR, got tooltip='{mrTooltip}' color='{mrColor}'");
 
-        // Create an MR on the branch
-        _gitLab.CreateMergeRequest(projectId, branchName, "test1");
-        Log.Information("Created MR for branch '{BranchName}', waiting for dashboard update...", branchName);
+        // there should be no MR title element yet
+        var titleCount = await card.Locator(".item-mr-title").CountAsync();
+        if (titleCount > 0)
+            throw new InvalidOperationException("Unexpected MR title shown before any MR exists");
+
+        // Create an MR on the branch with an intentionally long title,
+        // so we can verify truncation logic in the UI.
+        var longTitle = new string('X', 230);
+        _gitLab.CreateMergeRequest(projectId, branchName, "test1", longTitle);
+        Log.Information("Created MR for branch '{BranchName}' with long title, waiting for dashboard update...", branchName);
 
         // Wait for the status to change from "Waiting" to "Open" or "Ready"
         var mrUpdated = await WaitForBranchStatusChange(branchName, "Waiting", 60);
@@ -127,6 +134,21 @@ public class DashboardLiveUpdateTest : IDisposable
         mrColor = await mrSpan.Locator(".v-icon").GetAttributeAsync("data-mr-color") ?? "";
         if (mrTooltip != "MR exists" || mrColor != "blue")
             throw new InvalidOperationException($"Expected MR icon blue/exists after MR creation, got tooltip='{mrTooltip}' color='{mrColor}'");
+
+        // now check the MR title element is present and has been truncated within the item
+        var titleEl = card.Locator(".item-mr-title");
+        if (await titleEl.CountAsync() == 0)
+            throw new InvalidOperationException("Expected MR title element in item after MR creation, but none found");
+        var titleText = (await titleEl.InnerTextAsync()).Trim();
+        // titleText includes the leading em dash and space we render in the template
+        if (!titleText.EndsWith("...") || titleText.Length != 227)
+            throw new InvalidOperationException(
+                $"MR title was not truncated correctly, got '{titleText}' (len={titleText.Length})");
+        // ensure the core content corresponds to truncated string of longTitle
+        var core = titleText.Substring(2); // strip dash+space
+        if (core.Length != 225 || !core.EndsWith("..."))
+            throw new InvalidOperationException(
+                $"Unexpected core MR title after stripping prefix: '{core}'");
     }
 
     private async Task LoginAndWaitForDashboard(string username)
