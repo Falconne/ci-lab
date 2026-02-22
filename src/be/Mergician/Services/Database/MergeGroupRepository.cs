@@ -64,7 +64,7 @@ public class MergeGroupRepository : IMergeGroupRepository
             DO UPDATE SET name = EXCLUDED.name
             RETURNING id AS Id, name AS Name, last_update_time AS LastUpdateTime
             """,
-            new { Name = name, Now = DateTime.UtcNow });
+            new { Name = name, Now = DateTimeOffset.UtcNow });
 
         if (record == null)
         {
@@ -118,7 +118,7 @@ public class MergeGroupRepository : IMergeGroupRepository
             mergeGroupId);
     }
 
-    public void UpdateMergeGroupTimestamp(int mergeGroupId, DateTime lastUpdateTime)
+    public void UpdateMergeGroupTimestamp(int mergeGroupId, DateTimeOffset lastUpdateTime)
     {
         var utcTimestamp = UtcTimestamp.EnsureUtc(
             lastUpdateTime,
@@ -138,7 +138,7 @@ public class MergeGroupRepository : IMergeGroupRepository
             utcTimestamp);
     }
 
-    public List<BranchWithMergeGroupInfo> GetUserBranches(int gitlabUserId, DateTime since)
+    public List<BranchWithMergeGroupInfo> GetUserBranches(int gitlabUserId, DateTimeOffset since)
     {
         var utcSince = UtcTimestamp.EnsureUtc(
             since,

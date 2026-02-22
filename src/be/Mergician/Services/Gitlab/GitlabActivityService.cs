@@ -43,7 +43,7 @@ public class GitlabActivityService
         int gitlabUserId,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        var since = DateTime.UtcNow.AddDays(-14);
+        var since = DateTimeOffset.UtcNow.AddDays(-14);
 
         // 1. Return cached data from DB first
         _logger.LogInformation("Fetching cached branches for user {UserId} from database", gitlabUserId);
@@ -115,7 +115,7 @@ public class GitlabActivityService
                 null,
                 null,
                 null,
-                new DateTimeOffset(cachedLastUpdatedUtc),
+                cachedLastUpdatedUtc,
                 cached.MergeGroupId);
 
             yield return cachedActivity;
@@ -142,7 +142,7 @@ public class GitlabActivityService
 
         var pushEvents = _gitlabService.StreamPushEventsSince(
             currentUser,
-            new DateTimeOffset(fetchSinceUtc),
+            fetchSinceUtc,
             cancellationToken);
 
         var records = FetchAndStoreBranchActivityRecords(
@@ -162,7 +162,7 @@ public class GitlabActivityService
         }
 
         // Update last poll timestamp
-        _userRepository.UpsertLastPollTimestamp(gitlabUserId, DateTime.UtcNow);
+        _userRepository.UpsertLastPollTimestamp(gitlabUserId, DateTimeOffset.UtcNow);
 
         _logger.LogInformation("Finished streaming branch activity for user {UserId}", gitlabUserId);
     }
@@ -175,15 +175,18 @@ public class GitlabActivityService
     public async Task<ActivityPollResponse> GetActivitySince(
         GitlabAccessUser currentUser,
         int gitlabUserId,
-        DateTimeOffset since,
         CancellationToken cancellationToken = default)
     {
-        var sinceUtc = UtcTimestamp.EnsureUtc(since, "GitlabActivityService.GetActivitySince since", _logger);
-        _logger.LogDebug("Polling for activity for user {UserId} since {SinceUtc}", gitlabUserId, sinceUtc);
+        var sinceLimit = DateTimeOffset.UtcNow.AddDays(-14);
+        var lastPoll = _userRepository.GetLastPollTimestamp(gitlabUserId);
+        var fetchSince = lastPoll.HasValue && lastPoll.Value > sinceLimit ? lastPoll.Value : sinceLimit;
+
+        var fetchSinceUtc = UtcTimestamp.EnsureUtc(fetchSince, "GitlabActivityService.GetActivitySince fetchSince", _logger);
+        _logger.LogDebug("Polling for activity for user {UserId} since {SinceUtc}", gitlabUserId, fetchSinceUtc);
 
         var pushEvents = _gitlabService.StreamPushEventsSince(
             currentUser,
-            sinceUtc,
+            fetchSinceUtc,
             cancellationToken);
 
         var results = new List<BranchActivity>();
@@ -205,7 +208,7 @@ public class GitlabActivityService
         }
 
         // Update poll timestamp
-        _userRepository.UpsertLastPollTimestamp(gitlabUserId, DateTime.UtcNow);
+        _userRepository.UpsertLastPollTimestamp(gitlabUserId, DateTimeOffset.UtcNow);
 
         _logger.LogInformation("Returning {Count} branch activity records from poll", results.Count);
         return new ActivityPollResponse(results, deletedBranches);
@@ -398,7 +401,7 @@ public class GitlabActivityService
             _mergeGroupRepository.EnsureBranchInMergeGroup(mergeGroup.Id, branchRecord.Id);
             _mergeGroupRepository.EnsureUserInMergeGroup(gitlabUserId, mergeGroup.Id);
 
-            var lastUpdated = pushEvent.CreatedAt.UtcDateTime;
+                var lastUpdated = pushEvent.CreatedAt.ToUniversalTime();
             if (lastUpdated > mergeGroup.LastUpdateTime)
             {
                 _mergeGroupRepository.UpdateMergeGroupTimestamp(mergeGroup.Id, lastUpdated);

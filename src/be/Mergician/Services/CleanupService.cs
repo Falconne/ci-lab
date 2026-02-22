@@ -129,17 +129,17 @@ public class CleanupService : BackgroundService
 
     private static TimeSpan CalculateDelayUntilNext3amNz()
     {
-        var nowUtc = DateTime.UtcNow;
-        var nowNz = TimeZoneInfo.ConvertTimeFromUtc(nowUtc, NzTimeZone);
+        var nowUtc = DateTimeOffset.UtcNow;
+        var nowNz = TimeZoneInfo.ConvertTime(nowUtc, NzTimeZone);
 
-        // Target 3am today or tomorrow
-        var targetNz = nowNz.Date.AddHours(3);
+        // Target 3am today or tomorrow in NZ timezone
+        var targetNz = new DateTimeOffset(nowNz.Year, nowNz.Month, nowNz.Day, 3, 0, 0, nowNz.Offset);
         if (nowNz >= targetNz)
         {
             targetNz = targetNz.AddDays(1);
         }
 
-        var targetUtc = TimeZoneInfo.ConvertTimeToUtc(targetNz, NzTimeZone);
+        var targetUtc = targetNz.ToUniversalTime();
         var delay = targetUtc - nowUtc;
 
         // Safety: ensure we always wait at least 1 minute

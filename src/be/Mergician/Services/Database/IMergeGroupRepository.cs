@@ -32,14 +32,14 @@ public interface IMergeGroupRepository
     /// <summary>
     ///     Updates the LastUpdateTime of a merge group.
     /// </summary>
-    void UpdateMergeGroupTimestamp(int mergeGroupId, DateTime lastUpdateTime);
+    void UpdateMergeGroupTimestamp(int mergeGroupId, DateTimeOffset lastUpdateTime);
 
     /// <summary>
     ///     Returns all branches in merge groups that the user is associated with,
     ///     filtered by merge groups whose LastUpdateTime is within the given timespan.
     ///     Results are ordered by merge group LastUpdateTime descending (most recent first).
     /// </summary>
-    List<BranchWithMergeGroupInfo> GetUserBranches(int gitlabUserId, DateTime since);
+    List<BranchWithMergeGroupInfo> GetUserBranches(int gitlabUserId, DateTimeOffset since);
 
     /// <summary>
     ///     Deletes a branch record and its references in branches_in_merge_group.

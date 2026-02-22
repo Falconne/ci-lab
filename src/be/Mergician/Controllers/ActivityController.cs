@@ -129,9 +129,7 @@ public class ActivityController : ControllerBase
     ///     Used by the frontend to poll for new activity after the initial SSE stream completes.
     /// </summary>
     [HttpGet("poll")]
-    public async Task<IActionResult> PollActivity(
-        [FromQuery] DateTimeOffset since,
-        CancellationToken cancellationToken)
+    public async Task<IActionResult> PollActivity(CancellationToken cancellationToken)
     {
         var currentUser = HttpContext.GetGitlabUser();
 
@@ -147,14 +145,11 @@ public class ActivityController : ControllerBase
             return Unauthorized();
         }
 
-        var sinceUtc = UtcTimestamp.EnsureUtc(since, "ActivityController.PollActivity.since", _logger);
-
-        _logger.LogInformation("Polling for activity for user {UserId} since {SinceUtc}", userInfo.Id, sinceUtc);
+        _logger.LogInformation("Polling for activity for user {UserId}", userInfo.Id);
 
         var result = await _activityService.GetActivitySince(
             currentUser,
             userInfo.Id,
-            sinceUtc,
             cancellationToken);
 
         _logger.LogInformation("Returning {Count} poll results", result.Activities.Count);

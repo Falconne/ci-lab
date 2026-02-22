@@ -602,7 +602,7 @@ async function pollForActivity() {
   const sinceParam = since.toISOString()
 
   try {
-    const response = await fetch(`/api/activity/poll?since=${encodeURIComponent(sinceParam)}`)
+    const response = await fetch('/api/activity/poll')
 
     if (response.status === 401) {
       console.warn('Poll returned 401, stopping polling')

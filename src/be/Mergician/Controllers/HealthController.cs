@@ -33,7 +33,7 @@ public class HealthController : ControllerBase
         {
             Status = errors.Count > 0 ? "degraded" : "healthy",
             ConfigurationErrors = errors,
-            Timestamp = DateTime.UtcNow
+            Timestamp = DateTimeOffset.UtcNow
         });
     }
 }

@@ -12,5 +12,5 @@ public class BranchWithMergeGroupInfo
     public string ProjectName { get; set; } = "";
     public int MergeGroupId { get; set; }
     public string MergeGroupName { get; set; } = "";
-    public DateTime LastUpdateTime { get; set; }
+    public DateTimeOffset LastUpdateTime { get; set; }
 }

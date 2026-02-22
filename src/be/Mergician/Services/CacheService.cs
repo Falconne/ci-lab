@@ -14,7 +14,7 @@ public class CacheService<TKey, TValue> where TKey : notnull
 
     private readonly ILogger<CacheService<TKey, TValue>> _logger;
 
-    private DateTime _lastReset = DateTime.UtcNow;
+    private DateTimeOffset _lastReset = DateTimeOffset.UtcNow;
 
     public CacheService(ILogger<CacheService<TKey, TValue>> logger, TimeSpan? expiration = null)
     {
@@ -30,7 +30,7 @@ public class CacheService<TKey, TValue> where TKey : notnull
             {
                 _logger.LogDebug("Cache expired, clearing all entries");
                 _cache.Clear();
-                _lastReset = DateTime.UtcNow;
+                _lastReset = DateTimeOffset.UtcNow;
                 value = default;
                 return false;
             }
@@ -47,7 +47,7 @@ public class CacheService<TKey, TValue> where TKey : notnull
             {
                 _logger.LogDebug("Cache expired on write, clearing all entries");
                 _cache.Clear();
-                _lastReset = DateTime.UtcNow;
+                _lastReset = DateTimeOffset.UtcNow;
             }
 
             _cache[key] = value;
@@ -56,6 +56,6 @@ public class CacheService<TKey, TValue> where TKey : notnull
 
     private bool IsExpired()
     {
-        return DateTime.UtcNow - _lastReset > _expiration;
+        return DateTimeOffset.UtcNow - _lastReset > _expiration;
     }
 }

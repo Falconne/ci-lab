@@ -19,12 +19,12 @@ public class UserRepository : IUserRepository
         _logger = logger;
     }
 
-    public DateTime? GetLastPollTimestamp(int gitlabUserId)
+    public DateTimeOffset? GetLastPollTimestamp(int gitlabUserId)
     {
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();
 
-        var result = connection.QueryFirstOrDefault<DateTime?>(
+        var result = connection.QueryFirstOrDefault<DateTimeOffset?>(
             "SELECT last_poll_timestamp FROM user_activity WHERE gitlab_user_id = @GitlabUserId",
             new { GitlabUserId = gitlabUserId });
 
@@ -45,7 +45,7 @@ public class UserRepository : IUserRepository
             : null;
     }
 
-    public void UpsertLastPollTimestamp(int gitlabUserId, DateTime timestamp)
+    public void UpsertLastPollTimestamp(int gitlabUserId, DateTimeOffset timestamp)
     {
         var utcTimestamp = UtcTimestamp.EnsureUtc(
             timestamp,
