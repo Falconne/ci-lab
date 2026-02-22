@@ -136,7 +136,13 @@ docker rm -f mergician
 
 ### Manual builds (without Docker)
 
-If you need to build outside of Docker:
+#### Building for Development
+- run backend with `cd src/be/Mergician && dotnet run`.
+- run frontend with `cd src/fe && npm run dev`.
+- Access at `http://localhost:5173`.
+
+
+#### Publishing
 
 ```bash
 # Backend
@@ -150,6 +156,7 @@ npm run build
 # Combine: copy frontend output into backend publish directory
 cp -r src/fe/dist/* src/be/Mergician/publish/wwwroot/
 ```
+
 
 ## Configuration
 

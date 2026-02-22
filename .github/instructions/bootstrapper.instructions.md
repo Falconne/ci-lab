@@ -5,6 +5,7 @@ applyTo: 'src/be/Bootstrap/**'
 # Bootstrapper Specific Instructions
 These are guideline for working on the Bootstrap C# project that creates test data in the integration testing environment for Mergician.
 
+- The bootstrapper shoud be designed to wait for the CI Lab services it needs to be ready before it operates, so it can be run immediately after starting the environment without needing to wait for GitLab or TeamCity to be healthy first.
 - This is a console applications, so do not use async/await unless a third library used only provides async methods.
 - Be idempotent, so the boot strapper can be re-run after interruption without duplicating entries.
 - This is not a user facing application, it is a developer tool, so failing gracefully is not a concern.

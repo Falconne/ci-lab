@@ -17,6 +17,7 @@ Mergician is a tool to help developers in environments where any one product is 
 - Add logging in code whenever any significant action is performed, especially when conditional logic is executed (e.g. in branches of if/switch statements) with the intention of diagnosing the flow.
 - When refactoring, never leave compatiblity shims behind. Always update references to changed code. All the usages of the code in this repo is within this repo so there is no reason to leave compatibility shims.
 - If there is a likely typo in the user's instructions for symbol names that will be written to code (e.g. in new class names specified in the prompt), ask for clarification early with a suggested correction.
+- Whenever possible, at the end of editing, validate that changes work by running the Mergician test (or the CI Lab or Botstrapper is that is what was changed). See the testing section below for instructions.
 
 ## CI Lab Specific
 - The intention is to spin up a test CI/CD environment with test data for integration testing Mergician.
@@ -33,36 +34,39 @@ Mergician is a tool to help developers in environments where any one product is 
 
 After doing any non-trivial changes to the Mergician code, always run the integration tests to verify the changes work. When adding or changing functionality in Mergician, see if updating or adding to the integration tests is warrented.
 
-Testing
+Always use the scripts mentioned below to start the various apps and operations. The scripts do the necessary cleanup and setup work before starting the apps.
+
+There are 4 main applications involved in testing, which generally will need to be kicked off in this order:
+- CI Lab, which spins up the GitLab and TeamCity environment in docker containers.
+- The Bootstrapper, which does initial configuration of Gitlab & TeamCity and creates the initial data in the CI Lab environment.
+  - The Bootstrapper must be run to completion before starting Mergician, as the app will fail otherwise.
+- Mergician, which is the main application being developed and tested.
+  -  The Mergician app must be fully operational and healthy before running the integration tests.
+- The Mergician Integration Tests, which tests actual functionality in Mergician via an embedded Playwright browser.
 
 ## CI Lab
-For testing changes to the CI Lab or bootstrapper, or for setting up the CI Lab environment for testing Mergician, follow this procedure:
-- **Prefer using `./scripts/bootstrap.sh --reset` to reset the CI Lab to a fresh state instead of doing a full `cilab-start.sh` restart** wherever possible. The reset option deletes all GitLab and TeamCity projects and re-runs the project setup without restarting the Docker containers, saving significant time.
-  - Only run `cilab-start.sh` (a full restart) when the CI Lab containers are not running, or when you are specifically testing changes to the CI Lab Docker/compose setup itself.
-  - IMPORTANT: `bootstrap.sh --reset` does *not* touch the Mergician database; stale data can remain. When resetting, either run Mergician using `./scripts/mergician-start.sh` (it drops+recreates the Postgres database) or manually drop the `mergician` database yourself to ensure no old branches remain.
-- When the CI Lab is not running, or a full restart is needed, run the helper script `./scripts/cilab-start.sh` to clear previous sessions and start the environment. It is ok to stop and remove an existing session this way, as this is a test environment and you can assume you are the only thing using it.
-- If running `./scripts/cilab-start.sh`, it is prudent to run it in the background and immediately kick off the bootstrapper. The cilab takes a long time to finish and the bootstrapper can do work while this is starting, so this will save time.
-- If testing the docker compose or starting containers, note that Gitlab takes a long time to become healthy. Do not assume failure unless it takes more than 5 minutes.
+- The CI Lab environment can be started (or recreated if it's already running) with `./scripts/cilab-start.sh -d`. The -d options runs it in the background (the bootstrapper can be started while this is still going).
+- This should only be run if Gitlab or TeamCity are not reachable or the persistent services in `./cilab-compose.yaml` are not running.
+- If the services are already running, skip to the Bootstrapper section below. Only restart the CI Lab if decide you need
+to, because it will take a long time to start. Don't assume it has failed or hung without checking its output logs.
+- The Bootstrapper has ways to reset an existing environment to a clean state, so that is all that should be needed to begin a test.
 - The TeamCity server should be accessible at `http://localhost:8111` after startup.
 - The Gitlab server should be accessible at `http://localhost:8080` after startup.
 
 ## Running the Bootstrapper
 The Bootstrapper sets up the initial data needed for Mergician to run, so make sure this is finished before starting Mergician.
 
-- The bootstrapper shoud be designed to wait for the CI Lab services it needs to be ready before it operates, so it can be run immediately after starting the environment without needing to wait for GitLab or TeamCity to be healthy first.
 - Always use `./scripts/bootstrap.sh` to run the bootstrapper (not direct docker run commands).
-- The bootstrap.sh script handles proper network configuration (--net=host) so the container can access localhost services.
-- Test the bootstrapper with a timeout, as otherwise it will retry for a long time: `timeout 600 ./scripts/bootstrap.sh || true` (adjust timeout as needed).
-- The bootstrapper builds its own Docker image (ci-lab-bootstrap:latest) that includes .NET 9 SDK and Playwright with browser dependencies.
+- Test the bootstrapper with a timeout, as otherwise it will retry for a long time: `timeout 700 ./scripts/bootstrap.sh || true` (adjust timeout as needed).
 - To reset the CI Lab to a fresh project state without restarting Docker, run `./scripts/bootstrap.sh --reset`. This deletes all GitLab and TeamCity projects then re-runs the full project setup, leaving the underlying services (GitLab, TeamCity accounts, etc.) intact.
 
-- ## Mergician
-If doing more than trivial changes to Mergician, it should be tested by running the application. Mergician needs services from CI Lab to be running, so before running Mergician, ensure the CI Lab environment is up and bootstrapped according to the instructions above.
-
-- Use `scripts/mergician-start.sh` from the repository root to start the environment. This starts the containers with the proper cleanups.
-- After most non trivial changes, run the Integration tests project and ensure it is passing. Use the `scripts/integration-test.sh` script to run it correctly.
+## Mergician
+- Make sure the Bootstrapper has completed successfully before starting Mergician.
+- Always use `scripts/mergician-start.sh -d` to start the application. This will start it in the background.
 - Mergician is accessible at `http://localhost:5000` after startup (ASP.NET Core serves both API and frontend).
-- For native development: run backend with `cd src/be/Mergician && dotnet run`, frontend with `cd src/fe && npm run dev`. Access at `http://localhost:5173`.
+
+## Integration Tests
+- Run the Integration tests project and ensure it is passing. Use the `scripts/integration-test.sh` script to run it correctly.
 
 ## Common Issues & Debugging
 - **Stale tokens after docker prune/restart**: If you see "401 Unauthorized" errors for GitLab or TeamCity tokens during bootstrap, the `.env` file may have stale tokens from a previous GitLab/TeamCity instance. The `cilab-start.sh` script automatically cleans these, but if running docker compose manually, remove the GITLAB_TOKEN and TEAMCITY_TOKEN lines from `.env` before starting.
