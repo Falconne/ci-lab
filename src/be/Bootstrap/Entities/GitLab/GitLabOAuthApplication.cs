@@ -6,6 +6,9 @@ public class GitLabOAuthApplication
 {
     public int Id { get; set; }
 
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = "";
+
     [JsonPropertyName("application_id")]
     public string ApplicationId { get; set; } = "";
 

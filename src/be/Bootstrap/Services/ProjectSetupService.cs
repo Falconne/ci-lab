@@ -125,9 +125,37 @@ public class ProjectSetupService
             redirectUri,
             "read_user read_api");
 
+        var clientId = oauthApp.ApplicationId;
+        if (string.IsNullOrWhiteSpace(clientId))
+        {
+            Log.Information("OAuth application response did not include client ID; reusing existing value from .env");
+            clientId = _envFileService.GetValue("MERGICIAN_GITLAB_OAUTH_CLIENT_ID") ?? "";
+        }
+
+        if (string.IsNullOrWhiteSpace(clientId))
+        {
+            Log.Error("No GitLab OAuth client ID is available after OAuth application setup");
+            throw new InvalidOperationException(
+                "No GitLab OAuth client ID is available. Ensure the OAuth app exists and MERGICIAN_GITLAB_OAUTH_CLIENT_ID is set in .env.");
+        }
+
+        var clientSecret = oauthApp.Secret;
+        if (string.IsNullOrWhiteSpace(clientSecret))
+        {
+            Log.Information("OAuth application secret was not returned by GitLab; reusing existing value from .env");
+            clientSecret = _envFileService.GetValue("MERGICIAN_GITLAB_OAUTH_CLIENT_SECRET") ?? "";
+        }
+
+        if (string.IsNullOrWhiteSpace(clientSecret))
+        {
+            Log.Error("No GitLab OAuth client secret is available after OAuth application setup");
+            throw new InvalidOperationException(
+                "No GitLab OAuth client secret is available. Existing GitLab OAuth apps do not return secrets from the list API, so MERGICIAN_GITLAB_OAUTH_CLIENT_SECRET must already exist in .env.");
+        }
+
         // Save OAuth credentials to .env for Mergician to read
-        _envFileService.SaveOrUpdateEnvFile("MERGICIAN_GITLAB_OAUTH_CLIENT_ID", oauthApp.ApplicationId);
-        _envFileService.SaveOrUpdateEnvFile("MERGICIAN_GITLAB_OAUTH_CLIENT_SECRET", oauthApp.Secret);
+        _envFileService.SaveOrUpdateEnvFile("MERGICIAN_GITLAB_OAUTH_CLIENT_ID", clientId);
+        _envFileService.SaveOrUpdateEnvFile("MERGICIAN_GITLAB_OAUTH_CLIENT_SECRET", clientSecret);
 
         Log.Information("GitLab OAuth application for Mergician configured");
     }

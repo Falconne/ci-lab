@@ -565,27 +565,42 @@ public class GitlabService : IDisposable
         string redirectUri,
         string scopes = "read_user read_api")
     {
-        Log.Information($"Creating GitLab OAuth application '{name}'...");
+        Log.Information($"Ensuring GitLab OAuth application '{name}' exists...");
 
-        // Check if the application already exists (by name)
-        var listRequest = new RestRequest("applications");
-        var listResponse = await _client.ExecuteGetAsync<GitLabOAuthApplication[]>(listRequest);
+        var applications = await ListOAuthApplications();
 
-        if (listResponse is { IsSuccessful: true, Data: not null })
+        Log.Information($"Loaded {applications.Count} OAuth applications from GitLab");
+
+        var expectedRedirectUris = redirectUri
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToArray();
+
+        var existingApp = applications
+            .Where(app => app.Name == name)
+            .OrderByDescending(app => app.Id)
+            .FirstOrDefault();
+
+        if (existingApp is null)
         {
-            foreach (var app in listResponse.Data)
+            existingApp = applications
+                .Where(app => expectedRedirectUris.Any(expected => app.CallbackUrl.Contains(expected, StringComparison.OrdinalIgnoreCase)))
+                .OrderByDescending(app => app.Id)
+                .FirstOrDefault();
+
+            if (existingApp is not null)
             {
-                // Always delete existing OAuth apps that use our callback path.
-                // The GitLab list API never returns the secret, so we can't reuse
-                // an existing app — we must recreate to get a fresh secret.
-                if (app.CallbackUrl.Contains("/api/auth/callback"))
-                {
-                    Log.Information($"Deleting existing OAuth application (id={app.Id}) to recreate with fresh credentials");
-                    var deleteRequest = new RestRequest($"applications/{app.Id}", Method.Delete);
-                    await _client.ExecuteAsync(deleteRequest);
-                }
+                Log.Information(
+                    $"Found existing OAuth application by callback URL (id={existingApp.Id}, name='{existingApp.Name}'). Reusing it.");
             }
         }
+
+        if (existingApp is not null)
+        {
+            Log.Information($"OAuth application '{existingApp.Name}' already exists (id={existingApp.Id}). Reusing existing credentials.");
+            return existingApp;
+        }
+
+        Log.Information($"OAuth application '{name}' not found. Creating a new application.");
 
         var createRequest = new RestRequest("applications", Method.Post)
             .AddJsonBody(new
@@ -608,6 +623,50 @@ public class GitlabService : IDisposable
         Log.Error($"Failed to create OAuth application: {(int)createResponse.StatusCode} - {createResponse.Content}");
         throw new InvalidOperationException(
             $"Failed to create OAuth application: {(int)createResponse.StatusCode} - {createResponse.Content}");
+    }
+
+    private async Task<List<GitLabOAuthApplication>> ListOAuthApplications()
+    {
+        var applications = new List<GitLabOAuthApplication>();
+        var page = 1;
+
+        while (true)
+        {
+            var listRequest = new RestRequest("applications")
+                .AddQueryParameter("per_page", "100")
+                .AddQueryParameter("page", page.ToString());
+
+            var listResponse = await _client.ExecuteGetAsync<GitLabOAuthApplication[]>(listRequest);
+
+            if (listResponse is not { IsSuccessful: true, Data: not null })
+            {
+                Log.Error($"Failed to list OAuth applications (page {page}): {(int)listResponse.StatusCode} - {listResponse.Content}");
+                throw new InvalidOperationException(
+                    $"Failed to list OAuth applications (page {page}): {(int)listResponse.StatusCode} - {listResponse.Content}");
+            }
+
+            applications.AddRange(listResponse.Data);
+            Log.Information($"OAuth applications page {page} loaded ({listResponse.Data.Length} entries)");
+
+            var nextPageHeader = listResponse.Headers?
+                .FirstOrDefault(h => string.Equals(h.Name?.ToString(), "X-Next-Page", StringComparison.OrdinalIgnoreCase))
+                ?.Value?
+                .ToString();
+
+            if (string.IsNullOrWhiteSpace(nextPageHeader) || nextPageHeader == "0")
+            {
+                break;
+            }
+
+            if (!int.TryParse(nextPageHeader, out page) || page <= 0)
+            {
+                Log.Error($"Invalid X-Next-Page header value while listing OAuth applications: '{nextPageHeader}'");
+                throw new InvalidOperationException(
+                    $"Invalid X-Next-Page header value while listing OAuth applications: '{nextPageHeader}'");
+            }
+        }
+
+        return applications;
     }
 
     public async Task ConfigureProjectMergeRequestSettings(int projectId)
