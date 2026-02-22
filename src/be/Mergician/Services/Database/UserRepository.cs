@@ -24,9 +24,37 @@ public class UserRepository : IUserRepository
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();
 
-        var result = connection.QueryFirstOrDefault<DateTimeOffset?>(
-            "SELECT last_poll_timestamp FROM user_activity WHERE gitlab_user_id = @GitlabUserId",
-            new { GitlabUserId = gitlabUserId });
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT last_poll_timestamp FROM user_activity WHERE gitlab_user_id = @GitlabUserId";
+
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = "GitlabUserId";
+        parameter.Value = gitlabUserId;
+        command.Parameters.Add(parameter);
+
+        var rawResult = command.ExecuteScalar();
+
+        var result = rawResult switch
+        {
+            null => (DateTimeOffset?)null,
+
+            DBNull => (DateTimeOffset?)null,
+
+            DateTimeOffset timestampOffset => UtcTimestamp.EnsureUtc(
+                timestampOffset,
+                $"UserRepository.GetLastPollTimestamp user {gitlabUserId} (DateTimeOffset)",
+                _logger),
+
+            DateTime timestamp => new DateTimeOffset(
+                UtcTimestamp.EnsureUtc(
+                    timestamp,
+                    $"UserRepository.GetLastPollTimestamp user {gitlabUserId} (DateTime)",
+                    _logger),
+                TimeSpan.Zero),
+
+            _ => throw new InvalidOperationException(
+                $"UserRepository.GetLastPollTimestamp expected DateTime or DateTimeOffset but got {rawResult.GetType().FullName}.")
+        };
 
         if (result.HasValue)
         {
@@ -37,12 +65,7 @@ public class UserRepository : IUserRepository
             _logger.LogDebug("No last poll timestamp found for user {UserId}", gitlabUserId);
         }
 
-        return result.HasValue
-            ? UtcTimestamp.EnsureUtc(
-                result.Value,
-                $"UserRepository.GetLastPollTimestamp user {gitlabUserId}",
-                _logger)
-            : null;
+        return result;
     }
 
     public void UpsertLastPollTimestamp(int gitlabUserId, DateTimeOffset timestamp)
