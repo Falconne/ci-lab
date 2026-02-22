@@ -1,3 +1,15 @@
-When the Mergician backend gets activity update requests, we don't need to pass a time from the frontend to check from. The backend already knows the user's last poll time so it can return activity from that point. And if there is no last activity time, (or it's older than 14 days), we are hardcoding the initial check to be from 14 days anyway. So remove the ActivityController's support for taking in "time since" parameters (similarly in `GetActivitySince` params) and just use last poll time in the backend.
+In the dashboard, remove the icon indicating if a merge request exists or not, as we have the MR title to show that now. If no MR exists, where the title would be, show "No Merge Request" in a greyed out style.
 
-Change the backend to use DateTimeOffset everywhere possible and remove DateTime usage unless absolutely necessary.
+When clicking on a merge group in the Mergician dashboard, this should take the user to a merge group details page. The page title (to be show on the top bar) should be "Merge Group: [title]" where [title] is the name of the merge group. Add a simple but elegant transition animation going to the details page.
+
+There should be a back button on the top left of the details page to return to the main dashboard. Also, clicking the Mergician title or logo on the top bar should also go back to the main dashboard.
+
+At the top of the page show the same details of each of the projects/repos (but here there can be labels like "Aprovals" instead of just icons) and we can have ready / waiting statuses displayed against each project.
+
+All the details for each project/repo should be in its own distinct card now, similar to the merge groups cards on the dashboard, but with a different icon appropriate for the concept of "git repo".
+
+The titles of existing merge requests should not be truncated in the details page and they should link to the actual merge request in GitLab (to open in a new tab). The repo names should also link to the repo in GitLab.
+
+In the project/repo cards, also show the info about the build status for the latest commit in the branch (taken from the "External Jobs" that exist on the latest pipeline). Builds should be displayed similr to how Gitlab displays jobs, so later on we can show related build chained together.
+
+Add integrations tests for this new functionlaity, and ensure everything works.
