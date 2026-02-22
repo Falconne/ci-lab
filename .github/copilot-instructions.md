@@ -56,9 +56,9 @@ to, because it will take a long time to start. Don't assume it has failed or hun
 ## Running the Bootstrapper
 The Bootstrapper sets up the initial data needed for Mergician to run, so make sure this is finished before starting Mergician.
 
-- Always use `./scripts/bootstrap.sh` to run the bootstrapper (not direct docker run commands).
+- If the CI Lab was not running and has been started or restarted, always use `./scripts/bootstrap.sh` to run the bootstrapper.
+- If the CI Lab was already running, always use `./scripts/bootstrap.sh --reset` instead. This will first reset the environment then perform the bootstrap steps.
 - Test the bootstrapper with a timeout, as otherwise it will retry for a long time: `timeout 700 ./scripts/bootstrap.sh || true` (adjust timeout as needed).
-- To reset the CI Lab to a fresh project state without restarting Docker, run `./scripts/bootstrap.sh --reset`. This deletes all GitLab and TeamCity projects then re-runs the full project setup, leaving the underlying services (GitLab, TeamCity accounts, etc.) intact.
 
 ## Mergician
 - Make sure the Bootstrapper has completed successfully before starting Mergician.
@@ -66,7 +66,7 @@ The Bootstrapper sets up the initial data needed for Mergician to run, so make s
 - Mergician is accessible at `http://localhost:5000` after startup (ASP.NET Core serves both API and frontend).
 
 ## Integration Tests
-- Run the Integration tests project and ensure it is passing. Use the `scripts/integration-test.sh` script to run it correctly.
+Run the Integration tests project and ensure it is passing. Always use the `scripts/integration-test.sh` script to run it correctly.
 
 ## Common Issues & Debugging
 - **Stale tokens after docker prune/restart**: If you see "401 Unauthorized" errors for GitLab or TeamCity tokens during bootstrap, the `.env` file may have stale tokens from a previous GitLab/TeamCity instance. The `cilab-start.sh` script automatically cleans these, but if running docker compose manually, remove the GITLAB_TOKEN and TEAMCITY_TOKEN lines from `.env` before starting.
