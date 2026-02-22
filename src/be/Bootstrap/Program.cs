@@ -12,14 +12,15 @@ Logging.LogSeparator();
 Log.Information("CI Lab Bootstrap");
 Logging.LogSeparator();
 
-var resetMode = args.Contains("--reset");
-if (resetMode)
-{
-    Log.Information("Running in RESET mode: existing CI Lab projects will be deleted before setup.");
-}
-
 try
 {
+    if (args.Length > 0)
+    {
+        var joinedArgs = string.Join(", ", args);
+        throw new InvalidOperationException(
+            $"Unsupported bootstrapper arguments: {joinedArgs}. The bootstrapper now always resets project data and no longer supports --reset.");
+    }
+
     var repoRoot = PathUtilities.FindRepoRoot();
     var envFullPath = Path.Combine(repoRoot, ".env");
 
@@ -36,32 +37,23 @@ try
 
     var gitlabRootPassword = envService.GetValue("GITLAB_ROOT_PASSWORD") ?? "changeme123";
 
-    if (resetMode)
-    {
-        // In reset mode skip the initial service configuration steps (TeamCity account setup,
-        // GitLab admin configuration) and go straight to deleting existing projects then
-        // re-running the project setup.
-        Log.Information("Reset mode: skipping initial GitLab and TeamCity service configuration.");
-    }
-    else
-    {
-        // Create service instances
-        using var browserService = new Bootstrap.Services.PlaywrightService();
-        using var teamCityBootstrapService = new TeamCityBootstrapService(
-            browserService,
-            envService,
-            teamcityURL,
-            "root",
-            gitlabRootPassword);
+    // Always run initial service configuration and token setup.
+    // These steps are idempotent and safe to execute on every bootstrap run.
+    using var browserService = new Bootstrap.Services.PlaywrightService();
+    using var teamCityBootstrapService = new TeamCityBootstrapService(
+        browserService,
+        envService,
+        teamcityURL,
+        "root",
+        gitlabRootPassword);
 
-        Logging.LogSection("TeamCity Automated Setup");
-        await teamCityBootstrapService.Execute();
-        Log.Information("TeamCity initial setup completed");
+    Logging.LogSection("TeamCity Automated Setup");
+    await teamCityBootstrapService.Execute();
+    Log.Information("TeamCity initial setup completed");
 
-        Logging.LogSection("Gitlab Automated Setup");
-        using var gitlabBootstrapService = new GitlabBootstrapService(gitlabURL, envService);
-        await gitlabBootstrapService.Execute();
-    }
+    Logging.LogSection("Gitlab Automated Setup");
+    using var gitlabBootstrapService = new GitlabBootstrapService(gitlabURL, envService);
+    await gitlabBootstrapService.Execute();
 
     Logging.LogSection("Running Initial Project Setup");
     var gitlabToken = envService.GetValue("GITLAB_TOKEN");
@@ -82,13 +74,9 @@ try
     var teamCityVersionedSettingsService = new TeamCityVersionedSettingsService(teamCityRestClient);
     var teamCityVCSRootService = new TeamCityVCSRootService(teamCityRestClient, teamCityVersionedSettingsService);
 
-    if (resetMode)
-    {
-        Logging.LogSection("Resetting CI Lab Projects");
-        var resetService = new ResetService(gitlabService, teamCityService, teamCityVersionedSettingsService);
-        await resetService.Execute();
-
-    }
+    Logging.LogSection("Resetting CI Lab Projects");
+    var resetService = new ResetService(gitlabService, teamCityService, teamCityVersionedSettingsService);
+    await resetService.Execute();
 
     var projectSetupService = new ProjectSetupService(
         gitlabService,
