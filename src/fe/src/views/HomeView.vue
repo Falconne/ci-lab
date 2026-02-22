@@ -82,13 +82,15 @@
                     :key="`${group.groupKey}-${item.projectId}`"
                     class="card-item"
                   >
-                    <span class="item-project">{{ item.projectName }}</span>
-                    <span
-                      v-if="item.mergeRequestTitle"
-                      class="item-mr-title"
-                      :title="item.mergeRequestTitle"
-                    >
-                      — {{ truncateTitle(item.mergeRequestTitle as string) }}
+                    <span class="item-main">
+                      <span class="item-project" :title="item.projectNameWithNamespace">{{ item.projectName }}</span>
+                      <span
+                        v-if="item.mergeRequestTitle"
+                        class="item-mr-title"
+                        :title="item.mergeRequestTitle"
+                      >
+                        | {{ truncateTitle(item.mergeRequestTitle as string) }}
+                      </span>
                     </span>
                     <!-- MR status icon: grey when no MR, blue when MR exists -->
                     <v-tooltip
@@ -160,6 +162,7 @@ interface BranchActivity {
   branchName: string
   projectId: number
   projectName: string
+  projectNameWithNamespace: string
   hasMergeRequest: boolean | null
   approvalsRequired: number | null
   approvalsGiven: number | null
@@ -285,12 +288,6 @@ function groupTimeAgo(group: MergeGroup): string {
   }
   return latest ? formatTimeAgo(latest) : ''
 }
-
-/**
- * For a merge group, return the first non-empty MR title found in its items.
- * This is displayed next to the branch name. Titles are optional because not
- * every branch has an MR in every project.
- */
 
 /**
  * Truncates a title to 222 characters, appending "..." when it was longer.
@@ -787,11 +784,19 @@ onUnmounted(() => {
 .item-mr-title {
   font-size: 0.85rem;
   color: #5f6368;
-  margin-left: 6px;
+  margin-left: 4px;
+  flex: 1;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 300px; /* keep within item row */
+}
+
+.item-main {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
 }
 
 .card-header-right {
@@ -854,11 +859,8 @@ onUnmounted(() => {
 .item-project {
   font-weight: 500;
   color: #37474f;
-  flex: 1;
-  min-width: 0;
+  flex-shrink: 0;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .item-approvals {

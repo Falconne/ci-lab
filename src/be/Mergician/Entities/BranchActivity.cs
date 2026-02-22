@@ -12,6 +12,7 @@ public record BranchActivity(
     string BranchName,
     int ProjectId,
     string ProjectName,
+    string ProjectNameWithNamespace,
     bool? HasMergeRequest,
     int? ApprovalsRequired,
     int? ApprovalsGiven,

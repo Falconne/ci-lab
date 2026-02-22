@@ -108,11 +108,15 @@ public class GitlabActivityService
                 () => $"GitlabActivityService.StreamBranchActivity cached branch '{cached.BranchName}'/{cached.ProjectId}",
                 _logger);
 
+            var projectNameWithNamespace = cached.ProjectName;
+            var projectName = GetProjectDisplayName(projectNameWithNamespace, cached.ProjectId);
+
             // Yield initial record with unknown MR status
             var cachedActivity = new BranchActivity(
                 cached.BranchName,
                 cached.ProjectId,
-                cached.ProjectName,
+                projectName,
+                projectNameWithNamespace,
                 null,
                 null,
                 null,
@@ -304,12 +308,16 @@ public class GitlabActivityService
                 continue;
             }
 
-            var projectName = project.NameWithNamespace;
+            var projectNameWithNamespace = project.NameWithNamespace;
+            var projectName = string.IsNullOrWhiteSpace(project.Name)
+                ? GetProjectDisplayName(projectNameWithNamespace, branch.ProjectId)
+                : project.Name;
 
             var pendingActivity = new BranchActivity(
                 branch.BranchName,
                 branch.ProjectId,
                 projectName,
+                projectNameWithNamespace,
                 null,
                 null,
                 null,
@@ -398,13 +406,16 @@ public class GitlabActivityService
                 continue;
             }
 
-            var projectName = project.NameWithNamespace;
+            var projectNameWithNamespace = project.NameWithNamespace;
+            var projectName = string.IsNullOrWhiteSpace(project.Name)
+                ? GetProjectDisplayName(projectNameWithNamespace, pushEvent.ProjectId)
+                : project.Name;
 
             // Store in database
             var branchRecord = _mergeGroupRepository.GetOrCreateBranchRecord(
                 pushEvent.BranchName,
                 pushEvent.ProjectId,
-                projectName);
+                projectNameWithNamespace);
 
             var mergeGroup = _mergeGroupRepository.GetOrCreateMergeGroup(pushEvent.BranchName);
             _mergeGroupRepository.EnsureBranchInMergeGroup(mergeGroup.Id, branchRecord.Id);
@@ -430,12 +441,39 @@ public class GitlabActivityService
                 pushEvent.BranchName,
                 pushEvent.ProjectId,
                 projectName,
+                projectNameWithNamespace,
                 null,
                 null,
                 null,
                 pushEvent.CreatedAt,
                 mergeGroup.Id);
         }
+    }
+
+    private string GetProjectDisplayName(string projectNameWithNamespace, int projectId)
+    {
+        var trimmed = projectNameWithNamespace.Trim();
+        if (trimmed.Length == 0)
+        {
+            _logger.LogWarning(
+                "Project {ProjectId} has empty NameWithNamespace; using empty display name",
+                projectId);
+
+            return trimmed;
+        }
+
+        var lastSlash = trimmed.LastIndexOf('/');
+        if (lastSlash < 0 || lastSlash >= trimmed.Length - 1)
+        {
+            _logger.LogDebug(
+                "Project {ProjectId} NameWithNamespace '{ProjectNameWithNamespace}' has no namespace separator; using full value as display name",
+                projectId,
+                trimmed);
+
+            return trimmed;
+        }
+
+        return trimmed[(lastSlash + 1)..].Trim();
     }
 
     /// <summary>

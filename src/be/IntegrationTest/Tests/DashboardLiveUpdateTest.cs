@@ -140,8 +140,8 @@ public class DashboardLiveUpdateTest : IDisposable
         if (await titleEl.CountAsync() == 0)
             throw new InvalidOperationException("Expected MR title element in item after MR creation, but none found");
         var titleText = (await titleEl.InnerTextAsync()).Trim();
-        // titleText includes the leading em dash and space we render in the template
-        if (!titleText.EndsWith("...") || titleText.Length != 227)
+        // titleText includes the leading vertical separator and space we render in the template.
+        if (!titleText.StartsWith("| ") || !titleText.EndsWith("...") || titleText.Length != 227)
             throw new InvalidOperationException(
                 $"MR title was not truncated correctly, got '{titleText}' (len={titleText.Length})");
         // ensure the core content corresponds to truncated string of longTitle
