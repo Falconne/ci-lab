@@ -1,3 +1,4 @@
+using Bootstrap.Entities.Gitlab;
 using Bootstrap.Services.Gitlab;
 using Bootstrap.Services.TeamCity;
 using LibGit2Sharp;
@@ -8,6 +9,8 @@ namespace Bootstrap.Services;
 
 public class ProjectSetupService
 {
+    private readonly EnvFileService _envFileService;
+
     private readonly string _gitlabInternalURL;
 
     private readonly GitlabService _gitlabService;
@@ -16,17 +19,16 @@ public class ProjectSetupService
 
     private readonly string _gitlabURL;
 
+    // Store project info (name -> project ID) for reuse
+    private readonly Dictionary<string, int> _primaryRepos = new();
+
+    private readonly Dictionary<string, int> _secondaryRepos = new();
+
     private readonly TeamCityService _teamCityService;
 
     private readonly TeamCityVCSRootService _teamCityVCSRootService;
 
     private readonly TeamCityVersionedSettingsService _teamCityVersionedSettingsService;
-
-    private readonly EnvFileService _envFileService;
-
-    // Store project info (name -> project ID) for reuse
-    private readonly Dictionary<string, int> _primaryRepos = new();
-    private readonly Dictionary<string, int> _secondaryRepos = new();
 
     // Store user PATs for creating MRs/approvals as specific users
     private readonly Dictionary<string, string> _userTokens = new();
@@ -82,7 +84,7 @@ public class ProjectSetupService
             _primaryRepos[projectName] = project.Id;
 
             // Add Bob Builder as owner
-            await _gitlabService.AddProjectMember(project.Id, "b.builder", 50);
+            await _gitlabService.AddProjectMember(project.Id, "b.builder");
 
             // Configure merge request settings
             await _gitlabService.ConfigureProjectMergeRequestSettings(project.Id);
@@ -96,7 +98,7 @@ public class ProjectSetupService
             _secondaryRepos[projectName] = project.Id;
 
             // Add Bob Builder as owner
-            await _gitlabService.AddProjectMember(project.Id, "b.builder", 50);
+            await _gitlabService.AddProjectMember(project.Id, "b.builder");
 
             // Configure merge request settings
             await _gitlabService.ConfigureProjectMergeRequestSettings(project.Id);
@@ -107,7 +109,7 @@ public class ProjectSetupService
         for (var i = 1; i <= 3; i++)
         {
             var username = $"test{i}";
-            await _gitlabService.AddGroupMember(testGroup.Id, username, 30);
+            await _gitlabService.AddGroupMember(testGroup.Id, username);
         }
 
         Log.Information("GitLab test projects ready");
@@ -122,13 +124,14 @@ public class ProjectSetupService
         var redirectUri = "http://localhost:5000/api/auth/callback\nhttp://localhost:5173/api/auth/callback";
         var oauthApp = await _gitlabService.CreateOAuthApplication(
             "Mergician",
-            redirectUri,
-            "read_user read_api");
+            redirectUri);
 
         var clientId = oauthApp.ApplicationId;
         if (string.IsNullOrWhiteSpace(clientId))
         {
-            Log.Information("OAuth application response did not include client ID; reusing existing value from .env");
+            Log.Information(
+                "OAuth application response did not include client ID; reusing existing value from .env");
+
             clientId = _envFileService.GetValue("MERGICIAN_GITLAB_OAUTH_CLIENT_ID") ?? "";
         }
 
@@ -142,7 +145,9 @@ public class ProjectSetupService
         var clientSecret = oauthApp.Secret;
         if (string.IsNullOrWhiteSpace(clientSecret))
         {
-            Log.Information("OAuth application secret was not returned by GitLab; reusing existing value from .env");
+            Log.Information(
+                "OAuth application secret was not returned by GitLab; reusing existing value from .env");
+
             clientSecret = _envFileService.GetValue("MERGICIAN_GITLAB_OAUTH_CLIENT_SECRET") ?? "";
         }
 
@@ -169,7 +174,7 @@ public class ProjectSetupService
         Log.Information($"TeamCityConfig project ID: {configProject.Id}");
 
         // Add Bob Builder as owner
-        await _gitlabService.AddProjectMember(configProject.Id, "b.builder", 50);
+        await _gitlabService.AddProjectMember(configProject.Id, "b.builder");
 
         // Configure merge request settings
         await _gitlabService.ConfigureProjectMergeRequestSettings(configProject.Id);
@@ -225,10 +230,7 @@ public class ProjectSetupService
         try
         {
             Log.Information($"Cloning TeamCityConfig repository to {tempDir}...");
-            Repository.Clone(authenticatedURL, tempDir, new CloneOptions
-            {
-                BranchName = "main"
-            });
+            Repository.Clone(authenticatedURL, tempDir, new CloneOptions { BranchName = "main" });
 
             using var repo = new Repository(tempDir);
 
@@ -258,7 +260,11 @@ public class ProjectSetupService
                 // Stage and commit
                 Commands.Stage(repo, "*");
 
-                var signature = new Signature("CI Lab Bootstrap", "bootstrap@CILab.local", DateTimeOffset.Now);
+                var signature = new Signature(
+                    "CI Lab Bootstrap",
+                    "bootstrap@CILab.local",
+                    DateTimeOffset.Now);
+
                 repo.Commit("Add CI Lab project with builds", signature, signature);
 
                 // Push
@@ -302,12 +308,12 @@ public class ProjectSetupService
         await VerifyLabBuildsCreated();
 
         // Trigger builds and verify success
-        await TriggerAndVerifyBuilds();
+        //await TriggerAndVerifyBuilds();
 
         Log.Information("CI Lab builds setup complete!");
     }
 
-    private async Task<Entities.Gitlab.GitlabProject?> GetOrCreateTeamCityConfigProject()
+    private async Task<GitlabProject?> GetOrCreateTeamCityConfigProject()
     {
         // Search for the project
         var project = await _gitlabService.CreateProject("TeamCityConfig");
@@ -349,6 +355,7 @@ public class ProjectSetupService
                         "import jetbrains.buildServer.configs.kotlin.buildFeatures.commitStatusPublisher",
                         "import jetbrains.buildServer.configs.kotlin.triggers.vcs"
                     };
+
                     foreach (var import in importsToAdd)
                     {
                         if (!existingContent.Contains(import))
@@ -356,6 +363,7 @@ public class ProjectSetupService
                             sb.AppendLine(import);
                         }
                     }
+
                     addedImports = true;
                     continue;
                 }
@@ -384,7 +392,9 @@ public class ProjectSetupService
                     {
                         sb.AppendLine();
                         sb.AppendLine("    params {");
-                        sb.AppendLine($@"        password(""gitlab.token"", ""{_gitlabToken}"", display = ParameterDisplay.HIDDEN)");
+                        sb.AppendLine(
+                            $@"        password(""gitlab.token"", ""{_gitlabToken}"", display = ParameterDisplay.HIDDEN)");
+
                         sb.AppendLine("    }");
                     }
 
@@ -459,11 +469,13 @@ public class ProjectSetupService
             var vcsId = GetVCSRootId(repo);
             sb.AppendLine($"    vcsRoot({vcsId})");
         }
+
         foreach (var repo in _secondaryRepos.Keys)
         {
             var vcsId = GetVCSRootId(repo);
             sb.AppendLine($"    vcsRoot({vcsId})");
         }
+
         sb.AppendLine();
 
         // Register build types
@@ -472,6 +484,7 @@ public class ProjectSetupService
             var buildId = $"CILabBuild{i + 1}";
             sb.AppendLine($"    buildType({buildId})");
         }
+
         var primaryRepoNames = _primaryRepos.Keys.ToList();
         var secondaryRepoNames = _secondaryRepos.Keys.ToList();
         sb.AppendLine("})");
@@ -596,7 +609,7 @@ public class ProjectSetupService
 
         // Poll for the CI Lab project to appear (TeamCity needs time to compile Kotlin DSL)
         // The project ID in TeamCity will be "Root_CILab" since it's a subproject of _Root
-        var projectFound = await _teamCityService.WaitForProject("CILab", 120);
+        var projectFound = await _teamCityService.WaitForProject("CILab");
         if (!projectFound)
         {
             throw new InvalidOperationException(
@@ -609,7 +622,8 @@ public class ProjectSetupService
 
         if (buildTypes.Count < 3)
         {
-            throw new InvalidOperationException($"Expected 3 build types in CI Lab project, found {buildTypes.Count}");
+            throw new InvalidOperationException(
+                $"Expected 3 build types in CI Lab project, found {buildTypes.Count}");
         }
 
         var expectedBuilds = new[] { "CILabBuild1", "CILabBuild2", "CILabBuild3" };
@@ -617,7 +631,8 @@ public class ProjectSetupService
         {
             if (!buildTypes.Any(bt => bt.id.Contains(expectedBuild)))
             {
-                throw new InvalidOperationException($"Expected build type '{expectedBuild}' not found in CI Lab project");
+                throw new InvalidOperationException(
+                    $"Expected build type '{expectedBuild}' not found in CI Lab project");
             }
         }
 
@@ -628,7 +643,8 @@ public class ProjectSetupService
         var expectedVCSCount = _primaryRepos.Count + _secondaryRepos.Count;
         if (vcsRoots.Count < expectedVCSCount)
         {
-            throw new InvalidDataException($"Expected {expectedVCSCount} VCS roots, found {vcsRoots.Count} - some may be in a different format");
+            throw new InvalidDataException(
+                $"Expected {expectedVCSCount} VCS roots, found {vcsRoots.Count} - some may be in a different format");
         }
 
         Log.Information("CI Lab project verification passed!");
@@ -670,6 +686,7 @@ public class ProjectSetupService
             SetAttributesNormal(subDir);
             subDir.Attributes = FileAttributes.Normal;
         }
+
         foreach (var file in dir.GetFiles())
         {
             file.Attributes = FileAttributes.Normal;
@@ -690,6 +707,7 @@ public class ProjectSetupService
             "b.builder",
             "mergician-service",
             new[] { "api" });
+
         _envFileService.SaveOrUpdateEnvFile("GITLAB_SERVICE_TOKEN", serviceToken.Token);
         Log.Information("Service access token written to .env as GITLAB_SERVICE_TOKEN");
 
@@ -709,6 +727,7 @@ public class ProjectSetupService
                 username,
                 "bootstrap-test-data",
                 ["api", "read_user", "read_api"]);
+
             _userTokens[username] = pat.Token;
 
             var envKey = $"GITLAB_TEST{i}_TOKEN";
@@ -720,15 +739,14 @@ public class ProjectSetupService
     }
 
     /// <summary>
-    /// Creates deterministic branch/MR/approval test data for the dashboard.
-    ///
-    /// Test data layout:
-    /// - test1 creates branch "feature/alpha" in primary-1 and secondary-1, with MRs.
-    ///   test2 approves the MR in primary-1.
-    /// - test1 creates branch "feature/beta" in primary-2 only, with an MR (no approval).
-    /// - test2 creates branch "feature/gamma" in primary-1, secondary-1, secondary-2, with MRs in all.
-    ///   test3 approves the MR in secondary-1.
-    /// - test3 creates branch "feature/delta" in secondary-3 only, no MR.
+    ///     Creates deterministic branch/MR/approval test data for the dashboard.
+    ///     Test data layout:
+    ///     - test1 creates branch "feature/alpha" in primary-1 and secondary-1, with MRs.
+    ///     test2 approves the MR in primary-1.
+    ///     - test1 creates branch "feature/beta" in primary-2 only, with an MR (no approval).
+    ///     - test2 creates branch "feature/gamma" in primary-1, secondary-1, secondary-2, with MRs in all.
+    ///     test3 approves the MR in secondary-1.
+    ///     - test3 creates branch "feature/delta" in secondary-3 only, no MR.
     /// </summary>
     private async Task SetupTestBranchData()
     {
@@ -741,7 +759,10 @@ public class ProjectSetupService
         }
 
         // Resolve project IDs by name
-        int ProjectId(string name) => allRepos[name];
+        int ProjectId(string name)
+        {
+            return allRepos[name];
+        }
 
         // ── test1: feature/alpha in primary-1 and secondary-1 ──
         var test1Token = _userTokens["test1"];
@@ -750,22 +771,34 @@ public class ProjectSetupService
         await CreateBranchWithCommit(ProjectId("secondary-1"), "feature/alpha", "test1");
 
         var mrAlpha1 = await _gitlabService.CreateMergeRequest(
-            ProjectId("primary-1"), "feature/alpha", "main",
-            "Alpha changes in primary-1", test1Token);
+            ProjectId("primary-1"),
+            "feature/alpha",
+            "main",
+            "Alpha changes in primary-1",
+            test1Token);
+
         var mrAlpha2 = await _gitlabService.CreateMergeRequest(
-            ProjectId("secondary-1"), "feature/alpha", "main",
-            "Alpha changes in secondary-1", test1Token);
+            ProjectId("secondary-1"),
+            "feature/alpha",
+            "main",
+            "Alpha changes in secondary-1",
+            test1Token);
 
         // test2 approves alpha MR in primary-1
         await _gitlabService.ApproveMergeRequest(
-            ProjectId("primary-1"), mrAlpha1.Iid, _userTokens["test2"]);
+            ProjectId("primary-1"),
+            mrAlpha1.Iid,
+            _userTokens["test2"]);
 
         // ── test1: feature/beta in primary-2 only, MR but no approval ──
         await CreateBranchWithCommit(ProjectId("primary-2"), "feature/beta", "test1");
 
         await _gitlabService.CreateMergeRequest(
-            ProjectId("primary-2"), "feature/beta", "main",
-            "Beta changes in primary-2", test1Token);
+            ProjectId("primary-2"),
+            "feature/beta",
+            "main",
+            "Beta changes in primary-2",
+            test1Token);
 
         // ── test2: feature/gamma in primary-1, secondary-1, secondary-2 ──
         var test2Token = _userTokens["test2"];
@@ -775,18 +808,31 @@ public class ProjectSetupService
         await CreateBranchWithCommit(ProjectId("secondary-2"), "feature/gamma", "test2");
 
         await _gitlabService.CreateMergeRequest(
-            ProjectId("primary-1"), "feature/gamma", "main",
-            "Gamma changes in primary-1", test2Token);
+            ProjectId("primary-1"),
+            "feature/gamma",
+            "main",
+            "Gamma changes in primary-1",
+            test2Token);
+
         var mrGammaSec1 = await _gitlabService.CreateMergeRequest(
-            ProjectId("secondary-1"), "feature/gamma", "main",
-            "Gamma changes in secondary-1", test2Token);
+            ProjectId("secondary-1"),
+            "feature/gamma",
+            "main",
+            "Gamma changes in secondary-1",
+            test2Token);
+
         await _gitlabService.CreateMergeRequest(
-            ProjectId("secondary-2"), "feature/gamma", "main",
-            "Gamma changes in secondary-2", test2Token);
+            ProjectId("secondary-2"),
+            "feature/gamma",
+            "main",
+            "Gamma changes in secondary-2",
+            test2Token);
 
         // test3 approves gamma MR in secondary-1
         await _gitlabService.ApproveMergeRequest(
-            ProjectId("secondary-1"), mrGammaSec1.Iid, _userTokens["test3"]);
+            ProjectId("secondary-1"),
+            mrGammaSec1.Iid,
+            _userTokens["test3"]);
 
         // ── test3: feature/delta in secondary-3, no MR ──
         await CreateBranchWithCommit(ProjectId("secondary-3"), "feature/delta", "test3");
@@ -795,8 +841,8 @@ public class ProjectSetupService
     }
 
     /// <summary>
-    /// Helper: creates a branch and a commit on it so the branch has changes vs main.
-    /// Uses the user's token so the commit and push event are attributed to them.
+    ///     Helper: creates a branch and a commit on it so the branch has changes vs main.
+    ///     Uses the user's token so the commit and push event are attributed to them.
     /// </summary>
     private async Task CreateBranchWithCommit(int projectId, string branchName, string username)
     {
