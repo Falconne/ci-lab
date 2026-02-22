@@ -1,6 +1,6 @@
 # Mergician
 
-Mergician is a web application that helps developers manage "merge groups" — coordinated sets of merge requests across multiple Git repositories that share a common branch name. It provides a web interface to visualise, manage, and orchestrate merges across repos. The dashboard cards now display the title of each merge request next to its corresponding project/repository entry in a merge group, truncating long titles to 222 characters.
+Mergician is a web application that helps developers manage "merge groups" — coordinated sets of merge requests across multiple Git repositories that share a common branch name. It provides a web interface to visualise, manage, and orchestrate merges across repos.
 
 ## Architecture
 
