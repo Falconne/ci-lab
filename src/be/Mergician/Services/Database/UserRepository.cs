@@ -4,8 +4,8 @@ using Mergician.Services.Time;
 namespace Mergician.Services.Database;
 
 /// <summary>
-/// Dapper-based implementation of user activity timestamp persistence.
-/// All timestamps are stored and returned in UTC.
+///     Dapper-based implementation of user activity timestamp persistence.
+///     All timestamps are stored and returned in UTC.
 /// </summary>
 public class UserRepository : IUserRepository
 {
@@ -25,7 +25,8 @@ public class UserRepository : IUserRepository
         connection.Open();
 
         using var command = connection.CreateCommand();
-        command.CommandText = "SELECT last_poll_timestamp FROM user_activity WHERE gitlab_user_id = @GitlabUserId";
+        command.CommandText =
+            "SELECT last_poll_timestamp FROM user_activity WHERE gitlab_user_id = @GitlabUserId";
 
         var parameter = command.CreateParameter();
         parameter.ParameterName = "GitlabUserId";
@@ -36,7 +37,7 @@ public class UserRepository : IUserRepository
 
         var result = rawResult switch
         {
-            null => (DateTimeOffset?)null,
+            null => null,
 
             DBNull => (DateTimeOffset?)null,
 
@@ -58,7 +59,10 @@ public class UserRepository : IUserRepository
 
         if (result.HasValue)
         {
-            _logger.LogDebug("Retrieved last poll timestamp for user {UserId}: {Timestamp}", gitlabUserId, result.Value);
+            _logger.LogDebug(
+                "Retrieved last poll timestamp for user {UserId}: {Timestamp}",
+                gitlabUserId,
+                result.Value);
         }
         else
         {
@@ -87,6 +91,9 @@ public class UserRepository : IUserRepository
             """,
             new { GitlabUserId = gitlabUserId, Timestamp = utcTimestamp });
 
-        _logger.LogDebug("Upserted last poll timestamp for user {UserId}: {Timestamp}", gitlabUserId, utcTimestamp);
+        _logger.LogDebug(
+            "Upserted last poll timestamp for user {UserId}: {Timestamp}",
+            gitlabUserId,
+            utcTimestamp);
     }
 }
