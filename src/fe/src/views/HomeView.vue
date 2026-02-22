@@ -83,7 +83,13 @@
                     class="card-item"
                   >
                     <span class="item-main">
-                      <span class="item-project" :title="item.projectNameWithNamespace">{{ item.projectName }}</span>
+                      <v-tooltip location="top" :text="item.projectNameWithNamespace">
+                        <template #activator="{ props }">
+                          <span class="item-project" v-bind="props" :title="item.projectNameWithNamespace">
+                            {{ item.projectName }}
+                          </span>
+                        </template>
+                      </v-tooltip>
                       <span
                         v-if="item.mergeRequestTitle"
                         class="item-mr-title"
