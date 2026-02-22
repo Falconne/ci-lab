@@ -49,15 +49,14 @@ There are 4 main applications involved in testing, which generally will need to 
 - This should only be run if Gitlab or TeamCity are not reachable or the persistent services in `./cilab-compose.yaml` are not running.
 - If the services are already running, skip to the Bootstrapper section below. Only restart the CI Lab if decide you need
 to, because it will take a long time to start. Don't assume it has failed or hung without checking its output logs.
-- The Bootstrapper has ways to reset an existing environment to a clean state, so that is all that should be needed to begin a test.
+- The Bootstrapper always resets an existing environment to a clean state, so that is all that should be needed to begin a test.
 - The TeamCity server should be accessible at `http://localhost:8111` after startup.
 - The Gitlab server should be accessible at `http://localhost:8080` after startup.
 
 ## Running the Bootstrapper
 The Bootstrapper sets up the initial data needed for Mergician to run, so make sure this is finished before starting Mergician.
 
-- If the CI Lab was not running and has been started or restarted, always use `./scripts/bootstrap.sh` to run the bootstrapper.
-- If the CI Lab was already running, always use `./scripts/bootstrap.sh --reset` instead. This will first reset the environment then perform the bootstrap steps.
+- Always use `./scripts/bootstrap.sh` to run the bootstrapper, as this will do necessary cleanup first.
 - Test the bootstrapper with a timeout, as otherwise it will retry for a long time: `timeout 700 ./scripts/bootstrap.sh || true` (adjust timeout as needed).
 
 ## Mergician
