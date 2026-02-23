@@ -1,6 +1,9 @@
 services:
   cleanup-env:
     image: alpine:latest
+    # Run this helper as the invoking host user so files created in the
+    # mounted workspace are owned by the host user instead of root.
+    # This avoids permission problems on the host after containers modify files.
     user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
     volumes:
       - .:/workspace
@@ -55,13 +58,19 @@ services:
 
   gitlab-token-generator:
     image: docker:27.5.1-cli
+    # Run as the host user to avoid creating root-owned files in the repo.
     user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+    # Add the host Docker group (from LOCAL_DOCKER_GID) so the container can
+    # access /var/run/docker.sock without running as root. This minimizes
+    # privileged access while allowing the token generator to use Docker.
     group_add:
       - "${LOCAL_DOCKER_GID:-0}"
     depends_on:
       gitlab:
         condition: service_healthy
     volumes:
+      # Mount the host Docker socket read-only. Combined with the above
+      # `group_add` this lets the container use the socket without root.
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - .:/workspace
     working_dir: /workspace

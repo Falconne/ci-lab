@@ -50,11 +50,16 @@ RUN dotnet tool install --global Microsoft.Playwright.CLI && \
     cd src/be/Bootstrap && \
     dotnet build && \
     playwright install chromium && \
+    # Playwright installs browser binaries as root during the image build.
+    # Change ownership so the non-root `mergician` user can execute them at
+    # runtime without requiring privileged (root) access.
     chown -R mergician:mergician /ms-playwright
 
 # Set up dotnet environment for the non-root user
 ENV DOTNET_CLI_HOME=/home/mergician
 RUN cp -r /root/.nuget /home/mergician/.nuget 2>/dev/null || true && \
+    # Ensure the copied dotnet/NuGet cache is owned by the non-root user so
+    # the `dotnet` CLI can access cached packages when running as `mergician`.
     chown -R mergician:mergician /home/mergician
 
 USER mergician
