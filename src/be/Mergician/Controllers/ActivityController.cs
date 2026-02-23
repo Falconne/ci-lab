@@ -48,7 +48,9 @@ public class ActivityController : ControllerBase
     ///     A final event with type "done" signals the end of the stream.
     /// </summary>
     [HttpGet("stream")]
-    public async Task StreamPushActivity([FromQuery] string? lastPollTime, CancellationToken cancellationToken)
+    public async Task StreamPushActivity(
+        [FromQuery] string? lastPollTime,
+        CancellationToken cancellationToken)
     {
         var requestReceivedAt = DateTimeOffset.UtcNow;
         var currentUser = HttpContext.GetGitlabUser();
@@ -144,8 +146,12 @@ public class ActivityController : ControllerBase
     ///     Used by the frontend to poll for new activity after the initial SSE stream completes.
     /// </summary>
     [HttpGet("poll")]
-    public async Task<IActionResult> PollActivity([FromQuery] string? lastPollTime, CancellationToken cancellationToken)
+    public async Task<IActionResult> PollActivity(
+        [FromQuery] string? lastPollTime,
+        CancellationToken cancellationToken)
     {
+        // TODO lastPollTime should never be null for a poll request. Ensure the frontend always passes it and make
+        // sure an appropriate error is returned from the backend if it's missing.
         var requestReceivedAt = DateTimeOffset.UtcNow;
         var currentUser = HttpContext.GetGitlabUser();
 
@@ -168,7 +174,7 @@ public class ActivityController : ControllerBase
 
         _logger.LogInformation("Polling for activity for user {UserId}", userInfo.Id);
 
-        var result = await _activityService.GetActivitySince(
+        var result = await _activityService.GetPolledActivitySince(
             currentUser,
             userInfo.Id,
             parsedLastPollTime,
@@ -183,7 +189,9 @@ public class ActivityController : ControllerBase
     ///     Returns fully resolved details for a single merge group.
     /// </summary>
     [HttpGet("merge-groups/{mergeGroupId:int}")]
-    public async Task<IActionResult> GetMergeGroupDetails(int mergeGroupId, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetMergeGroupDetails(
+        int mergeGroupId,
+        CancellationToken cancellationToken)
     {
         var currentUser = HttpContext.GetGitlabUser();
 
@@ -192,6 +200,7 @@ public class ActivityController : ControllerBase
             _logger.LogError(
                 "Database is unhealthy, cannot fetch merge group details for merge group {MergeGroupId}",
                 mergeGroupId);
+
             return StatusCode(503, new ErrorResponse("Database is unavailable"));
         }
 

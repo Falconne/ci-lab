@@ -48,10 +48,13 @@ public class GitlabActivityService
             () => "GitlabActivityService.StreamBranchActivity requestReceivedAt",
             _logger);
 
+        // TODO This is no need to pass in requestReceivedAt for this, just calculate from current UTC time, the difference will be marginal
         var sinceLimit = requestReceivedAtUtc.Subtract(_maxActivityLookback);
 
         // 1. Return cached data from DB first
         _logger.LogInformation("Fetching cached branches for user {UserId} from database", gitlabUserId);
+
+        // TODO No need to pass sinceLimit here, we should return all cached branches.
         var cachedBranches = _mergeGroupRepository.GetUserBranches(gitlabUserId, sinceLimit);
         _logger.LogInformation(
             "Found {Count} cached branches for user {UserId}",
@@ -66,6 +69,9 @@ public class GitlabActivityService
         foreach (var cached in cachedBranches)
         {
             cancellationToken.ThrowIfCancellationRequested();
+
+            // TODO there is some shared logic here with FetchAndStoreBranchActivityRecords for deciding if we should skip
+            // a branch. Try to consolidate this in a simple way.
 
             // Check if branch still exists
             var branchLookup = await _gitlabService.GetBranchLookupResult(
@@ -111,7 +117,8 @@ public class GitlabActivityService
 
             var cachedLastUpdatedUtc = UtcTimestamp.EnsureUtc(
                 cached.LastUpdateTime,
-                () => $"GitlabActivityService.StreamBranchActivity cached branch '{cached.BranchName}'/{cached.ProjectId}",
+                () =>
+                    $"GitlabActivityService.StreamBranchActivity cached branch '{cached.BranchName}'/{cached.ProjectId}",
                 _logger);
 
             if (!latestCachedActivity.HasValue || cachedLastUpdatedUtc > latestCachedActivity.Value)
@@ -182,24 +189,25 @@ public class GitlabActivityService
     ///     Used for polling to detect new pushes without re-fetching the full history.
     ///     Returns fully resolved records (MR and approval data included).
     /// </summary>
-    public async Task<ActivityPollResponse> GetActivitySince(
+    public async Task<ActivityPollResponse> GetPolledActivitySince(
         GitlabAccessUser currentUser,
         int gitlabUserId,
-        DateTimeOffset? lastPollTime,
+        DateTimeOffset? lastPollTime, // TODO This will always be not null
         DateTimeOffset requestReceivedAt,
         CancellationToken cancellationToken = default)
     {
         var requestReceivedAtUtc = UtcTimestamp.EnsureUtc(
             requestReceivedAt,
-            () => "GitlabActivityService.GetActivitySince requestReceivedAt",
+            () => "GitlabActivityService.GetPolledActivitySince requestReceivedAt",
             _logger);
 
+        // TODO See the todo in StreamBranchActivity about how to calculate sinceLimit and drop requestReceivedAt from the parameters.
         var sinceLimit = requestReceivedAtUtc.Subtract(_maxActivityLookback);
         var fetchSince = DetermineFetchSince(lastPollTime, null, sinceLimit);
 
         var fetchSinceUtc = UtcTimestamp.EnsureUtc(
             fetchSince,
-            () => "GitlabActivityService.GetActivitySince fetchSince",
+            () => "GitlabActivityService.GetPolledActivitySince fetchSince",
             _logger);
 
         _logger.LogDebug(
@@ -264,6 +272,8 @@ public class GitlabActivityService
                 branch.ProjectId,
                 branch.BranchName);
 
+            // TODO there is some shared logic here with FetchAndStoreBranchActivityRecords for deciding if we should skip
+            // a branch. Try to consolidate this in a simple way.
             if (branchLookup.IsMissing)
             {
                 _logger.LogInformation(
@@ -291,7 +301,8 @@ public class GitlabActivityService
             var projectName = GetProjectDisplayName(projectNameWithNamespace, branch.ProjectId);
             var lastUpdated = UtcTimestamp.EnsureUtc(
                 branch.LastUpdateTime,
-                () => $"GitlabActivityService.GetMergeGroupDetails branch '{branch.BranchName}'/{branch.ProjectId}",
+                () =>
+                    $"GitlabActivityService.GetMergeGroupDetails branch '{branch.BranchName}'/{branch.ProjectId}",
                 _logger);
 
             var pending = new BranchActivity(
@@ -542,11 +553,14 @@ public class GitlabActivityService
         }
     }
 
+    // TODO DetermineFetchSince always returns a UTC value (cached activity is always UTC), so remove any UTC
+    // checks from its call sites.
     private DateTimeOffset DetermineFetchSince(
         DateTimeOffset? requestLastPollTime,
         DateTimeOffset? latestCachedActivity,
         DateTimeOffset sinceLimit)
     {
+        // TODO Can calculate `sinceLimit` in this function as this is the only place it should be used.
         if (requestLastPollTime.HasValue)
         {
             var requested = UtcTimestamp.EnsureUtc(
@@ -567,6 +581,7 @@ public class GitlabActivityService
             _logger.LogDebug(
                 "Using frontend-provided last poll time {Requested} as fetch since",
                 requested);
+
             return requested;
         }
 
@@ -575,12 +590,14 @@ public class GitlabActivityService
             _logger.LogDebug(
                 "Using latest cached activity timestamp {LatestCached} as fetch since",
                 latestCachedActivity.Value);
+
             return latestCachedActivity.Value;
         }
 
         _logger.LogDebug(
             "No valid frontend cursor or recent cached activity; using lookback limit {Limit}",
             sinceLimit);
+
         return sinceLimit;
     }
 
