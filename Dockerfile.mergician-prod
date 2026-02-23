@@ -42,17 +42,11 @@ RUN GIT_HASH=$(git rev-parse HEAD 2>/dev/null || echo "unknown") && \
 FROM mcr.microsoft.com/dotnet/aspnet:9.0
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 
-# Create a non-root runtime user to run the backend and frontend files.
-# Running the service as `mergician` improves security and makes
-# file ownership predictable (avoids root-owned files in mounted volumes).
 RUN groupadd -g 1000 mergician && \
     useradd -u 1000 -g 1000 -m -s /bin/bash mergician
 
 WORKDIR /app
 
-# Make sure published backend and built frontend files are owned by the
-# non-root `mergician` user so the process can read/write them without
-# elevated privileges.
 COPY --from=backend-build --chown=mergician:mergician /app/publish .
 COPY --from=frontend-build --chown=mergician:mergician /app/dist ./wwwroot/
 

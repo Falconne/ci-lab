@@ -12,9 +12,6 @@ RUN npm run build
 # Serve with nginx
 FROM nginx:1.27-alpine
 
-# Create a dedicated non-root user so nginx and related processes do not run
-# as root inside the container. Running as a non-root user improves security
-# and avoids files being created with root ownership on mounted volumes.
 RUN addgroup -g 1000 mergician && adduser -u 1000 -G mergician -D mergician
 
 # Configure nginx to run as non-root and ensure filesystem permissions are
