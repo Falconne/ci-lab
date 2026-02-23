@@ -56,6 +56,7 @@ try
     builder.Services.AddSingleton<GitLabOAuthService>();
     builder.Services.AddSingleton<CacheService<int, GitLabProject>>();
     builder.Services.AddSingleton<GitlabService>();
+    builder.Services.AddSingleton<GitlabPipelineService>();
     builder.Services.AddSingleton<VersionService>();
     builder.Services.AddScoped<GitlabActivityService>();
 

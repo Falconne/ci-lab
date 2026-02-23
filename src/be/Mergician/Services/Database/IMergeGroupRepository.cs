@@ -36,15 +36,14 @@ public interface IMergeGroupRepository
 
     /// <summary>
     ///     Returns all branches in merge groups that the user is associated with,
-    ///     filtered by merge groups whose LastUpdateTime is within the given timespan.
-    ///     Results are ordered by merge group LastUpdateTime descending (most recent first).
+    ///     ordered by merge group LastUpdateTime descending (most recent first).
     /// </summary>
-    List<BranchWithMergeGroupInfo> GetUserBranches(int gitlabUserId, DateTimeOffset since);
+    List<BranchWithMergeGroupInfo> GetUserBranches(int gitlabUserId);
 
     /// <summary>
-    ///     Returns branches for a specific merge group that the user is associated with.
+    ///     Returns a specific merge group and its branches for a user, or null when not found.
     /// </summary>
-    List<BranchWithMergeGroupInfo> GetMergeGroup(int gitlabUserId, int mergeGroupId);
+    MergeGroupWithBranches? GetMergeGroup(int gitlabUserId, int mergeGroupId);
 
     /// <summary>
     ///     Deletes a branch record and its references in branches_in_merge_group.

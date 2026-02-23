@@ -138,13 +138,8 @@ public class MergeGroupRepository : IMergeGroupRepository
             utcTimestamp);
     }
 
-    public List<BranchWithMergeGroupInfo> GetUserBranches(int gitlabUserId, DateTimeOffset since)
+    public List<BranchWithMergeGroupInfo> GetUserBranches(int gitlabUserId)
     {
-        var utcSince = UtcTimestamp.EnsureUtc(
-            since,
-            () => $"MergeGroupRepository.GetUserBranches user {gitlabUserId}",
-            _logger);
-
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();
 
@@ -163,10 +158,9 @@ public class MergeGroupRepository : IMergeGroupRepository
                 INNER JOIN branches_in_merge_group bmg ON bmg.merge_group_id = mg.id
                 INNER JOIN branch_in_project bp ON bp.id = bmg.branch_in_project_id
                 WHERE umg.gitlab_user_id = @GitlabUserId
-                  AND mg.last_update_time >= @Since
                 ORDER BY mg.last_update_time DESC, bp.branch_name, bp.project_name
                 """,
-                new { GitlabUserId = gitlabUserId, Since = utcSince })
+                                new { GitlabUserId = gitlabUserId })
             .ToList();
 
         foreach (var r in results)
@@ -178,17 +172,14 @@ public class MergeGroupRepository : IMergeGroupRepository
         }
 
         _logger.LogDebug(
-            "Retrieved {Count} branches for user {UserId} since {Since}",
+            "Retrieved {Count} cached branches for user {UserId}",
             results.Count,
-            gitlabUserId,
-            utcSince);
+            gitlabUserId);
 
         return results;
     }
 
-    // TODO This should return a `MergeGroup` object with a list of branches, as the datamodel intended. Later we
-    // will have more MergeGroup level properties to return.
-    public List<BranchWithMergeGroupInfo> GetMergeGroup(int gitlabUserId, int mergeGroupId)
+    public MergeGroupWithBranches? GetMergeGroup(int gitlabUserId, int mergeGroupId)
     {
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();
@@ -214,6 +205,16 @@ public class MergeGroupRepository : IMergeGroupRepository
                 new { GitlabUserId = gitlabUserId, MergeGroupId = mergeGroupId })
             .ToList();
 
+        if (results.Count == 0)
+        {
+            _logger.LogDebug(
+                "No merge group found for user {UserId} with merge group {MergeGroupId}",
+                gitlabUserId,
+                mergeGroupId);
+
+            return null;
+        }
+
         foreach (var r in results)
         {
             r.LastUpdateTime = UtcTimestamp.EnsureUtc(
@@ -228,7 +229,14 @@ public class MergeGroupRepository : IMergeGroupRepository
             gitlabUserId,
             mergeGroupId);
 
-        return results;
+        var first = results[0];
+        return new MergeGroupWithBranches
+        {
+            Id = first.MergeGroupId,
+            Name = first.MergeGroupName,
+            LastUpdateTime = first.LastUpdateTime,
+            Branches = results
+        };
     }
 
     public void DeleteBranch(int branchInProjectId)

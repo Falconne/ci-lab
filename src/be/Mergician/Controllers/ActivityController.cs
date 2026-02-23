@@ -91,7 +91,6 @@ public class ActivityController : ControllerBase
                                    currentUser,
                                    userInfo.Id,
                                    parsedLastPollTime,
-                                   requestReceivedAt,
                                    streamToken))
                 {
                     await WriteSseEvent(activity, streamToken, writeLock);
@@ -150,10 +149,13 @@ public class ActivityController : ControllerBase
         [FromQuery] string? lastPollTime,
         CancellationToken cancellationToken)
     {
-        // TODO lastPollTime should never be null for a poll request. Ensure the frontend always passes it and make
-        // sure an appropriate error is returned from the backend if it's missing.
-        var requestReceivedAt = DateTimeOffset.UtcNow;
         var currentUser = HttpContext.GetGitlabUser();
+
+        if (string.IsNullOrWhiteSpace(lastPollTime))
+        {
+            _logger.LogWarning("Poll request rejected: missing required lastPollTime query value");
+            return BadRequest(new ErrorResponse("Missing required 'lastPollTime' query value."));
+        }
 
         if (!TryParseLastPollTime(lastPollTime, out var parsedLastPollTime, out var parseError))
         {
@@ -177,8 +179,7 @@ public class ActivityController : ControllerBase
         var result = await _activityService.GetPolledActivitySince(
             currentUser,
             userInfo.Id,
-            parsedLastPollTime,
-            requestReceivedAt,
+            parsedLastPollTime!.Value,
             cancellationToken);
 
         _logger.LogInformation("Returning {Count} poll results", result.Activities.Count);

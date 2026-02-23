@@ -625,9 +625,12 @@ async function refreshExistingBranches() {
 
 async function pollForActivity() {
   try {
-    const pollUrl = lastPollTime
-      ? `/api/activity/poll?lastPollTime=${encodeURIComponent(lastPollTime)}`
-      : '/api/activity/poll'
+    if (!lastPollTime) {
+      lastPollTime = new Date().toISOString()
+      console.warn('Poll cursor was missing; using current time fallback for first poll request')
+    }
+
+    const pollUrl = `/api/activity/poll?lastPollTime=${encodeURIComponent(lastPollTime)}`
 
     const response = await fetch(pollUrl)
 

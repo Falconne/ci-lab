@@ -17,16 +17,20 @@ public class GitlabActivityService
 
     private readonly GitlabService _gitlabService;
 
+    private readonly GitlabPipelineService _gitlabPipelineService;
+
     private readonly ILogger<GitlabActivityService> _logger;
 
     private readonly IMergeGroupRepository _mergeGroupRepository;
 
     public GitlabActivityService(
         GitlabService gitlabService,
+        GitlabPipelineService gitlabPipelineService,
         IMergeGroupRepository mergeGroupRepository,
         ILogger<GitlabActivityService> logger)
     {
         _gitlabService = gitlabService;
+        _gitlabPipelineService = gitlabPipelineService;
         _mergeGroupRepository = mergeGroupRepository;
         _logger = logger;
     }
@@ -40,22 +44,12 @@ public class GitlabActivityService
         GitlabAccessUser currentUser,
         int gitlabUserId,
         DateTimeOffset? lastPollTime,
-        DateTimeOffset requestReceivedAt,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        var requestReceivedAtUtc = UtcTimestamp.EnsureUtc(
-            requestReceivedAt,
-            () => "GitlabActivityService.StreamBranchActivity requestReceivedAt",
-            _logger);
-
-        // TODO This is no need to pass in requestReceivedAt for this, just calculate from current UTC time, the difference will be marginal
-        var sinceLimit = requestReceivedAtUtc.Subtract(_maxActivityLookback);
-
         // 1. Return cached data from DB first
         _logger.LogInformation("Fetching cached branches for user {UserId} from database", gitlabUserId);
 
-        // TODO No need to pass sinceLimit here, we should return all cached branches.
-        var cachedBranches = _mergeGroupRepository.GetUserBranches(gitlabUserId, sinceLimit);
+        var cachedBranches = _mergeGroupRepository.GetUserBranches(gitlabUserId);
         _logger.LogInformation(
             "Found {Count} cached branches for user {UserId}",
             cachedBranches.Count,
@@ -70,45 +64,24 @@ public class GitlabActivityService
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            // TODO there is some shared logic here with FetchAndStoreBranchActivityRecords for deciding if we should skip
-            // a branch. Try to consolidate this in a simple way.
-
-            // Check if branch still exists
-            var branchLookup = await _gitlabService.GetBranchLookupResult(
+            if (await ShouldSkipBranchByLookup(
                 currentUser,
+                cached.BranchName,
                 cached.ProjectId,
-                cached.BranchName);
-
-            if (branchLookup.IsMissing)
+                cached.BranchInProjectId,
+                "cached activity stream",
+                cancellationToken))
             {
-                _logger.LogInformation(
-                    "Cached branch '{BranchName}' in project {ProjectId} no longer exists, removing from DB",
-                    cached.BranchName,
-                    cached.ProjectId);
-
-                RemoveBranchAndCleanup(cached.BranchInProjectId);
                 continue;
             }
 
-            if (branchLookup.IsUnavailable)
-            {
-                _logger.LogWarning(
-                    "Branch lookup unavailable for cached branch '{BranchName}' in project {ProjectId}; skipping deletion and continuing",
-                    cached.BranchName,
-                    cached.ProjectId);
-
-                continue;
-            }
-
-            if (GitlabService.IsScheduledForDeletion(cached.ProjectName))
-            {
-                _logger.LogInformation(
-                    "Cached branch '{BranchName}' in project {ProjectId} belongs to a project/group scheduled for deletion ('{ProjectName}'); removing from DB",
+            if (ShouldSkipScheduledForDeletion(
                     cached.BranchName,
                     cached.ProjectId,
-                    cached.ProjectName);
-
-                RemoveBranchAndCleanup(cached.BranchInProjectId);
+                    cached.ProjectName,
+                    cached.BranchInProjectId,
+                    "cached activity stream"))
+            {
                 continue;
             }
 
@@ -148,21 +121,16 @@ public class GitlabActivityService
         }
 
         // 2. Fetch new data from GitLab
-        var fetchSince = DetermineFetchSince(lastPollTime, latestCachedActivity, sinceLimit);
-
-        var fetchSinceUtc = UtcTimestamp.EnsureUtc(
-            fetchSince,
-            () => "GitlabActivityService.StreamBranchActivity fetchSince",
-            _logger);
+        var fetchSince = DetermineFetchSince(lastPollTime, latestCachedActivity);
 
         _logger.LogInformation(
             "Fetching GitLab events for user {UserId} since {Since}",
             gitlabUserId,
-            fetchSinceUtc);
+            fetchSince);
 
         var pushEvents = _gitlabService.StreamPushEventsSince(
             currentUser,
-            fetchSinceUtc,
+            fetchSince,
             cancellationToken);
 
         var records = FetchAndStoreBranchActivityRecords(
@@ -192,32 +160,19 @@ public class GitlabActivityService
     public async Task<ActivityPollResponse> GetPolledActivitySince(
         GitlabAccessUser currentUser,
         int gitlabUserId,
-        DateTimeOffset? lastPollTime, // TODO This will always be not null
-        DateTimeOffset requestReceivedAt,
+        DateTimeOffset lastPollTime,
         CancellationToken cancellationToken = default)
     {
-        var requestReceivedAtUtc = UtcTimestamp.EnsureUtc(
-            requestReceivedAt,
-            () => "GitlabActivityService.GetPolledActivitySince requestReceivedAt",
-            _logger);
-
-        // TODO See the todo in StreamBranchActivity about how to calculate sinceLimit and drop requestReceivedAt from the parameters.
-        var sinceLimit = requestReceivedAtUtc.Subtract(_maxActivityLookback);
-        var fetchSince = DetermineFetchSince(lastPollTime, null, sinceLimit);
-
-        var fetchSinceUtc = UtcTimestamp.EnsureUtc(
-            fetchSince,
-            () => "GitlabActivityService.GetPolledActivitySince fetchSince",
-            _logger);
+        var fetchSince = DetermineFetchSince(lastPollTime, null);
 
         _logger.LogDebug(
             "Polling for activity for user {UserId} since {SinceUtc}",
             gitlabUserId,
-            fetchSinceUtc);
+            fetchSince);
 
         var pushEvents = _gitlabService.StreamPushEventsSince(
             currentUser,
-            fetchSinceUtc,
+            fetchSince,
             cancellationToken);
 
         var results = new List<BranchActivity>();
@@ -239,7 +194,7 @@ public class GitlabActivityService
         }
 
         _logger.LogInformation("Returning {Count} branch activity records from poll", results.Count);
-        return new ActivityPollResponse(results, deletedBranches, requestReceivedAtUtc);
+        return new ActivityPollResponse(results, deletedBranches, DateTimeOffset.UtcNow);
     }
 
     /// <summary>
@@ -251,8 +206,8 @@ public class GitlabActivityService
         int mergeGroupId,
         CancellationToken cancellationToken = default)
     {
-        var branches = _mergeGroupRepository.GetMergeGroup(gitlabUserId, mergeGroupId);
-        if (branches.Count == 0)
+        var mergeGroup = _mergeGroupRepository.GetMergeGroup(gitlabUserId, mergeGroupId);
+        if (mergeGroup == null)
         {
             _logger.LogInformation(
                 "No merge group details found for user {UserId} and merge group {MergeGroupId}",
@@ -263,37 +218,28 @@ public class GitlabActivityService
         }
 
         var resolvedBranches = new List<BranchActivity>();
-        foreach (var branch in branches)
+        foreach (var branch in mergeGroup.Branches)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var branchLookup = await _gitlabService.GetBranchLookupResult(
+            if (await ShouldSkipBranchByLookup(
                 currentUser,
+                branch.BranchName,
                 branch.ProjectId,
-                branch.BranchName);
-
-            // TODO there is some shared logic here with FetchAndStoreBranchActivityRecords for deciding if we should skip
-            // a branch. Try to consolidate this in a simple way.
-            if (branchLookup.IsMissing)
+                branch.BranchInProjectId,
+                $"merge group {mergeGroupId} details load",
+                cancellationToken))
             {
-                _logger.LogInformation(
-                    "Branch '{BranchName}' in project {ProjectId} is missing while loading merge group {MergeGroupId}; removing from DB",
-                    branch.BranchName,
-                    branch.ProjectId,
-                    mergeGroupId);
-
-                RemoveBranchAndCleanup(branch.BranchInProjectId);
                 continue;
             }
 
-            if (branchLookup.IsUnavailable)
-            {
-                _logger.LogWarning(
-                    "Branch lookup unavailable for branch '{BranchName}' in project {ProjectId} while loading merge group {MergeGroupId}; skipping this branch",
+            if (ShouldSkipScheduledForDeletion(
                     branch.BranchName,
                     branch.ProjectId,
-                    mergeGroupId);
-
+                    branch.ProjectName,
+                    branch.BranchInProjectId,
+                    $"merge group {mergeGroupId} details load"))
+            {
                 continue;
             }
 
@@ -320,8 +266,7 @@ public class GitlabActivityService
             resolvedBranches.Add(resolved);
         }
 
-        var mergeGroupName = branches[0].MergeGroupName;
-        return new MergeGroupDetailsResponse(mergeGroupId, mergeGroupName, resolvedBranches);
+        return new MergeGroupDetailsResponse(mergeGroupId, mergeGroup.Name, resolvedBranches);
     }
 
     /// <summary>
@@ -459,28 +404,14 @@ public class GitlabActivityService
 
             var key = $"{pushEvent.BranchName}:{pushEvent.ProjectId}";
 
-            var branchLookup = await _gitlabService.GetBranchLookupResult(
+            if (await ShouldSkipBranchByLookup(
                 user,
+                pushEvent.BranchName,
                 pushEvent.ProjectId,
-                pushEvent.BranchName);
-
-            if (branchLookup.IsMissing)
+                null,
+                "push-event processing",
+                cancellationToken))
             {
-                _logger.LogDebug(
-                    "Skipping branch '{BranchName}' in project {ProjectId} - no longer exists",
-                    pushEvent.BranchName,
-                    pushEvent.ProjectId);
-
-                continue;
-            }
-
-            if (branchLookup.IsUnavailable)
-            {
-                _logger.LogWarning(
-                    "Skipping branch '{BranchName}' in project {ProjectId} because branch lookup is unavailable",
-                    pushEvent.BranchName,
-                    pushEvent.ProjectId);
-
                 continue;
             }
 
@@ -495,14 +426,13 @@ public class GitlabActivityService
                 continue;
             }
 
-            if (GitlabService.IsScheduledForDeletion(project.NameWithNamespace))
-            {
-                _logger.LogInformation(
-                    "Skipping branch '{BranchName}' in project {ProjectId} ('{ProjectName}'): project/group is scheduled for deletion",
+            if (ShouldSkipScheduledForDeletion(
                     pushEvent.BranchName,
                     pushEvent.ProjectId,
-                    project.NameWithNamespace);
-
+                    project.NameWithNamespace,
+                    null,
+                    "push-event processing"))
+            {
                 continue;
             }
 
@@ -553,14 +483,12 @@ public class GitlabActivityService
         }
     }
 
-    // TODO DetermineFetchSince always returns a UTC value (cached activity is always UTC), so remove any UTC
-    // checks from its call sites.
     private DateTimeOffset DetermineFetchSince(
         DateTimeOffset? requestLastPollTime,
-        DateTimeOffset? latestCachedActivity,
-        DateTimeOffset sinceLimit)
+        DateTimeOffset? latestCachedActivity)
     {
-        // TODO Can calculate `sinceLimit` in this function as this is the only place it should be used.
+        var sinceLimit = DateTimeOffset.UtcNow.Subtract(_maxActivityLookback);
+
         if (requestLastPollTime.HasValue)
         {
             var requested = UtcTimestamp.EnsureUtc(
@@ -599,6 +527,92 @@ public class GitlabActivityService
             sinceLimit);
 
         return sinceLimit;
+    }
+
+    private async Task<bool> ShouldSkipBranchByLookup(
+        GitlabAccessUser user,
+        string branchName,
+        int projectId,
+        int? trackedBranchInProjectId,
+        string operationName,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var branchLookup = await _gitlabService.GetBranchLookupResult(
+            user,
+            projectId,
+            branchName);
+
+        if (branchLookup.IsMissing)
+        {
+            _logger.LogInformation(
+                "Skipping branch '{BranchName}' in project {ProjectId} during {OperationName}: branch no longer exists",
+                branchName,
+                projectId,
+                operationName);
+
+            if (trackedBranchInProjectId.HasValue)
+            {
+                _logger.LogInformation(
+                    "Removing tracked branch record {BranchRecordId} for '{BranchName}' in project {ProjectId} during {OperationName}",
+                    trackedBranchInProjectId.Value,
+                    branchName,
+                    projectId,
+                    operationName);
+
+                RemoveBranchAndCleanup(trackedBranchInProjectId.Value);
+            }
+
+            return true;
+        }
+
+        if (branchLookup.IsUnavailable)
+        {
+            _logger.LogWarning(
+                "Skipping branch '{BranchName}' in project {ProjectId} during {OperationName}: branch lookup unavailable",
+                branchName,
+                projectId,
+                operationName);
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool ShouldSkipScheduledForDeletion(
+        string branchName,
+        int projectId,
+        string projectNameWithNamespace,
+        int? trackedBranchInProjectId,
+        string operationName)
+    {
+        if (!GitlabService.IsScheduledForDeletion(projectNameWithNamespace))
+        {
+            return false;
+        }
+
+        _logger.LogInformation(
+            "Skipping branch '{BranchName}' in project {ProjectId} during {OperationName}: project/group is scheduled for deletion ('{ProjectNameWithNamespace}')",
+            branchName,
+            projectId,
+            operationName,
+            projectNameWithNamespace);
+
+        if (trackedBranchInProjectId.HasValue)
+        {
+            _logger.LogInformation(
+                "Removing tracked branch record {BranchRecordId} for '{BranchName}' in project {ProjectId} during {OperationName} because project is scheduled for deletion",
+                trackedBranchInProjectId.Value,
+                branchName,
+                projectId,
+                operationName);
+
+            RemoveBranchAndCleanup(trackedBranchInProjectId.Value);
+        }
+
+        return true;
     }
 
     private string GetProjectDisplayName(string projectNameWithNamespace, int projectId)
@@ -675,7 +689,7 @@ public class GitlabActivityService
             ? project.WebUrl
             : activity.ProjectUrl;
 
-        var buildJobs = await _gitlabService.GetLatestExternalJobsForBranch(
+        var buildJobs = await _gitlabPipelineService.GetLatestExternalJobsForBranch(
             user,
             activity.ProjectId,
             activity.BranchName,
