@@ -251,7 +251,7 @@ public class GitlabActivityService
         int mergeGroupId,
         CancellationToken cancellationToken = default)
     {
-        var branches = _mergeGroupRepository.GetMergeGroupBranches(gitlabUserId, mergeGroupId);
+        var branches = _mergeGroupRepository.GetMergeGroup(gitlabUserId, mergeGroupId);
         if (branches.Count == 0)
         {
             _logger.LogInformation(
@@ -262,7 +262,7 @@ public class GitlabActivityService
             return null;
         }
 
-        var resolvedActivities = new List<BranchActivity>();
+        var resolvedBranches = new List<BranchActivity>();
         foreach (var branch in branches)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -317,11 +317,11 @@ public class GitlabActivityService
                 branch.MergeGroupId);
 
             var resolved = await ResolveBranchActivityIn(currentUser, pending, cancellationToken);
-            resolvedActivities.Add(resolved);
+            resolvedBranches.Add(resolved);
         }
 
         var mergeGroupName = branches[0].MergeGroupName;
-        return new MergeGroupDetailsResponse(mergeGroupId, mergeGroupName, resolvedActivities);
+        return new MergeGroupDetailsResponse(mergeGroupId, mergeGroupName, resolvedBranches);
     }
 
     /// <summary>

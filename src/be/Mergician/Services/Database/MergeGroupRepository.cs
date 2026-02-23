@@ -186,7 +186,9 @@ public class MergeGroupRepository : IMergeGroupRepository
         return results;
     }
 
-    public List<BranchWithMergeGroupInfo> GetMergeGroupBranches(int gitlabUserId, int mergeGroupId)
+    // TODO This should return a `MergeGroup` object with a list of branches, as the datamodel intended. Later we
+    // will have more MergeGroup level properties to return.
+    public List<BranchWithMergeGroupInfo> GetMergeGroup(int gitlabUserId, int mergeGroupId)
     {
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();
@@ -216,7 +218,7 @@ public class MergeGroupRepository : IMergeGroupRepository
         {
             r.LastUpdateTime = UtcTimestamp.EnsureUtc(
                 r.LastUpdateTime,
-                () => $"MergeGroupRepository.GetMergeGroupBranches merge group {r.MergeGroupId}",
+                () => $"MergeGroupRepository.GetMergeGroup merge group {r.MergeGroupId}",
                 _logger);
         }
 

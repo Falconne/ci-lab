@@ -340,6 +340,8 @@ public class GitlabService
         return JsonSerializer.Deserialize<GitLabApprovalState>(json, _jsonOptions);
     }
 
+    // TODO Move all the build and pipeline related methods into a separate PipelineService class
+
     /// <summary>
     ///     Returns external job-like build statuses for the latest pipeline on the branch.
     /// </summary>
@@ -443,6 +445,7 @@ public class GitlabService
                 "GetBranchHeadCommitSha returned no commit id for branch '{BranchName}' in project {ProjectId}",
                 branchName,
                 projectId);
+
             return null;
         }
 
