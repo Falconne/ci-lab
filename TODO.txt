@@ -1,1 +1,7 @@
+In the Merge Group Details page, the backend first loads all the details of the merge group and sends it back at once. We also want it to dynamically update all the data shown (MRs, approval, builds, etc) on a regular poll like the main page dashboard.
 
+Make the merge details page return data incrementally on first load, as it is being discovered. For example, branch data from the database can come back early. Implement the a similar technique to what the dashboard uses for filling in data for MRs, Approvals, Status, etc after the initial records, and have it keep updating with the poll.
+
+
+
+Also check for new or deleted branches during the poll.
