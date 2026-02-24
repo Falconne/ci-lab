@@ -1,8 +1,17 @@
 <template>
   <v-container>
-    <v-row justify="center" class="mt-4">
-      <v-col cols="12" md="10" lg="9">
-        <div class="d-flex align-center mb-4">
+    <v-row class="mt-4">
+      <!-- Back button: shown as left column on wide screens -->
+      <v-col cols="auto" class="d-none d-lg-flex align-start" style="padding-top: 6px;">
+        <v-btn variant="text" prepend-icon="mdi-arrow-left" @click="goBack">
+          Back to Dashboard
+        </v-btn>
+      </v-col>
+
+      <!-- Main content column -->
+      <v-col cols="12" md="10" lg="9" class="mx-auto mx-lg-0">
+        <!-- Back button: shown above content on narrow screens -->
+        <div class="d-flex align-center mb-4 d-lg-none">
           <v-btn variant="text" prepend-icon="mdi-arrow-left" @click="goBack">
             Back to Dashboard
           </v-btn>
@@ -25,115 +34,111 @@
         </div>
 
         <template v-else>
-          <v-card variant="tonal" class="mb-4">
-            <v-card-title class="text-h6">Project Summary</v-card-title>
-            <v-card-text>
-              <div class="summary-list">
-                <div
-                  v-for="item in details.activities"
-                  :key="`${item.branchName}-${item.projectId}`"
-                  class="summary-row"
-                >
-                  <div class="summary-repo">
-                    <v-icon icon="mdi-source-repository" size="small" class="mr-2" />
+          <!-- Summary: merge group name + overall status -->
+          <div class="merge-group-header mb-5">
+            <div class="d-flex align-center flex-wrap ga-3">
+              <v-icon icon="mdi-source-merge" size="small" color="primary" />
+              <span class="text-h6 font-weight-bold">{{ details.mergeGroupName }}</span>
+              <span class="card-status-badge" :class="overallStatusClass">
+                <span class="status-dot" />
+                {{ overallStatusLabel }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Branch cards -->
+          <div class="repo-card-list">
+            <div
+              v-for="item in details.activities"
+              :key="`${item.branchName}-${item.projectId}-details`"
+              class="branch-card mb-4"
+            >
+              <div class="card-accent" :class="itemStatusClass(item)" />
+              <div class="card-body">
+                <!-- Card header: title + status chip -->
+                <div class="card-header">
+                  <div class="branch-card-title">
+                    <v-icon icon="mdi-source-repository" size="small" class="title-icon" />
                     <a
                       v-if="item.projectUrl"
-                      class="summary-link"
-                      :href="item.projectUrl"
+                      class="branch-title-link"
+                      :href="branchUrl(item)"
                       target="_blank"
                       rel="noopener noreferrer"
                     >
-                      {{ item.projectName }}
+                      {{ item.projectName }} | {{ item.branchName }}
                     </a>
-                    <span v-else>{{ item.projectName }}</span>
+                    <span v-else class="branch-title-text">{{ item.projectName }} | {{ item.branchName }}</span>
                   </div>
-                  <div class="summary-labels">
-                    <span class="text-caption text-medium-emphasis">Status:</span>
-                    <v-chip size="small" :color="itemStatusColor(item)" variant="tonal">
-                      {{ itemStatusLabel(item) }}
-                    </v-chip>
-                    <span class="text-caption text-medium-emphasis ml-2">Approvals:</span>
-                    <span class="text-body-2">{{ itemApprovalsText(item) }}</span>
-                  </div>
-                </div>
-              </div>
-            </v-card-text>
-          </v-card>
-
-          <div class="repo-card-list">
-            <v-card
-              v-for="item in details.activities"
-              :key="`${item.branchName}-${item.projectId}-details`"
-              class="mb-4"
-              variant="outlined"
-            >
-              <v-card-title class="d-flex align-center justify-space-between flex-wrap ga-2">
-                <div class="d-flex align-center ga-2">
-                  <v-icon icon="mdi-source-repository" size="small" />
-                  <a
-                    v-if="item.projectUrl"
-                    class="repo-link"
-                    :href="item.projectUrl"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {{ item.projectName }}
-                  </a>
-                  <span v-else>{{ item.projectName }}</span>
-                </div>
-                <v-chip size="small" :color="itemStatusColor(item)" variant="tonal">
-                  {{ itemStatusLabel(item) }}
-                </v-chip>
-              </v-card-title>
-
-              <v-card-text>
-                <div class="mb-2 text-body-2">
-                  <strong>Approvals:</strong>
-                  {{ itemApprovalsText(item) }}
+                  <v-chip size="small" :color="itemStatusColor(item)" variant="tonal" class="flex-shrink-0">
+                    {{ itemStatusLabel(item) }}
+                  </v-chip>
                 </div>
 
-                <div class="mb-3 text-body-2 mr-block">
-                  <strong>Merge Request:</strong>
-                  <a
-                    v-if="item.mergeRequestTitle && item.mergeRequestUrl"
-                    :href="item.mergeRequestUrl"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="mr-link"
-                  >
-                    {{ item.mergeRequestTitle }}
-                  </a>
-                  <span v-else-if="item.mergeRequestTitle">{{ item.mergeRequestTitle }}</span>
-                  <span v-else class="text-medium-emphasis">No Merge Request</span>
+                <!-- Detail rows -->
+                <div class="detail-row">
+                  <span class="detail-label">Approvals:</span>
+                  <span class="detail-value">{{ itemApprovalsText(item) }}</span>
                 </div>
 
-                <div class="text-body-2">
-                  <strong>External Jobs:</strong>
-                  <div v-if="item.buildJobs && item.buildJobs.length > 0" class="jobs-list mt-2">
-                    <v-chip
-                      v-for="job in item.buildJobs"
-                      :key="`${item.projectId}-${job.name}-${job.status}`"
-                      size="small"
-                      :color="jobStatusColor(job.status)"
-                      variant="outlined"
-                      :prepend-icon="jobStatusIcon(job.status)"
+                <div class="detail-row">
+                  <span class="detail-label">Merge Request:</span>
+                  <span class="detail-value">
+                    <a
+                      v-if="item.mergeRequestTitle && item.mergeRequestUrl"
+                      :href="item.mergeRequestUrl"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="detail-link"
                     >
+                      {{ item.mergeRequestTitle }}
+                    </a>
+                    <span v-else-if="item.mergeRequestTitle">{{ item.mergeRequestTitle }}</span>
+                    <span v-else-if="item.hasMergeRequest === false" class="text-medium-emphasis">
+                      No Merge Request
                       <a
-                        v-if="job.url"
-                        :href="job.url"
+                        v-if="item.projectUrl"
+                        :href="createMrUrl(item)"
                         target="_blank"
                         rel="noopener noreferrer"
-                        class="job-link"
+                        class="detail-link ml-1"
                       >
-                        {{ job.name }}
+                        — Create
                       </a>
-                      <span v-else>{{ job.name }}</span>
-                    </v-chip>
-                  </div>
-                  <div v-else class="text-medium-emphasis mt-2">No external jobs on latest pipeline</div>
+                    </span>
+                    <span v-else class="text-medium-emphasis">No Merge Request</span>
+                  </span>
                 </div>
-              </v-card-text>
-            </v-card>
+
+                <div class="detail-row align-start">
+                  <span class="detail-label">External Jobs:</span>
+                  <span class="detail-value">
+                    <div v-if="item.buildJobs && item.buildJobs.length > 0" class="jobs-list">
+                      <v-chip
+                        v-for="job in item.buildJobs"
+                        :key="`${item.projectId}-${job.name}-${job.status}`"
+                        size="small"
+                        :color="jobStatusColor(job.status)"
+                        variant="outlined"
+                        :prepend-icon="jobStatusIcon(job.status)"
+                      >
+                        <a
+                          v-if="job.url"
+                          :href="job.url"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          class="job-link"
+                        >
+                          {{ job.name }}
+                        </a>
+                        <span v-else>{{ job.name }}</span>
+                      </v-chip>
+                    </div>
+                    <span v-else class="text-medium-emphasis">No external jobs on latest pipeline</span>
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
         </template>
       </v-col>
@@ -142,7 +147,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 interface BranchBuildJob {
@@ -183,6 +188,37 @@ const details = ref<MergeGroupDetailsResponse>({
   mergeGroupName: '',
   activities: []
 })
+
+const overallStatusLabel = computed<string>(() => {
+  const statuses = details.value.activities.map(item => itemStatusLabel(item))
+  if (statuses.some(s => s === 'Waiting')) return 'Waiting'
+  if (statuses.length > 0 && statuses.every(s => s === 'Ready')) return 'Ready'
+  if (statuses.length === 0) return 'Loading'
+  return 'Open'
+})
+
+const overallStatusClass = computed<string>(() => {
+  if (overallStatusLabel.value === 'Ready') return 'status-ready'
+  if (overallStatusLabel.value === 'Open') return 'status-open'
+  return 'status-waiting'
+})
+
+function itemStatusClass(item: BranchActivity): string {
+  const label = itemStatusLabel(item)
+  if (label === 'Ready') return 'status-ready'
+  if (label === 'Open') return 'status-open'
+  return 'status-waiting'
+}
+
+function branchUrl(item: BranchActivity): string {
+  if (!item.projectUrl) return ''
+  return `${item.projectUrl}/-/tree/${encodeURIComponent(item.branchName)}?ref_type=heads`
+}
+
+function createMrUrl(item: BranchActivity): string {
+  if (!item.projectUrl) return ''
+  return `${item.projectUrl}/-/merge_requests/new?merge_request[source_branch]=${encodeURIComponent(item.branchName)}`
+}
 
 function itemStatusLabel(item: BranchActivity): string {
   if (!item.hasMergeRequest) {
@@ -295,47 +331,153 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.summary-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+/* ---- Merge group header ---- */
+.merge-group-header {
+  padding: 2px 0 6px;
 }
 
-.summary-row {
+/* ---- Status badges (shared with home page style) ---- */
+.card-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 2px 10px;
+  border-radius: 12px;
+  line-height: 1.4;
+}
+
+.card-status-badge .status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-ready { background: #e8f5e9; color: #2e7d32; }
+.status-ready .status-dot { background: #4caf50; }
+
+.status-open { background: #e3f2fd; color: #1565c0; }
+.status-open .status-dot { background: #1976d2; }
+
+.status-waiting { background: #fff3e0; color: #e65100; }
+.status-waiting .status-dot { background: #fb8c00; }
+
+/* ---- Branch card — mirrors home page merge-group-card style ---- */
+.branch-card {
   display: flex;
+  border-radius: 8px;
+  background: #fff;
+  border-top: 1.5px solid #e0e0e0;
+  border-right: 1.5px solid #e0e0e0;
+  border-bottom: 1.5px solid #e0e0e0;
+  border-left: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+}
+
+/* Left accent bar */
+.card-accent {
+  width: 5px;
+  flex-shrink: 0;
+}
+
+.card-accent.status-ready { background: #4caf50; }
+.card-accent.status-open { background: #1976d2; }
+.card-accent.status-waiting { background: #fb8c00; }
+
+.card-body {
+  flex: 1;
+  padding: 14px 18px;
+  min-width: 0;
+}
+
+/* ---- Card header ---- */
+.card-header {
+  display: flex;
+  align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  margin-bottom: 12px;
   flex-wrap: wrap;
+  gap: 8px;
 }
 
-.summary-repo {
+.branch-card-title {
   display: flex;
   align-items: center;
-}
-
-.summary-labels {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
+  min-width: 0;
   gap: 6px;
 }
 
-.summary-link,
-.repo-link,
-.mr-link,
+.title-icon {
+  color: #5f6368;
+  flex-shrink: 0;
+}
+
+.branch-title-link,
+.branch-title-text {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #1a1a2e;
+}
+
+.branch-title-link {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- Detail rows ---- */
+.detail-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 0.85rem;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+  word-break: break-word;
+}
+
+.detail-row.align-start {
+  align-items: flex-start;
+}
+
+.detail-label {
+  font-weight: 600;
+  color: #37474f;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.detail-value {
+  color: #37474f;
+  flex: 1;
+  min-width: 0;
+}
+
+.detail-link,
 .job-link {
   color: inherit;
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 
-.mr-block {
-  word-break: break-word;
-}
-
+/* ---- Jobs list ---- */
 .jobs-list {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  margin-top: 4px;
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 600px) {
+  .card-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 </style>
