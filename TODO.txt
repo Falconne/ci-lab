@@ -1,0 +1,17 @@
+Perform the following improvements to the Merge Group Details page:
+
+Make each branch card title (circled in the image) also show the branchname with a vertical separator (e.g. primary-2 | feature/beta). Also make the link go to the branch page in Gitlab rather than the default root project page, i.e. in this case not http://localhost:8081/test-group/primary-2 but http://localhost:8081/test-group/primary-2/-/tree/feature/beta?ref_type=heads
+
+If no merge request exists, put a "Create" link there that goes to the appropriate page to open an MR for this branch.
+
+There should be a bit more of a gap between the labels and text, e.g. "Merge Request:Beta changes in primary-2" should have more space after the colon. The "Approvals:" part looks ok though, make it more like that.
+
+Style the branch cards to e the same as the merge group cards on the main page, with the status colour along the left, similar soft and rounded boders, etc.
+
+There is no need for a full summary section up top. That section should just contain the Merge Group Name and the overal Merge Group Status.
+
+The "Back to Dashboard" link should be on the top left of the page if there is space, with the rest of the content shifted up. If there width is narrow, then it shoudl collapse to the current layout.
+
+Commit and push the above changes before doing the remaining tasks below.
+
+`GetMergeGroupDetails` should be moved to a new `MergeGroupController`.
