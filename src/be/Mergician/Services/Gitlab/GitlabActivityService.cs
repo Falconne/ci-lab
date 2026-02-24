@@ -15,9 +15,9 @@ public class GitlabActivityService
 {
     private static readonly TimeSpan _maxActivityLookback = TimeSpan.FromDays(14);
 
-    private readonly GitlabService _gitlabService;
-
     private readonly GitlabPipelineService _gitlabPipelineService;
+
+    private readonly GitlabService _gitlabService;
 
     private readonly ILogger<GitlabActivityService> _logger;
 
@@ -65,22 +65,12 @@ public class GitlabActivityService
             cancellationToken.ThrowIfCancellationRequested();
 
             if (await ShouldSkipBranchByLookup(
-                currentUser,
-                cached.BranchName,
-                cached.ProjectId,
-                cached.BranchInProjectId,
-                "cached activity stream",
-                cancellationToken))
-            {
-                continue;
-            }
-
-            if (ShouldSkipScheduledForDeletion(
+                    currentUser,
                     cached.BranchName,
                     cached.ProjectId,
-                    cached.ProjectName,
                     cached.BranchInProjectId,
-                    "cached activity stream"))
+                    "cached activity stream",
+                    cancellationToken))
             {
                 continue;
             }
@@ -128,7 +118,7 @@ public class GitlabActivityService
             gitlabUserId,
             fetchSince);
 
-        var pushEvents = _gitlabService.StreamPushEventsSince(
+        var pushEvents = _gitlabService.GetPushEventsSince(
             currentUser,
             fetchSince,
             cancellationToken);
@@ -170,7 +160,7 @@ public class GitlabActivityService
             gitlabUserId,
             fetchSince);
 
-        var pushEvents = _gitlabService.StreamPushEventsSince(
+        var pushEvents = _gitlabService.GetPushEventsSince(
             currentUser,
             fetchSince,
             cancellationToken);
@@ -223,12 +213,12 @@ public class GitlabActivityService
             cancellationToken.ThrowIfCancellationRequested();
 
             if (await ShouldSkipBranchByLookup(
-                currentUser,
-                branch.BranchName,
-                branch.ProjectId,
-                branch.BranchInProjectId,
-                $"merge group {mergeGroupId} details load",
-                cancellationToken))
+                    currentUser,
+                    branch.BranchName,
+                    branch.ProjectId,
+                    branch.BranchInProjectId,
+                    $"merge group {mergeGroupId} details load",
+                    cancellationToken))
             {
                 continue;
             }
@@ -405,12 +395,12 @@ public class GitlabActivityService
             var key = $"{pushEvent.BranchName}:{pushEvent.ProjectId}";
 
             if (await ShouldSkipBranchByLookup(
-                user,
-                pushEvent.BranchName,
-                pushEvent.ProjectId,
-                null,
-                "push-event processing",
-                cancellationToken))
+                    user,
+                    pushEvent.BranchName,
+                    pushEvent.ProjectId,
+                    null,
+                    "push-event processing",
+                    cancellationToken))
             {
                 continue;
             }
@@ -437,9 +427,11 @@ public class GitlabActivityService
             }
 
             var projectNameWithNamespace = project.NameWithNamespace;
-            var projectName = string.IsNullOrWhiteSpace(project.Name)
-                ? GetProjectDisplayName(projectNameWithNamespace, pushEvent.ProjectId)
-                : project.Name;
+            if (string.IsNullOrWhiteSpace(project.Name))
+            {
+                _logger.LogError("Invalid empty project name in project id {id}", pushEvent.ProjectId);
+                continue;
+            }
 
             // Store in database
             var branchRecord = _mergeGroupRepository.GetOrCreateBranchRecord(
@@ -470,7 +462,7 @@ public class GitlabActivityService
             yield return new BranchActivity(
                 pushEvent.BranchName,
                 pushEvent.ProjectId,
-                projectName,
+                project.Name,
                 projectNameWithNamespace,
                 null,
                 null,
@@ -585,7 +577,7 @@ public class GitlabActivityService
         string branchName,
         int projectId,
         string projectNameWithNamespace,
-        int? trackedBranchInProjectId,
+        int? trackedBranchInMergeGroupId,
         string operationName)
     {
         if (!GitlabService.IsScheduledForDeletion(projectNameWithNamespace))
@@ -600,16 +592,16 @@ public class GitlabActivityService
             operationName,
             projectNameWithNamespace);
 
-        if (trackedBranchInProjectId.HasValue)
+        if (trackedBranchInMergeGroupId.HasValue)
         {
             _logger.LogInformation(
                 "Removing tracked branch record {BranchRecordId} for '{BranchName}' in project {ProjectId} during {OperationName} because project is scheduled for deletion",
-                trackedBranchInProjectId.Value,
+                trackedBranchInMergeGroupId.Value,
                 branchName,
                 projectId,
                 operationName);
 
-            RemoveBranchAndCleanup(trackedBranchInProjectId.Value);
+            RemoveBranchAndCleanup(trackedBranchInMergeGroupId.Value);
         }
 
         return true;
@@ -710,9 +702,9 @@ public class GitlabActivityService
     /// <summary>
     ///     Removes a branch from the DB and cleans up any empty merge groups.
     /// </summary>
-    private void RemoveBranchAndCleanup(int branchInProjectId)
+    private void RemoveBranchAndCleanup(int branchInMergeGroupId)
     {
-        _mergeGroupRepository.DeleteBranch(branchInProjectId);
+        _mergeGroupRepository.DeleteBranch(branchInMergeGroupId);
 
         // Clean up any merge groups that are now empty
         var emptyGroups = _mergeGroupRepository.GetEmptyMergeGroups();

@@ -67,7 +67,7 @@ public class GitlabService
     ///     filtering in-process to preserve sub-day precision.
     /// </summary>
     public async IAsyncEnumerable<(string BranchName, int ProjectId, DateTimeOffset CreatedAt)>
-        StreamPushEventsSince(
+        GetPushEventsSince(
             GitlabAccessUser user,
             DateTimeOffset since,
             [EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -95,7 +95,7 @@ public class GitlabService
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogError(
-                    "StreamPushEventsSince failed on page {Page} with status {StatusCode}",
+                    "GetPushEventsSince failed on page {Page} with status {StatusCode}",
                     page,
                     (int)response.StatusCode);
 
@@ -339,5 +339,4 @@ public class GitlabService
         var json = await response.Content.ReadAsStringAsync();
         return JsonSerializer.Deserialize<GitLabApprovalState>(json, _jsonOptions);
     }
-
 }
