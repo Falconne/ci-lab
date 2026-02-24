@@ -287,7 +287,7 @@ async function loadDetails() {
   }
 
   try {
-    const response = await fetch(`/api/activity/merge-groups/${mergeGroupId}`)
+    const response = await fetch(`/api/merge-groups/${mergeGroupId}`)
 
     if (response.status === 401) {
       errorMessage.value = 'You are not authenticated. Please sign in again.'
