@@ -1,3 +1,23 @@
+Let's change the way the Mergician dashboard retrieves and updates data. We will keep the methodology for updating MR and approvals status the same, but change how branch and merge group data is handled. The current method adds unnecessary load on the backend if the user has multiple copied of the dashboard open.
+
+Change the method such that, instead of an initial load from the DB and then direct activity polling, make the frontend poll always works the same... the backend always just responds with the current data from the database for that user, without subsequent checking for new acivity. There is no need for a "last poll time" to be sent from the frontend any more. Frontend can continue to send IDs of what it's currently showing to the backend so a minimal diff can be sent back. Do not check for branch deletion or unavailability during this process, just respond back with what's in the database and this diff is all that the frontend should use to add or remove entries from the dashboard. There is no need to stream data on these polls any more for, as every poll will be responded to with static data. We don't need to trigger MR and approval status updates for these records from the backend any more. Have the frontend continue to do its separate regular poll for MR/approval status updates for the branches it is showing.
+
+To keep the database upto date, the moment a user makes any request to the backend, start a background thread using that user's access token (if a thread doesn't already exist for this user) that on first spin up will do something similar to what happens now, where it backfills the the database based on the user's activity from the time of their last branch record in the datase (or 14 days, whichever is shorter) and then poll Gitlab every 10 seconds for new activity from that user and continue to fill the database. During this poll also check for deleted branches and cleanup dead records from the DB.
+
+Upon first load of the dashboard, the frontend should poll the database every second for 5 seconds, as there maybe quick updates once the thread spins up, but after this switch polling every 5 seconds.
+
+The background thread should stop 5 minutes after the user's update poll activity stops coming (i.e. they've closed all tabs). To record their last activity, use a threadsafe variable in a shared singleton to store their last poll time. If this is not advisable, then we can create a user table in the DB to record this, but it would be prefrable to find a method more lightweight than calling the DB.
+
+If there is danger that this background thread gets killed prematurely in a ASP.Net environment, take steps to make sure this is mitigated, either by preventing it or making sure it gets restarted on the next user request (which should be what happens naturally).
+
+Take particular care to make sure we don't have multiple background threads running for the same user or that we leave threads running longer than they should after the user has left.
+
+If the frontend currently has any code to prevent the merge groups reordering if the mouse if hovering over them, remove that functionality. The merge groups should always reorder so the ones with recent activity are at the top.
+
+Run the tests to verify everything still works.
+
+---
+
 In the Merge Group Details page, the backend first loads all the details of the merge group and sends it back at once. We also want it to dynamically update all the data shown (MRs, approval, builds, etc) on a regular poll like the main page dashboard.
 
 Make the merge details page return data incrementally on first load, as it is being discovered. For example, branch data from the database can come back early. Implement the a similar technique to what the dashboard uses for filling in data for MRs, Approvals, Status, etc after the initial records, and have it keep updating with the poll.

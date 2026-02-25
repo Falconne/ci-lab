@@ -58,7 +58,7 @@ try
     builder.Services.AddSingleton<GitlabService>();
     builder.Services.AddSingleton<GitlabPipelineService>();
     builder.Services.AddSingleton<VersionService>();
-    builder.Services.AddScoped<GitlabActivityService>();
+    builder.Services.AddSingleton<GitlabActivityService>();
 
     // Register GitLab authentication handler
     builder.Services.AddSingleton(new GitLabAuthSettings { ApiBaseUrl = gitlabApiBaseUrl });
