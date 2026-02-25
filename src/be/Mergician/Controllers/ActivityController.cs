@@ -26,77 +26,63 @@ public class ActivityController : ControllerBase
 
     private readonly GitlabService _gitlabService;
 
+    private readonly UserActivitySyncService _syncService;
+
     private readonly ILogger<ActivityController> _logger;
 
     public ActivityController(
         GitlabActivityService activityService,
         GitlabService gitlabService,
         ICoreRepository coreRepository,
+        UserActivitySyncService syncService,
         ILogger<ActivityController> logger)
     {
         _activityService = activityService;
         _gitlabService = gitlabService;
         _coreRepository = coreRepository;
+        _syncService = syncService;
         _logger = logger;
     }
 
     /// <summary>
-    ///     Streams branch activity as Server-Sent Events.
-    ///     Each event is a JSON-serialized BranchActivity record.
-    ///     Initial records have HasMergeRequest=null (loading state),
-    ///     followed by updates with full MR/approval data.
-    ///     A final event with type "done" signals the end of the stream.
+    ///     Returns a diff of the user's dashboard data compared to what the frontend currently shows.
+    ///     The frontend sends the branch-project pairs it currently displays, and the backend
+    ///     returns branches to add or remove based on the current database state.
+    ///     Also ensures the background sync thread is running for this user.
     /// </summary>
-    [HttpGet("stream")]
-    public async Task StreamPushActivity(
-        [FromQuery] string? lastPollTime,
+    [HttpPost("poll")]
+    public async Task<IActionResult> PollDashboard(
+        [FromBody] DashboardPollRequest request,
         CancellationToken cancellationToken)
     {
-        var requestReceivedAt = DateTimeOffset.UtcNow;
         var currentUser = HttpContext.GetGitlabUser();
 
-        if (!TryParseLastPollTime(lastPollTime, out var parsedLastPollTime, out var parseError))
+        if (!_coreRepository.IsHealthy())
         {
-            Response.StatusCode = 400;
-            await Response.WriteAsJsonAsync(new ErrorResponse(parseError!), cancellationToken);
-            return;
-        }
-
-        if (!await EnsureDatabaseHealthyForSse(cancellationToken, "stream activity"))
-        {
-            return;
+            _logger.LogError("Database is unhealthy, cannot poll for dashboard data");
+            return StatusCode(503, new ErrorResponse("Database is unavailable"));
         }
 
         var userInfo = await _gitlabService.GetCurrentUser(currentUser);
         if (userInfo == null)
         {
-            _logger.LogWarning("Could not resolve GitLab user for stream");
-            Response.StatusCode = 401;
-            return;
+            return Unauthorized();
         }
 
-        _logger.LogInformation("Starting SSE activity stream for user {UserId}", userInfo.Id);
+        // Ensure the background sync thread is running (also records poll activity)
+        _syncService.EnsureSyncRunning(userInfo.Id, currentUser);
 
-        await StreamSse(
-            "activity",
-            async (streamToken, writeLock) =>
-            {
-                await WriteSseEvent(
-                    new ActivityPollCursor(requestReceivedAt),
-                    streamToken,
-                    writeLock,
-                    "poll-cursor");
+        _logger.LogDebug(
+            "Dashboard poll for user {UserId} with {Count} known branches",
+            userInfo.Id, request.KnownBranches.Count);
 
-                await foreach (var activity in _activityService.StreamBranchActivity(
-                                   currentUser,
-                                   userInfo.Id,
-                                   parsedLastPollTime,
-                                   streamToken))
-                {
-                    await WriteSseEvent(activity, streamToken, writeLock);
-                }
-            },
-            cancellationToken);
+        var result = _activityService.GetDashboardDiff(userInfo.Id, request.KnownBranches);
+
+        _logger.LogDebug(
+            "Returning {Added} added, {Removed} removed branches for user {UserId}",
+            result.Added.Count, result.Removed.Count, userInfo.Id);
+
+        return Ok(result);
     }
 
     /// <summary>
@@ -118,6 +104,13 @@ public class ActivityController : ControllerBase
 
         _logger.LogInformation("Starting SSE refresh stream for {Count} branches", branches.Count);
 
+        // Also keep the background sync thread alive during refresh
+        var userInfo = await _gitlabService.GetCurrentUser(currentUser);
+        if (userInfo != null)
+        {
+            _syncService.EnsureSyncRunning(userInfo.Id, currentUser);
+        }
+
         await StreamSse(
             "refresh",
             async (streamToken, writeLock) =>
@@ -138,52 +131,6 @@ public class ActivityController : ControllerBase
                 }
             },
             cancellationToken);
-    }
-
-    /// <summary>
-    ///     Returns branch activity for events that occurred since the given time.
-    ///     Used by the frontend to poll for new activity after the initial SSE stream completes.
-    /// </summary>
-    [HttpGet("poll")]
-    public async Task<IActionResult> PollActivity(
-        [FromQuery] string? lastPollTime,
-        CancellationToken cancellationToken)
-    {
-        var currentUser = HttpContext.GetGitlabUser();
-
-        if (string.IsNullOrWhiteSpace(lastPollTime))
-        {
-            _logger.LogWarning("Poll request rejected: missing required lastPollTime query value");
-            return BadRequest(new ErrorResponse("Missing required 'lastPollTime' query value."));
-        }
-
-        if (!TryParseLastPollTime(lastPollTime, out var parsedLastPollTime, out var parseError))
-        {
-            return BadRequest(new ErrorResponse(parseError!));
-        }
-
-        if (!_coreRepository.IsHealthy())
-        {
-            _logger.LogError("Database is unhealthy, cannot poll for activity");
-            return StatusCode(503, new ErrorResponse("Database is unavailable"));
-        }
-
-        var userInfo = await _gitlabService.GetCurrentUser(currentUser);
-        if (userInfo == null)
-        {
-            return Unauthorized();
-        }
-
-        _logger.LogInformation("Polling for activity for user {UserId}", userInfo.Id);
-
-        var result = await _activityService.GetPolledActivitySince(
-            currentUser,
-            userInfo.Id,
-            parsedLastPollTime!.Value,
-            cancellationToken);
-
-        _logger.LogInformation("Returning {Count} poll results", result.Activities.Count);
-        return Ok(result);
     }
 
     private async Task<bool> EnsureDatabaseHealthyForSse(
@@ -240,13 +187,9 @@ public class ActivityController : ControllerBase
 
     private void ConfigureSseHeaders()
     {
-        // Required MIME type so browsers parse response frames as Server-Sent Events.
         Response.Headers.ContentType = "text/event-stream";
-        // Prevent proxies and browsers from caching event data.
         Response.Headers.CacheControl = "no-cache";
-        // Keep the HTTP connection open for incremental event delivery.
         Response.Headers.Connection = "keep-alive";
-        // Disable NGINX buffering so each event is flushed to the client immediately.
         Response.Headers["X-Accel-Buffering"] = "no";
     }
 
@@ -285,29 +228,5 @@ public class ActivityController : ControllerBase
         {
             writeLock.Release();
         }
-    }
-
-    private bool TryParseLastPollTime(
-        string? lastPollTime,
-        out DateTimeOffset? parsedLastPollTime,
-        out string? error)
-    {
-        parsedLastPollTime = null;
-        error = null;
-
-        if (string.IsNullOrWhiteSpace(lastPollTime))
-        {
-            return true;
-        }
-
-        if (DateTimeOffset.TryParse(lastPollTime, out var parsed))
-        {
-            parsedLastPollTime = parsed.ToUniversalTime();
-            return true;
-        }
-
-        _logger.LogWarning("Invalid lastPollTime query value '{LastPollTime}'", lastPollTime);
-        error = "Invalid 'lastPollTime' query value. Use an ISO-8601 timestamp.";
-        return false;
     }
 }

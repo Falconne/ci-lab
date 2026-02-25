@@ -7,9 +7,10 @@ using System.Runtime.CompilerServices;
 namespace Mergician.Services.Gitlab;
 
 /// <summary>
-///     Provides activity-related operations for the current user,
-///     streaming branch activity data as it is discovered from GitLab.
-///     Uses the database to cache results and track merge groups.
+///     Provides activity-related operations for the current user.
+///     Dashboard data is served from the database; background sync threads
+///     (managed by <see cref="UserActivitySyncService" />) keep the database current.
+///     MR and approval resolution is handled by the refresh endpoint.
 /// </summary>
 public class GitlabActivityService
 {
@@ -36,155 +37,169 @@ public class GitlabActivityService
     }
 
     /// <summary>
-    ///     Streams branch activity records. First returns cached data from the database,
-    ///     then fetches new data from GitLab, stores it in the database, and streams those too.
-    ///     MR and approval data is resolved live (not cached).
+    ///     Returns a diff between the frontend's known branches and the current database state.
+    ///     Added branches include full structural data (no MR/approval resolution).
+    ///     Removed branches identify entries the frontend should remove.
     /// </summary>
-    public async IAsyncEnumerable<BranchActivity> StreamBranchActivity(
-        GitlabAccessUser currentUser,
+    public DashboardPollResponse GetDashboardDiff(
         int gitlabUserId,
-        DateTimeOffset? lastPollTime,
-        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        List<KnownBranch> knownBranches)
     {
-        // 1. Return cached data from DB first
-        _logger.LogInformation("Fetching cached branches for user {UserId} from database", gitlabUserId);
+        var dbBranches = _mergeGroupRepository.GetUserBranches(gitlabUserId);
 
-        var cachedBranches = _mergeGroupRepository.GetUserBranches(gitlabUserId);
-        _logger.LogInformation(
-            "Found {Count} cached branches for user {UserId}",
-            cachedBranches.Count,
-            gitlabUserId);
-
-        DateTimeOffset? latestCachedActivity = null;
-
-        // Track returned branches to avoid sending duplicates to the UI when checking through DB and activity events.
-        var returnedKeys = new HashSet<string>();
-
-        foreach (var cached in cachedBranches)
+        // Index DB branches by composite key
+        var dbByKey = new Dictionary<string, Entities.Database.BranchWithMergeGroupInfo>();
+        foreach (var b in dbBranches)
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            var key = $"{b.BranchName}:{b.ProjectId}";
+            dbByKey[key] = b;
+        }
 
-            if (await ShouldSkipBranchByLookup(
-                    currentUser,
-                    cached.BranchName,
-                    cached.ProjectId,
-                    cached.BranchInProjectId,
-                    "cached activity stream",
-                    cancellationToken))
-            {
-                continue;
-            }
+        // Index known branches by composite key
+        var knownKeys = new HashSet<string>();
+        foreach (var k in knownBranches)
+        {
+            knownKeys.Add($"{k.BranchName}:{k.ProjectId}");
+        }
 
-            var key = $"{cached.BranchName}:{cached.ProjectId}";
-            returnedKeys.Add(key);
+        // Added: in DB but not known to frontend
+        var added = new List<BranchActivity>();
+        foreach (var (key, branch) in dbByKey)
+        {
+            if (knownKeys.Contains(key)) continue;
 
-            var cachedLastUpdatedUtc = UtcTimestamp.EnsureUtc(
-                cached.LastUpdateTime,
-                () =>
-                    $"GitlabActivityService.StreamBranchActivity cached branch '{cached.BranchName}'/{cached.ProjectId}",
+            var projectName = GetProjectDisplayName(branch.ProjectName, branch.ProjectId);
+            var lastUpdated = UtcTimestamp.EnsureUtc(
+                branch.LastUpdateTime,
+                () => $"GitlabActivityService.GetDashboardDiff branch '{branch.BranchName}'/{branch.ProjectId}",
                 _logger);
 
-            if (!latestCachedActivity.HasValue || cachedLastUpdatedUtc > latestCachedActivity.Value)
-            {
-                latestCachedActivity = cachedLastUpdatedUtc;
-            }
-
-            var projectNameWithNamespace = cached.ProjectName;
-            var projectName = GetProjectDisplayName(projectNameWithNamespace, cached.ProjectId);
-
-            // Yield initial record with unknown MR status
-            var cachedActivity = new BranchActivity(
-                cached.BranchName,
-                cached.ProjectId,
+            added.Add(new BranchActivity(
+                branch.BranchName,
+                branch.ProjectId,
                 projectName,
-                projectNameWithNamespace,
-                null,
-                null,
-                null,
-                cachedLastUpdatedUtc,
-                cached.MergeGroupId);
-
-            yield return cachedActivity;
-
-            // Yield resolved MR/approval data
-            yield return await ResolveBranchActivityIn(currentUser, cachedActivity, cancellationToken);
+                branch.ProjectName,
+                null, null, null,
+                lastUpdated,
+                branch.MergeGroupId));
         }
 
-        // 2. Fetch new data from GitLab
-        var fetchSince = DetermineFetchSince(lastPollTime, latestCachedActivity);
-
-        _logger.LogInformation(
-            "Fetching GitLab events for user {UserId} since {Since}",
-            gitlabUserId,
-            fetchSince);
-
-        var pushEvents = _gitlabService.GetPushEventsSince(
-            currentUser,
-            fetchSince,
-            cancellationToken);
-
-        var records = FetchAndStoreBranchActivityRecords(
-            currentUser,
-            gitlabUserId,
-            pushEvents,
-            returnedKeys,
-            cancellationToken);
-
-        await foreach (var branch in records)
+        // Removed: known to frontend but not in DB
+        var removed = new List<KnownBranch>();
+        foreach (var k in knownBranches)
         {
-            // Yield skeleton record to the UI immediately.
-            yield return branch;
-
-            // Resolve MR/approval data
-            yield return await ResolveBranchActivityIn(currentUser, branch, cancellationToken);
+            var key = $"{k.BranchName}:{k.ProjectId}";
+            if (!dbByKey.ContainsKey(key))
+            {
+                removed.Add(k);
+            }
         }
 
-        _logger.LogInformation("Finished streaming branch activity for user {UserId}", gitlabUserId);
+        _logger.LogDebug(
+            "Dashboard diff for user {UserId}: {Added} added, {Removed} removed",
+            gitlabUserId, added.Count, removed.Count);
+
+        return new DashboardPollResponse(added, removed);
     }
 
     /// <summary>
-    ///     Returns branch activity records for events that occurred since the given time.
-    ///     Used for polling to detect new pushes without re-fetching the full history.
-    ///     Returns fully resolved records (MR and approval data included).
+    ///     Fetches push events from GitLab since the given time and stores discovered
+    ///     branches in the database. Called by the background sync thread.
     /// </summary>
-    public async Task<ActivityPollResponse> GetPolledActivitySince(
-        GitlabAccessUser currentUser,
+    public async Task SyncUserActivityFromGitLab(
+        GitlabAccessUser user,
         int gitlabUserId,
-        DateTimeOffset lastPollTime,
-        CancellationToken cancellationToken = default)
+        DateTimeOffset since,
+        CancellationToken cancellationToken)
     {
-        var fetchSince = DetermineFetchSince(lastPollTime, null);
-
         _logger.LogDebug(
-            "Polling for activity for user {UserId} since {SinceUtc}",
-            gitlabUserId,
-            fetchSince);
+            "Syncing GitLab activity for user {UserId} since {Since}",
+            gitlabUserId, since);
 
-        var pushEvents = _gitlabService.GetPushEventsSince(
-            currentUser,
-            fetchSince,
-            cancellationToken);
+        var pushEvents = _gitlabService.GetPushEventsSince(user, since, cancellationToken);
+        var returnedKeys = new HashSet<string>();
 
-        var results = new List<BranchActivity>();
-        var deletedBranches = new List<BranchDeletedNotification>();
-        var existingKeys = new HashSet<string>();
-
-        var records = FetchAndStoreBranchActivityRecords(
-            currentUser,
-            gitlabUserId,
-            pushEvents,
-            existingKeys,
-            cancellationToken);
-
-        await foreach (var branch in records)
+        await foreach (var _ in FetchAndStoreBranchActivityRecords(
+                           user, gitlabUserId, pushEvents, returnedKeys, cancellationToken))
         {
-            var activity = await ResolveBranchActivityIn(currentUser, branch, cancellationToken);
+            // Consume the enumerable to trigger DB storage; results are not needed
+        }
+    }
 
-            results.Add(activity);
+    /// <summary>
+    ///     Determines the start time for backfilling a user's activity.
+    ///     Uses the latest branch record timestamp or 14 days ago, whichever is more recent.
+    /// </summary>
+    public DateTimeOffset GetBackfillSince(int gitlabUserId)
+    {
+        var sinceLimit = DateTimeOffset.UtcNow.Subtract(_maxActivityLookback);
+
+        var userBranches = _mergeGroupRepository.GetUserBranches(gitlabUserId);
+        if (userBranches.Count == 0)
+        {
+            _logger.LogDebug(
+                "No existing branches for user {UserId}; backfilling from lookback limit {Limit}",
+                gitlabUserId, sinceLimit);
+            return sinceLimit;
         }
 
-        _logger.LogInformation("Returning {Count} branch activity records from poll", results.Count);
-        return new ActivityPollResponse(results, deletedBranches, DateTimeOffset.UtcNow);
+        DateTimeOffset latestRecord = DateTimeOffset.MinValue;
+        foreach (var branch in userBranches)
+        {
+            var ts = UtcTimestamp.EnsureUtc(
+                branch.LastUpdateTime,
+                () => $"GitlabActivityService.GetBackfillSince branch '{branch.BranchName}'/{branch.ProjectId}",
+                _logger);
+
+            if (ts > latestRecord)
+            {
+                latestRecord = ts;
+            }
+        }
+
+        var result = latestRecord > sinceLimit ? latestRecord : sinceLimit;
+        _logger.LogDebug(
+            "Backfill for user {UserId}: latest record at {LatestRecord}, using {Result}",
+            gitlabUserId, latestRecord, result);
+
+        return result;
+    }
+
+    /// <summary>
+    ///     Checks all tracked branches for a user and removes any that have been deleted from GitLab.
+    ///     Called by the background sync thread during each poll cycle.
+    /// </summary>
+    public async Task CleanupDeletedBranches(
+        GitlabAccessUser user,
+        int gitlabUserId,
+        CancellationToken cancellationToken)
+    {
+        var userBranches = _mergeGroupRepository.GetUserBranches(gitlabUserId);
+        _logger.LogDebug(
+            "Checking {Count} tracked branches for user {UserId} for deletion",
+            userBranches.Count, gitlabUserId);
+
+        foreach (var branch in userBranches)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var lookup = await _gitlabService.GetBranchLookupResult(
+                user, branch.ProjectId, branch.BranchName);
+
+            if (lookup.IsMissing)
+            {
+                _logger.LogInformation(
+                    "Background sync: branch '{BranchName}' in project {ProjectId} no longer exists, removing",
+                    branch.BranchName, branch.ProjectId);
+                RemoveBranchAndCleanup(branch.BranchInProjectId);
+            }
+            else if (lookup.IsUnavailable)
+            {
+                _logger.LogDebug(
+                    "Background sync: branch lookup unavailable for '{BranchName}' in project {ProjectId}; skipping",
+                    branch.BranchName, branch.ProjectId);
+            }
+        }
     }
 
     /// <summary>
@@ -473,52 +488,6 @@ public class GitlabActivityService
                 null,
                 project.WebUrl);
         }
-    }
-
-    private DateTimeOffset DetermineFetchSince(
-        DateTimeOffset? requestLastPollTime,
-        DateTimeOffset? latestCachedActivity)
-    {
-        var sinceLimit = DateTimeOffset.UtcNow.Subtract(_maxActivityLookback);
-
-        if (requestLastPollTime.HasValue)
-        {
-            var requested = UtcTimestamp.EnsureUtc(
-                requestLastPollTime.Value,
-                () => "GitlabActivityService.DetermineFetchSince requestLastPollTime",
-                _logger);
-
-            if (requested < sinceLimit)
-            {
-                _logger.LogInformation(
-                    "Requested last poll time {Requested} is older than {Limit}; clamping to lookback limit",
-                    requested,
-                    sinceLimit);
-
-                return sinceLimit;
-            }
-
-            _logger.LogDebug(
-                "Using frontend-provided last poll time {Requested} as fetch since",
-                requested);
-
-            return requested;
-        }
-
-        if (latestCachedActivity.HasValue && latestCachedActivity.Value > sinceLimit)
-        {
-            _logger.LogDebug(
-                "Using latest cached activity timestamp {LatestCached} as fetch since",
-                latestCachedActivity.Value);
-
-            return latestCachedActivity.Value;
-        }
-
-        _logger.LogDebug(
-            "No valid frontend cursor or recent cached activity; using lookback limit {Limit}",
-            sinceLimit);
-
-        return sinceLimit;
     }
 
     private async Task<bool> ShouldSkipBranchByLookup(

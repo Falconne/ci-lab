@@ -1,3 +1,4 @@
+using IntegrationTest.Services;
 using Microsoft.Playwright;
 using PlaywrightService;
 using Serilog;
@@ -6,7 +7,7 @@ namespace IntegrationTest.Tests;
 
 /// <summary>
 ///     Tests that the dashboard UI displays the expected branch activity data
-///     after SSE streaming completes, using the card-based layout.
+///     after polling-based loading completes, using the card-based layout.
 ///     Uses Playwright to interact with the actual frontend, just as a real user would.
 ///     Expected data per user (created by ProjectSetupService.SetupTestBranchData):
 ///     test1: feature/alpha (primary-1 with MR+approval, secondary-1 with MR),
@@ -99,7 +100,7 @@ public class DashboardTest : IDisposable
         // Login as this user via Mergician OAuth flow
         await LoginToMergician(username);
 
-        // Navigate to the dashboard and wait for SSE streaming to complete
+        // Navigate to the dashboard and wait for data to load via polling
         await WaitForDashboard(username);
 
         // Verify expectations against the rendered UI
@@ -167,8 +168,8 @@ public class DashboardTest : IDisposable
     }
 
     /// <summary>
-    ///     Navigates to the Mergician home page and waits for the SSE activity stream
-    ///     to finish (the streaming indicator disappears and the cards are rendered).
+    ///     Navigates to the Mergician home page and waits for the dashboard data to load
+    ///     via polling (cards appear and MR data is resolved through the refresh cycle).
     ///     Parses the rendered cards into <see cref="_parsedCards" /> for assertion.
     /// </summary>
     private async Task WaitForDashboard(string username)
@@ -177,16 +178,16 @@ public class DashboardTest : IDisposable
         await Task.Delay(2000);
         await _browser.TakeScreenshot($"dashboard_{username}_04_initial_load");
 
-        Log.Information("Waiting for SSE activity stream to complete...");
-        var streamComplete = await WaitForStreamCompletion(120);
-        if (!streamComplete)
+        Log.Information("Waiting for dashboard data to load...");
+        var loaded = await WaitForDashboardReady(120);
+        if (!loaded)
         {
-            await _browser.TakeScreenshot($"dashboard_{username}_05_stream_timeout");
+            await _browser.TakeScreenshot($"dashboard_{username}_05_load_timeout");
             throw new InvalidOperationException(
-                "Dashboard SSE stream did not complete within timeout");
+                "Dashboard did not fully load within timeout");
         }
 
-        await _browser.TakeScreenshot($"dashboard_{username}_05_stream_complete");
+        await _browser.TakeScreenshot($"dashboard_{username}_05_load_complete");
 
         // Parse the rendered dashboard cards
         _parsedCards = await ParseDashboardCards();
@@ -204,49 +205,11 @@ public class DashboardTest : IDisposable
     }
 
     /// <summary>
-    ///     Waits until there are no more loading spinners in the dashboard cards,
-    ///     meaning all data has been resolved via SSE.
+    ///     Waits until the dashboard cards appear and all card items have their MR data resolved.
     /// </summary>
-    private async Task<bool> WaitForStreamCompletion(int timeoutSeconds)
+    private async Task<bool> WaitForDashboardReady(int timeoutSeconds)
     {
-        for (var s = 0; s < timeoutSeconds; s++)
-        {
-            // Check if any cards exist
-            var cardCount = await _browser.Page.Locator(".merge-group-card").CountAsync();
-            if (cardCount == 0)
-            {
-                if (s % 10 == 0)
-                    Log.Information("Waiting for dashboard cards to appear... {Seconds}s", s);
-
-                await Task.Delay(1000);
-                continue;
-            }
-
-            // Check for loading spinners in cards
-            var spinnerCount =
-                await _browser.Page.Locator(".merge-group-card .v-progress-circular").CountAsync();
-
-            // Also check for the streaming indicator at the top
-            var streamingIndicator =
-                await _browser.Page.Locator(".streaming-indicator").CountAsync();
-
-            if (spinnerCount == 0 && streamingIndicator == 0)
-            {
-                Log.Information("Dashboard stream completed after ~{Seconds}s (no spinners remaining)", s);
-                return true;
-            }
-
-            if (s % 10 == 0)
-            {
-                Log.Information(
-                    "Waiting for stream to resolve... {SpinnerCount} spinners, streaming={Streaming}, {Seconds}s elapsed",
-                    spinnerCount, streamingIndicator > 0, s);
-            }
-
-            await Task.Delay(1000);
-        }
-
-        return false;
+        return await DashboardWaitHelper.WaitForDashboardReady(_browser.Page, timeoutSeconds);
     }
 
     /// <summary>
@@ -448,7 +411,7 @@ public class DashboardTest : IDisposable
         await _browser.Page.SetViewportSizeAsync(375, 812);
         await _browser.Navigate(TestConfig.MergicianUrl);
         await Task.Delay(2000);
-        await WaitForStreamCompletion(120);
+        await WaitForDashboardReady(120);
         await _browser.TakeScreenshot("dashboard_responsive_mobile");
 
         var cardCount = await _browser.Page.Locator(".merge-group-card").CountAsync();
@@ -510,26 +473,27 @@ public class DashboardTest : IDisposable
             throw new InvalidOperationException("Back to Dashboard button was not visible on details page");
         }
 
-        var summaryCard = _browser.Page.Locator(".summary-list");
+        var summaryCard = _browser.Page.Locator(".repo-card-list");
         if (!await BrowserService.WaitForElement(summaryCard, timeoutMs: 10000))
         {
-            throw new InvalidOperationException("Project summary was not visible on details page");
+            throw new InvalidOperationException("Project list was not visible on details page");
         }
 
-        var repoCard = _browser.Page.Locator(".repo-card-list .v-card").Filter(new() { HasTextString = repoContains }).First;
+        var repoCard = _browser.Page.Locator(".repo-card-list .branch-card").Filter(new() { HasTextString = repoContains }).First;
         if (!await BrowserService.WaitForElement(repoCard, timeoutMs: 10000))
         {
             throw new InvalidOperationException($"Could not find details card for repo '{repoContains}'");
         }
 
-        var repoLink = repoCard.Locator(".repo-link").First;
+        var repoLink = repoCard.Locator(".branch-title-link").First;
         var repoHref = (await repoLink.GetAttributeAsync("href")) ?? "";
         if (string.IsNullOrWhiteSpace(repoHref))
         {
             throw new InvalidOperationException($"Repo link href was empty for repo '{repoContains}'");
         }
 
-        var mrLink = repoCard.Locator(".mr-link").First;
+        var mrRow = repoCard.Locator(".detail-row").Filter(new() { HasTextString = "Merge Request:" }).First;
+        var mrLink = mrRow.Locator(".detail-link").First;
         var mrText = (await mrLink.InnerTextAsync()).Trim();
         if (!mrText.Contains(expectedMrTitle, StringComparison.OrdinalIgnoreCase))
         {
@@ -555,11 +519,11 @@ public class DashboardTest : IDisposable
             url => url.TrimEnd('/').Equals(TestConfig.MergicianUrl, StringComparison.OrdinalIgnoreCase),
             new PageWaitForURLOptions { Timeout = 20000 });
 
-        var streamComplete = await WaitForStreamCompletion(120);
-        if (!streamComplete)
+        var loaded = await WaitForDashboardReady(120);
+        if (!loaded)
         {
             throw new InvalidOperationException(
-                "Dashboard stream did not complete after navigating home from details page");
+                "Dashboard did not load after navigating home from details page");
         }
 
         await _browser.TakeScreenshot("dashboard_details_02_back_home");

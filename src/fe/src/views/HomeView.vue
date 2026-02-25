@@ -37,14 +37,19 @@
           <p class="mt-4 text-body-1">Loading dashboard...</p>
         </div>
 
-        <div v-else-if="sortedMergeGroups.length === 0 && !streaming" class="text-center pa-8">
+        <div v-else-if="sortedMergeGroups.length === 0 && !initialPhase" class="text-center pa-8">
           <v-icon icon="mdi-source-branch" size="64" color="grey" class="mb-4" />
           <p class="text-h6 text-grey">No active branches in the last 14 days</p>
         </div>
 
+        <div v-else-if="sortedMergeGroups.length === 0 && initialPhase" class="text-center pa-8">
+          <v-progress-circular indeterminate color="primary" size="48" />
+          <p class="mt-4 text-body-1">Loading dashboard...</p>
+        </div>
+
         <div v-else class="dashboard-cards">
           <v-progress-circular
-            v-if="streaming"
+            v-if="initialPhase"
             indeterminate
             color="primary"
             size="18"
@@ -58,8 +63,6 @@
               :key="group.groupKey"
               class="merge-group-card"
               :data-group-key="group.groupKey"
-              @mouseenter="onCardMouseEnter"
-              @mouseleave="onCardMouseLeave"
               @click="openMergeGroupDetails(group)"
             >
               <div class="card-accent" :class="groupStatusClass(group)" />
@@ -179,14 +182,14 @@ interface BranchDeletedNotification {
   mergeGroupId: number | null
 }
 
-interface ActivityPollResponse {
-  activities: BranchActivity[]
-  deletedBranches: BranchDeletedNotification[]
-  nextPollTime: string
+interface KnownBranch {
+  branchName: string
+  projectId: number
 }
 
-interface ActivityPollCursor {
-  nextPollTime: string
+interface DashboardPollResponse {
+  added: BranchActivity[]
+  removed: KnownBranch[]
 }
 
 interface MergeGroup {
@@ -197,6 +200,11 @@ interface MergeGroup {
 
 type GroupStatus = 'ready' | 'open' | 'waiting'
 
+const FAST_POLL_INTERVAL_MS = 1000
+const NORMAL_POLL_INTERVAL_MS = 5000
+const FAST_POLL_DURATION_MS = 5000
+const REFRESH_INTERVAL_MS = 15000
+
 const route = useRoute()
 const router = useRouter()
 const { currentUser, loadCurrentUser } = useCurrentUser()
@@ -204,20 +212,14 @@ const { currentUser, loadCurrentUser } = useCurrentUser()
 const activities = ref<BranchActivity[]>([])
 const initialLoading = ref(true)
 const authenticated = computed(() => currentUser.value !== null)
-const streaming = ref(false)
+const initialPhase = ref(false)
 const errorMessage = ref('')
 const now = ref(Date.now())
 
-// Hover-pause state for reordering
-const isHoveringCard = ref(false)
-const lastHoverLeaveTime = ref(0)
-const HOVER_COOLDOWN_MS = 2000
-
-let eventSource: EventSource | null = null
 let pollIntervalId: ReturnType<typeof setInterval> | null = null
 let refreshIntervalId: ReturnType<typeof setInterval> | null = null
 let timeIntervalId: ReturnType<typeof setInterval> | null = null
-let lastPollTime: string | null = null
+let fastPollTimeoutId: ReturnType<typeof setTimeout> | null = null
 
 // --- Status logic ---
 
@@ -225,7 +227,6 @@ function getGroupStatus(group: MergeGroup): GroupStatus {
   const statusPriority: GroupStatus[] = ['waiting', 'open', 'ready']
   let worstIndex = 2 // start with 'ready' (best)
   for (const item of group.items) {
-    // derive status per item: waiting if no MR, ready if approvalsMet, else open
     let s: GroupStatus = 'waiting'
     if (item.hasMergeRequest) {
       if (item.approvalsRequired != null && item.approvalsGiven != null
@@ -253,7 +254,6 @@ function itemApprovalsText(item: BranchActivity): string {
 }
 
 function approvalIconColor(item: BranchActivity): string {
-  // grey by default; green when sufficient approvals (or zero required)
   if (!item.hasMergeRequest || item.approvalsGiven == null || item.approvalsRequired == null) {
     return 'grey'
   }
@@ -305,22 +305,6 @@ function getGroupLatestTime(group: MergeGroup): number {
   return latest
 }
 
-// --- Hover-pause logic ---
-
-function onCardMouseEnter() {
-  isHoveringCard.value = true
-}
-
-function onCardMouseLeave() {
-  isHoveringCard.value = false
-  lastHoverLeaveTime.value = Date.now()
-}
-
-function canReorder(): boolean {
-  if (isHoveringCard.value) return false
-  return (Date.now() - lastHoverLeaveTime.value) >= HOVER_COOLDOWN_MS
-}
-
 /**
  * Groups activities by mergeGroupId (from DB) when available,
  * falling back to branchName for items without a mergeGroupId.
@@ -328,11 +312,9 @@ function canReorder(): boolean {
 const mergeGroups = computed<MergeGroup[]>(() => {
   const groups = new Map<string, { branchName: string; items: BranchActivity[] }>()
   for (const item of activities.value) {
-    // Use mergeGroupId as the grouping key when available, fallback to branchName
     const groupKey = item.mergeGroupId != null ? `mg:${item.mergeGroupId}` : `bn:${item.branchName}`
     const existing = groups.get(groupKey)
     if (existing) {
-      // Skip duplicates: same branch + project already in the group
       if (!existing.items.some(e => e.projectId === item.projectId && e.branchName === item.branchName)) {
         existing.items.push(item)
       }
@@ -348,50 +330,16 @@ const mergeGroups = computed<MergeGroup[]>(() => {
 })
 
 /**
- * Sorted merge groups — most recently updated first.
- * Respects hover-pause: when the user is hovering or recently hovered,
- * returns the previous sort order with new items appended at the bottom.
+ * Sorted merge groups — always ordered by most recently updated first.
  */
-const lastSortedKeys = ref<string[]>([])
-
 const sortedMergeGroups = computed<MergeGroup[]>(() => {
   const groups = mergeGroups.value
   if (groups.length === 0) return []
-
-  if (canReorder() || lastSortedKeys.value.length === 0) {
-    // Sort by most recently updated first
-    const sorted = [...groups].sort((a, b) => getGroupLatestTime(b) - getGroupLatestTime(a))
-    lastSortedKeys.value = sorted.map(g => g.groupKey)
-    return sorted
-  }
-
-  // Maintain previous order, append new items at the bottom
-  const keyToGroup = new Map(groups.map(g => [g.groupKey, g]))
-  const result: MergeGroup[] = []
-  const seen = new Set<string>()
-
-  for (const key of lastSortedKeys.value) {
-    const g = keyToGroup.get(key)
-    if (g) {
-      result.push(g)
-      seen.add(key)
-    }
-  }
-
-  // Append any new groups at the bottom
-  for (const g of groups) {
-    if (!seen.has(g.groupKey)) {
-      result.push(g)
-    }
-  }
-
-  lastSortedKeys.value = result.map(g => g.groupKey)
-  return result
+  return [...groups].sort((a, b) => getGroupLatestTime(b) - getGroupLatestTime(a))
 })
 
 /**
  * Formats an ISO datetime string to local date/time for display.
- * The backend stores and returns UTC; conversion to local happens here.
  */
 function formatDateTime(isoString: string): string {
   if (!isoString) return ''
@@ -448,7 +396,7 @@ function handleActivityEvent(data: BranchActivity) {
   }
 }
 
-function handleBranchDeleted(notification: BranchDeletedNotification) {
+function handleBranchDeleted(notification: { branchName: string; projectId: number }) {
   const idx = activities.value.findIndex(
     a => a.branchName === notification.branchName && a.projectId === notification.projectId
   )
@@ -464,56 +412,96 @@ function findLastIndexOf<T>(arr: T[], predicate: (item: T) => boolean): number {
   return -1
 }
 
-function startStreaming() {
-  streaming.value = true
-  const streamUrl = lastPollTime
-    ? `/api/activity/stream?lastPollTime=${encodeURIComponent(lastPollTime)}`
-    : '/api/activity/stream'
-  eventSource = new EventSource(streamUrl)
-
-  eventSource.addEventListener('poll-cursor', (event) => {
-    try {
-      const pollCursor: ActivityPollCursor = JSON.parse((event as MessageEvent).data)
-      if (pollCursor.nextPollTime) {
-        lastPollTime = pollCursor.nextPollTime
-      }
-    } catch (err) {
-      console.error('Failed to parse poll-cursor SSE data:', err)
-    }
-  })
-
-  eventSource.onmessage = (event) => {
-    try {
-      const data: BranchActivity = JSON.parse(event.data)
-      handleActivityEvent(data)
-    } catch (err) {
-      console.error('Failed to parse SSE data:', err)
+/**
+ * Builds the list of currently known branches to send to the backend,
+ * so it can compute a minimal diff.
+ */
+function getKnownBranches(): KnownBranch[] {
+  const seen = new Set<string>()
+  const result: KnownBranch[] = []
+  for (const a of activities.value) {
+    const key = `${a.branchName}:${a.projectId}`
+    if (!seen.has(key)) {
+      seen.add(key)
+      result.push({ branchName: a.branchName, projectId: a.projectId })
     }
   }
+  return result
+}
 
-  eventSource.addEventListener('done', () => {
-    streaming.value = false
-    eventSource?.close()
-    eventSource = null
-    startPolling()
-  })
+/**
+ * Polls the backend for dashboard data diff.
+ * Sends currently known branches and applies the returned diff.
+ */
+async function pollDashboard() {
+  try {
+    const response = await fetch('/api/activity/poll', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ knownBranches: getKnownBranches() })
+    })
 
-  eventSource.onerror = (event) => {
-    streaming.value = false
-    eventSource?.close()
-    eventSource = null
-    console.error('SSE stream error:', event)
-    startPolling()
+    if (response.status === 401) {
+      console.warn('Poll returned 401, stopping polling')
+      stopPolling()
+      return
+    }
+
+    if (response.status === 503) {
+      errorMessage.value = 'Database is unavailable. Please try again later.'
+      stopPolling()
+      return
+    }
+
+    if (!response.ok) {
+      console.error('Poll failed with status', response.status)
+      return
+    }
+
+    const data: DashboardPollResponse = await response.json()
+
+    // Handle removals
+    if (data.removed) {
+      for (const removed of data.removed) {
+        handleBranchDeleted(removed)
+      }
+    }
+
+    // Handle additions (new branches from DB)
+    if (data.added && data.added.length > 0) {
+      for (const activity of data.added) {
+        handleActivityEvent(activity)
+      }
+      // Trigger an immediate refresh to resolve MR/approval status for new branches
+      refreshExistingBranches()
+    }
+  } catch (err) {
+    console.error('Dashboard poll failed:', err)
   }
 }
 
 function startPolling() {
-  if (pollIntervalId !== null || refreshIntervalId !== null) {
-    return
-  }
+  if (pollIntervalId !== null) return
 
-  pollIntervalId = setInterval(pollForActivity, 5000)
-  refreshIntervalId = setInterval(refreshExistingBranches, 15000)
+  // Start with fast polling (every 1s for 5 seconds)
+  initialPhase.value = true
+  pollIntervalId = setInterval(pollDashboard, FAST_POLL_INTERVAL_MS)
+
+  // After 5 seconds, switch to normal polling interval
+  fastPollTimeoutId = setTimeout(() => {
+    initialPhase.value = false
+    if (pollIntervalId !== null) {
+      clearInterval(pollIntervalId)
+      pollIntervalId = setInterval(pollDashboard, NORMAL_POLL_INTERVAL_MS)
+    }
+    fastPollTimeoutId = null
+  }, FAST_POLL_DURATION_MS)
+
+  // Start the separate MR/approval status refresh
+  refreshIntervalId = setInterval(refreshExistingBranches, REFRESH_INTERVAL_MS)
+
+  // Fire the first poll immediately
+  pollDashboard()
 }
 
 function stopPolling() {
@@ -525,10 +513,16 @@ function stopPolling() {
     clearInterval(refreshIntervalId)
     refreshIntervalId = null
   }
+  if (fastPollTimeoutId !== null) {
+    clearTimeout(fastPollTimeoutId)
+    fastPollTimeoutId = null
+  }
 }
 
-// Refreshes MR and approval status for all currently displayed branches by
-// streaming results via SSE as each branch is resolved.
+/**
+ * Refreshes MR and approval status for all currently displayed branches by
+ * streaming results via SSE as each branch is resolved.
+ */
 async function refreshExistingBranches() {
   if (activities.value.length === 0) return
 
@@ -584,7 +578,6 @@ async function refreshExistingBranches() {
 
       buffer += decoder.decode(value, { stream: true })
 
-      // Process complete SSE events (separated by double newline)
       let eventEnd: number
       while ((eventEnd = buffer.indexOf('\n\n')) !== -1) {
         const eventText = buffer.slice(0, eventEnd)
@@ -594,7 +587,6 @@ async function refreshExistingBranches() {
           return
         }
 
-        // Handle branch deletion events
         if (eventText.startsWith('event: deleted')) {
           const dataLine = eventText.split('\n').find(l => l.startsWith('data: '))
           if (dataLine) {
@@ -623,59 +615,6 @@ async function refreshExistingBranches() {
   }
 }
 
-async function pollForActivity() {
-  try {
-    if (!lastPollTime) {
-      lastPollTime = new Date().toISOString()
-      console.warn('Poll cursor was missing; using current time fallback for first poll request')
-    }
-
-    const pollUrl = `/api/activity/poll?lastPollTime=${encodeURIComponent(lastPollTime)}`
-
-    const response = await fetch(pollUrl)
-
-    if (response.status === 401) {
-      console.warn('Poll returned 401, stopping polling')
-      stopPolling()
-      return
-    }
-
-    if (response.status === 503) {
-      errorMessage.value = 'Database is unavailable. Please try again later.'
-      stopPolling()
-      return
-    }
-
-    if (!response.ok) {
-      console.error('Poll failed with status', response.status)
-      return
-    }
-
-    const data: ActivityPollResponse = await response.json()
-
-    if (data.nextPollTime) {
-      lastPollTime = data.nextPollTime
-    }
-
-    // Handle deletions
-    if (data.deletedBranches) {
-      for (const deleted of data.deletedBranches) {
-        handleBranchDeleted(deleted)
-      }
-    }
-
-    // Handle new/updated activities
-    if (data.activities) {
-      for (const activity of data.activities) {
-        handleActivityEvent(activity)
-      }
-    }
-
-  } catch (err) {
-    console.error('Poll request failed:', err)
-  }
-}
-
 function openMergeGroupDetails(group: MergeGroup) {
   const mergeGroupId = group.items.find(item => item.mergeGroupId != null)?.mergeGroupId
   if (mergeGroupId == null) {
@@ -692,10 +631,8 @@ function openMergeGroupDetails(group: MergeGroup) {
 onMounted(async () => {
   timeIntervalId = setInterval(() => { now.value = Date.now() }, 60000)
 
-  // Check for error in query parameters
   if (route.query.error && route.query.message) {
     errorMessage.value = route.query.message as string
-    // Clean up URL by removing error params
     router.replace({ query: {} })
   }
 
@@ -707,8 +644,7 @@ onMounted(async () => {
     }
 
     initialLoading.value = false
-
-    startStreaming()
+    startPolling()
   } catch (err) {
     console.error('Failed to load dashboard:', err)
     initialLoading.value = false
@@ -717,8 +653,6 @@ onMounted(async () => {
 
 onUnmounted(() => {
   if (timeIntervalId) clearInterval(timeIntervalId)
-  eventSource?.close()
-  eventSource = null
   stopPolling()
 })
 </script>

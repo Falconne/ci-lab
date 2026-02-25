@@ -9,7 +9,9 @@ namespace IntegrationTest.Tests;
 ///     Tests that the dashboard dynamically updates when new branches are pushed
 ///     and when MR/approval status changes, while the dashboard is already loaded.
 ///     Uses Playwright to interact with the card-based UI and GitLab API to create
-///     test data in real time.
+///     test data in real time. The dashboard uses polling to discover new branches
+///     from the database (populated by a background sync thread) and a separate
+///     refresh cycle for MR/approval status updates.
 /// </summary>
 public class DashboardLiveUpdateTest : IDisposable
 {
@@ -36,7 +38,8 @@ public class DashboardLiveUpdateTest : IDisposable
 
     /// <summary>
     ///     Verifies that when a user pushes a new branch while the dashboard is loaded,
-    ///     the branch appears on the dashboard via polling without requiring a page refresh.
+    ///     the branch appears on the dashboard via polling (background sync discovers it,
+    ///     then the dashboard poll returns it) without requiring a page refresh.
     /// </summary>
     private async Task TestNewBranchAppearsOnDashboard()
     {
@@ -201,7 +204,7 @@ public class DashboardLiveUpdateTest : IDisposable
             }
         }
 
-        // Navigate to dashboard and wait for SSE to complete
+        // Navigate to dashboard and wait for it to fully load
         await _browser.Navigate(TestConfig.MergicianUrl);
         await Task.Delay(2000);
 
@@ -251,28 +254,11 @@ public class DashboardLiveUpdateTest : IDisposable
 
     private async Task WaitForDashboardLoadComplete()
     {
-        Log.Information("Waiting for initial SSE stream to complete...");
-        for (var s = 0; s < 120; s++)
+        var loaded = await DashboardWaitHelper.WaitForDashboardReady(_browser.Page);
+        if (!loaded)
         {
-            var cardCount = await _browser.Page.Locator(".merge-group-card").CountAsync();
-            if (cardCount > 0)
-            {
-                var spinnerCount =
-                    await _browser.Page.Locator(".merge-group-card .v-progress-circular").CountAsync();
-                var streamingIndicator =
-                    await _browser.Page.Locator(".streaming-indicator").CountAsync();
-
-                if (spinnerCount == 0 && streamingIndicator == 0)
-                {
-                    Log.Information("Dashboard loaded after ~{Seconds}s", s);
-                    return;
-                }
-            }
-
-            await Task.Delay(1000);
+            throw new InvalidOperationException("Dashboard did not fully load within 120s");
         }
-
-        throw new InvalidOperationException("Dashboard SSE stream did not complete within 120s");
     }
 
     private async Task EnsureBranchStaysAbsent(string branchName, int durationSeconds)

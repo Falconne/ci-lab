@@ -60,6 +60,10 @@ try
     builder.Services.AddSingleton<VersionService>();
     builder.Services.AddSingleton<GitlabActivityService>();
 
+    // Register background user activity sync service
+    builder.Services.AddSingleton<UserActivitySyncService>();
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<UserActivitySyncService>());
+
     // Register GitLab authentication handler
     builder.Services.AddSingleton(new GitLabAuthSettings { ApiBaseUrl = gitlabApiBaseUrl });
     builder.Services.AddAuthentication(GitLabCookieAuthenticationHandler.SchemeName)
