@@ -1,5 +1,5 @@
-using System.Collections.Concurrent;
 using Mergician.Services.Authentication;
+using System.Collections.Concurrent;
 
 namespace Mergician.Services.Gitlab;
 
@@ -12,12 +12,16 @@ namespace Mergician.Services.Gitlab;
 /// </summary>
 public class UserActivitySyncService : IHostedService, IDisposable
 {
-    private static readonly TimeSpan InactivityTimeout = TimeSpan.FromMinutes(5);
-    private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan _inactivityTimeout = TimeSpan.FromMinutes(5);
+
+    private static readonly TimeSpan _pollInterval = TimeSpan.FromSeconds(10);
+
+    private readonly GitlabActivityService _activityService;
+
+    private readonly ILogger<UserActivitySyncService> _logger;
 
     private readonly ConcurrentDictionary<int, UserSyncContext> _userContexts = new();
-    private readonly GitlabActivityService _activityService;
-    private readonly ILogger<UserActivitySyncService> _logger;
+
     private CancellationTokenSource? _globalCts;
 
     public UserActivitySyncService(
@@ -26,6 +30,15 @@ public class UserActivitySyncService : IHostedService, IDisposable
     {
         _activityService = activityService;
         _logger = logger;
+    }
+
+    public void Dispose()
+    {
+        _globalCts?.Dispose();
+        foreach (var context in _userContexts.Values)
+        {
+            context.Cts?.Dispose();
+        }
     }
 
     public Task StartAsync(CancellationToken cancellationToken)
@@ -47,7 +60,6 @@ public class UserActivitySyncService : IHostedService, IDisposable
         var tasks = _userContexts.Values
             .Select(c => c.SyncTask)
             .Where(t => t is { IsCompleted: false })
-            .Cast<Task>()
             .ToArray();
 
         if (tasks.Length > 0)
@@ -88,13 +100,17 @@ public class UserActivitySyncService : IHostedService, IDisposable
 
         lock (context.StartLock)
         {
-            if (context.IsRunning) return;
+            if (context.IsRunning)
+            {
+                return;
+            }
 
             _logger.LogInformation("Starting background sync thread for user {UserId}", gitlabUserId);
 
             context.Cts?.Dispose();
             var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
                 _globalCts?.Token ?? CancellationToken.None);
+
             context.Cts = linkedCts;
             context.SyncTask = Task.Run(() => RunUserSync(gitlabUserId, context, linkedCts.Token));
         }
@@ -114,14 +130,16 @@ public class UserActivitySyncService : IHostedService, IDisposable
 
             while (!ct.IsCancellationRequested)
             {
-                await Task.Delay(PollInterval, ct);
+                await Task.Delay(_pollInterval, ct);
 
                 var inactiveFor = DateTimeOffset.UtcNow - context.LastPollActivity;
-                if (inactiveFor > InactivityTimeout)
+                if (inactiveFor > _inactivityTimeout)
                 {
                     _logger.LogInformation(
                         "User {UserId} inactive for {Inactive}, stopping sync thread",
-                        gitlabUserId, inactiveFor);
+                        gitlabUserId,
+                        inactiveFor);
+
                     break;
                 }
 
@@ -131,6 +149,7 @@ public class UserActivitySyncService : IHostedService, IDisposable
                     _logger.LogWarning(
                         "No access token available for user {UserId}, skipping poll cycle",
                         gitlabUserId);
+
                     continue;
                 }
 
@@ -138,12 +157,18 @@ public class UserActivitySyncService : IHostedService, IDisposable
                 {
                     // Poll for new push events since the last successful poll
                     await _activityService.SyncUserActivityFromGitLab(
-                        accessUser, gitlabUserId, lastPollTime, ct);
+                        accessUser,
+                        gitlabUserId,
+                        lastPollTime,
+                        ct);
+
                     lastPollTime = DateTimeOffset.UtcNow;
 
                     // Check for deleted branches and clean up DB records
                     await _activityService.CleanupDeletedBranches(
-                        accessUser, gitlabUserId, ct);
+                        accessUser,
+                        gitlabUserId,
+                        ct);
                 }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested)
                 {
@@ -151,7 +176,8 @@ public class UserActivitySyncService : IHostedService, IDisposable
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex,
+                    _logger.LogWarning(
+                        ex,
                         "Error during sync poll for user {UserId}, will retry next cycle",
                         gitlabUserId);
                 }
@@ -160,40 +186,53 @@ public class UserActivitySyncService : IHostedService, IDisposable
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
             _logger.LogInformation(
-                "Background sync thread cancelled for user {UserId}", gitlabUserId);
+                "Background sync thread cancelled for user {UserId}",
+                gitlabUserId);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex,
-                "Background sync thread failed unexpectedly for user {UserId}", gitlabUserId);
+            _logger.LogError(
+                ex,
+                "Background sync thread failed unexpectedly for user {UserId}",
+                gitlabUserId);
         }
         finally
         {
             _logger.LogInformation(
-                "Background sync thread stopped for user {UserId}", gitlabUserId);
+                "Background sync thread stopped for user {UserId}",
+                gitlabUserId);
         }
     }
 
     private async Task BackfillUserActivity(
-        int gitlabUserId, UserSyncContext context, CancellationToken ct)
+        int gitlabUserId,
+        UserSyncContext context,
+        CancellationToken ct)
     {
         var accessUser = context.AccessUser;
         if (accessUser == null)
         {
             _logger.LogWarning(
-                "No access token available for backfill for user {UserId}", gitlabUserId);
+                "No access token available for backfill for user {UserId}",
+                gitlabUserId);
+
             return;
         }
 
         var since = _activityService.GetBackfillSince(gitlabUserId);
         _logger.LogInformation(
             "Backfilling activity for user {UserId} since {Since}",
-            gitlabUserId, since);
+            gitlabUserId,
+            since);
 
         try
         {
             await _activityService.SyncUserActivityFromGitLab(
-                accessUser, gitlabUserId, since, ct);
+                accessUser,
+                gitlabUserId,
+                since,
+                ct);
+
             _logger.LogInformation("Backfill completed for user {UserId}", gitlabUserId);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -202,18 +241,10 @@ public class UserActivitySyncService : IHostedService, IDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex,
+            _logger.LogWarning(
+                ex,
                 "Backfill failed for user {UserId}, will continue with polling",
                 gitlabUserId);
-        }
-    }
-
-    public void Dispose()
-    {
-        _globalCts?.Dispose();
-        foreach (var context in _userContexts.Values)
-        {
-            context.Cts?.Dispose();
         }
     }
 }

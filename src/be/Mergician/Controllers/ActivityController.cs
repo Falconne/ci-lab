@@ -55,7 +55,9 @@ public class ActivityController : ControllerBase
         [FromBody] DashboardPollRequest request,
         CancellationToken cancellationToken)
     {
-        // TODO instead of DashboardPollRequest using branch name and project id pairs, use the actual primary key id from the database
+        // TODO instead of DashboardPollRequest using branch name and project id pairs, use the actual primary key id from the database for
+        // the branch in the merge group. This should be in the frontend
+        // data as well so it can just send the IDs back instead of branch/project pairs.
         var currentUser = HttpContext.GetGitlabUser();
 
         var userInfo = await _gitlabService.GetCurrentUser(currentUser);
@@ -121,6 +123,7 @@ public class ActivityController : ControllerBase
             cancellationToken);
     }
 
+    // TODO Inline this functionality and clean up the code, as we now only have one method using it.
     private async Task StreamSse(
         string streamName,
         Func<CancellationToken, SemaphoreSlim, Task> streamWriter,

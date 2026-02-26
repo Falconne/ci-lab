@@ -1,4 +1,5 @@
 using Mergician.Entities;
+using Mergician.Entities.Database;
 using Mergician.Services.Authentication;
 using Mergician.Services.Database;
 using Mergician.Services.Time;
@@ -45,10 +46,12 @@ public class GitlabActivityService
         int gitlabUserId,
         List<KnownBranch> knownBranches)
     {
+        // TODO instead of keying by BranchName and ProjectId, use the primary key from the DB for the branch in the merge group. This should be in the frontend
+        // data as well so it can just send the IDs back.
         var dbBranches = _mergeGroupRepository.GetUserBranches(gitlabUserId);
 
         // Index DB branches by composite key
-        var dbByKey = new Dictionary<string, Entities.Database.BranchWithMergeGroupInfo>();
+        var dbByKey = new Dictionary<string, BranchWithMergeGroupInfo>();
         foreach (var b in dbBranches)
         {
             var key = $"{b.BranchName}:{b.ProjectId}";
@@ -66,22 +69,29 @@ public class GitlabActivityService
         var added = new List<BranchActivity>();
         foreach (var (key, branch) in dbByKey)
         {
-            if (knownKeys.Contains(key)) continue;
+            if (knownKeys.Contains(key))
+            {
+                continue;
+            }
 
             var projectName = GetProjectDisplayName(branch.ProjectName, branch.ProjectId);
             var lastUpdated = UtcTimestamp.EnsureUtc(
                 branch.LastUpdateTime,
-                () => $"GitlabActivityService.GetDashboardDiff branch '{branch.BranchName}'/{branch.ProjectId}",
+                () =>
+                    $"GitlabActivityService.GetDashboardDiff branch '{branch.BranchName}'/{branch.ProjectId}",
                 _logger);
 
-            added.Add(new BranchActivity(
-                branch.BranchName,
-                branch.ProjectId,
-                projectName,
-                branch.ProjectName,
-                null, null, null,
-                lastUpdated,
-                branch.MergeGroupId));
+            added.Add(
+                new BranchActivity(
+                    branch.BranchName,
+                    branch.ProjectId,
+                    projectName,
+                    branch.ProjectName,
+                    null,
+                    null,
+                    null,
+                    lastUpdated,
+                    branch.MergeGroupId));
         }
 
         // Removed: known to frontend but not in DB
@@ -97,7 +107,9 @@ public class GitlabActivityService
 
         _logger.LogDebug(
             "Dashboard diff for user {UserId}: {Added} added, {Removed} removed",
-            gitlabUserId, added.Count, removed.Count);
+            gitlabUserId,
+            added.Count,
+            removed.Count);
 
         return new DashboardPollResponse(added, removed);
     }
@@ -114,13 +126,18 @@ public class GitlabActivityService
     {
         _logger.LogDebug(
             "Syncing GitLab activity for user {UserId} since {Since}",
-            gitlabUserId, since);
+            gitlabUserId,
+            since);
 
         var pushEvents = _gitlabService.GetPushEventsSince(user, since, cancellationToken);
         var returnedKeys = new HashSet<string>();
 
         await foreach (var _ in FetchAndStoreBranchActivityRecords(
-                           user, gitlabUserId, pushEvents, returnedKeys, cancellationToken))
+                           user,
+                           gitlabUserId,
+                           pushEvents,
+                           returnedKeys,
+                           cancellationToken))
         {
             // Consume the enumerable to trigger DB storage; results are not needed
         }
@@ -139,16 +156,19 @@ public class GitlabActivityService
         {
             _logger.LogDebug(
                 "No existing branches for user {UserId}; backfilling from lookback limit {Limit}",
-                gitlabUserId, sinceLimit);
+                gitlabUserId,
+                sinceLimit);
+
             return sinceLimit;
         }
 
-        DateTimeOffset latestRecord = DateTimeOffset.MinValue;
+        var latestRecord = DateTimeOffset.MinValue;
         foreach (var branch in userBranches)
         {
             var ts = UtcTimestamp.EnsureUtc(
                 branch.LastUpdateTime,
-                () => $"GitlabActivityService.GetBackfillSince branch '{branch.BranchName}'/{branch.ProjectId}",
+                () =>
+                    $"GitlabActivityService.GetBackfillSince branch '{branch.BranchName}'/{branch.ProjectId}",
                 _logger);
 
             if (ts > latestRecord)
@@ -160,7 +180,9 @@ public class GitlabActivityService
         var result = latestRecord > sinceLimit ? latestRecord : sinceLimit;
         _logger.LogDebug(
             "Backfill for user {UserId}: latest record at {LatestRecord}, using {Result}",
-            gitlabUserId, latestRecord, result);
+            gitlabUserId,
+            latestRecord,
+            result);
 
         return result;
     }
@@ -177,27 +199,33 @@ public class GitlabActivityService
         var userBranches = _mergeGroupRepository.GetUserBranches(gitlabUserId);
         _logger.LogDebug(
             "Checking {Count} tracked branches for user {UserId} for deletion",
-            userBranches.Count, gitlabUserId);
+            userBranches.Count,
+            gitlabUserId);
 
         foreach (var branch in userBranches)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
             var lookup = await _gitlabService.GetBranchLookupResult(
-                user, branch.ProjectId, branch.BranchName);
+                user,
+                branch.ProjectId,
+                branch.BranchName);
 
             if (lookup.IsMissing)
             {
                 _logger.LogInformation(
                     "Background sync: branch '{BranchName}' in project {ProjectId} no longer exists, removing",
-                    branch.BranchName, branch.ProjectId);
+                    branch.BranchName,
+                    branch.ProjectId);
+
                 RemoveBranchAndCleanup(branch.BranchInProjectId);
             }
             else if (lookup.IsUnavailable)
             {
                 _logger.LogDebug(
                     "Background sync: branch lookup unavailable for '{BranchName}' in project {ProjectId}; skipping",
-                    branch.BranchName, branch.ProjectId);
+                    branch.BranchName,
+                    branch.ProjectId);
             }
         }
     }
