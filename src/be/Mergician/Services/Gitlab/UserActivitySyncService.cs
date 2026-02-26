@@ -60,6 +60,7 @@ public class UserActivitySyncService : IHostedService, IDisposable
         var tasks = _userContexts.Values
             .Select(c => c.SyncTask)
             .Where(t => t is { IsCompleted: false })
+            .Select(t => t!)
             .ToArray();
 
         if (tasks.Length > 0)
@@ -121,13 +122,12 @@ public class UserActivitySyncService : IHostedService, IDisposable
         try
         {
             _logger.LogInformation("Background sync thread started for user {UserId}", gitlabUserId);
+            var lastPollTime = DateTimeOffset.UtcNow;
 
             // Phase 1: Backfill from the user's last known activity or 14 days
             await BackfillUserActivity(gitlabUserId, context, ct);
 
             // Phase 2: Continuous polling loop
-            var lastPollTime = DateTimeOffset.UtcNow;
-
             while (!ct.IsCancellationRequested)
             {
                 await Task.Delay(_pollInterval, ct);
@@ -155,6 +155,7 @@ public class UserActivitySyncService : IHostedService, IDisposable
 
                 try
                 {
+                    var now = DateTimeOffset.UtcNow;
                     // Poll for new push events since the last successful poll
                     await _activityService.SyncUserActivityFromGitLab(
                         accessUser,
@@ -162,7 +163,7 @@ public class UserActivitySyncService : IHostedService, IDisposable
                         lastPollTime,
                         ct);
 
-                    lastPollTime = DateTimeOffset.UtcNow;
+                    lastPollTime = now;
 
                     // Check for deleted branches and clean up DB records
                     await _activityService.CleanupDeletedBranches(
