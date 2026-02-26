@@ -1,5 +1,6 @@
 using Mergician.Entities;
 using Mergician.Services.Authentication;
+using Mergician.Services.Time;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
@@ -11,6 +12,8 @@ public class GitlabService
     private static readonly JsonSerializerOptions _jsonOptions =
         new() { PropertyNameCaseInsensitive = true };
 
+    private readonly GitLabTimezoneService _timezoneService;
+
     private readonly IHttpClientFactory _httpClientFactory;
 
     private readonly ILogger<GitlabService> _logger;
@@ -20,10 +23,12 @@ public class GitlabService
     public GitlabService(
         IHttpClientFactory httpClientFactory,
         CacheService<int, GitLabProject> projectCache,
+        GitLabTimezoneService timezoneService,
         ILogger<GitlabService> logger)
     {
         _httpClientFactory = httpClientFactory;
         _projectCache = projectCache;
+        _timezoneService = timezoneService;
         _logger = logger;
     }
 
@@ -74,9 +79,18 @@ public class GitlabService
     {
         var sinceUtc = since.ToUniversalTime();
 
-        // GitLab events API 'after' is date-only, so query from the previous day
-        // and enforce timestamp-level filtering locally.
-        var afterDate = sinceUtc.AddDays(-1).ToString("yyyy-MM-dd");
+        // GitLab events API 'after' is date-only and interprets the date in the server's
+        // configured timezone. Convert our UTC timestamp to GitLab's local time, then
+        // query from the previous day to avoid missing events near the date boundary.
+        var sinceInGitLabLocal = _timezoneService.AdjustToGitLabLocal(sinceUtc);
+        var afterDate = sinceInGitLabLocal.AddDays(-1).ToString("yyyy-MM-dd");
+
+        _logger.LogDebug(
+            "GetPushEventsSince: sinceUtc={SinceUtc}, gitLabLocal={GitLabLocal}, afterDate={AfterDate}, gitLabOffset={Offset}",
+            sinceUtc,
+            sinceInGitLabLocal,
+            afterDate,
+            _timezoneService.GitLabUtcOffset);
 
         var client = _httpClientFactory.CreateClient("GitLabOAuth");
         var page = 1;

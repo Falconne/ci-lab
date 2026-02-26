@@ -6,4 +6,4 @@ namespace Mergician.Entities;
 /// </summary>
 public record DashboardPollResponse(
     List<BranchActivity> Added,
-    List<KnownBranch> Removed);
+    List<int> Removed);

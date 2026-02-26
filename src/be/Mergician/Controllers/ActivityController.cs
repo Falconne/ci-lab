@@ -4,22 +4,14 @@ using Mergician.Services.Database;
 using Mergician.Services.Gitlab;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Text.Json;
 
 namespace Mergician.Controllers;
 
 [Authorize]
 [ApiController]
 [Route("api/[controller]")]
-public class ActivityController : ControllerBase
+public class ActivityController : SseControllerBase
 {
-    private static readonly JsonSerializerOptions _jsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
-
-    private static readonly TimeSpan _heartbeatInterval = TimeSpan.FromSeconds(15);
-
     private readonly GitlabActivityService _activityService;
 
     private readonly ICoreRepository _coreRepository;
@@ -55,9 +47,6 @@ public class ActivityController : ControllerBase
         [FromBody] DashboardPollRequest request,
         CancellationToken cancellationToken)
     {
-        // TODO instead of DashboardPollRequest using branch name and project id pairs, use the actual primary key id from the database for
-        // the branch in the merge group. This should be in the frontend
-        // data as well so it can just send the IDs back instead of branch/project pairs.
         var currentUser = HttpContext.GetGitlabUser();
 
         var userInfo = await _gitlabService.GetCurrentUser(currentUser);
@@ -120,89 +109,7 @@ public class ActivityController : ControllerBase
                     }
                 }
             },
-            cancellationToken);
-    }
-
-    // TODO Inline this functionality and clean up the code, as we now only have one method using it.
-    private async Task StreamSse(
-        string streamName,
-        Func<CancellationToken, SemaphoreSlim, Task> streamWriter,
-        CancellationToken cancellationToken)
-    {
-        ConfigureSseHeaders();
-
-        using var writeLock = new SemaphoreSlim(1, 1);
-        using var heartbeatCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        var heartbeatTask = RunHeartbeat(heartbeatCts.Token, writeLock);
-
-        try
-        {
-            await streamWriter(cancellationToken, writeLock);
-            // ReSharper disable once PossiblyMistakenUseOfCancellationToken
-            await WriteSseRaw("event: done\ndata: {}\n\n", cancellationToken, writeLock);
-
-            _logger.LogInformation("SSE {StreamName} stream completed", streamName);
-        }
-        catch (OperationCanceledException)
-        {
-            _logger.LogInformation("SSE {StreamName} stream cancelled by client", streamName);
-        }
-        finally
-        {
-            await heartbeatCts.CancelAsync();
-            try
-            {
-                await heartbeatTask;
-            }
-            catch (OperationCanceledException)
-            {
-                // Expected during cancellation
-            }
-        }
-    }
-
-    private void ConfigureSseHeaders()
-    {
-        Response.Headers.ContentType = "text/event-stream";
-        Response.Headers.CacheControl = "no-cache";
-        Response.Headers.Connection = "keep-alive";
-        Response.Headers["X-Accel-Buffering"] = "no";
-    }
-
-    private async Task RunHeartbeat(CancellationToken cancellationToken, SemaphoreSlim writeLock)
-    {
-        using var timer = new PeriodicTimer(_heartbeatInterval);
-        while (await timer.WaitForNextTickAsync(cancellationToken))
-        {
-            await WriteSseRaw(": heartbeat\n\n", cancellationToken, writeLock);
-        }
-    }
-
-    private async Task WriteSseEvent(
-        object payload,
-        CancellationToken cancellationToken,
-        SemaphoreSlim writeLock,
-        string? eventName = null)
-    {
-        var json = JsonSerializer.Serialize(payload, _jsonOptions);
-        var frame = eventName == null
-            ? $"data: {json}\n\n"
-            : $"event: {eventName}\ndata: {json}\n\n";
-
-        await WriteSseRaw(frame, cancellationToken, writeLock);
-    }
-
-    private async Task WriteSseRaw(string frame, CancellationToken cancellationToken, SemaphoreSlim writeLock)
-    {
-        await writeLock.WaitAsync(cancellationToken);
-        try
-        {
-            await Response.WriteAsync(frame, cancellationToken);
-            await Response.Body.FlushAsync(cancellationToken);
-        }
-        finally
-        {
-            writeLock.Release();
-        }
+            cancellationToken,
+            _logger);
     }
 }

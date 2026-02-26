@@ -3,6 +3,7 @@ using Mergician.Services;
 using Mergician.Services.Authentication;
 using Mergician.Services.Database;
 using Mergician.Services.Gitlab;
+using Mergician.Services.Time;
 using Microsoft.AspNetCore.Authentication;
 using Serilog;
 
@@ -55,6 +56,7 @@ try
     builder.Services.AddHttpContextAccessor();
     builder.Services.AddSingleton<GitLabOAuthService>();
     builder.Services.AddSingleton<CacheService<int, GitLabProject>>();
+    builder.Services.AddSingleton<GitLabTimezoneService>();
     builder.Services.AddSingleton<GitlabService>();
     builder.Services.AddSingleton<GitlabPipelineService>();
     builder.Services.AddSingleton<VersionService>();
@@ -109,6 +111,10 @@ try
     Log.Information("Database migrations completed");
 
     Log.Information("GitLab API base URL: {GitLabApiBaseUrl}", gitlabApiBaseUrl);
+
+    // Detect GitLab server timezone on startup
+    var timezoneService = app.Services.GetRequiredService<GitLabTimezoneService>();
+    await timezoneService.DetectTimezone();
 
     app.UseSerilogRequestLogging();
     app.UseCors();

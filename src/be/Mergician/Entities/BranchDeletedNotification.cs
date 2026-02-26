@@ -7,4 +7,5 @@ namespace Mergician.Entities;
 public record BranchDeletedNotification(
     string BranchName,
     int ProjectId,
-    int? MergeGroupId);
+    int? MergeGroupId,
+    int? BranchInProjectId = null);

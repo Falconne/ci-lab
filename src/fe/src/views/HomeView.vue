@@ -168,6 +168,7 @@ interface BranchActivity {
   mergeRequestUrl?: string | null
   projectUrl?: string | null
   buildJobs?: BranchBuildJob[] | null
+  branchInProjectId?: number | null
 }
 
 interface BranchBuildJob {
@@ -180,16 +181,16 @@ interface BranchDeletedNotification {
   branchName: string
   projectId: number
   mergeGroupId: number | null
+  branchInProjectId: number | null
 }
 
 interface KnownBranch {
-  branchName: string
-  projectId: number
+  branchInProjectId: number
 }
 
 interface DashboardPollResponse {
   added: BranchActivity[]
-  removed: KnownBranch[]
+  removed: number[]
 }
 
 interface MergeGroup {
@@ -396,9 +397,27 @@ function handleActivityEvent(data: BranchActivity) {
   }
 }
 
-function handleBranchDeleted(notification: { branchName: string; projectId: number }) {
+function handleBranchDeleted(notification: BranchDeletedNotification) {
+  // Match by branchInProjectId first, fall back to name/projectId
+  let idx = -1
+  if (notification.branchInProjectId != null) {
+    idx = activities.value.findIndex(
+      a => a.branchInProjectId === notification.branchInProjectId
+    )
+  }
+  if (idx < 0) {
+    idx = activities.value.findIndex(
+      a => a.branchName === notification.branchName && a.projectId === notification.projectId
+    )
+  }
+  if (idx >= 0) {
+    activities.value.splice(idx, 1)
+  }
+}
+
+function handleBranchRemovedById(branchInProjectId: number) {
   const idx = activities.value.findIndex(
-    a => a.branchName === notification.branchName && a.projectId === notification.projectId
+    a => a.branchInProjectId === branchInProjectId
   )
   if (idx >= 0) {
     activities.value.splice(idx, 1)
@@ -417,13 +436,12 @@ function findLastIndexOf<T>(arr: T[], predicate: (item: T) => boolean): number {
  * so it can compute a minimal diff.
  */
 function getKnownBranches(): KnownBranch[] {
-  const seen = new Set<string>()
+  const seen = new Set<number>()
   const result: KnownBranch[] = []
   for (const a of activities.value) {
-    const key = `${a.branchName}:${a.projectId}`
-    if (!seen.has(key)) {
-      seen.add(key)
-      result.push({ branchName: a.branchName, projectId: a.projectId })
+    if (a.branchInProjectId != null && !seen.has(a.branchInProjectId)) {
+      seen.add(a.branchInProjectId)
+      result.push({ branchInProjectId: a.branchInProjectId })
     }
   }
   return result
@@ -460,10 +478,10 @@ async function pollDashboard() {
 
     const data: DashboardPollResponse = await response.json()
 
-    // Handle removals
+    // Handle removals (by branch database ID)
     if (data.removed) {
-      for (const removed of data.removed) {
-        handleBranchDeleted(removed)
+      for (const removedId of data.removed) {
+        handleBranchRemovedById(removedId)
       }
     }
 

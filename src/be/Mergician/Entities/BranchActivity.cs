@@ -7,6 +7,7 @@ namespace Mergician.Entities;
 /// to indicate that MR status has not yet been resolved.
 /// LastUpdated contains the UTC timestamp of the most recent push to the branch.
 /// MergeGroupId identifies the merge group this branch belongs to in the database.
+/// BranchInProjectId is the primary key of the branch record in the database.
 /// </summary>
 public record BranchActivity(
     string BranchName,
@@ -21,4 +22,5 @@ public record BranchActivity(
     string? MergeRequestTitle = null,
     string? MergeRequestUrl = null,
     string? ProjectUrl = null,
-    List<BranchBuildJob>? BuildJobs = null);
+    List<BranchBuildJob>? BuildJobs = null,
+    int? BranchInProjectId = null);

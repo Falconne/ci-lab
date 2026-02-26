@@ -479,6 +479,10 @@ public class DashboardTest : IDisposable
             throw new InvalidOperationException("Project list was not visible on details page");
         }
 
+        // Wait for the data to load incrementally - the details page now uses poll + refresh
+        // so branch cards appear first (from poll), then MR data fills in via SSE refresh
+        await WaitForDetailsPageReady(repoContains, 60);
+
         var repoCard = _browser.Page.Locator(".repo-card-list .branch-card").Filter(new() { HasTextString = repoContains }).First;
         if (!await BrowserService.WaitForElement(repoCard, timeoutMs: 10000))
         {
@@ -513,6 +517,8 @@ public class DashboardTest : IDisposable
             throw new InvalidOperationException("External Jobs section was not visible on details page");
         }
 
+        await _browser.TakeScreenshot("dashboard_details_01b_data_loaded");
+
         var homeLink = _browser.Page.Locator("[data-mergician-home-link]");
         await homeLink.ClickAsync();
         await _browser.Page.WaitForURLAsync(
@@ -535,6 +541,84 @@ public class DashboardTest : IDisposable
         }
 
         Log.Information("Merge-group details navigation and links verified for '{BranchName}'", branchName);
+    }
+
+    /// <summary>
+    ///     Waits until the details page has loaded branch cards and their MR data has been
+    ///     resolved via the incremental poll + SSE refresh cycle. A branch card is considered
+    ///     resolved when it shows either an MR link, "No Merge Request", or approval info.
+    /// </summary>
+    private async Task WaitForDetailsPageReady(string repoContains, int timeoutSeconds)
+    {
+        for (var s = 0; s < timeoutSeconds; s++)
+        {
+            var cards = _browser.Page.Locator(".repo-card-list .branch-card");
+            var cardCount = await cards.CountAsync();
+
+            if (cardCount == 0)
+            {
+                if (s % 10 == 0)
+                    Log.Information("Waiting for details page branch cards... {Seconds}s", s);
+
+                await Task.Delay(1000);
+                continue;
+            }
+
+            // Check if the repo we care about has resolved MR data
+            var repoCard = cards.Filter(new() { HasTextString = repoContains }).First;
+            if (await repoCard.CountAsync() == 0)
+            {
+                await Task.Delay(1000);
+                continue;
+            }
+
+            var mrRow = repoCard.Locator(".detail-row").Filter(new() { HasTextString = "Merge Request:" }).First;
+            var hasMrLink = await mrRow.Locator(".detail-link").CountAsync() > 0;
+            var hasNoMrText = await mrRow.Locator(".text-medium-emphasis").CountAsync() > 0;
+            var noMrText = hasNoMrText
+                ? (await mrRow.Locator(".text-medium-emphasis").InnerTextAsync()).Trim()
+                : "";
+            var isResolved = hasMrLink
+                             || noMrText.Contains("No Merge Request", StringComparison.OrdinalIgnoreCase);
+
+            // Also check that all cards have resolved (not showing "Resolving...")
+            var allResolved = isResolved;
+            if (allResolved)
+            {
+                for (var i = 0; i < cardCount; i++)
+                {
+                    var card = cards.Nth(i);
+                    var cardMrRow = card.Locator(".detail-row").Filter(new() { HasTextString = "Merge Request:" }).First;
+                    var text = (await cardMrRow.InnerTextAsync()).Trim();
+                    if (text.Contains("Resolving...", StringComparison.OrdinalIgnoreCase))
+                    {
+                        allResolved = false;
+                        break;
+                    }
+                }
+            }
+
+            if (allResolved)
+            {
+                Log.Information(
+                    "Details page fully loaded after ~{Seconds}s ({Cards} branch cards)",
+                    s, cardCount);
+                return;
+            }
+
+            if (s % 10 == 0)
+            {
+                Log.Information(
+                    "Waiting for details page MR data to resolve... {Cards} cards visible, {Seconds}s elapsed",
+                    cardCount, s);
+            }
+
+            await Task.Delay(1000);
+        }
+
+        await _browser.TakeScreenshot("dashboard_details_load_timeout");
+        throw new InvalidOperationException(
+            "Details page data did not fully resolve within timeout");
     }
 
     private record ParsedCardItem(

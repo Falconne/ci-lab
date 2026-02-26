@@ -40,36 +40,33 @@ public class GitlabActivityService
     /// <summary>
     ///     Returns a diff between the frontend's known branches and the current database state.
     ///     Added branches include full structural data (no MR/approval resolution).
-    ///     Removed branches identify entries the frontend should remove.
+    ///     Removed branches identify entries the frontend should remove by their database ID.
     /// </summary>
     public DashboardPollResponse GetDashboardDiff(
         int gitlabUserId,
         List<KnownBranch> knownBranches)
     {
-        // TODO instead of keying by BranchName and ProjectId, use the primary key from the DB for the branch in the merge group. This should be in the frontend
-        // data as well so it can just send the IDs back.
         var dbBranches = _mergeGroupRepository.GetUserBranches(gitlabUserId);
 
-        // Index DB branches by composite key
-        var dbByKey = new Dictionary<string, BranchWithMergeGroupInfo>();
+        // Index DB branches by their primary key
+        var dbById = new Dictionary<int, BranchWithMergeGroupInfo>();
         foreach (var b in dbBranches)
         {
-            var key = $"{b.BranchName}:{b.ProjectId}";
-            dbByKey[key] = b;
+            dbById[b.BranchInProjectId] = b;
         }
 
-        // Index known branches by composite key
-        var knownKeys = new HashSet<string>();
+        // Collect known IDs sent by the frontend
+        var knownIds = new HashSet<int>();
         foreach (var k in knownBranches)
         {
-            knownKeys.Add($"{k.BranchName}:{k.ProjectId}");
+            knownIds.Add(k.BranchInProjectId);
         }
 
         // Added: in DB but not known to frontend
         var added = new List<BranchActivity>();
-        foreach (var (key, branch) in dbByKey)
+        foreach (var (id, branch) in dbById)
         {
-            if (knownKeys.Contains(key))
+            if (knownIds.Contains(id))
             {
                 continue;
             }
@@ -91,17 +88,17 @@ public class GitlabActivityService
                     null,
                     null,
                     lastUpdated,
-                    branch.MergeGroupId));
+                    branch.MergeGroupId,
+                    BranchInProjectId: branch.BranchInProjectId));
         }
 
         // Removed: known to frontend but not in DB
-        var removed = new List<KnownBranch>();
+        var removed = new List<int>();
         foreach (var k in knownBranches)
         {
-            var key = $"{k.BranchName}:{k.ProjectId}";
-            if (!dbByKey.ContainsKey(key))
+            if (!dbById.ContainsKey(k.BranchInProjectId))
             {
-                removed.Add(k);
+                removed.Add(k.BranchInProjectId);
             }
         }
 
@@ -231,6 +228,84 @@ public class GitlabActivityService
     }
 
     /// <summary>
+    ///     Returns a diff between the frontend's known branches and the current database state
+    ///     for a specific merge group. Similar to <see cref="GetDashboardDiff" /> but scoped
+    ///     to a single merge group. Returns null if the merge group does not exist.
+    /// </summary>
+    public MergeGroupPollResponse? GetMergeGroupDiff(
+        int gitlabUserId,
+        int mergeGroupId,
+        List<KnownBranch> knownBranches)
+    {
+        var mergeGroup = _mergeGroupRepository.GetMergeGroup(gitlabUserId, mergeGroupId);
+        if (mergeGroup == null)
+        {
+            _logger.LogInformation(
+                "No merge group found for user {UserId} and merge group {MergeGroupId} during poll",
+                gitlabUserId,
+                mergeGroupId);
+
+            return null;
+        }
+
+        var knownIds = new HashSet<int>();
+        foreach (var k in knownBranches)
+        {
+            knownIds.Add(k.BranchInProjectId);
+        }
+
+        // Added: in merge group but not known to frontend
+        var added = new List<BranchActivity>();
+        foreach (var branch in mergeGroup.Branches)
+        {
+            if (knownIds.Contains(branch.BranchInProjectId))
+            {
+                continue;
+            }
+
+            var projectName = GetProjectDisplayName(branch.ProjectName, branch.ProjectId);
+            var lastUpdated = UtcTimestamp.EnsureUtc(
+                branch.LastUpdateTime,
+                () =>
+                    $"GitlabActivityService.GetMergeGroupDiff branch '{branch.BranchName}'/{branch.ProjectId}",
+                _logger);
+
+            added.Add(
+                new BranchActivity(
+                    branch.BranchName,
+                    branch.ProjectId,
+                    projectName,
+                    branch.ProjectName,
+                    null,
+                    null,
+                    null,
+                    lastUpdated,
+                    branch.MergeGroupId,
+                    BranchInProjectId: branch.BranchInProjectId));
+        }
+
+        // Removed: known to frontend but not in merge group
+        var dbIds = new HashSet<int>(mergeGroup.Branches.Select(b => b.BranchInProjectId));
+        var removed = new List<int>();
+        foreach (var k in knownBranches)
+        {
+            if (!dbIds.Contains(k.BranchInProjectId))
+            {
+                removed.Add(k.BranchInProjectId);
+            }
+        }
+
+        _logger.LogDebug(
+            "Merge group {MergeGroupId} diff for user {UserId}: {Added} added, {Removed} removed",
+            mergeGroupId,
+            gitlabUserId,
+            added.Count,
+            removed.Count);
+
+        return new MergeGroupPollResponse(mergeGroup.Id, mergeGroup.Name, added, removed);
+    }
+
+    /// <summary>
     ///     Returns fully resolved details for a single merge group.
     /// </summary>
     public async Task<MergeGroupDetailsResponse?> GetMergeGroupDetails(
@@ -293,7 +368,8 @@ public class GitlabActivityService
                 null,
                 null,
                 lastUpdated,
-                branch.MergeGroupId);
+                branch.MergeGroupId,
+                BranchInProjectId: branch.BranchInProjectId);
 
             var resolved = await ResolveBranchActivityIn(currentUser, pending, cancellationToken);
             resolvedBranches.Add(resolved);
@@ -341,7 +417,8 @@ public class GitlabActivityService
                 yield return new BranchDeletedNotification(
                     branch.BranchName,
                     branch.ProjectId,
-                    branch.MergeGroupId);
+                    branch.MergeGroupId,
+                    branchRecord?.Id);
 
                 continue;
             }
@@ -378,7 +455,8 @@ public class GitlabActivityService
                 yield return new BranchDeletedNotification(
                     branch.BranchName,
                     branch.ProjectId,
-                    branch.MergeGroupId);
+                    branch.MergeGroupId,
+                    branchRecord?.Id);
 
                 continue;
             }
@@ -387,6 +465,8 @@ public class GitlabActivityService
             var projectName = string.IsNullOrWhiteSpace(project.Name)
                 ? GetProjectDisplayName(projectNameWithNamespace, branch.ProjectId)
                 : project.Name;
+
+            var existingRecord = _mergeGroupRepository.GetBranchRecord(branch.BranchName, branch.ProjectId);
 
             var pendingActivity = new BranchActivity(
                 branch.BranchName,
@@ -400,7 +480,8 @@ public class GitlabActivityService
                 branch.MergeGroupId,
                 null,
                 null,
-                project.WebUrl);
+                project.WebUrl,
+                BranchInProjectId: existingRecord?.Id);
 
             var activity = await ResolveBranchActivityIn(user, pendingActivity, cancellationToken);
 
@@ -514,7 +595,8 @@ public class GitlabActivityService
                 mergeGroup.Id,
                 null,
                 null,
-                project.WebUrl);
+                project.WebUrl,
+                BranchInProjectId: branchRecord.Id);
         }
     }
 
