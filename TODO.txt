@@ -1,15 +1,18 @@
-Find and fix all the TODOs in the code.
+Task 1)
+Search the code in this repo for TODOs and address them all. Then continue on to the following tasks.
 
+Task 2)
 We can't assume that the Gitlab server is using UTC time. We can't pass in timezone info in the dates we use to request activity from Gitlab. To compensate for this, on server startup, use teh service user account to make a lightweight API call to Gitlab to figure out its timezone and store the offset from UTC in a singleton service that is passed to every service that calls Gitlab with a date, using this new service to get an adjusted date to use.
 
-Commit and push these changes.
+Task 3)
+Before continuing on to other tasks, validate that everything works via the integration tests, then commit and push the changes for the above task.
 
----
+Task 4)
+When the user is on the Mergmerge Group Details page, we also want to do a poll that keeps the backend user sync going and we also want to keep updating the state of the merge group in the UI (adding or removing branches for the merge group as needed). Add an endpoint to provide this functionality. In other words, in addition to refreshing the user sync timer, it should return a diff on the merge group branches (or if the branches have all been deleted show a message that the merge group has been completed while continuing to allow the poll to keep the user sync active). Like with the dashboard, the frontend should only update branches based on the database, leave it up to the backend sync to keep the database updated.
 
-In the Merge Group Details page, the backend first loads all the details of the merge group and sends it back at once. We also want it to dynamically update all the data shown (MRs, approval, builds, etc) on a regular poll like the main page dashboard.
+Also, change the way the data is loaded on this page. Currently the backend first loads all the details of the merge group and sends it back at once. We want it to dynamically update all the data shown (MRs, approval, builds, etc) on a regular refresh like the main page dashboard.
 
-Make the merge details page return data incrementally on first load, as it is being discovered. For example, branch data from the database can come back early. Implement the a similar technique to what the dashboard uses for filling in data for MRs, Approvals, Status, etc after the initial records, and have it keep updating with the poll.
+Make this page similar to the dashboard, in that there is one regular poll that refreshes the branch info from the database (as described above) and another refresh that dynamically fills in data for MRs, Approvals, Status, Builds, etc for the displayed branches, using streaming events to update each item as data is collected.
 
-
-
-Also check for new or deleted branches during the poll.
+Task 5)
+Validate the new dynamic page with upated integration tests, commit and push the new changes.
