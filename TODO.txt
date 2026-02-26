@@ -2,7 +2,7 @@ Find and fix all the TODOs in the code.
 
 We can't assume that the Gitlab server is using UTC time. We can't pass in timezone info in the dates we use to request activity from Gitlab. To compensate for this, on server startup, use teh service user account to make a lightweight API call to Gitlab to figure out its timezone and store the offset from UTC in a singleton service that is passed to every service that calls Gitlab with a date, using this new service to get an adjusted date to use.
 
-Then change the user activity sync behavior such that the thread that updates the user's activity in the DB always dies 5 minutes after it is created. And ensure that every DB poll from the frontend starts the sync thread _if it is not already running_. Then get rid of all the code needed to 
+Commit and push these changes.
 
 ---
 
