@@ -26,9 +26,9 @@ public class ActivityController : ControllerBase
 
     private readonly GitlabService _gitlabService;
 
-    private readonly UserActivitySyncService _syncService;
-
     private readonly ILogger<ActivityController> _logger;
+
+    private readonly UserActivitySyncService _syncService;
 
     public ActivityController(
         GitlabActivityService activityService,
@@ -55,13 +55,8 @@ public class ActivityController : ControllerBase
         [FromBody] DashboardPollRequest request,
         CancellationToken cancellationToken)
     {
+        // TODO instead of DashboardPollRequest using branch name and project id pairs, use the actual primary key id from the database
         var currentUser = HttpContext.GetGitlabUser();
-
-        if (!_coreRepository.IsHealthy())
-        {
-            _logger.LogError("Database is unhealthy, cannot poll for dashboard data");
-            return StatusCode(503, new ErrorResponse("Database is unavailable"));
-        }
 
         var userInfo = await _gitlabService.GetCurrentUser(currentUser);
         if (userInfo == null)
@@ -74,33 +69,26 @@ public class ActivityController : ControllerBase
 
         _logger.LogDebug(
             "Dashboard poll for user {UserId} with {Count} known branches",
-            userInfo.Id, request.KnownBranches.Count);
+            userInfo.Id,
+            request.KnownBranches.Count);
 
         var result = _activityService.GetDashboardDiff(userInfo.Id, request.KnownBranches);
 
         _logger.LogDebug(
             "Returning {Added} added, {Removed} removed branches for user {UserId}",
-            result.Added.Count, result.Removed.Count, userInfo.Id);
+            result.Added.Count,
+            result.Removed.Count,
+            userInfo.Id);
 
         return Ok(result);
     }
 
-    /// <summary>
-    ///     Streams refreshed MR and approval status for the specified branch-project pairs
-    ///     as Server-Sent Events. Each event is a JSON-serialized BranchActivity or BranchDeletedNotification.
-    ///     A final event with type "done" signals the end of the stream.
-    /// </summary>
     [HttpPost("refresh")]
     public async Task RefreshActivity(
         [FromBody] List<BranchRefreshRequest> branches,
         CancellationToken cancellationToken)
     {
         var currentUser = HttpContext.GetGitlabUser();
-
-        if (!await EnsureDatabaseHealthyForSse(cancellationToken, "refresh activity"))
-        {
-            return;
-        }
 
         _logger.LogInformation("Starting SSE refresh stream for {Count} branches", branches.Count);
 
@@ -131,21 +119,6 @@ public class ActivityController : ControllerBase
                 }
             },
             cancellationToken);
-    }
-
-    private async Task<bool> EnsureDatabaseHealthyForSse(
-        CancellationToken cancellationToken,
-        string operationName)
-    {
-        if (_coreRepository.IsHealthy())
-        {
-            return true;
-        }
-
-        _logger.LogError("Database is unhealthy, cannot {OperationName}", operationName);
-        Response.StatusCode = 503;
-        await Response.WriteAsync("{\"error\":\"Database is unavailable\"}", cancellationToken);
-        return false;
     }
 
     private async Task StreamSse(
