@@ -36,12 +36,6 @@ public class ActivityController : SseControllerBase
         _logger = logger;
     }
 
-    /// <summary>
-    ///     Returns a diff of the user's dashboard data compared to what the frontend currently shows.
-    ///     The frontend sends the branch-project pairs it currently displays, and the backend
-    ///     returns branches to add or remove based on the current database state.
-    ///     Also ensures the background sync thread is running for this user.
-    /// </summary>
     [HttpPost("poll")]
     public async Task<IActionResult> PollDashboard(
         [FromBody] DashboardPollRequest request,
@@ -55,7 +49,7 @@ public class ActivityController : SseControllerBase
             return Unauthorized();
         }
 
-        // Ensure the background sync thread is running (also records poll activity)
+        // Ensure the background sync thread is running (also records that user is still active)
         _syncService.EnsureSyncRunning(userInfo.Id, currentUser);
 
         _logger.LogDebug(

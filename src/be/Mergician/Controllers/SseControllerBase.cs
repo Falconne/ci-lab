@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Mergician.Controllers;
 
+// TODO: Rather than making this a base class, make it a helper service that others can use with composition.
 /// <summary>
 ///     Base controller providing Server-Sent Events (SSE) streaming helpers.
 ///     Handles SSE framing, heartbeat, and write locking so derived controllers
