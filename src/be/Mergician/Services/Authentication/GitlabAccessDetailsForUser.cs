@@ -9,12 +9,12 @@ namespace Mergician.Services.Authentication;
 ///     Instances are created by the GitLabCookieAuthenticationHandler (for the current
 ///     OAuth user) or by GitlabUserFactory (for the service user).
 /// </summary>
-public class GitlabAccessUser
+public class GitlabAccessDetailsForUser
 {
     private readonly string _accessToken;
     private readonly string _apiBaseUrl;
 
-    public GitlabAccessUser(string accessToken, string apiBaseUrl)
+    public GitlabAccessDetailsForUser(string accessToken, string apiBaseUrl)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(accessToken, nameof(accessToken));
         ArgumentException.ThrowIfNullOrWhiteSpace(apiBaseUrl, nameof(apiBaseUrl));

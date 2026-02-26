@@ -1,7 +1,7 @@
 namespace Mergician.Services.Authentication;
 
 /// <summary>
-///     Factory for creating GitlabAccessUser instances for the service user.
+///     Factory for creating GitlabAccessDetailsForUser instances for the service user.
 ///     The service user is used by the backend for background maintenance tasks
 ///     and does not require an HTTP context. Current user authentication is
 ///     handled by the GitLabCookieAuthenticationHandler instead.
@@ -29,11 +29,11 @@ public class GitlabUserFactory
     }
 
     /// <summary>
-    ///     Returns a GitlabAccessUser for the configured service account.
+    ///     Returns a GitlabAccessDetailsForUser for the configured service account.
     ///     Throws if the service token is not configured because this indicates
     ///     a misconfiguration that should result in a server error.
     /// </summary>
-    public GitlabAccessUser GetServiceUser()
+    public GitlabAccessDetailsForUser GetServiceUser()
     {
         if (!IsServiceTokenConfigured)
         {
@@ -41,6 +41,6 @@ public class GitlabUserFactory
             throw new InvalidOperationException("GitLab service token is not configured");
         }
 
-        return new GitlabAccessUser(_serviceToken!, _apiBaseUrl);
+        return new GitlabAccessDetailsForUser(_serviceToken!, _apiBaseUrl);
     }
 }

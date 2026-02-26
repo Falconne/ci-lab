@@ -88,10 +88,10 @@ public class UserActivitySyncService : IHostedService, IDisposable
     ///     Updates the stored access token and records poll activity.
     ///     If a thread is already running, this is a no-op (apart from updating the token).
     /// </summary>
-    public void EnsureSyncRunning(int gitlabUserId, GitlabAccessUser accessUser)
+    public void EnsureSyncRunning(int gitlabUserId, GitlabAccessDetailsForUser accessDetailsForUser)
     {
         var context = _userContexts.GetOrAdd(gitlabUserId, _ => new UserSyncContext());
-        context.UpdateActivity(accessUser);
+        context.UpdateActivity(accessDetailsForUser);
 
         if (context.IsRunning)
         {

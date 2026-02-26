@@ -11,13 +11,13 @@ namespace Mergician.Services.Authentication;
 ///     Custom ASP.NET Core authentication handler that validates GitLab OAuth tokens
 ///     stored in cookies. Handles token refresh transparently when the access token
 ///     has expired but a valid refresh token is available.
-///     On successful authentication, stores a GitlabAccessUser in HttpContext.Items
+///     On successful authentication, stores a GitlabAccessDetailsForUser in HttpContext.Items
 ///     for controllers to use.
 /// </summary>
 public class GitLabCookieAuthenticationHandler : AuthenticationHandler<AuthenticationSchemeOptions>
 {
     public const string SchemeName = "GitLabCookie";
-    public const string GitlabAccessUserKey = "GitlabAccessUser";
+    public const string GitlabAccessUserKey = "GitlabAccessDetailsForUser";
 
     private readonly GitLabOAuthService _oauthService;
     private readonly IHttpClientFactory _httpClientFactory;
@@ -83,7 +83,7 @@ public class GitLabCookieAuthenticationHandler : AuthenticationHandler<Authentic
 
     private AuthenticateResult SuccessResult(string accessToken)
     {
-        var user = new GitlabAccessUser(accessToken, _apiBaseUrl);
+        var user = new GitlabAccessDetailsForUser(accessToken, _apiBaseUrl);
         Context.Items[GitlabAccessUserKey] = user;
 
         var claims = new[] { new Claim(ClaimTypes.Authentication, "gitlab-oauth") };

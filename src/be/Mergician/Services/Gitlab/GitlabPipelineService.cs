@@ -25,12 +25,12 @@ public class GitlabPipelineService
     ///     Returns external job-like build statuses for the latest pipeline on the branch.
     /// </summary>
     public async Task<List<BranchBuildJob>> GetLatestExternalJobsForBranch(
-        GitlabAccessUser user,
+        GitlabAccessDetailsForUser accessDetailsForUser,
         int projectId,
         string branchName,
         CancellationToken cancellationToken = default)
     {
-        var commitSha = await GetBranchHeadCommitSha(user, projectId, branchName, cancellationToken);
+        var commitSha = await GetBranchHeadCommitSha(accessDetailsForUser, projectId, branchName, cancellationToken);
         if (string.IsNullOrWhiteSpace(commitSha))
         {
             _logger.LogDebug(
@@ -41,7 +41,7 @@ public class GitlabPipelineService
             return [];
         }
 
-        var latestPipeline = await GetLatestPipeline(user, projectId, branchName, cancellationToken);
+        var latestPipeline = await GetLatestPipeline(accessDetailsForUser, projectId, branchName, cancellationToken);
         if (latestPipeline == null)
         {
             _logger.LogDebug(
@@ -53,7 +53,7 @@ public class GitlabPipelineService
         }
 
         var externalJobs = await GetExternalJobsFromPipeline(
-            user,
+            accessDetailsForUser,
             projectId,
             latestPipeline.Id,
             cancellationToken);
@@ -77,7 +77,7 @@ public class GitlabPipelineService
             projectId);
 
         var fallbackStatuses = await GetExternalStatusesFromCommit(
-            user,
+            accessDetailsForUser,
             projectId,
             commitSha,
             latestPipeline.Id,
@@ -93,13 +93,13 @@ public class GitlabPipelineService
     }
 
     private async Task<string?> GetBranchHeadCommitSha(
-        GitlabAccessUser user,
+        GitlabAccessDetailsForUser accessDetailsForUser,
         int projectId,
         string branchName,
         CancellationToken cancellationToken)
     {
         var encodedBranch = Uri.EscapeDataString(branchName);
-        var request = user.CreateRequest(
+        var request = accessDetailsForUser.CreateRequest(
             HttpMethod.Get,
             $"projects/{projectId}/repository/branches/{encodedBranch}");
 
@@ -132,13 +132,13 @@ public class GitlabPipelineService
     }
 
     private async Task<GitLabPipeline?> GetLatestPipeline(
-        GitlabAccessUser user,
+        GitlabAccessDetailsForUser accessDetailsForUser,
         int projectId,
         string branchName,
         CancellationToken cancellationToken)
     {
         var encodedBranch = Uri.EscapeDataString(branchName);
-        var request = user.CreateRequest(
+        var request = accessDetailsForUser.CreateRequest(
             HttpMethod.Get,
             $"projects/{projectId}/pipelines?ref={encodedBranch}&order_by=updated_at&sort=desc&per_page=1");
 
@@ -161,12 +161,12 @@ public class GitlabPipelineService
     }
 
     private async Task<List<BranchBuildJob>> GetExternalJobsFromPipeline(
-        GitlabAccessUser user,
+        GitlabAccessDetailsForUser accessDetailsForUser,
         int projectId,
         int pipelineId,
         CancellationToken cancellationToken)
     {
-        var request = user.CreateRequest(
+        var request = accessDetailsForUser.CreateRequest(
             HttpMethod.Get,
             $"projects/{projectId}/pipelines/{pipelineId}/jobs?per_page=100");
 
@@ -196,14 +196,14 @@ public class GitlabPipelineService
     }
 
     private async Task<List<BranchBuildJob>> GetExternalStatusesFromCommit(
-        GitlabAccessUser user,
+        GitlabAccessDetailsForUser accessDetailsForUser,
         int projectId,
         string commitSha,
         int pipelineId,
         CancellationToken cancellationToken)
     {
         var encodedCommit = Uri.EscapeDataString(commitSha);
-        var request = user.CreateRequest(
+        var request = accessDetailsForUser.CreateRequest(
             HttpMethod.Get,
             $"projects/{projectId}/repository/commits/{encodedCommit}/statuses?pipeline_id={pipelineId}&per_page=100");
 
