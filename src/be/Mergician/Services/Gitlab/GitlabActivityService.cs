@@ -127,14 +127,92 @@ public class GitlabActivityService
             since);
 
         var pushEvents = _gitlabService.GetPushEventsSince(accessDetailsForUser, since, cancellationToken);
+        var processedKeys = new HashSet<string>();
 
-        await foreach (var _ in FetchAndStoreBranchActivityRecords(
-                           accessDetailsForUser,
-                           gitlabUserId,
-                           pushEvents,
-                           cancellationToken))
+        await foreach (var pushEvent in pushEvents.WithCancellation(cancellationToken))
         {
-            // Consume the enumerable to trigger DB storage; results are not needed
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (GitlabService.IsPossibleDefaultBranch(pushEvent.BranchName))
+            {
+                _logger.LogDebug(
+                    "Skipping default branch '{BranchName}' in project {ProjectId}",
+                    pushEvent.BranchName,
+                    pushEvent.ProjectId);
+
+                continue;
+            }
+
+            var key = $"{pushEvent.BranchName}:{pushEvent.ProjectId}";
+            if (!processedKeys.Add(key))
+            {
+                _logger.LogDebug(
+                    "Already processed branch '{BranchName}' in project {ProjectId}, skipping duplicate push event",
+                    pushEvent.BranchName,
+                    pushEvent.ProjectId);
+
+                continue;
+            }
+
+            if (await ShouldSkipBranchByLookup(
+                    accessDetailsForUser,
+                    pushEvent.BranchName,
+                    pushEvent.ProjectId,
+                    null,
+                    "push-event processing",
+                    cancellationToken))
+            {
+                continue;
+            }
+
+            var project = await _gitlabService.GetProject(accessDetailsForUser, pushEvent.ProjectId);
+            if (project == null)
+            {
+                _logger.LogInformation(
+                    "Project {ProjectId} not found while processing push event for branch '{BranchName}'; skipping",
+                    pushEvent.ProjectId,
+                    pushEvent.BranchName);
+
+                continue;
+            }
+
+            if (ShouldSkipScheduledForDeletion(
+                    pushEvent.BranchName,
+                    pushEvent.ProjectId,
+                    project.NameWithNamespace,
+                    null,
+                    "push-event processing"))
+            {
+                continue;
+            }
+
+            var projectNameWithNamespace = project.NameWithNamespace;
+            if (string.IsNullOrWhiteSpace(project.Name))
+            {
+                _logger.LogError("Invalid empty project name in project id {id}", pushEvent.ProjectId);
+                continue;
+            }
+
+            var branchRecord = _mergeGroupRepository.GetOrCreateBranchRecord(
+                pushEvent.BranchName,
+                pushEvent.ProjectId,
+                projectNameWithNamespace);
+
+            var mergeGroup = _mergeGroupRepository.GetOrCreateMergeGroup(pushEvent.BranchName);
+            _mergeGroupRepository.EnsureBranchInMergeGroup(mergeGroup.Id, branchRecord.Id);
+            _mergeGroupRepository.EnsureUserInMergeGroup(gitlabUserId, mergeGroup.Id);
+
+            var lastUpdated = pushEvent.CreatedAt.ToUniversalTime();
+            if (lastUpdated > mergeGroup.LastUpdateTime)
+            {
+                _mergeGroupRepository.UpdateMergeGroupTimestamp(mergeGroup.Id, lastUpdated);
+            }
+
+            _logger.LogDebug(
+                "Stored branch '{BranchName}' in project {ProjectId} for user {UserId}",
+                pushEvent.BranchName,
+                pushEvent.ProjectId,
+                gitlabUserId);
         }
     }
 
@@ -405,113 +483,6 @@ public class GitlabActivityService
         }
 
         _logger.LogInformation("Finished streaming refresh for {Count} branch-project pairs", branches.Count);
-    }
-
-    // TODO: This method is only called by one method. Inline this and clean up the code.
-    private async IAsyncEnumerable<BranchActivity> FetchAndStoreBranchActivityRecords(
-        AccessDetailsForUser accessDetailsForUser,
-        int gitlabUserId,
-        IAsyncEnumerable<(string BranchName, int ProjectId, DateTimeOffset CreatedAt)> pushEvents,
-        [EnumeratorCancellation] CancellationToken cancellationToken = default)
-    {
-        var returnedKeys = new HashSet<string>();
-
-        await foreach (var pushEvent in pushEvents.WithCancellation(cancellationToken))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            if (GitlabService.IsPossibleDefaultBranch(pushEvent.BranchName))
-            {
-                _logger.LogDebug(
-                    "Skipping default branch '{BranchName}' in project {ProjectId}",
-                    pushEvent.BranchName,
-                    pushEvent.ProjectId);
-
-                continue;
-            }
-
-            var key = $"{pushEvent.BranchName}:{pushEvent.ProjectId}";
-
-            if (await ShouldSkipBranchByLookup(
-                    accessDetailsForUser,
-                    pushEvent.BranchName,
-                    pushEvent.ProjectId,
-                    null,
-                    "push-event processing",
-                    cancellationToken))
-            {
-                continue;
-            }
-
-            var project = await _gitlabService.GetProject(accessDetailsForUser, pushEvent.ProjectId);
-            if (project == null)
-            {
-                _logger.LogInformation(
-                    "Project {ProjectId} not found while processing push event for branch '{BranchName}'; skipping",
-                    pushEvent.ProjectId,
-                    pushEvent.BranchName);
-
-                continue;
-            }
-
-            if (ShouldSkipScheduledForDeletion(
-                    pushEvent.BranchName,
-                    pushEvent.ProjectId,
-                    project.NameWithNamespace,
-                    null,
-                    "push-event processing"))
-            {
-                continue;
-            }
-
-            var projectNameWithNamespace = project.NameWithNamespace;
-            if (string.IsNullOrWhiteSpace(project.Name))
-            {
-                _logger.LogError("Invalid empty project name in project id {id}", pushEvent.ProjectId);
-                continue;
-            }
-
-            // Store in database
-            var branchRecord = _mergeGroupRepository.GetOrCreateBranchRecord(
-                pushEvent.BranchName,
-                pushEvent.ProjectId,
-                projectNameWithNamespace);
-
-            var mergeGroup = _mergeGroupRepository.GetOrCreateMergeGroup(pushEvent.BranchName);
-            _mergeGroupRepository.EnsureBranchInMergeGroup(mergeGroup.Id, branchRecord.Id);
-            _mergeGroupRepository.EnsureUserInMergeGroup(gitlabUserId, mergeGroup.Id);
-
-            var lastUpdated = pushEvent.CreatedAt.ToUniversalTime();
-            if (lastUpdated > mergeGroup.LastUpdateTime)
-            {
-                _mergeGroupRepository.UpdateMergeGroupTimestamp(mergeGroup.Id, lastUpdated);
-            }
-
-            if (!returnedKeys.Add(key))
-            {
-                _logger.LogDebug(
-                    "Branch '{BranchName}' in project {ProjectId} already returned, skipping",
-                    pushEvent.BranchName,
-                    pushEvent.ProjectId);
-
-                continue;
-            }
-
-            yield return new BranchActivity(
-                pushEvent.BranchName,
-                pushEvent.ProjectId,
-                project.Name,
-                projectNameWithNamespace,
-                null,
-                null,
-                null,
-                pushEvent.CreatedAt,
-                mergeGroup.Id,
-                null,
-                null,
-                project.WebUrl,
-                BranchInProjectId: branchRecord.Id);
-        }
     }
 
     private async Task<bool> ShouldSkipBranchByLookup(
