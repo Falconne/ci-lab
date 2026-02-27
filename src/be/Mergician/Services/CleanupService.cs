@@ -62,7 +62,6 @@ public class CleanupService : BackgroundService
         _logger.LogInformation("CleanupService starting cleanup run");
 
         using var scope = _serviceProvider.CreateScope();
-        var coreRepository = scope.ServiceProvider.GetRequiredService<ICoreRepository>();
         var mergeGroupRepository = scope.ServiceProvider.GetRequiredService<IMergeGroupRepository>();
         var gitlabService = scope.ServiceProvider.GetRequiredService<GitlabService>();
         var userFactory = scope.ServiceProvider.GetRequiredService<GitlabUserFactory>();
@@ -70,12 +69,6 @@ public class CleanupService : BackgroundService
         if (!userFactory.IsServiceTokenConfigured)
         {
             _logger.LogWarning("CleanupService skipping: GitLab service token not configured");
-            return;
-        }
-
-        if (!coreRepository.IsHealthy())
-        {
-            _logger.LogWarning("CleanupService skipping: database is not healthy");
             return;
         }
 
