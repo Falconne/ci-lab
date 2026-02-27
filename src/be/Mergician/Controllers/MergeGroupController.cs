@@ -70,6 +70,7 @@ public class MergeGroupController : SseControllerBase
         return Ok(details);
     }
 
+    // TODO: Rename the endpoint to refresh-branches and the method to RefreshBranches. Update the frontend callers.
     /// <summary>
     ///     Returns a diff of the merge group's branches compared to what the frontend currently shows.
     ///     The frontend sends the branch database IDs it currently displays, and the backend
@@ -125,6 +126,7 @@ public class MergeGroupController : SseControllerBase
         return Ok(result);
     }
 
+    // TODO: Rename the endpoint to refresh-activity and the method to RefreshActivity. Update the frontend callers.
     /// <summary>
     ///     SSE stream that refreshes MR/approval/build status for branches in a merge group.
     ///     Yields updated BranchActivity records as each branch is resolved.
