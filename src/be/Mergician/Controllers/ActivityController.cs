@@ -70,12 +70,12 @@ public class ActivityController : ControllerBase
 
     [HttpPost("refresh-activity")]
     public async Task RefreshActivity(
-        [FromBody] List<BranchRefreshRequest> branches,
+        [FromBody] DashboardPollRequest request,
         CancellationToken cancellationToken)
     {
         var currentUser = HttpContext.GetGitlabUser();
 
-        _logger.LogInformation("Starting SSE refresh stream for {Count} branches", branches.Count);
+        _logger.LogInformation("Starting SSE refresh stream for {Count} branches", request.KnownBranches.Count);
 
         // Also keep the background sync thread alive during refresh
         var userInfo = await _gitlabService.GetCurrentUser(currentUser);
@@ -91,17 +91,10 @@ public class ActivityController : ControllerBase
             {
                 await foreach (var item in _activityService.StreamRefreshBranchStatus(
                                    currentUser,
-                                   branches,
+                                   request.KnownBranches,
                                    streamToken))
                 {
-                    if (item is BranchDeletedNotification deleted)
-                    {
-                        await _sseService.WriteSseEvent(Response, deleted, streamToken, "deleted");
-                    }
-                    else
-                    {
-                        await _sseService.WriteSseEvent(Response, item, streamToken);
-                    }
+                    await _sseService.WriteSseEvent(Response, item, streamToken);
                 }
             },
             cancellationToken,

@@ -85,12 +85,11 @@ public class MergeGroupController : ControllerBase
     /// <summary>
     ///     SSE stream that refreshes MR/approval/build status for branches in a merge group.
     ///     Yields updated BranchActivity records as each branch is resolved.
-    ///     Yields BranchDeletedNotification when a branch no longer exists.
     /// </summary>
     [HttpPost("{mergeGroupId:int}/refresh-activity")]
     public async Task RefreshActivity(
         int mergeGroupId,
-        [FromBody] List<BranchRefreshRequest> branches,
+        [FromBody] DashboardPollRequest request,
         CancellationToken cancellationToken)
     {
         var currentUser = HttpContext.GetGitlabUser();
@@ -98,7 +97,7 @@ public class MergeGroupController : ControllerBase
         _logger.LogInformation(
             "Starting SSE refresh stream for merge group {MergeGroupId} with {Count} branches",
             mergeGroupId,
-            branches.Count);
+            request.KnownBranches.Count);
 
         // Keep the background sync thread alive during refresh
         var userInfo = await _gitlabService.GetCurrentUser(currentUser);
@@ -114,17 +113,10 @@ public class MergeGroupController : ControllerBase
             {
                 await foreach (var item in _activityService.StreamRefreshBranchStatus(
                                    currentUser,
-                                   branches,
+                                   request.KnownBranches,
                                    streamToken))
                 {
-                    if (item is BranchDeletedNotification deleted)
-                    {
-                        await _sseService.WriteSseEvent(Response, deleted, streamToken, "deleted");
-                    }
-                    else
-                    {
-                        await _sseService.WriteSseEvent(Response, item, streamToken);
-                    }
+                    await _sseService.WriteSseEvent(Response, item, streamToken);
                 }
             },
             cancellationToken,

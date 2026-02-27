@@ -320,6 +320,40 @@ public class MergeGroupRepository : IMergeGroupRepository
             new { BranchName = branchName, ProjectId = projectId });
     }
 
+    public BranchWithMergeGroupInfo? GetBranchWithMergeGroupInfo(int branchInProjectId)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        connection.Open();
+
+        var result = connection.QueryFirstOrDefault<BranchWithMergeGroupInfo>(
+            """
+            SELECT
+                bp.id AS BranchInProjectId,
+                bp.branch_name AS BranchName,
+                bp.project_id AS ProjectId,
+                bp.project_name AS ProjectName,
+                mg.id AS MergeGroupId,
+                mg.name AS MergeGroupName,
+                mg.last_update_time AS LastUpdateTime
+            FROM branch_in_project bp
+            LEFT JOIN branches_in_merge_group bmg ON bmg.branch_in_project_id = bp.id
+            LEFT JOIN merge_group mg ON mg.id = bmg.merge_group_id
+            WHERE bp.id = @BranchInProjectId
+            LIMIT 1
+            """,
+            new { BranchInProjectId = branchInProjectId });
+
+        if (result != null)
+        {
+            result.LastUpdateTime = UtcTimestamp.EnsureUtc(
+                result.LastUpdateTime,
+                () => $"MergeGroupRepository.GetBranchWithMergeGroupInfo branch {branchInProjectId}",
+                _logger);
+        }
+
+        return result;
+    }
+
     public List<int> GetMergeGroupIdsForBranch(int branchInProjectId)
     {
         using var connection = _connectionFactory.CreateConnection();

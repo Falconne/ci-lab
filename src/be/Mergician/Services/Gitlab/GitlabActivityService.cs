@@ -304,61 +304,60 @@ public class GitlabActivityService
     }
 
     /// <summary>
-    ///     Streams refreshed MR and approval status for specific branch-project pairs.
-    ///     When a branch no longer exists, yields a deleted notification instead.
+    ///     Streams refreshed MR and approval status for branches identified by their database IDs.
+    ///     Branches that no longer exist in the repository are silently deleted from the database;
+    ///     the frontend will learn of their removal via the next polling diff.
     /// </summary>
-    public async IAsyncEnumerable<object> StreamRefreshBranchStatus(
+    public async IAsyncEnumerable<BranchActivity> StreamRefreshBranchStatus(
         AccessDetailsForUser accessDetailsForUser,
-        List<BranchRefreshRequest> branches,
+        List<KnownBranch> branches,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Streaming refresh for {Count} branch-project pairs", branches.Count);
 
-        foreach (var branch in branches)
+        foreach (var knownBranch in branches)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            // Check if branch still exists
+            // Look up branch and its merge group info by database ID
+            var branchInfo = _mergeGroupRepository.GetBranchWithMergeGroupInfo(knownBranch.BranchInProjectId);
+            if (branchInfo == null)
+            {
+                _logger.LogWarning(
+                    "Branch with id {BranchInProjectId} not found in database during refresh; skipping",
+                    knownBranch.BranchInProjectId);
+
+                continue;
+            }
+
+            // Check if branch still exists in GitLab
             var branchLookup = await _gitlabService.GetBranchLookupResult(
                 accessDetailsForUser,
-                branch.ProjectId,
-                branch.BranchName);
+                branchInfo.ProjectId,
+                branchInfo.BranchName);
 
             if (branchLookup.IsMissing)
             {
                 _logger.LogInformation(
                     "Branch '{BranchName}' in project {ProjectId} no longer exists during refresh",
-                    branch.BranchName,
-                    branch.ProjectId);
+                    branchInfo.BranchName,
+                    branchInfo.ProjectId);
 
-                // Find and remove from DB
-                var branchRecord = _mergeGroupRepository.GetBranchRecord(branch.BranchName, branch.ProjectId);
-
-                if (branchRecord != null)
-                {
-                    RemoveBranchAndCleanup(branchRecord.Id);
-                }
-
-                yield return new BranchDeletedNotification(
-                    branch.BranchName,
-                    branch.ProjectId,
-                    branch.MergeGroupId,
-                    branchRecord?.Id);
-
+                RemoveBranchAndCleanup(branchInfo.BranchInProjectId);
                 continue;
             }
 
             if (branchLookup.IsUnavailable)
             {
                 _logger.LogWarning(
-                    "Branch lookup unavailable for branch '{BranchName}' in project {ProjectId} during refresh; skipping this branch update",
-                    branch.BranchName,
-                    branch.ProjectId);
+                    "Branch lookup unavailable for branch '{BranchName}' in project {ProjectId} during refresh; skipping",
+                    branchInfo.BranchName,
+                    branchInfo.ProjectId);
 
                 continue;
             }
 
-            var project = await _gitlabService.GetProject(accessDetailsForUser, branch.ProjectId);
+            var project = await _gitlabService.GetProject(accessDetailsForUser, branchInfo.ProjectId);
             if (project == null || GitlabService.IsScheduledForDeletion(project.NameWithNamespace))
             {
                 var reason = project == null
@@ -367,46 +366,35 @@ public class GitlabActivityService
 
                 _logger.LogInformation(
                     "Branch '{BranchName}' in project {ProjectId} treated as deleted during refresh: {Reason}",
-                    branch.BranchName,
-                    branch.ProjectId,
+                    branchInfo.BranchName,
+                    branchInfo.ProjectId,
                     reason);
 
-                var branchRecord = _mergeGroupRepository.GetBranchRecord(branch.BranchName, branch.ProjectId);
-                if (branchRecord != null)
-                {
-                    RemoveBranchAndCleanup(branchRecord.Id);
-                }
-
-                yield return new BranchDeletedNotification(
-                    branch.BranchName,
-                    branch.ProjectId,
-                    branch.MergeGroupId,
-                    branchRecord?.Id);
-
+                RemoveBranchAndCleanup(branchInfo.BranchInProjectId);
                 continue;
             }
 
             var projectNameWithNamespace = project.NameWithNamespace;
             var projectName = string.IsNullOrWhiteSpace(project.Name)
-                ? GetProjectDisplayName(projectNameWithNamespace, branch.ProjectId)
+                ? GetProjectDisplayName(projectNameWithNamespace, branchInfo.ProjectId)
                 : project.Name;
 
-            var existingRecord = _mergeGroupRepository.GetBranchRecord(branch.BranchName, branch.ProjectId);
+            int? mergeGroupId = branchInfo.MergeGroupId > 0 ? branchInfo.MergeGroupId : null;
 
             var pendingActivity = new BranchActivity(
-                branch.BranchName,
-                branch.ProjectId,
+                branchInfo.BranchName,
+                branchInfo.ProjectId,
                 projectName,
                 projectNameWithNamespace,
                 null,
                 null,
                 null,
-                branch.LastUpdated,
-                branch.MergeGroupId,
+                branchInfo.LastUpdateTime,
+                mergeGroupId,
                 null,
                 null,
                 project.WebUrl,
-                BranchInProjectId: existingRecord?.Id);
+                BranchInProjectId: branchInfo.BranchInProjectId);
 
             var activity = await ResolveBranchActivityIn(
                 accessDetailsForUser,

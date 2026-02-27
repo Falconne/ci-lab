@@ -177,13 +177,6 @@ interface BranchBuildJob {
   url?: string | null
 }
 
-interface BranchDeletedNotification {
-  branchName: string
-  projectId: number
-  mergeGroupId: number | null
-  branchInProjectId: number | null
-}
-
 interface KnownBranch {
   branchInProjectId: number
 }
@@ -397,24 +390,6 @@ function handleActivityEvent(data: BranchActivity) {
   }
 }
 
-function handleBranchDeleted(notification: BranchDeletedNotification) {
-  // Match by branchInProjectId first, fall back to name/projectId
-  let idx = -1
-  if (notification.branchInProjectId != null) {
-    idx = activities.value.findIndex(
-      a => a.branchInProjectId === notification.branchInProjectId
-    )
-  }
-  if (idx < 0) {
-    idx = activities.value.findIndex(
-      a => a.branchName === notification.branchName && a.projectId === notification.projectId
-    )
-  }
-  if (idx >= 0) {
-    activities.value.splice(idx, 1)
-  }
-}
-
 function handleBranchRemovedById(branchInProjectId: number) {
   const idx = activities.value.findIndex(
     a => a.branchInProjectId === branchInProjectId
@@ -544,27 +519,11 @@ function stopPolling() {
 async function refreshExistingBranches() {
   if (activities.value.length === 0) return
 
-  // Deduplicate branch-project pairs
-  const seen = new Set<string>()
-  const branches: { branchName: string; projectId: number; lastUpdated: string | null; mergeGroupId: number | null }[] = []
-  for (const a of activities.value) {
-    const key = `${a.branchName}:${a.projectId}`
-    if (!seen.has(key)) {
-      seen.add(key)
-      branches.push({
-        branchName: a.branchName,
-        projectId: a.projectId,
-        lastUpdated: a.lastUpdated,
-        mergeGroupId: a.mergeGroupId
-      })
-    }
-  }
-
   try {
     const response = await fetch('/api/activity/refresh-activity', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(branches)
+      body: JSON.stringify({ knownBranches: getKnownBranches() })
     })
 
     if (response.status === 401) {
@@ -603,19 +562,6 @@ async function refreshExistingBranches() {
 
         if (eventText.startsWith('event: done')) {
           return
-        }
-
-        if (eventText.startsWith('event: deleted')) {
-          const dataLine = eventText.split('\n').find(l => l.startsWith('data: '))
-          if (dataLine) {
-            try {
-              const notification: BranchDeletedNotification = JSON.parse(dataLine.slice(6))
-              handleBranchDeleted(notification)
-            } catch (err) {
-              console.error('Failed to parse deleted SSE data:', err)
-            }
-          }
-          continue
         }
 
         if (eventText.startsWith('data: ')) {
