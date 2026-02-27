@@ -6,8 +6,7 @@ namespace Mergician.Controllers;
 // TODO: Rather than making this a base class, make it a helper service that others can use with composition.
 /// <summary>
 ///     Base controller providing Server-Sent Events (SSE) streaming helpers.
-///     Handles SSE framing, heartbeat, and write locking so derived controllers
-///     only need to provide the streaming logic.
+///     Handles SSE framing so derived controllers only need to provide the streaming logic.
 /// </summary>
 public abstract class SseControllerBase : ControllerBase
 {
@@ -16,29 +15,22 @@ public abstract class SseControllerBase : ControllerBase
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
-    private static readonly TimeSpan _heartbeatInterval = TimeSpan.FromSeconds(15);
-
     /// <summary>
-    ///     Configures the response for SSE and runs the given stream writer with
-    ///     heartbeat and write locking. Sends an 'event: done' frame on completion.
+    ///     Configures the response for SSE and runs the given stream writer.
+    ///     Sends an 'event: done' frame on completion.
     /// </summary>
     protected async Task StreamSse(
         string streamName,
-        Func<CancellationToken, SemaphoreSlim, Task> streamWriter,
+        Func<CancellationToken, Task> streamWriter,
         CancellationToken cancellationToken,
         ILogger logger)
     {
         ConfigureSseHeaders();
 
-        using var writeLock = new SemaphoreSlim(1, 1);
-        using var heartbeatCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        var heartbeatTask = RunHeartbeat(heartbeatCts.Token, writeLock);
-
         try
         {
-            await streamWriter(cancellationToken, writeLock);
-            // ReSharper disable once PossiblyMistakenUseOfCancellationToken
-            await WriteSseRaw("event: done\ndata: {}\n\n", cancellationToken, writeLock);
+            await streamWriter(cancellationToken);
+            await WriteSseRaw("event: done\ndata: {}\n\n", cancellationToken);
 
             logger.LogInformation("SSE {StreamName} stream completed", streamName);
         }
@@ -46,24 +38,11 @@ public abstract class SseControllerBase : ControllerBase
         {
             logger.LogInformation("SSE {StreamName} stream cancelled by client", streamName);
         }
-        finally
-        {
-            await heartbeatCts.CancelAsync();
-            try
-            {
-                await heartbeatTask;
-            }
-            catch (OperationCanceledException)
-            {
-                // Expected during cancellation
-            }
-        }
     }
 
     protected async Task WriteSseEvent(
         object payload,
         CancellationToken cancellationToken,
-        SemaphoreSlim writeLock,
         string? eventName = null)
     {
         var json = JsonSerializer.Serialize(payload, SseJsonOptions);
@@ -71,7 +50,7 @@ public abstract class SseControllerBase : ControllerBase
             ? $"data: {json}\n\n"
             : $"event: {eventName}\ndata: {json}\n\n";
 
-        await WriteSseRaw(frame, cancellationToken, writeLock);
+        await WriteSseRaw(frame, cancellationToken);
     }
 
     private void ConfigureSseHeaders()
@@ -82,29 +61,9 @@ public abstract class SseControllerBase : ControllerBase
         Response.Headers["X-Accel-Buffering"] = "no";
     }
 
-    // TODO: Remove the heartbeat and the supporting functionality around heartbeats. We don't need to guard against stream death,
-    // it will be short lived and will be recreated from the regular frontend polling anyway. Check if the writeLock is still needed
-    // if we don't have heartbeats.
-    private async Task RunHeartbeat(CancellationToken cancellationToken, SemaphoreSlim writeLock)
+    private async Task WriteSseRaw(string frame, CancellationToken cancellationToken)
     {
-        using var timer = new PeriodicTimer(_heartbeatInterval);
-        while (await timer.WaitForNextTickAsync(cancellationToken))
-        {
-            await WriteSseRaw(": heartbeat\n\n", cancellationToken, writeLock);
-        }
-    }
-
-    private async Task WriteSseRaw(string frame, CancellationToken cancellationToken, SemaphoreSlim writeLock)
-    {
-        await writeLock.WaitAsync(cancellationToken);
-        try
-        {
-            await Response.WriteAsync(frame, cancellationToken);
-            await Response.Body.FlushAsync(cancellationToken);
-        }
-        finally
-        {
-            writeLock.Release();
-        }
+        await Response.WriteAsync(frame, cancellationToken);
+        await Response.Body.FlushAsync(cancellationToken);
     }
 }

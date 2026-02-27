@@ -83,7 +83,7 @@ public class ActivityController : SseControllerBase
 
         await StreamSse(
             "refresh",
-            async (streamToken, writeLock) =>
+            async streamToken =>
             {
                 await foreach (var item in _activityService.StreamRefreshBranchStatus(
                                    currentUser,
@@ -92,11 +92,11 @@ public class ActivityController : SseControllerBase
                 {
                     if (item is BranchDeletedNotification deleted)
                     {
-                        await WriteSseEvent(deleted, streamToken, writeLock, "deleted");
+                        await WriteSseEvent(deleted, streamToken, "deleted");
                     }
                     else
                     {
-                        await WriteSseEvent(item, streamToken, writeLock);
+                        await WriteSseEvent(item, streamToken);
                     }
                 }
             },

@@ -150,7 +150,7 @@ public class MergeGroupController : SseControllerBase
 
         await StreamSse(
             $"merge-group-{mergeGroupId}-refresh",
-            async (streamToken, writeLock) =>
+            async streamToken =>
             {
                 await foreach (var item in _activityService.StreamRefreshBranchStatus(
                                    currentUser,
@@ -159,11 +159,11 @@ public class MergeGroupController : SseControllerBase
                 {
                     if (item is BranchDeletedNotification deleted)
                     {
-                        await WriteSseEvent(deleted, streamToken, writeLock, "deleted");
+                        await WriteSseEvent(deleted, streamToken, "deleted");
                     }
                     else
                     {
-                        await WriteSseEvent(item, streamToken, writeLock);
+                        await WriteSseEvent(item, streamToken);
                     }
                 }
             },
