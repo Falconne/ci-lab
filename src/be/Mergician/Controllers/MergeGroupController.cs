@@ -46,15 +46,6 @@ public class MergeGroupController : SseControllerBase
     {
         var currentUser = HttpContext.GetGitlabUser();
 
-        if (!_coreRepository.IsHealthy())
-        {
-            _logger.LogError(
-                "Database is unhealthy, cannot fetch merge group details for merge group {MergeGroupId}",
-                mergeGroupId);
-
-            return StatusCode(503, new ErrorResponse("Database is unavailable"));
-        }
-
         var userInfo = await _gitlabService.GetCurrentUser(currentUser);
         if (userInfo == null)
         {

@@ -3,7 +3,7 @@ using Dapper;
 namespace Mergician.Services.Database;
 
 /// <summary>
-/// Dapper-based implementation of global database operations.
+///     Dapper-based implementation of global database operations.
 /// </summary>
 public class CoreRepository : ICoreRepository
 {
@@ -17,6 +17,7 @@ public class CoreRepository : ICoreRepository
         _logger = logger;
     }
 
+    // TODO: Remove this method and its call sites. If the DB is down, we'll get an error anyway.
     public bool IsHealthy()
     {
         try
