@@ -113,6 +113,7 @@ public class AuthController : ControllerBase
         }
         else
         {
+            // TODO: This is an error state, respond with a 5XX to the client, the app should not continue.
             _logger.LogWarning("Could not retrieve user info after login; gl_user_id cookie not set");
         }
 

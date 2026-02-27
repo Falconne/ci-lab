@@ -58,7 +58,7 @@ public class GitlabService
         var response = await client.SendAsync(request);
         if (!response.IsSuccessStatusCode)
         {
-            _logger.LogWarning("GetCurrentUser failed with status {StatusCode}", (int)response.StatusCode);
+            _logger.LogError("GetCurrentUser failed with status {StatusCode}", (int)response.StatusCode);
             return null;
         }
 

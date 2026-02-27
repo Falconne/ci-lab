@@ -8,6 +8,8 @@ using System.Text.Json;
 
 namespace Mergician.Services.Authentication;
 
+// TODO: Remove the suffix Async from all methods in this repo that do not have a non-async overload.
+
 /// <summary>
 ///     Custom ASP.NET Core authentication handler that validates GitLab OAuth tokens
 ///     stored in cookies. Handles token refresh transparently when the access token
@@ -50,7 +52,7 @@ public class GitLabCookieAuthenticationHandler : AuthenticationHandler<Authentic
             if (userInfo != null)
             {
                 Logger.LogDebug("Access token from cookie is valid for user {UserId}", userInfo.Id);
-                return SuccessResult(accessToken, userInfo.Id);
+                return CreateSuccessResult(accessToken, userInfo.Id);
             }
 
             Logger.LogDebug("Access token from cookie is invalid, attempting refresh");
@@ -85,12 +87,13 @@ public class GitLabCookieAuthenticationHandler : AuthenticationHandler<Authentic
         // Re-use the persisted user ID — the user identity doesn't change during token refresh
         var existingUserIdStr = Request.Cookies["gl_user_id"];
         int? userId = int.TryParse(existingUserIdStr, out var parsedId) ? parsedId : null;
+        // TODO: If user id is null, fetch it from Gitlab so we don't save a AccessDetailsForUser with null userid
 
         Logger.LogDebug("Token refreshed successfully via authentication handler");
-        return SuccessResult(tokenResponse.AccessToken, userId);
+        return CreateSuccessResult(tokenResponse.AccessToken, userId);
     }
 
-    private AuthenticateResult SuccessResult(string accessToken, int? userId = null)
+    private AuthenticateResult CreateSuccessResult(string accessToken, int? userId = null)
     {
         var user = new AccessDetailsForUser(accessToken, _apiBaseUrl, userId);
         Context.Items[GitlabAccessUserKey] = user;

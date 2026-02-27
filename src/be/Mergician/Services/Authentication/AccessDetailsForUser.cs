@@ -25,6 +25,9 @@ public class AccessDetailsForUser
         UserId = userId;
     }
 
+    // TODO instead of allowing UserId to be nullable, split this class into a base (called AccessDetailsBase) and derived, where the
+    // base doesn't need a userid. Use the base class for the temp instance needed to fetch userid and use the derived
+    // class everywhere else.
     public int? UserId { get; }
 
     /// <summary>
