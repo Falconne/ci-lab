@@ -36,6 +36,7 @@ public class ActivityController : SseControllerBase
         _logger = logger;
     }
 
+    // TODO: Rename the endpoint to refresh-branches and the method to RefreshBranches. Update the frontend callers.
     [HttpPost("poll")]
     public async Task<IActionResult> PollDashboard(
         [FromBody] DashboardPollRequest request,
@@ -68,6 +69,7 @@ public class ActivityController : SseControllerBase
         return Ok(result);
     }
 
+    // TODO: Rename the endpoint to refresh-activity. Update the frontend callers.
     [HttpPost("refresh")]
     public async Task RefreshActivity(
         [FromBody] List<BranchRefreshRequest> branches,

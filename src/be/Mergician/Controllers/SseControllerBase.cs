@@ -1,5 +1,5 @@
-using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
+using System.Text.Json;
 
 namespace Mergician.Controllers;
 
@@ -82,6 +82,9 @@ public abstract class SseControllerBase : ControllerBase
         Response.Headers["X-Accel-Buffering"] = "no";
     }
 
+    // TODO: Remove the heartbeat and the supporting functionality around heartbeats. We don't need to guard against stream death,
+    // it will be short lived and will be recreated from the regular frontend polling anyway. Check if the writeLock is still needed
+    // if we don't have heartbeats.
     private async Task RunHeartbeat(CancellationToken cancellationToken, SemaphoreSlim writeLock)
     {
         using var timer = new PeriodicTimer(_heartbeatInterval);
