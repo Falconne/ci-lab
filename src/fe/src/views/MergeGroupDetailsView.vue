@@ -372,7 +372,7 @@ async function pollMergeGroup() {
   if (!mergeGroupId) return
 
   try {
-    const response = await fetch(`/api/merge-groups/${mergeGroupId}/poll`, {
+    const response = await fetch(`/api/merge-groups/${mergeGroupId}/refresh-branches`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ knownBranches: getKnownBranches() })
@@ -454,7 +454,7 @@ async function refreshBranches() {
   }
 
   try {
-    const response = await fetch(`/api/merge-groups/${mergeGroupId}/refresh`, {
+    const response = await fetch(`/api/merge-groups/${mergeGroupId}/refresh-activity`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(branches)

@@ -78,15 +78,14 @@ public class MergeGroupController : ControllerBase
         return Ok(details);
     }
 
-    // TODO: Rename the endpoint to refresh-branches and the method to RefreshBranches. Update the frontend callers.
     /// <summary>
     ///     Returns a diff of the merge group's branches compared to what the frontend currently shows.
     ///     The frontend sends the branch database IDs it currently displays, and the backend
     ///     returns branches to add or remove based on the current database state.
     ///     Also checks for new or deleted branches in the merge group.
     /// </summary>
-    [HttpPost("{mergeGroupId:int}/poll")]
-    public async Task<IActionResult> PollMergeGroup(
+    [HttpPost("{mergeGroupId:int}/refresh-branches")]
+    public async Task<IActionResult> RefreshBranches(
         int mergeGroupId,
         [FromBody] MergeGroupPollRequest request,
         CancellationToken cancellationToken)
@@ -103,7 +102,7 @@ public class MergeGroupController : ControllerBase
         _syncService.EnsureSyncRunning(userInfo.Id, currentUser);
 
         _logger.LogDebug(
-            "Merge group poll for user {UserId}, merge group {MergeGroupId} with {Count} known branches",
+            "Merge group branch diff for user {UserId}, merge group {MergeGroupId} with {Count} known branches",
             userInfo.Id,
             mergeGroupId,
             request.KnownBranches.Count);
@@ -122,19 +121,16 @@ public class MergeGroupController : ControllerBase
             userInfo.Id,
             mergeGroupId);
 
-        // TODO: In the frontend, make it so that if this method returns any diff, then immediately call the refresh-activity activity endpoint
-
         return Ok(result);
     }
 
-    // TODO: Rename the endpoint to refresh-activity and the method to RefreshActivity. Update the frontend callers.
     /// <summary>
     ///     SSE stream that refreshes MR/approval/build status for branches in a merge group.
     ///     Yields updated BranchActivity records as each branch is resolved.
     ///     Yields BranchDeletedNotification when a branch no longer exists.
     /// </summary>
-    [HttpPost("{mergeGroupId:int}/refresh")]
-    public async Task RefreshMergeGroup(
+    [HttpPost("{mergeGroupId:int}/refresh-activity")]
+    public async Task RefreshActivity(
         int mergeGroupId,
         [FromBody] List<BranchRefreshRequest> branches,
         CancellationToken cancellationToken)

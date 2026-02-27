@@ -453,7 +453,7 @@ function getKnownBranches(): KnownBranch[] {
  */
 async function pollDashboard() {
   try {
-    const response = await fetch('/api/activity/poll', {
+    const response = await fetch('/api/activity/refresh-branches', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ knownBranches: getKnownBranches() })
@@ -561,7 +561,7 @@ async function refreshExistingBranches() {
   }
 
   try {
-    const response = await fetch('/api/activity/refresh', {
+    const response = await fetch('/api/activity/refresh-activity', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(branches)

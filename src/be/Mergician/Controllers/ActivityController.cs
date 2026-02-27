@@ -36,9 +36,8 @@ public class ActivityController : ControllerBase
         _logger = logger;
     }
 
-    // TODO: Rename the endpoint to refresh-branches and the method to RefreshBranches. Update the frontend callers.
-    [HttpPost("poll")]
-    public async Task<IActionResult> PollDashboard(
+    [HttpPost("refresh-branches")]
+    public async Task<IActionResult> RefreshBranches(
         [FromBody] DashboardPollRequest request,
         CancellationToken cancellationToken)
     {
@@ -54,7 +53,7 @@ public class ActivityController : ControllerBase
         _syncService.EnsureSyncRunning(userInfo.Id, currentUser);
 
         _logger.LogDebug(
-            "Dashboard poll for user {UserId} with {Count} known branches",
+            "Dashboard branch diff for user {UserId} with {Count} known branches",
             userInfo.Id,
             request.KnownBranches.Count);
 
@@ -69,8 +68,7 @@ public class ActivityController : ControllerBase
         return Ok(result);
     }
 
-    // TODO: Rename the endpoint to refresh-activity. Update the frontend callers.
-    [HttpPost("refresh")]
+    [HttpPost("refresh-activity")]
     public async Task RefreshActivity(
         [FromBody] List<BranchRefreshRequest> branches,
         CancellationToken cancellationToken)
