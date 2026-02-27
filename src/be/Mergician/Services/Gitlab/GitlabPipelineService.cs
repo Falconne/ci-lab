@@ -25,12 +25,17 @@ public class GitlabPipelineService
     ///     Returns external job-like build statuses for the latest pipeline on the branch.
     /// </summary>
     public async Task<List<BranchBuildJob>> GetLatestExternalJobsForBranch(
-        GitlabAccessDetailsForUser accessDetailsForUser,
+        AccessDetailsForUser accessDetailsForUser,
         int projectId,
         string branchName,
         CancellationToken cancellationToken = default)
     {
-        var commitSha = await GetBranchHeadCommitSha(accessDetailsForUser, projectId, branchName, cancellationToken);
+        var commitSha = await GetBranchHeadCommitSha(
+            accessDetailsForUser,
+            projectId,
+            branchName,
+            cancellationToken);
+
         if (string.IsNullOrWhiteSpace(commitSha))
         {
             _logger.LogDebug(
@@ -41,7 +46,12 @@ public class GitlabPipelineService
             return [];
         }
 
-        var latestPipeline = await GetLatestPipeline(accessDetailsForUser, projectId, branchName, cancellationToken);
+        var latestPipeline = await GetLatestPipeline(
+            accessDetailsForUser,
+            projectId,
+            branchName,
+            cancellationToken);
+
         if (latestPipeline == null)
         {
             _logger.LogDebug(
@@ -93,7 +103,7 @@ public class GitlabPipelineService
     }
 
     private async Task<string?> GetBranchHeadCommitSha(
-        GitlabAccessDetailsForUser accessDetailsForUser,
+        AccessDetailsForUser accessDetailsForUser,
         int projectId,
         string branchName,
         CancellationToken cancellationToken)
@@ -132,7 +142,7 @@ public class GitlabPipelineService
     }
 
     private async Task<GitLabPipeline?> GetLatestPipeline(
-        GitlabAccessDetailsForUser accessDetailsForUser,
+        AccessDetailsForUser accessDetailsForUser,
         int projectId,
         string branchName,
         CancellationToken cancellationToken)
@@ -161,7 +171,7 @@ public class GitlabPipelineService
     }
 
     private async Task<List<BranchBuildJob>> GetExternalJobsFromPipeline(
-        GitlabAccessDetailsForUser accessDetailsForUser,
+        AccessDetailsForUser accessDetailsForUser,
         int projectId,
         int pipelineId,
         CancellationToken cancellationToken)
@@ -196,7 +206,7 @@ public class GitlabPipelineService
     }
 
     private async Task<List<BranchBuildJob>> GetExternalStatusesFromCommit(
-        GitlabAccessDetailsForUser accessDetailsForUser,
+        AccessDetailsForUser accessDetailsForUser,
         int projectId,
         string commitSha,
         int pipelineId,

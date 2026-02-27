@@ -11,7 +11,8 @@ public class UserSyncContext
 {
     public readonly object StartLock = new();
 
-    private volatile GitlabAccessDetailsForUser? _accessUser;
+    private volatile AccessDetailsForUser? _accessUser;
+
     private long _lastPollTicks = DateTimeOffset.UtcNow.UtcTicks;
 
     public CancellationTokenSource? Cts { get; set; }
@@ -22,7 +23,7 @@ public class UserSyncContext
     ///     The user's latest access token for GitLab API calls.
     ///     Updated on each incoming request so the background thread always uses a fresh token.
     /// </summary>
-    public GitlabAccessDetailsForUser? AccessUser => _accessUser;
+    public AccessDetailsForUser? AccessUser => _accessUser;
 
     /// <summary>
     ///     Last time the user made a dashboard poll request.
@@ -39,7 +40,7 @@ public class UserSyncContext
     /// <summary>
     ///     Updates the access token and records a poll activity timestamp.
     /// </summary>
-    public void UpdateActivity(GitlabAccessDetailsForUser accessDetailsForUser)
+    public void UpdateActivity(AccessDetailsForUser accessDetailsForUser)
     {
         _accessUser = accessDetailsForUser;
         RecordPollTime();

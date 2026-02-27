@@ -116,7 +116,7 @@ public class GitlabActivityService
     ///     branches in the database. Called by the background sync thread.
     /// </summary>
     public async Task SyncUserActivityFromGitLab(
-        GitlabAccessDetailsForUser accessDetailsForUser,
+        AccessDetailsForUser accessDetailsForUser,
         int gitlabUserId,
         DateTimeOffset since,
         CancellationToken cancellationToken)
@@ -189,7 +189,7 @@ public class GitlabActivityService
     ///     Called by the background sync thread during each poll cycle.
     /// </summary>
     public async Task CleanupDeletedBranches(
-        GitlabAccessDetailsForUser accessDetailsForUser,
+        AccessDetailsForUser accessDetailsForUser,
         int gitlabUserId,
         CancellationToken cancellationToken)
     {
@@ -309,7 +309,7 @@ public class GitlabActivityService
     ///     Returns fully resolved details for a single merge group.
     /// </summary>
     public async Task<MergeGroupDetailsResponse?> GetMergeGroupDetails(
-        GitlabAccessDetailsForUser accessDetailsForCurrentUser,
+        AccessDetailsForUser accessDetailsForCurrentUser,
         int gitlabUserId,
         int mergeGroupId,
         CancellationToken cancellationToken = default)
@@ -371,7 +371,11 @@ public class GitlabActivityService
                 branch.MergeGroupId,
                 BranchInProjectId: branch.BranchInProjectId);
 
-            var resolved = await ResolveBranchActivityIn(accessDetailsForCurrentUser, pending, cancellationToken);
+            var resolved = await ResolveBranchActivityIn(
+                accessDetailsForCurrentUser,
+                pending,
+                cancellationToken);
+
             resolvedBranches.Add(resolved);
         }
 
@@ -383,7 +387,7 @@ public class GitlabActivityService
     ///     When a branch no longer exists, yields a deleted notification instead.
     /// </summary>
     public async IAsyncEnumerable<object> StreamRefreshBranchStatus(
-        GitlabAccessDetailsForUser accessDetailsForUser,
+        AccessDetailsForUser accessDetailsForUser,
         List<BranchRefreshRequest> branches,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
@@ -483,7 +487,10 @@ public class GitlabActivityService
                 project.WebUrl,
                 BranchInProjectId: existingRecord?.Id);
 
-            var activity = await ResolveBranchActivityIn(accessDetailsForUser, pendingActivity, cancellationToken);
+            var activity = await ResolveBranchActivityIn(
+                accessDetailsForUser,
+                pendingActivity,
+                cancellationToken);
 
             yield return activity;
         }
@@ -496,7 +503,7 @@ public class GitlabActivityService
     ///     for branches not already in the returnedKeys set. Updates the set as discoveries are made.
     /// </summary>
     private async IAsyncEnumerable<BranchActivity> FetchAndStoreBranchActivityRecords(
-        GitlabAccessDetailsForUser accessDetailsForUser,
+        AccessDetailsForUser accessDetailsForUser,
         int gitlabUserId,
         IAsyncEnumerable<(string BranchName, int ProjectId, DateTimeOffset CreatedAt)> pushEvents,
         HashSet<string> returnedKeys,
@@ -601,7 +608,7 @@ public class GitlabActivityService
     }
 
     private async Task<bool> ShouldSkipBranchByLookup(
-        GitlabAccessDetailsForUser accessDetailsForUser,
+        AccessDetailsForUser accessDetailsForUser,
         string branchName,
         int projectId,
         int? trackedBranchInProjectId,
@@ -716,7 +723,7 @@ public class GitlabActivityService
     ///     Resolves a branch's MR and approval status into a fully populated BranchActivity record.
     /// </summary>
     private async Task<BranchActivity> ResolveBranchActivityIn(
-        GitlabAccessDetailsForUser accessDetailsForUser,
+        AccessDetailsForUser accessDetailsForUser,
         BranchActivity activity,
         CancellationToken cancellationToken = default)
     {

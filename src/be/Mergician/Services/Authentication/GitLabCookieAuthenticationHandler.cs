@@ -1,9 +1,9 @@
-using System.Net.Http.Headers;
-using System.Security.Claims;
-using System.Text.Encodings.Web;
 using Mergician.Entities;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Options;
+using System.Net.Http.Headers;
+using System.Security.Claims;
+using System.Text.Encodings.Web;
 
 namespace Mergician.Services.Authentication;
 
@@ -11,17 +11,20 @@ namespace Mergician.Services.Authentication;
 ///     Custom ASP.NET Core authentication handler that validates GitLab OAuth tokens
 ///     stored in cookies. Handles token refresh transparently when the access token
 ///     has expired but a valid refresh token is available.
-///     On successful authentication, stores a GitlabAccessDetailsForUser in HttpContext.Items
+///     On successful authentication, stores a AccessDetailsForUser in HttpContext.Items
 ///     for controllers to use.
 /// </summary>
 public class GitLabCookieAuthenticationHandler : AuthenticationHandler<AuthenticationSchemeOptions>
 {
     public const string SchemeName = "GitLabCookie";
-    public const string GitlabAccessUserKey = "GitlabAccessDetailsForUser";
+
+    public const string GitlabAccessUserKey = "AccessDetailsForUser";
+
+    private readonly string _apiBaseUrl;
+
+    private readonly IHttpClientFactory _httpClientFactory;
 
     private readonly GitLabOAuthService _oauthService;
-    private readonly IHttpClientFactory _httpClientFactory;
-    private readonly string _apiBaseUrl;
 
     public GitLabCookieAuthenticationHandler(
         IOptionsMonitor<AuthenticationSchemeOptions> options,
@@ -83,7 +86,7 @@ public class GitLabCookieAuthenticationHandler : AuthenticationHandler<Authentic
 
     private AuthenticateResult SuccessResult(string accessToken)
     {
-        var user = new GitlabAccessDetailsForUser(accessToken, _apiBaseUrl);
+        var user = new AccessDetailsForUser(accessToken, _apiBaseUrl);
         Context.Items[GitlabAccessUserKey] = user;
 
         var claims = new[] { new Claim(ClaimTypes.Authentication, "gitlab-oauth") };

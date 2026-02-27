@@ -12,13 +12,13 @@ public class GitlabService
     private static readonly JsonSerializerOptions _jsonOptions =
         new() { PropertyNameCaseInsensitive = true };
 
-    private readonly GitLabTimezoneService _timezoneService;
-
     private readonly IHttpClientFactory _httpClientFactory;
 
     private readonly ILogger<GitlabService> _logger;
 
     private readonly CacheService<int, GitLabProject> _projectCache;
+
+    private readonly GitLabTimezoneService _timezoneService;
 
     public GitlabService(
         IHttpClientFactory httpClientFactory,
@@ -50,7 +50,7 @@ public class GitlabService
         return nameWithNamespace.Contains("deletion_scheduled", StringComparison.OrdinalIgnoreCase);
     }
 
-    public async Task<GitLabUserInfo?> GetCurrentUser(GitlabAccessDetailsForUser accessDetailsForUser)
+    public async Task<GitLabUserInfo?> GetCurrentUser(AccessDetailsForUser accessDetailsForUser)
     {
         var request = accessDetailsForUser.CreateRequest(HttpMethod.Get, "user");
 
@@ -73,7 +73,7 @@ public class GitlabService
     /// </summary>
     public async IAsyncEnumerable<(string BranchName, int ProjectId, DateTimeOffset CreatedAt)>
         GetPushEventsSince(
-            GitlabAccessDetailsForUser accessDetailsForUser,
+            AccessDetailsForUser accessDetailsForUser,
             DateTimeOffset since,
             [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
@@ -178,7 +178,7 @@ public class GitlabService
             sinceUtc);
     }
 
-    public async Task<GitLabProject?> GetProject(GitlabAccessDetailsForUser accessDetailsForUser, int projectId)
+    public async Task<GitLabProject?> GetProject(AccessDetailsForUser accessDetailsForUser, int projectId)
     {
         if (_projectCache.TryGet(projectId, out var cached))
         {
@@ -229,7 +229,7 @@ public class GitlabService
     ///     Returns Missing only for 404 responses; all other failures are Unavailable.
     /// </summary>
     public async Task<GitLabBranchLookupResult> GetBranchLookupResult(
-        GitlabAccessDetailsForUser accessDetailsForUser,
+        AccessDetailsForUser accessDetailsForUser,
         int projectId,
         string branchName)
     {
@@ -290,7 +290,7 @@ public class GitlabService
     ///     Finds open merge requests for a given source branch in a project.
     /// </summary>
     public async Task<List<GitLabMergeRequest>> GetMergeRequests(
-        GitlabAccessDetailsForUser accessDetailsForUser,
+        AccessDetailsForUser accessDetailsForUser,
         int projectId,
         string sourceBranch)
     {
@@ -320,7 +320,7 @@ public class GitlabService
     ///     Gets the approval state for a merge request.
     /// </summary>
     public async Task<GitLabApprovalState?> GetMergeRequestApprovals(
-        GitlabAccessDetailsForUser accessDetailsForUser,
+        AccessDetailsForUser accessDetailsForUser,
         int projectId,
         int mergeRequestIid)
     {
