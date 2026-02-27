@@ -14,8 +14,6 @@ public class ActivityController : ControllerBase
 {
     private readonly GitlabActivityService _activityService;
 
-    private readonly GitlabService _gitlabService;
-
     private readonly ILogger<ActivityController> _logger;
 
     private readonly SseService _sseService;
@@ -24,46 +22,44 @@ public class ActivityController : ControllerBase
 
     public ActivityController(
         GitlabActivityService activityService,
-        GitlabService gitlabService,
         SseService sseService,
         UserActivitySyncService syncService,
         ILogger<ActivityController> logger)
     {
         _activityService = activityService;
-        _gitlabService = gitlabService;
         _sseService = sseService;
         _syncService = syncService;
         _logger = logger;
     }
 
     [HttpPost("refresh-branches")]
-    public async Task<IActionResult> RefreshBranches(
-        [FromBody] DashboardPollRequest request,
-        CancellationToken cancellationToken)
+    public IActionResult RefreshBranches(
+        [FromBody] DashboardPollRequest request)
     {
         var currentUser = HttpContext.GetGitlabUser();
 
-        var userInfo = await _gitlabService.GetCurrentUser(currentUser);
-        if (userInfo == null)
+        if (currentUser.UserId == null)
         {
             return Unauthorized();
         }
 
+        var userId = currentUser.UserId.Value;
+
         // Ensure the background sync thread is running (also records that user is still active)
-        _syncService.EnsureSyncRunning(userInfo.Id, currentUser);
+        _syncService.EnsureSyncRunning(userId, currentUser);
 
         _logger.LogDebug(
             "Dashboard branch diff for user {UserId} with {Count} known branches",
-            userInfo.Id,
+            userId,
             request.KnownBranches.Count);
 
-        var result = _activityService.GetDashboardDiff(userInfo.Id, request.KnownBranches);
+        var result = _activityService.GetDashboardDiff(userId, request.KnownBranches);
 
         _logger.LogDebug(
             "Returning {Added} added, {Removed} removed branches for user {UserId}",
             result.Added.Count,
             result.Removed.Count,
-            userInfo.Id);
+            userId);
 
         return Ok(result);
     }
@@ -77,11 +73,10 @@ public class ActivityController : ControllerBase
 
         _logger.LogInformation("Starting SSE refresh stream for {Count} branches", request.KnownBranches.Count);
 
-        // Also keep the background sync thread alive during refresh
-        var userInfo = await _gitlabService.GetCurrentUser(currentUser);
-        if (userInfo != null)
+        // Keep the background sync thread alive during refresh
+        if (currentUser.UserId != null)
         {
-            _syncService.EnsureSyncRunning(userInfo.Id, currentUser);
+            _syncService.EnsureSyncRunning(currentUser.UserId.Value, currentUser);
         }
 
         await _sseService.StreamSse(

@@ -12,15 +12,18 @@ public class AuthController : ControllerBase
 {
     private readonly GitLabOAuthService _oauthService;
     private readonly GitlabService _gitlabService;
+    private readonly GitLabAuthSettings _authSettings;
     private readonly ILogger<AuthController> _logger;
 
     public AuthController(
         GitLabOAuthService oauthService,
         GitlabService gitlabService,
+        GitLabAuthSettings authSettings,
         ILogger<AuthController> logger)
     {
         _oauthService = oauthService;
         _gitlabService = gitlabService;
+        _authSettings = authSettings;
         _logger = logger;
     }
 
@@ -99,6 +102,20 @@ public class AuthController : ControllerBase
         Response.Cookies.Append("gl_access_token", tokenResponse.AccessToken, cookieOptions);
         Response.Cookies.Append("gl_refresh_token", tokenResponse.RefreshToken, cookieOptions);
 
+        // Fetch and persist the user ID so controllers can read it from AccessDetailsForUser
+        // without making an additional API call on every request
+        var tempUser = new AccessDetailsForUser(tokenResponse.AccessToken, _authSettings.ApiBaseUrl);
+        var userInfo = await _gitlabService.GetCurrentUser(tempUser);
+        if (userInfo != null)
+        {
+            _logger.LogDebug("Storing user ID {UserId} in cookie after login", userInfo.Id);
+            Response.Cookies.Append("gl_user_id", userInfo.Id.ToString(), cookieOptions);
+        }
+        else
+        {
+            _logger.LogWarning("Could not retrieve user info after login; gl_user_id cookie not set");
+        }
+
         // Redirect to frontend home
         return Redirect("/");
     }
@@ -129,6 +146,13 @@ public class AuthController : ControllerBase
         });
 
         Response.Cookies.Delete("gl_refresh_token", new CookieOptions
+        {
+            Path = "/",
+            Secure = useSecureCookies,
+            SameSite = SameSiteMode.Lax
+        });
+
+        Response.Cookies.Delete("gl_user_id", new CookieOptions
         {
             Path = "/",
             Secure = useSecureCookies,

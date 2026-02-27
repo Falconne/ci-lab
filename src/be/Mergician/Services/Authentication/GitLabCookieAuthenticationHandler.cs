@@ -4,11 +4,9 @@ using Microsoft.Extensions.Options;
 using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
+using System.Text.Json;
 
 namespace Mergician.Services.Authentication;
-
-// TODO: Have the user cookie also store the user id and store this in `AccessDetailsForUser`. Remove the
-// existing called to the Gitlab API to get the user id where we can get it from `AccessDetailsForUser` instead.
 
 /// <summary>
 ///     Custom ASP.NET Core authentication handler that validates GitLab OAuth tokens
@@ -48,10 +46,11 @@ public class GitLabCookieAuthenticationHandler : AuthenticationHandler<Authentic
         var accessToken = Request.Cookies["gl_access_token"];
         if (!string.IsNullOrEmpty(accessToken))
         {
-            if (await ValidateToken(accessToken))
+            var userInfo = await ValidateToken(accessToken);
+            if (userInfo != null)
             {
-                Logger.LogDebug("Access token from cookie is valid");
-                return SuccessResult(accessToken);
+                Logger.LogDebug("Access token from cookie is valid for user {UserId}", userInfo.Id);
+                return SuccessResult(accessToken, userInfo.Id);
             }
 
             Logger.LogDebug("Access token from cookie is invalid, attempting refresh");
@@ -83,13 +82,17 @@ public class GitLabCookieAuthenticationHandler : AuthenticationHandler<Authentic
         Response.Cookies.Append("gl_access_token", tokenResponse.AccessToken, cookieOptions);
         Response.Cookies.Append("gl_refresh_token", tokenResponse.RefreshToken, cookieOptions);
 
+        // Re-use the persisted user ID — the user identity doesn't change during token refresh
+        var existingUserIdStr = Request.Cookies["gl_user_id"];
+        int? userId = int.TryParse(existingUserIdStr, out var parsedId) ? parsedId : null;
+
         Logger.LogDebug("Token refreshed successfully via authentication handler");
-        return SuccessResult(tokenResponse.AccessToken);
+        return SuccessResult(tokenResponse.AccessToken, userId);
     }
 
-    private AuthenticateResult SuccessResult(string accessToken)
+    private AuthenticateResult SuccessResult(string accessToken, int? userId = null)
     {
-        var user = new AccessDetailsForUser(accessToken, _apiBaseUrl);
+        var user = new AccessDetailsForUser(accessToken, _apiBaseUrl, userId);
         Context.Items[GitlabAccessUserKey] = user;
 
         var claims = new[] { new Claim(ClaimTypes.Authentication, "gitlab-oauth") };
@@ -100,7 +103,12 @@ public class GitLabCookieAuthenticationHandler : AuthenticationHandler<Authentic
         return AuthenticateResult.Success(ticket);
     }
 
-    private async Task<bool> ValidateToken(string accessToken)
+    private static readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
+    };
+
+    private async Task<GitLabUserInfo?> ValidateToken(string accessToken)
     {
         var url = $"{_apiBaseUrl}/user";
         var request = new HttpRequestMessage(HttpMethod.Get, url);
@@ -108,6 +116,10 @@ public class GitLabCookieAuthenticationHandler : AuthenticationHandler<Authentic
 
         var client = _httpClientFactory.CreateClient("GitLabOAuth");
         var response = await client.SendAsync(request);
-        return response.IsSuccessStatusCode;
+        if (!response.IsSuccessStatusCode)
+            return null;
+
+        var json = await response.Content.ReadAsStringAsync();
+        return JsonSerializer.Deserialize<GitLabUserInfo>(json, _jsonOptions);
     }
 }

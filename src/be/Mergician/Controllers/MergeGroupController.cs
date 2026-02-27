@@ -14,8 +14,6 @@ public class MergeGroupController : ControllerBase
 {
     private readonly GitlabActivityService _activityService;
 
-    private readonly GitlabService _gitlabService;
-
     private readonly ILogger<MergeGroupController> _logger;
 
     private readonly SseService _sseService;
@@ -24,13 +22,11 @@ public class MergeGroupController : ControllerBase
 
     public MergeGroupController(
         GitlabActivityService activityService,
-        GitlabService gitlabService,
         SseService sseService,
         UserActivitySyncService syncService,
         ILogger<MergeGroupController> logger)
     {
         _activityService = activityService;
-        _gitlabService = gitlabService;
         _sseService = sseService;
         _syncService = syncService;
         _logger = logger;
@@ -43,29 +39,29 @@ public class MergeGroupController : ControllerBase
     ///     Also checks for new or deleted branches in the merge group.
     /// </summary>
     [HttpPost("{mergeGroupId:int}/refresh-branches")]
-    public async Task<IActionResult> RefreshBranches(
+    public IActionResult RefreshBranches(
         int mergeGroupId,
-        [FromBody] MergeGroupPollRequest request,
-        CancellationToken cancellationToken)
+        [FromBody] MergeGroupPollRequest request)
     {
         var currentUser = HttpContext.GetGitlabUser();
 
-        var userInfo = await _gitlabService.GetCurrentUser(currentUser);
-        if (userInfo == null)
+        if (currentUser.UserId == null)
         {
             return Unauthorized();
         }
 
+        var userId = currentUser.UserId.Value;
+
         // Keep the background sync thread alive during polling
-        _syncService.EnsureSyncRunning(userInfo.Id, currentUser);
+        _syncService.EnsureSyncRunning(userId, currentUser);
 
         _logger.LogDebug(
             "Merge group branch diff for user {UserId}, merge group {MergeGroupId} with {Count} known branches",
-            userInfo.Id,
+            userId,
             mergeGroupId,
             request.KnownBranches.Count);
 
-        var result = _activityService.GetMergeGroupDiff(userInfo.Id, mergeGroupId, request.KnownBranches);
+        var result = _activityService.GetMergeGroupDiff(userId, mergeGroupId, request.KnownBranches);
 
         if (result == null)
         {
@@ -76,7 +72,7 @@ public class MergeGroupController : ControllerBase
             "Returning {Added} added, {Removed} removed branches for user {UserId}, merge group {MergeGroupId}",
             result.Added.Count,
             result.Removed.Count,
-            userInfo.Id,
+            userId,
             mergeGroupId);
 
         return Ok(result);
@@ -100,10 +96,9 @@ public class MergeGroupController : ControllerBase
             request.KnownBranches.Count);
 
         // Keep the background sync thread alive during refresh
-        var userInfo = await _gitlabService.GetCurrentUser(currentUser);
-        if (userInfo != null)
+        if (currentUser.UserId != null)
         {
-            _syncService.EnsureSyncRunning(userInfo.Id, currentUser);
+            _syncService.EnsureSyncRunning(currentUser.UserId.Value, currentUser);
         }
 
         await _sseService.StreamSse(

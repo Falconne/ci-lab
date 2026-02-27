@@ -15,14 +15,17 @@ public class AccessDetailsForUser
 
     private readonly string _apiBaseUrl;
 
-    public AccessDetailsForUser(string accessToken, string apiBaseUrl)
+    public AccessDetailsForUser(string accessToken, string apiBaseUrl, int? userId = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(accessToken);
         ArgumentException.ThrowIfNullOrWhiteSpace(apiBaseUrl);
 
         _accessToken = accessToken;
         _apiBaseUrl = apiBaseUrl.TrimEnd('/');
+        UserId = userId;
     }
+
+    public int? UserId { get; }
 
     /// <summary>
     ///     Creates an authenticated HttpRequestMessage for the given method and relative API path.
