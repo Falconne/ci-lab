@@ -7,6 +7,9 @@ using System.Text.Encodings.Web;
 
 namespace Mergician.Services.Authentication;
 
+// TODO: Have the user cookie also store the user id and store this in `AccessDetailsForUser`. Remove the
+// existing called to the Gitlab API to get the user id where we can get it from `AccessDetailsForUser` instead.
+
 /// <summary>
 ///     Custom ASP.NET Core authentication handler that validates GitLab OAuth tokens
 ///     stored in cookies. Handles token refresh transparently when the access token

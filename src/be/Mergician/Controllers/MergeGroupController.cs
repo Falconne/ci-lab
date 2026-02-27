@@ -45,7 +45,6 @@ public class MergeGroupController : SseControllerBase
         CancellationToken cancellationToken)
     {
         var currentUser = HttpContext.GetGitlabUser();
-
         var userInfo = await _gitlabService.GetCurrentUser(currentUser);
         if (userInfo == null)
         {

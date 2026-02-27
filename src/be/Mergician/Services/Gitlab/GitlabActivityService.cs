@@ -127,13 +127,11 @@ public class GitlabActivityService
             since);
 
         var pushEvents = _gitlabService.GetPushEventsSince(accessDetailsForUser, since, cancellationToken);
-        var returnedKeys = new HashSet<string>();
 
         await foreach (var _ in FetchAndStoreBranchActivityRecords(
                            accessDetailsForUser,
                            gitlabUserId,
                            pushEvents,
-                           returnedKeys,
                            cancellationToken))
         {
             // Consume the enumerable to trigger DB storage; results are not needed
@@ -498,17 +496,15 @@ public class GitlabActivityService
         _logger.LogInformation("Finished streaming refresh for {Count} branch-project pairs", branches.Count);
     }
 
-    /// <summary>
-    ///     Discovers branches from push events, stores them in the DB, and yields BranchActivity records
-    ///     for branches not already in the returnedKeys set. Updates the set as discoveries are made.
-    /// </summary>
+    // TODO: This method is only called by one method. Inline this and clean up the code.
     private async IAsyncEnumerable<BranchActivity> FetchAndStoreBranchActivityRecords(
         AccessDetailsForUser accessDetailsForUser,
         int gitlabUserId,
         IAsyncEnumerable<(string BranchName, int ProjectId, DateTimeOffset CreatedAt)> pushEvents,
-        HashSet<string> returnedKeys,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
+        var returnedKeys = new HashSet<string>();
+
         await foreach (var pushEvent in pushEvents.WithCancellation(cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -583,7 +579,7 @@ public class GitlabActivityService
             if (!returnedKeys.Add(key))
             {
                 _logger.LogDebug(
-                    "Branch '{BranchName}' in project {ProjectId} already returned, updating DB only",
+                    "Branch '{BranchName}' in project {ProjectId} already returned, skipping",
                     pushEvent.BranchName,
                     pushEvent.ProjectId);
 

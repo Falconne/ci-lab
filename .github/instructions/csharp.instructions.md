@@ -17,3 +17,4 @@ applyTo: '**/*.cs'
 - Do not use unicode characters for decorating Log messages.
 - Organise private methods after public ones and private fields after public fields. All fields should come before all methods.
 - Do not use anonymous types when returning from Controllers. Always define a record or POCO in the Entities folder tree.
+- When inlining methods, review the resulting code to see if it should be tidied up now that the code is inlined.
