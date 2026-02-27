@@ -339,16 +339,6 @@ public class GitlabActivityService
                 continue;
             }
 
-            if (ShouldSkipScheduledForDeletion(
-                    branch.BranchName,
-                    branch.ProjectId,
-                    branch.ProjectName,
-                    branch.BranchInProjectId,
-                    $"merge group {mergeGroupId} details load"))
-            {
-                continue;
-            }
-
             var projectNameWithNamespace = branch.ProjectName;
             var projectName = GetProjectDisplayName(projectNameWithNamespace, branch.ProjectId);
             var lastUpdated = UtcTimestamp.EnsureUtc(
