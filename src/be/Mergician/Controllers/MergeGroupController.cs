@@ -1,7 +1,6 @@
 using Mergician.Entities;
 using Mergician.Services;
 using Mergician.Services.Authentication;
-using Mergician.Services.Database;
 using Mergician.Services.Gitlab;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -15,8 +14,6 @@ public class MergeGroupController : ControllerBase
 {
     private readonly GitlabActivityService _activityService;
 
-    private readonly ICoreRepository _coreRepository;
-
     private readonly GitlabService _gitlabService;
 
     private readonly ILogger<MergeGroupController> _logger;
@@ -28,54 +25,15 @@ public class MergeGroupController : ControllerBase
     public MergeGroupController(
         GitlabActivityService activityService,
         GitlabService gitlabService,
-        ICoreRepository coreRepository,
         SseService sseService,
         UserActivitySyncService syncService,
         ILogger<MergeGroupController> logger)
     {
         _activityService = activityService;
         _gitlabService = gitlabService;
-        _coreRepository = coreRepository;
         _sseService = sseService;
         _syncService = syncService;
         _logger = logger;
-    }
-
-    /// <summary>
-    ///     Returns fully resolved details for a single merge group.
-    /// </summary>
-    [HttpGet("{mergeGroupId:int}")]
-    // TODO: Remove this endpoint and just make it so that if the frontend calls the `refresh-branches` endpoint below with an empty list of known branches,
-    // it will produce the same result. We do not need to "fully resolve" the branch details. They can be populated by a call to `refresh-activity`.
-    public async Task<IActionResult> GetMergeGroupDetails(
-        int mergeGroupId,
-        CancellationToken cancellationToken)
-    {
-        var currentUser = HttpContext.GetGitlabUser();
-        var userInfo = await _gitlabService.GetCurrentUser(currentUser);
-        if (userInfo == null)
-        {
-            return Unauthorized();
-        }
-
-        _logger.LogInformation(
-            "Fetching merge group details for user {UserId}, merge group {MergeGroupId}",
-            userInfo.Id,
-            mergeGroupId);
-
-        // TODO: Remove this method after this endpoint is removed.
-        var details = await _activityService.GetMergeGroupDetails(
-            currentUser,
-            userInfo.Id,
-            mergeGroupId,
-            cancellationToken);
-
-        if (details == null)
-        {
-            return NotFound(new ErrorResponse("Merge group not found"));
-        }
-
-        return Ok(details);
     }
 
     /// <summary>
