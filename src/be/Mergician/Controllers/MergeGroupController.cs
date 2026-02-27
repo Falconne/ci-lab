@@ -40,6 +40,8 @@ public class MergeGroupController : SseControllerBase
     ///     Returns fully resolved details for a single merge group.
     /// </summary>
     [HttpGet("{mergeGroupId:int}")]
+    // TODO: Remove this endpoint and just make it so that if the frontend calls the `refresh-branches` endpoint below with an empty list of known branches,
+    // it will produce the same result. We do not need to "fully resolve" the branch details. They can be populated by a call to `refresh-activity`.
     public async Task<IActionResult> GetMergeGroupDetails(
         int mergeGroupId,
         CancellationToken cancellationToken)
@@ -56,6 +58,7 @@ public class MergeGroupController : SseControllerBase
             userInfo.Id,
             mergeGroupId);
 
+        // TODO: Remove this method after this endpoint is removed.
         var details = await _activityService.GetMergeGroupDetails(
             currentUser,
             userInfo.Id,
@@ -85,15 +88,6 @@ public class MergeGroupController : SseControllerBase
     {
         var currentUser = HttpContext.GetGitlabUser();
 
-        if (!_coreRepository.IsHealthy())
-        {
-            _logger.LogError(
-                "Database is unhealthy, cannot poll merge group {MergeGroupId}",
-                mergeGroupId);
-
-            return StatusCode(503, new ErrorResponse("Database is unavailable"));
-        }
-
         var userInfo = await _gitlabService.GetCurrentUser(currentUser);
         if (userInfo == null)
         {
@@ -122,6 +116,8 @@ public class MergeGroupController : SseControllerBase
             result.Removed.Count,
             userInfo.Id,
             mergeGroupId);
+
+        // TODO: In the frontend, make it so that if this method returns any diff, then immediately call the refresh-activity activity endpoint
 
         return Ok(result);
     }

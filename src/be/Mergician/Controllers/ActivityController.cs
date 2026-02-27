@@ -1,6 +1,5 @@
 using Mergician.Entities;
 using Mergician.Services.Authentication;
-using Mergician.Services.Database;
 using Mergician.Services.Gitlab;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -14,8 +13,6 @@ public class ActivityController : SseControllerBase
 {
     private readonly GitlabActivityService _activityService;
 
-    private readonly ICoreRepository _coreRepository;
-
     private readonly GitlabService _gitlabService;
 
     private readonly ILogger<ActivityController> _logger;
@@ -25,13 +22,11 @@ public class ActivityController : SseControllerBase
     public ActivityController(
         GitlabActivityService activityService,
         GitlabService gitlabService,
-        ICoreRepository coreRepository,
         UserActivitySyncService syncService,
         ILogger<ActivityController> logger)
     {
         _activityService = activityService;
         _gitlabService = gitlabService;
-        _coreRepository = coreRepository;
         _syncService = syncService;
         _logger = logger;
     }

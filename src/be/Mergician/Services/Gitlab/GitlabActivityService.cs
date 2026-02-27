@@ -303,9 +303,6 @@ public class GitlabActivityService
         return new MergeGroupPollResponse(mergeGroup.Id, mergeGroup.Name, added, removed);
     }
 
-    /// <summary>
-    ///     Returns fully resolved details for a single merge group.
-    /// </summary>
     public async Task<MergeGroupDetailsResponse?> GetMergeGroupDetails(
         AccessDetailsForUser accessDetailsForCurrentUser,
         int gitlabUserId,
