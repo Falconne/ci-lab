@@ -1,4 +1,5 @@
 using Mergician.Entities;
+using Mergician.Services;
 using Mergician.Services.Authentication;
 using Mergician.Services.Database;
 using Mergician.Services.Gitlab;
@@ -10,7 +11,7 @@ namespace Mergician.Controllers;
 [Authorize]
 [ApiController]
 [Route("api/merge-groups")]
-public class MergeGroupController : SseControllerBase
+public class MergeGroupController : ControllerBase
 {
     private readonly GitlabActivityService _activityService;
 
@@ -20,18 +21,22 @@ public class MergeGroupController : SseControllerBase
 
     private readonly ILogger<MergeGroupController> _logger;
 
+    private readonly SseService _sseService;
+
     private readonly UserActivitySyncService _syncService;
 
     public MergeGroupController(
         GitlabActivityService activityService,
         GitlabService gitlabService,
         ICoreRepository coreRepository,
+        SseService sseService,
         UserActivitySyncService syncService,
         ILogger<MergeGroupController> logger)
     {
         _activityService = activityService;
         _gitlabService = gitlabService;
         _coreRepository = coreRepository;
+        _sseService = sseService;
         _syncService = syncService;
         _logger = logger;
     }
@@ -148,7 +153,8 @@ public class MergeGroupController : SseControllerBase
             _syncService.EnsureSyncRunning(userInfo.Id, currentUser);
         }
 
-        await StreamSse(
+        await _sseService.StreamSse(
+            Response,
             $"merge-group-{mergeGroupId}-refresh",
             async streamToken =>
             {
@@ -159,11 +165,11 @@ public class MergeGroupController : SseControllerBase
                 {
                     if (item is BranchDeletedNotification deleted)
                     {
-                        await WriteSseEvent(deleted, streamToken, "deleted");
+                        await _sseService.WriteSseEvent(Response, deleted, streamToken, "deleted");
                     }
                     else
                     {
-                        await WriteSseEvent(item, streamToken);
+                        await _sseService.WriteSseEvent(Response, item, streamToken);
                     }
                 }
             },

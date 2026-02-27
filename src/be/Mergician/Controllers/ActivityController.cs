@@ -1,4 +1,5 @@
 using Mergician.Entities;
+using Mergician.Services;
 using Mergician.Services.Authentication;
 using Mergician.Services.Gitlab;
 using Microsoft.AspNetCore.Authorization;
@@ -9,7 +10,7 @@ namespace Mergician.Controllers;
 [Authorize]
 [ApiController]
 [Route("api/[controller]")]
-public class ActivityController : SseControllerBase
+public class ActivityController : ControllerBase
 {
     private readonly GitlabActivityService _activityService;
 
@@ -17,16 +18,20 @@ public class ActivityController : SseControllerBase
 
     private readonly ILogger<ActivityController> _logger;
 
+    private readonly SseService _sseService;
+
     private readonly UserActivitySyncService _syncService;
 
     public ActivityController(
         GitlabActivityService activityService,
         GitlabService gitlabService,
+        SseService sseService,
         UserActivitySyncService syncService,
         ILogger<ActivityController> logger)
     {
         _activityService = activityService;
         _gitlabService = gitlabService;
+        _sseService = sseService;
         _syncService = syncService;
         _logger = logger;
     }
@@ -81,7 +86,8 @@ public class ActivityController : SseControllerBase
             _syncService.EnsureSyncRunning(userInfo.Id, currentUser);
         }
 
-        await StreamSse(
+        await _sseService.StreamSse(
+            Response,
             "refresh",
             async streamToken =>
             {
@@ -92,11 +98,11 @@ public class ActivityController : SseControllerBase
                 {
                     if (item is BranchDeletedNotification deleted)
                     {
-                        await WriteSseEvent(deleted, streamToken, "deleted");
+                        await _sseService.WriteSseEvent(Response, deleted, streamToken, "deleted");
                     }
                     else
                     {
-                        await WriteSseEvent(item, streamToken);
+                        await _sseService.WriteSseEvent(Response, item, streamToken);
                     }
                 }
             },
