@@ -2,6 +2,7 @@ using Dapper;
 using Mergician.Entities;
 using Mergician.Entities.Database;
 using Mergician.Services.Time;
+using System.Data;
 
 namespace Mergician.Services.Database;
 
@@ -52,6 +53,8 @@ public class MergeGroupRepository : IMergeGroupRepository
         return record;
     }
 
+    // TODO: Make this method return `MergeGroup` (and update the query to include associated branches). There
+    // is no need to `MergeGroup` so replace all usage of it with `GetMergeGroup`.
     public MergeGroupRecord GetOrCreateMergeGroup(string name)
     {
         using var connection = _connectionFactory.CreateConnection();
@@ -421,13 +424,7 @@ public class MergeGroupRepository : IMergeGroupRepository
                 VALUES (@BranchInProjectId, @Name, @Status, @Url)
                 ON CONFLICT (branch_in_project_id, name) DO UPDATE SET status = EXCLUDED.status, url = EXCLUDED.url
                 """,
-                buildJobs.Select(j => new
-                {
-                    BranchInProjectId = branchInProjectId,
-                    j.Name,
-                    j.Status,
-                    j.Url
-                }),
+                buildJobs.Select(j => new { BranchInProjectId = branchInProjectId, j.Name, j.Status, j.Url }),
                 transaction);
         }
 
@@ -442,7 +439,7 @@ public class MergeGroupRepository : IMergeGroupRepository
             buildJobs.Count);
     }
 
-    private void AttachBuildJobs(System.Data.IDbConnection connection, List<BranchDataRow> branches)
+    private void AttachBuildJobs(IDbConnection connection, List<BranchDataRow> branches)
     {
         if (branches.Count == 0)
         {

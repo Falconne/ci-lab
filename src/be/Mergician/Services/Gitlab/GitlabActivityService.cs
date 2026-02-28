@@ -41,6 +41,7 @@ public class GitlabActivityService
     /// </summary>
     public List<MergeGroup> GetMergeGroupsForUser(int gitlabUserId)
     {
+        // TODO: Add a method to mergeGroupRepository to get a list of `MergeGroup` for a user and use that instead.
         var result = _mergeGroupRepository.GetUserBranches(gitlabUserId);
 
         _logger.LogDebug(
@@ -140,6 +141,8 @@ public class GitlabActivityService
                 projectNameWithNamespace);
 
             var mergeGroup = _mergeGroupRepository.GetOrCreateMergeGroup(pushEvent.BranchName);
+            // TODO: When the above method returns a `MergeGroup`, we can check if the branch exists in
+            // the merge group before we check the database again.
             _mergeGroupRepository.EnsureBranchInMergeGroup(mergeGroup.Id, branchRecord.Id);
             _mergeGroupRepository.EnsureUserInMergeGroup(gitlabUserId, mergeGroup.Id);
 
@@ -254,6 +257,8 @@ public class GitlabActivityService
     /// </summary>
     public MergeGroup? GetMergeGroupBranches(int gitlabUserId, int mergeGroupId)
     {
+        // TODO: This method and `GetMergeGroup` should not care about user id, just return the
+        // requested merge group.
         var mergeGroup = _mergeGroupRepository.GetMergeGroup(gitlabUserId, mergeGroupId);
         if (mergeGroup == null)
         {
