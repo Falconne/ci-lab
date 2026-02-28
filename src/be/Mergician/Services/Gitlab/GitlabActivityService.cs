@@ -41,8 +41,7 @@ public class GitlabActivityService
     /// </summary>
     public List<MergeGroup> GetMergeGroupsForUser(int gitlabUserId)
     {
-        // TODO: Add a method to mergeGroupRepository to get a list of `MergeGroup` for a user and use that instead.
-        var result = _mergeGroupRepository.GetUserBranches(gitlabUserId);
+        var result = _mergeGroupRepository.GetMergeGroupsForUser(gitlabUserId);
 
         _logger.LogDebug(
             "Returning {GroupCount} merge groups with {BranchCount} branches for user {UserId}",
@@ -168,7 +167,7 @@ public class GitlabActivityService
     {
         var sinceLimit = DateTimeOffset.UtcNow.Subtract(_maxActivityLookback);
 
-        var userGroups = _mergeGroupRepository.GetUserBranches(gitlabUserId);
+        var userGroups = _mergeGroupRepository.GetMergeGroupsForUser(gitlabUserId);
         if (userGroups.Count == 0)
         {
             _logger.LogDebug(
@@ -212,7 +211,7 @@ public class GitlabActivityService
         int gitlabUserId,
         CancellationToken cancellationToken)
     {
-        var userGroups = _mergeGroupRepository.GetUserBranches(gitlabUserId);
+        var userGroups = _mergeGroupRepository.GetMergeGroupsForUser(gitlabUserId);
         var userBranches = userGroups.SelectMany(g => g.Branches).ToList();
         _logger.LogDebug(
             "Checking {Count} tracked branches for user {UserId} for deletion",
@@ -391,7 +390,7 @@ public class GitlabActivityService
         int gitlabUserId,
         CancellationToken cancellationToken)
     {
-        var userGroups = _mergeGroupRepository.GetUserBranches(gitlabUserId);
+        var userGroups = _mergeGroupRepository.GetMergeGroupsForUser(gitlabUserId);
         var userBranches = userGroups.SelectMany(g => g.Branches).ToList();
 
         _logger.LogDebug(

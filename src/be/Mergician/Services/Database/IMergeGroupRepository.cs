@@ -39,7 +39,7 @@ public interface IMergeGroupRepository
     ///     Returns all merge groups that the user is associated with, each containing its branches.
     ///     Ordered by merge group LastUpdateTime descending (most recent first).
     /// </summary>
-    List<MergeGroup> GetUserBranches(int gitlabUserId);
+    List<MergeGroup> GetMergeGroupsForUser(int gitlabUserId);
 
     /// <summary>
     ///     Returns a specific merge group and its branches for a user, or null when not found.

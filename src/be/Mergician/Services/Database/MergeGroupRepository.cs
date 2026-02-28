@@ -142,7 +142,7 @@ public class MergeGroupRepository : IMergeGroupRepository
             utcTimestamp);
     }
 
-    public List<MergeGroup> GetUserBranches(int gitlabUserId)
+    public List<MergeGroup> GetMergeGroupsForUser(int gitlabUserId)
     {
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();
@@ -177,7 +177,7 @@ public class MergeGroupRepository : IMergeGroupRepository
         {
             r.LastUpdateTime = UtcTimestamp.EnsureUtc(
                 r.LastUpdateTime,
-                () => $"MergeGroupRepository.GetUserBranches merge group {r.MergeGroupId}",
+                () => $"MergeGroupRepository.GetMergeGroupsForUser merge group {r.MergeGroupId}",
                 _logger);
         }
 
