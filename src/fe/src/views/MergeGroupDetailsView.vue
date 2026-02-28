@@ -322,7 +322,7 @@ async function pollMergeGroup() {
   if (!mergeGroupId) return
 
   try {
-    const response = await fetch(`/api/merge-groups/${mergeGroupId}/refresh-branches`, {
+    const response = await fetch(`/api/merge-groups/${mergeGroupId}/refresh`, {
       method: 'POST'
     })
 

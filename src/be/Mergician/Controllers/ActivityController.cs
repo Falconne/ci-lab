@@ -31,8 +31,8 @@ public class ActivityController : ControllerBase
     ///     MR, approval, and build details are populated by the background sync thread.
     ///     Also ensures the background sync thread is running and records user activity.
     /// </summary>
-    [HttpPost("refresh-branches")]
-    public IActionResult RefreshBranches()
+    [HttpPost("refresh")]
+    public IActionResult Refresh()
     {
         var currentUser = HttpContext.GetGitlabUser();
 
@@ -41,7 +41,7 @@ public class ActivityController : ControllerBase
         // Ensure the background sync thread is running (also records that user is still active)
         _syncService.EnsureSyncRunning(userId, currentUser);
 
-        _logger.LogDebug("Dashboard branch poll for user {UserId}", userId);
+        _logger.LogDebug("Dashboard refresh for user {UserId}", userId);
 
         var result = _activityService.GetDashboardBranches(userId);
 

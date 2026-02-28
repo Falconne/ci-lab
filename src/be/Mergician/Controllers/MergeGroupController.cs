@@ -33,8 +33,8 @@ public class MergeGroupController : ControllerBase
     ///     Also ensures the background sync thread is running and records user activity.
     ///     Returns 404 if the merge group does not exist for the current user.
     /// </summary>
-    [HttpPost("{mergeGroupId:int}/refresh-branches")]
-    public IActionResult RefreshBranches(int mergeGroupId)
+    [HttpPost("{mergeGroupId:int}/refresh")]
+    public IActionResult Refresh(int mergeGroupId)
     {
         var currentUser = HttpContext.GetGitlabUser();
 
@@ -44,7 +44,7 @@ public class MergeGroupController : ControllerBase
         _syncService.EnsureSyncRunning(userId, currentUser);
 
         _logger.LogDebug(
-            "Merge group branch poll for user {UserId}, merge group {MergeGroupId}",
+            "Merge group refresh for user {UserId}, merge group {MergeGroupId}",
             userId,
             mergeGroupId);
 

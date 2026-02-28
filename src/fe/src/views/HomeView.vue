@@ -396,7 +396,7 @@ function findLastIndexOf<T>(arr: T[], predicate: (item: T) => boolean): number {
  */
 async function pollDashboard() {
   try {
-    const response = await fetch('/api/activity/refresh-branches', {
+    const response = await fetch('/api/activity/refresh', {
       method: 'POST'
     })
 
