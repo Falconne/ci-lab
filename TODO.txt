@@ -1,17 +1,1 @@
-Currently the dashboard and merge details pages have two separate refresh methods; one to fetch merge group info from the DB, and one to refresh the details such as MR, approvals and build status.
-
-In both pages, let's combine this into one refresh method that just fetches data from the DB, and have the background user sync thread in the backend add all needed data to the DB.
-
-Expand the DB schema so that the branch row can store the Merge Request data (if avaialable), the required and given approvals counts, etc. Add a new joined table to store build statuses as well. Add schema entries for any other data currently fetched by the "refresh-activity" endpoints.
-
-Have the background user sync thread populate this data as part of its work. Each loop should still do a first pass to check user activity to add/remove branches, then a subsequent pass to update the extra details that refresh-activity currently does. When updating build statuses make sure to remove any jobs that no longer exist in the pipeline at the current branch head.
-
-It is important that the backend updates the DB with new data items as they are discovered, so the frontend will receive timely updates rather than periods of inactivity followed by bulk updates.
-
-When first loading a dashboard or merge details page, after the initial fetch from the DB, continue to poll every second for 5 seconds to get the subsequent updates to the branches quickly, then switch to a poll every 5 seconds.
-
-Get rid of the functionality that passes IDs from the UI and how the backend currently streams a diff. Just have the backend send all the data it has and have the front end add/remove/update data as needed. If this means SSE is no longer needed, remove that and supporting code as well.
-
-Review all the changes done to clean up the simplified code and remove all the redundant refresh-activity endpoints and supporting functionality as well as any data types that are no longer needed.
-
-Ensure that the bahvior from the user's perspective is the same via the integration tests. If I've missed any instructions for keeping the bahvior the same, use good judgement to fix it while keeping to the new data fetching philosophy.
+In the dashboard and merge details page, rename the `refresh-branches` endpoints to `refresh` and and the C# method names to `Refresh`. Update the call sites from the front end.
