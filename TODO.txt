@@ -1,1 +1,1 @@
-In the dashboard and merge details page, rename the `refresh-branches` endpoints to `refresh` and and the C# method names to `Refresh`. Update the call sites from the front end.
+Rename `BranchActivity` to `BranchRecord` and update references in the frontend and backend including logging related strings. Also do the same with `MergeGroupResponse` to `MergeGroup`.
