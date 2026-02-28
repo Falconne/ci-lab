@@ -1,0 +1,3 @@
+Make the front end show small horizontal loading animations in places where data is null (e.g. waiting to know if an MR exists or not) and it is waiting for that data to be filled in in the database. Make sure to differentiate cases such as where no no approvals are needed vs not known yet.
+
+In the case of the overall status labels that appear against branches and MRs (e.g. Ready, Waiting), these should not be calculated until all the data needed to calculate them is available, so they too should have palceholder laoding animation until this is the case.

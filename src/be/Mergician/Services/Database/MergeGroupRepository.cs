@@ -181,6 +181,7 @@ public class MergeGroupRepository : IMergeGroupRepository
 
         AttachBuildJobs(connection, rows);
 
+        // TODO: We don't care about ordering at this stage
         // Group flat rows into MergeGroup objects, then sort by most recently updated first
         var groupOrder = new List<int>();
         var groupNames = new Dictionary<int, string>();
