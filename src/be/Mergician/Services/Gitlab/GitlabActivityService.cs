@@ -324,6 +324,14 @@ public class GitlabActivityService
             branch.BranchName,
             cancellationToken);
 
+        // TODO: Check the branch's last updated time via the Gitlab API to see when the last push was.
+        // Use this time to update the LastUpdatedTime in the branch record in the database. The database
+        // should not use the current time as the default value for that field. For newly discovered
+        // branches, it should be null until a value is filled in from here. Make sure the UI handles
+        // null date. Merge groups that have branches with null LastUpdatedTime should be sorted to the
+        // top, as it implies they were more recently updated than anything displayed. The relative order
+        // between merge groups that all have null LastUpdatedTime can be arbitrary.
+
         _mergeGroupRepository.UpdateBranchDetails(
             branch.BranchInProjectId.Value,
             hasMr,
