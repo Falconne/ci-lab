@@ -45,12 +45,7 @@ public class MergeGroupController : ControllerBase
     {
         var currentUser = HttpContext.GetGitlabUser();
 
-        if (currentUser.UserId == null)
-        {
-            return Unauthorized();
-        }
-
-        var userId = currentUser.UserId.Value;
+        var userId = currentUser.UserId;
 
         // Keep the background sync thread alive during polling
         _syncService.EnsureSyncRunning(userId, currentUser);
@@ -96,10 +91,7 @@ public class MergeGroupController : ControllerBase
             request.KnownBranches.Count);
 
         // Keep the background sync thread alive during refresh
-        if (currentUser.UserId != null)
-        {
-            _syncService.EnsureSyncRunning(currentUser.UserId.Value, currentUser);
-        }
+        _syncService.EnsureSyncRunning(currentUser.UserId, currentUser);
 
         await _sseService.StreamSse(
             Response,

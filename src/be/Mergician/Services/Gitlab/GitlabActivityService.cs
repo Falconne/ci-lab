@@ -116,7 +116,7 @@ public class GitlabActivityService
     ///     branches in the database. Called by the background sync thread.
     /// </summary>
     public async Task SyncUserActivityFromGitLab(
-        AccessDetailsForUser accessDetailsForUser,
+        AccessDetailsBase accessDetails,
         int gitlabUserId,
         DateTimeOffset since,
         CancellationToken cancellationToken)
@@ -126,7 +126,7 @@ public class GitlabActivityService
             gitlabUserId,
             since);
 
-        var pushEvents = _gitlabService.GetPushEventsSince(accessDetailsForUser, since, cancellationToken);
+        var pushEvents = _gitlabService.GetPushEventsSince(accessDetails, since, cancellationToken);
         var processedKeys = new HashSet<string>();
 
         await foreach (var pushEvent in pushEvents.WithCancellation(cancellationToken))
@@ -155,7 +155,7 @@ public class GitlabActivityService
             }
 
             if (await ShouldSkipBranchByLookup(
-                    accessDetailsForUser,
+                    accessDetails,
                     pushEvent.BranchName,
                     pushEvent.ProjectId,
                     null,
@@ -165,7 +165,7 @@ public class GitlabActivityService
                 continue;
             }
 
-            var project = await _gitlabService.GetProject(accessDetailsForUser, pushEvent.ProjectId);
+            var project = await _gitlabService.GetProject(accessDetails, pushEvent.ProjectId);
             if (project == null)
             {
                 _logger.LogInformation(
@@ -265,7 +265,7 @@ public class GitlabActivityService
     ///     Called by the background sync thread during each poll cycle.
     /// </summary>
     public async Task CleanupDeletedBranches(
-        AccessDetailsForUser accessDetailsForUser,
+        AccessDetailsBase accessDetails,
         int gitlabUserId,
         CancellationToken cancellationToken)
     {
@@ -280,7 +280,7 @@ public class GitlabActivityService
             cancellationToken.ThrowIfCancellationRequested();
 
             var lookup = await _gitlabService.GetBranchLookupResult(
-                accessDetailsForUser,
+                accessDetails,
                 branch.ProjectId,
                 branch.BranchName);
 
@@ -387,7 +387,7 @@ public class GitlabActivityService
     ///     the frontend will learn of their removal via the next polling diff.
     /// </summary>
     public async IAsyncEnumerable<BranchActivity> StreamRefreshBranchStatus(
-        AccessDetailsForUser accessDetailsForUser,
+        AccessDetailsBase accessDetails,
         List<KnownBranch> branches,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
@@ -410,7 +410,7 @@ public class GitlabActivityService
 
             // Check if branch still exists in GitLab
             var branchLookup = await _gitlabService.GetBranchLookupResult(
-                accessDetailsForUser,
+                accessDetails,
                 branchInfo.ProjectId,
                 branchInfo.BranchName);
 
@@ -435,7 +435,7 @@ public class GitlabActivityService
                 continue;
             }
 
-            var project = await _gitlabService.GetProject(accessDetailsForUser, branchInfo.ProjectId);
+            var project = await _gitlabService.GetProject(accessDetails, branchInfo.ProjectId);
             if (project == null || GitlabService.IsScheduledForDeletion(project.NameWithNamespace))
             {
                 var reason = project == null
@@ -475,7 +475,7 @@ public class GitlabActivityService
                 BranchInProjectId: branchInfo.BranchInProjectId);
 
             var activity = await ResolveBranchActivityIn(
-                accessDetailsForUser,
+                accessDetails,
                 pendingActivity,
                 cancellationToken);
 
@@ -486,7 +486,7 @@ public class GitlabActivityService
     }
 
     private async Task<bool> ShouldSkipBranchByLookup(
-        AccessDetailsForUser accessDetailsForUser,
+        AccessDetailsBase accessDetails,
         string branchName,
         int projectId,
         int? trackedBranchInProjectId,
@@ -496,7 +496,7 @@ public class GitlabActivityService
         cancellationToken.ThrowIfCancellationRequested();
 
         var branchLookup = await _gitlabService.GetBranchLookupResult(
-            accessDetailsForUser,
+            accessDetails,
             projectId,
             branchName);
 
@@ -601,12 +601,12 @@ public class GitlabActivityService
     ///     Resolves a branch's MR and approval status into a fully populated BranchActivity record.
     /// </summary>
     private async Task<BranchActivity> ResolveBranchActivityIn(
-        AccessDetailsForUser accessDetailsForUser,
+        AccessDetailsBase accessDetails,
         BranchActivity activity,
         CancellationToken cancellationToken = default)
     {
         var mergeRequests = await _gitlabService.GetMergeRequests(
-            accessDetailsForUser,
+            accessDetails,
             activity.ProjectId,
             activity.BranchName);
 
@@ -629,7 +629,7 @@ public class GitlabActivityService
             mrUrl = first.WebUrl;
 
             var approval = await _gitlabService.GetMergeRequestApprovals(
-                accessDetailsForUser,
+                accessDetails,
                 activity.ProjectId,
                 first.Iid);
 
@@ -640,13 +640,13 @@ public class GitlabActivityService
             }
         }
 
-        var project = await _gitlabService.GetProject(accessDetailsForUser, activity.ProjectId);
+        var project = await _gitlabService.GetProject(accessDetails, activity.ProjectId);
         var projectUrl = !string.IsNullOrWhiteSpace(project?.WebUrl)
             ? project.WebUrl
             : activity.ProjectUrl;
 
         var buildJobs = await _gitlabPipelineService.GetLatestExternalJobsForBranch(
-            accessDetailsForUser,
+            accessDetails,
             activity.ProjectId,
             activity.BranchName,
             cancellationToken);

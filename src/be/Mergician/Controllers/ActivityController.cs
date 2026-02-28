@@ -38,12 +38,7 @@ public class ActivityController : ControllerBase
     {
         var currentUser = HttpContext.GetGitlabUser();
 
-        if (currentUser.UserId == null)
-        {
-            return Unauthorized();
-        }
-
-        var userId = currentUser.UserId.Value;
+        var userId = currentUser.UserId;
 
         // Ensure the background sync thread is running (also records that user is still active)
         _syncService.EnsureSyncRunning(userId, currentUser);
@@ -74,10 +69,7 @@ public class ActivityController : ControllerBase
         _logger.LogInformation("Starting SSE refresh stream for {Count} branches", request.KnownBranches.Count);
 
         // Keep the background sync thread alive during refresh
-        if (currentUser.UserId != null)
-        {
-            _syncService.EnsureSyncRunning(currentUser.UserId.Value, currentUser);
-        }
+        _syncService.EnsureSyncRunning(currentUser.UserId, currentUser);
 
         await _sseService.StreamSse(
             Response,

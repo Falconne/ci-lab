@@ -50,9 +50,9 @@ public class GitlabService
         return nameWithNamespace.Contains("deletion_scheduled", StringComparison.OrdinalIgnoreCase);
     }
 
-    public async Task<GitLabUserInfo?> GetCurrentUser(AccessDetailsForUser accessDetailsForUser)
+    public async Task<GitLabUserInfo?> GetCurrentUser(AccessDetailsBase accessDetails)
     {
-        var request = accessDetailsForUser.CreateRequest(HttpMethod.Get, "user");
+        var request = accessDetails.CreateRequest(HttpMethod.Get, "user");
 
         var client = _httpClientFactory.CreateClient("GitLabOAuth");
         var response = await client.SendAsync(request);
@@ -73,7 +73,7 @@ public class GitlabService
     /// </summary>
     public async IAsyncEnumerable<(string BranchName, int ProjectId, DateTimeOffset CreatedAt)>
         GetPushEventsSince(
-            AccessDetailsForUser accessDetailsForUser,
+            AccessDetailsBase accessDetails,
             DateTimeOffset since,
             [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
@@ -101,7 +101,7 @@ public class GitlabService
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var request = accessDetailsForUser.CreateRequest(
+            var request = accessDetails.CreateRequest(
                 HttpMethod.Get,
                 $"events?after={afterDate}&action=pushed&sort=desc&per_page=100&page={page}");
 
@@ -178,7 +178,7 @@ public class GitlabService
             sinceUtc);
     }
 
-    public async Task<GitLabProject?> GetProject(AccessDetailsForUser accessDetailsForUser, int projectId)
+    public async Task<GitLabProject?> GetProject(AccessDetailsBase accessDetails, int projectId)
     {
         if (_projectCache.TryGet(projectId, out var cached))
         {
@@ -186,7 +186,7 @@ public class GitlabService
             return cached;
         }
 
-        var request = accessDetailsForUser.CreateRequest(
+        var request = accessDetails.CreateRequest(
             HttpMethod.Get,
             $"projects/{projectId}");
 
@@ -229,12 +229,12 @@ public class GitlabService
     ///     Returns Missing only for 404 responses; all other failures are Unavailable.
     /// </summary>
     public async Task<GitLabBranchLookupResult> GetBranchLookupResult(
-        AccessDetailsForUser accessDetailsForUser,
+        AccessDetailsBase accessDetails,
         int projectId,
         string branchName)
     {
         var encodedBranch = Uri.EscapeDataString(branchName);
-        var request = accessDetailsForUser.CreateRequest(
+        var request = accessDetails.CreateRequest(
             HttpMethod.Get,
             $"projects/{projectId}/repository/branches/{encodedBranch}");
 
@@ -290,12 +290,12 @@ public class GitlabService
     ///     Finds open merge requests for a given source branch in a project.
     /// </summary>
     public async Task<List<GitLabMergeRequest>> GetMergeRequests(
-        AccessDetailsForUser accessDetailsForUser,
+        AccessDetailsBase accessDetails,
         int projectId,
         string sourceBranch)
     {
         var encodedBranch = Uri.EscapeDataString(sourceBranch);
-        var request = accessDetailsForUser.CreateRequest(
+        var request = accessDetails.CreateRequest(
             HttpMethod.Get,
             $"projects/{projectId}/merge_requests?source_branch={encodedBranch}&state=opened");
 
@@ -320,11 +320,11 @@ public class GitlabService
     ///     Gets the approval state for a merge request.
     /// </summary>
     public async Task<GitLabApprovalState?> GetMergeRequestApprovals(
-        AccessDetailsForUser accessDetailsForUser,
+        AccessDetailsBase accessDetails,
         int projectId,
         int mergeRequestIid)
     {
-        var request = accessDetailsForUser.CreateRequest(
+        var request = accessDetails.CreateRequest(
             HttpMethod.Get,
             $"projects/{projectId}/merge_requests/{mergeRequestIid}/approvals");
 

@@ -102,9 +102,9 @@ public class AuthController : ControllerBase
         Response.Cookies.Append("gl_access_token", tokenResponse.AccessToken, cookieOptions);
         Response.Cookies.Append("gl_refresh_token", tokenResponse.RefreshToken, cookieOptions);
 
-        // Fetch and persist the user ID so controllers can read it from AccessDetailsForUser
-        // without making an additional API call on every request
-        var tempUser = new AccessDetailsForUser(tokenResponse.AccessToken, _authSettings.ApiBaseUrl);
+        // Fetch and persist the user ID so the authentication handler can include it
+        // in the AccessDetailsForUser on subsequent requests without an additional API call
+        var tempUser = new AccessDetailsBase(tokenResponse.AccessToken, _authSettings.ApiBaseUrl);
         var userInfo = await _gitlabService.GetCurrentUser(tempUser);
         if (userInfo != null)
         {
@@ -113,8 +113,8 @@ public class AuthController : ControllerBase
         }
         else
         {
-            // TODO: This is an error state, respond with a 5XX to the client, the app should not continue.
-            _logger.LogWarning("Could not retrieve user info after login; gl_user_id cookie not set");
+            _logger.LogError("Could not retrieve user info after token exchange; login cannot complete");
+            return StatusCode(StatusCodes.Status502BadGateway, "Could not retrieve user information from GitLab after authentication");
         }
 
         // Redirect to frontend home

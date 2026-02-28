@@ -8,8 +8,6 @@ using System.Text.Json;
 
 namespace Mergician.Services.Authentication;
 
-// TODO: Remove the suffix Async from all methods in this repo that do not have a non-async overload.
-
 /// <summary>
 ///     Custom ASP.NET Core authentication handler that validates GitLab OAuth tokens
 ///     stored in cookies. Handles token refresh transparently when the access token
@@ -86,14 +84,26 @@ public class GitLabCookieAuthenticationHandler : AuthenticationHandler<Authentic
 
         // Re-use the persisted user ID — the user identity doesn't change during token refresh
         var existingUserIdStr = Request.Cookies["gl_user_id"];
-        int? userId = int.TryParse(existingUserIdStr, out var parsedId) ? parsedId : null;
-        // TODO: If user id is null, fetch it from Gitlab so we don't save a AccessDetailsForUser with null userid
+        if (!int.TryParse(existingUserIdStr, out var userId))
+        {
+            Logger.LogDebug("gl_user_id cookie missing after token refresh; fetching user ID from GitLab");
+            var refreshedUserInfo = await ValidateToken(tokenResponse.AccessToken);
+            if (refreshedUserInfo == null)
+            {
+                Logger.LogWarning("Could not retrieve user ID after token refresh; authentication failed");
+                return AuthenticateResult.Fail("Could not retrieve user ID after token refresh");
+            }
+
+            userId = refreshedUserInfo.Id;
+            Response.Cookies.Append("gl_user_id", userId.ToString(), cookieOptions);
+            Logger.LogDebug("Stored user ID {UserId} in cookie after token refresh", userId);
+        }
 
         Logger.LogDebug("Token refreshed successfully via authentication handler");
         return CreateSuccessResult(tokenResponse.AccessToken, userId);
     }
 
-    private AuthenticateResult CreateSuccessResult(string accessToken, int? userId = null)
+    private AuthenticateResult CreateSuccessResult(string accessToken, int userId)
     {
         var user = new AccessDetailsForUser(accessToken, _apiBaseUrl, userId);
         Context.Items[GitlabAccessUserKey] = user;

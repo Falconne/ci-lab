@@ -25,13 +25,13 @@ public class GitlabPipelineService
     ///     Returns external job-like build statuses for the latest pipeline on the branch.
     /// </summary>
     public async Task<List<BranchBuildJob>> GetLatestExternalJobsForBranch(
-        AccessDetailsForUser accessDetailsForUser,
+        AccessDetailsBase accessDetails,
         int projectId,
         string branchName,
         CancellationToken cancellationToken = default)
     {
         var commitSha = await GetBranchHeadCommitSha(
-            accessDetailsForUser,
+            accessDetails,
             projectId,
             branchName,
             cancellationToken);
@@ -47,7 +47,7 @@ public class GitlabPipelineService
         }
 
         var latestPipeline = await GetLatestPipeline(
-            accessDetailsForUser,
+            accessDetails,
             projectId,
             branchName,
             cancellationToken);
@@ -63,7 +63,7 @@ public class GitlabPipelineService
         }
 
         var externalJobs = await GetExternalJobsFromPipeline(
-            accessDetailsForUser,
+            accessDetails,
             projectId,
             latestPipeline.Id,
             cancellationToken);
@@ -87,7 +87,7 @@ public class GitlabPipelineService
             projectId);
 
         var fallbackStatuses = await GetExternalStatusesFromCommit(
-            accessDetailsForUser,
+            accessDetails,
             projectId,
             commitSha,
             latestPipeline.Id,
@@ -103,13 +103,13 @@ public class GitlabPipelineService
     }
 
     private async Task<string?> GetBranchHeadCommitSha(
-        AccessDetailsForUser accessDetailsForUser,
+        AccessDetailsBase accessDetails,
         int projectId,
         string branchName,
         CancellationToken cancellationToken)
     {
         var encodedBranch = Uri.EscapeDataString(branchName);
-        var request = accessDetailsForUser.CreateRequest(
+        var request = accessDetails.CreateRequest(
             HttpMethod.Get,
             $"projects/{projectId}/repository/branches/{encodedBranch}");
 
@@ -142,13 +142,13 @@ public class GitlabPipelineService
     }
 
     private async Task<GitLabPipeline?> GetLatestPipeline(
-        AccessDetailsForUser accessDetailsForUser,
+        AccessDetailsBase accessDetails,
         int projectId,
         string branchName,
         CancellationToken cancellationToken)
     {
         var encodedBranch = Uri.EscapeDataString(branchName);
-        var request = accessDetailsForUser.CreateRequest(
+        var request = accessDetails.CreateRequest(
             HttpMethod.Get,
             $"projects/{projectId}/pipelines?ref={encodedBranch}&order_by=updated_at&sort=desc&per_page=1");
 
@@ -171,12 +171,12 @@ public class GitlabPipelineService
     }
 
     private async Task<List<BranchBuildJob>> GetExternalJobsFromPipeline(
-        AccessDetailsForUser accessDetailsForUser,
+        AccessDetailsBase accessDetails,
         int projectId,
         int pipelineId,
         CancellationToken cancellationToken)
     {
-        var request = accessDetailsForUser.CreateRequest(
+        var request = accessDetails.CreateRequest(
             HttpMethod.Get,
             $"projects/{projectId}/pipelines/{pipelineId}/jobs?per_page=100");
 
@@ -206,14 +206,14 @@ public class GitlabPipelineService
     }
 
     private async Task<List<BranchBuildJob>> GetExternalStatusesFromCommit(
-        AccessDetailsForUser accessDetailsForUser,
+        AccessDetailsBase accessDetails,
         int projectId,
         string commitSha,
         int pipelineId,
         CancellationToken cancellationToken)
     {
         var encodedCommit = Uri.EscapeDataString(commitSha);
-        var request = accessDetailsForUser.CreateRequest(
+        var request = accessDetails.CreateRequest(
             HttpMethod.Get,
             $"projects/{projectId}/repository/commits/{encodedCommit}/statuses?pipeline_id={pipelineId}&per_page=100");
 
