@@ -170,6 +170,12 @@ public class UserActivitySyncService : IHostedService, IDisposable
                         accessUser,
                         gitlabUserId,
                         ct);
+
+                    // Refresh MR, approval, and build status for all tracked branches
+                    await _activityService.RefreshAllBranchDetails(
+                        accessUser,
+                        gitlabUserId,
+                        ct);
                 }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested)
                 {

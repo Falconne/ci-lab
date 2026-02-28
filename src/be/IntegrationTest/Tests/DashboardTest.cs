@@ -479,8 +479,8 @@ public class DashboardTest : IDisposable
             throw new InvalidOperationException("Project list was not visible on details page");
         }
 
-        // Wait for the data to load incrementally - the details page now uses poll + refresh
-        // so branch cards appear first (from poll), then MR data fills in via SSE refresh
+        // Wait for the data to load - the details page polls for a full snapshot including MR data
+        // populated by the background sync thread
         await WaitForDetailsPageReady(repoContains, 60);
 
         var repoCard = _browser.Page.Locator(".repo-card-list .branch-card").Filter(new() { HasTextString = repoContains }).First;
@@ -545,7 +545,7 @@ public class DashboardTest : IDisposable
 
     /// <summary>
     ///     Waits until the details page has loaded branch cards and their MR data has been
-    ///     resolved via the incremental poll + SSE refresh cycle. A branch card is considered
+    ///     populated by the background sync thread. A branch card is considered
     ///     resolved when it shows either an MR link, "No Merge Request", or approval info.
     /// </summary>
     private async Task WaitForDetailsPageReady(string repoContains, int timeoutSeconds)

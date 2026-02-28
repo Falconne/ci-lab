@@ -1,3 +1,4 @@
+using Mergician.Entities;
 using Mergician.Entities.Database;
 
 namespace Mergician.Services.Database;
@@ -82,4 +83,18 @@ public interface IMergeGroupRepository
     ///     Returns the merge group IDs that a branch belongs to.
     /// </summary>
     List<int> GetMergeGroupIdsForBranch(int branchInProjectId);
+
+    /// <summary>
+    ///     Persists the resolved activity details (MR data, approvals, build jobs) for a branch.
+    ///     Replaces any previously stored build jobs for this branch atomically.
+    /// </summary>
+    void UpdateBranchDetails(
+        int branchInProjectId,
+        bool hasMergeRequest,
+        string? mergeRequestTitle,
+        string? mergeRequestUrl,
+        string? projectUrl,
+        int? approvalsRequired,
+        int? approvalsGiven,
+        List<BranchBuildJob> buildJobs);
 }

@@ -61,9 +61,6 @@ try
     builder.Services.AddSingleton<VersionService>();
     builder.Services.AddSingleton<GitlabActivityService>();
 
-    // Register SSE streaming helper
-    builder.Services.AddSingleton<SseService>();
-
     // Register background user activity sync service
     builder.Services.AddSingleton<UserActivitySyncService>();
     builder.Services.AddHostedService(sp => sp.GetRequiredService<UserActivitySyncService>());

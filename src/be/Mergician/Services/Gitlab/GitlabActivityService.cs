@@ -3,15 +3,14 @@ using Mergician.Entities.Database;
 using Mergician.Services.Authentication;
 using Mergician.Services.Database;
 using Mergician.Services.Time;
-using System.Runtime.CompilerServices;
 
 namespace Mergician.Services.Gitlab;
 
 /// <summary>
 ///     Provides activity-related operations for the current user.
 ///     Dashboard data is served from the database; background sync threads
-///     (managed by <see cref="UserActivitySyncService" />) keep the database current.
-///     MR and approval resolution is handled by the refresh endpoint.
+///     (managed by <see cref="UserActivitySyncService" />) keep the database current,
+///     including MR, approval, and build status details.
 /// </summary>
 public class GitlabActivityService
 {
@@ -38,77 +37,20 @@ public class GitlabActivityService
     }
 
     /// <summary>
-    ///     Returns a diff between the frontend's known branches and the current database state.
-    ///     Added branches include full structural data (no MR/approval resolution).
-    ///     Removed branches identify entries the frontend should remove by their database ID.
+    ///     Returns all current branches for the authenticated user as a full snapshot.
+    ///     Data is read from the database and includes persisted MR, approval, and build details.
     /// </summary>
-    public DashboardPollResponse GetDashboardDiff(
-        int gitlabUserId,
-        List<KnownBranch> knownBranches)
+    public DashboardResponse GetDashboardBranches(int gitlabUserId)
     {
         var dbBranches = _mergeGroupRepository.GetUserBranches(gitlabUserId);
 
-        // Index DB branches by their primary key
-        var dbById = new Dictionary<int, BranchWithMergeGroupInfo>();
-        foreach (var b in dbBranches)
-        {
-            dbById[b.BranchInProjectId] = b;
-        }
+        var branches = dbBranches
+            .Select(b => ToBranchActivity(b, "GetDashboardBranches"))
+            .ToList();
 
-        // Collect known IDs sent by the frontend
-        var knownIds = new HashSet<int>();
-        foreach (var k in knownBranches)
-        {
-            knownIds.Add(k.BranchInProjectId);
-        }
+        _logger.LogDebug("Returning {Count} branches for dashboard for user {UserId}", branches.Count, gitlabUserId);
 
-        // Added: in DB but not known to frontend
-        var added = new List<BranchActivity>();
-        foreach (var (id, branch) in dbById)
-        {
-            if (knownIds.Contains(id))
-            {
-                continue;
-            }
-
-            var projectName = GetProjectDisplayName(branch.ProjectName, branch.ProjectId);
-            var lastUpdated = UtcTimestamp.EnsureUtc(
-                branch.LastUpdateTime,
-                () =>
-                    $"GitlabActivityService.GetDashboardDiff branch '{branch.BranchName}'/{branch.ProjectId}",
-                _logger);
-
-            added.Add(
-                new BranchActivity(
-                    branch.BranchName,
-                    branch.ProjectId,
-                    projectName,
-                    branch.ProjectName,
-                    null,
-                    null,
-                    null,
-                    lastUpdated,
-                    branch.MergeGroupId,
-                    BranchInProjectId: branch.BranchInProjectId));
-        }
-
-        // Removed: known to frontend but not in DB
-        var removed = new List<int>();
-        foreach (var k in knownBranches)
-        {
-            if (!dbById.ContainsKey(k.BranchInProjectId))
-            {
-                removed.Add(k.BranchInProjectId);
-            }
-        }
-
-        _logger.LogDebug(
-            "Dashboard diff for user {UserId}: {Added} added, {Removed} removed",
-            gitlabUserId,
-            added.Count,
-            removed.Count);
-
-        return new DashboardPollResponse(added, removed);
+        return new DashboardResponse(branches);
     }
 
     /// <summary>
@@ -304,14 +246,11 @@ public class GitlabActivityService
     }
 
     /// <summary>
-    ///     Returns a diff between the frontend's known branches and the current database state
-    ///     for a specific merge group. Similar to <see cref="GetDashboardDiff" /> but scoped
-    ///     to a single merge group. Returns null if the merge group does not exist.
+    ///     Returns all current branches in a specific merge group as a full snapshot.
+    ///     Returns null if the merge group does not exist for the user.
+    ///     Data is read from the database and includes persisted MR, approval, and build details.
     /// </summary>
-    public MergeGroupPollResponse? GetMergeGroupDiff(
-        int gitlabUserId,
-        int mergeGroupId,
-        List<KnownBranch> knownBranches)
+    public MergeGroupResponse? GetMergeGroupBranches(int gitlabUserId, int mergeGroupId)
     {
         var mergeGroup = _mergeGroupRepository.GetMergeGroup(gitlabUserId, mergeGroupId);
         if (mergeGroup == null)
@@ -324,165 +263,151 @@ public class GitlabActivityService
             return null;
         }
 
-        var knownIds = new HashSet<int>();
-        foreach (var k in knownBranches)
-        {
-            knownIds.Add(k.BranchInProjectId);
-        }
-
-        // Added: in merge group but not known to frontend
-        var added = new List<BranchActivity>();
-        foreach (var branch in mergeGroup.Branches)
-        {
-            if (knownIds.Contains(branch.BranchInProjectId))
-            {
-                continue;
-            }
-
-            var projectName = GetProjectDisplayName(branch.ProjectName, branch.ProjectId);
-            var lastUpdated = UtcTimestamp.EnsureUtc(
-                branch.LastUpdateTime,
-                () =>
-                    $"GitlabActivityService.GetMergeGroupDiff branch '{branch.BranchName}'/{branch.ProjectId}",
-                _logger);
-
-            added.Add(
-                new BranchActivity(
-                    branch.BranchName,
-                    branch.ProjectId,
-                    projectName,
-                    branch.ProjectName,
-                    null,
-                    null,
-                    null,
-                    lastUpdated,
-                    branch.MergeGroupId,
-                    BranchInProjectId: branch.BranchInProjectId));
-        }
-
-        // Removed: known to frontend but not in merge group
-        var dbIds = new HashSet<int>(mergeGroup.Branches.Select(b => b.BranchInProjectId));
-        var removed = new List<int>();
-        foreach (var k in knownBranches)
-        {
-            if (!dbIds.Contains(k.BranchInProjectId))
-            {
-                removed.Add(k.BranchInProjectId);
-            }
-        }
+        var branches = mergeGroup.Branches
+            .Select(b => ToBranchActivity(b, "GetMergeGroupBranches"))
+            .ToList();
 
         _logger.LogDebug(
-            "Merge group {MergeGroupId} diff for user {UserId}: {Added} added, {Removed} removed",
+            "Returning {Count} branches for merge group {MergeGroupId} for user {UserId}",
+            branches.Count,
             mergeGroupId,
-            gitlabUserId,
-            added.Count,
-            removed.Count);
+            gitlabUserId);
 
-        return new MergeGroupPollResponse(mergeGroup.Id, mergeGroup.Name, added, removed);
+        return new MergeGroupResponse(mergeGroup.Id, mergeGroup.Name, branches);
     }
 
     /// <summary>
-    ///     Streams refreshed MR and approval status for branches identified by their database IDs.
-    ///     Branches that no longer exist in the repository are silently deleted from the database;
-    ///     the frontend will learn of their removal via the next polling diff.
+    ///     Fetches MR, approval, and build job details from GitLab for the given branch
+    ///     and persists them in the database. Called by the background sync thread.
+    ///     Silently skips if project info is unavailable.
     /// </summary>
-    public async IAsyncEnumerable<BranchActivity> StreamRefreshBranchStatus(
+    public async Task RefreshBranchDetails(
         AccessDetailsBase accessDetails,
-        List<KnownBranch> branches,
-        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        BranchWithMergeGroupInfo branch,
+        CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Streaming refresh for {Count} branch-project pairs", branches.Count);
+        cancellationToken.ThrowIfCancellationRequested();
 
-        foreach (var knownBranch in branches)
+        _logger.LogDebug(
+            "Refreshing details for branch '{BranchName}' in project {ProjectId}",
+            branch.BranchName,
+            branch.ProjectId);
+
+        var project = await _gitlabService.GetProject(accessDetails, branch.ProjectId);
+        if (project == null)
+        {
+            _logger.LogDebug(
+                "Project {ProjectId} not found when refreshing details for '{BranchName}'; skipping",
+                branch.ProjectId,
+                branch.BranchName);
+
+            return;
+        }
+
+        if (GitlabService.IsScheduledForDeletion(project.NameWithNamespace))
+        {
+            _logger.LogInformation(
+                "Skipping detail refresh for branch '{BranchName}' in project {ProjectId}: project scheduled for deletion",
+                branch.BranchName,
+                branch.ProjectId);
+
+            return;
+        }
+
+        var projectUrl = project.WebUrl;
+
+        var mergeRequests = await _gitlabService.GetMergeRequests(
+            accessDetails,
+            branch.ProjectId,
+            branch.BranchName);
+
+        var hasMr = mergeRequests.Count > 0;
+        int? approvalsRequired = null;
+        int? approvalsGiven = null;
+        string? mrTitle = null;
+        string? mrUrl = null;
+
+        if (hasMr)
+        {
+            var first = mergeRequests[0];
+            mrTitle = first.Title;
+            mrUrl = first.WebUrl;
+
+            var approval = await _gitlabService.GetMergeRequestApprovals(
+                accessDetails,
+                branch.ProjectId,
+                first.Iid);
+
+            if (approval != null)
+            {
+                approvalsGiven = approval.ApprovedBy.Count;
+                approvalsRequired = Math.Max(approval.ApprovalsRequired ?? 0, 0);
+            }
+        }
+
+        var buildJobs = await _gitlabPipelineService.GetLatestExternalJobsForBranch(
+            accessDetails,
+            branch.ProjectId,
+            branch.BranchName,
+            cancellationToken);
+
+        _mergeGroupRepository.UpdateBranchDetails(
+            branch.BranchInProjectId,
+            hasMr,
+            mrTitle,
+            mrUrl,
+            projectUrl,
+            approvalsRequired,
+            approvalsGiven,
+            buildJobs);
+
+        _logger.LogDebug(
+            "Updated details for branch '{BranchName}' in project {ProjectId}: hasMr={HasMr}, {JobCount} jobs",
+            branch.BranchName,
+            branch.ProjectId,
+            hasMr,
+            buildJobs.Count);
+    }
+
+    /// <summary>
+    ///     Refreshes MR, approval, and build details for all branches tracked by the given user.
+    ///     Called by the background sync thread as a second pass after activity sync.
+    /// </summary>
+    public async Task RefreshAllBranchDetails(
+        AccessDetailsBase accessDetails,
+        int gitlabUserId,
+        CancellationToken cancellationToken)
+    {
+        var userBranches = _mergeGroupRepository.GetUserBranches(gitlabUserId);
+
+        _logger.LogDebug(
+            "Refreshing details for {Count} branches for user {UserId}",
+            userBranches.Count,
+            gitlabUserId);
+
+        foreach (var branch in userBranches)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            // Look up branch and its merge group info by database ID
-            var branchInfo = _mergeGroupRepository.GetBranchWithMergeGroupInfo(knownBranch.BranchInProjectId);
-            if (branchInfo == null)
+            try
+            {
+                await RefreshBranchDetails(accessDetails, branch, cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
             {
                 _logger.LogWarning(
-                    "Branch with id {BranchInProjectId} not found in database during refresh; skipping",
-                    knownBranch.BranchInProjectId);
-
-                continue;
+                    ex,
+                    "Failed to refresh details for branch '{BranchName}' in project {ProjectId}; skipping",
+                    branch.BranchName,
+                    branch.ProjectId);
             }
-
-            // Check if branch still exists in GitLab
-            var branchLookup = await _gitlabService.GetBranchLookupResult(
-                accessDetails,
-                branchInfo.ProjectId,
-                branchInfo.BranchName);
-
-            if (branchLookup.IsMissing)
-            {
-                _logger.LogInformation(
-                    "Branch '{BranchName}' in project {ProjectId} no longer exists during refresh",
-                    branchInfo.BranchName,
-                    branchInfo.ProjectId);
-
-                RemoveBranchAndCleanup(branchInfo.BranchInProjectId);
-                continue;
-            }
-
-            if (branchLookup.IsUnavailable)
-            {
-                _logger.LogWarning(
-                    "Branch lookup unavailable for branch '{BranchName}' in project {ProjectId} during refresh; skipping",
-                    branchInfo.BranchName,
-                    branchInfo.ProjectId);
-
-                continue;
-            }
-
-            var project = await _gitlabService.GetProject(accessDetails, branchInfo.ProjectId);
-            if (project == null || GitlabService.IsScheduledForDeletion(project.NameWithNamespace))
-            {
-                var reason = project == null
-                    ? "project not found"
-                    : $"project/group is scheduled for deletion ('{project.NameWithNamespace}')";
-
-                _logger.LogInformation(
-                    "Branch '{BranchName}' in project {ProjectId} treated as deleted during refresh: {Reason}",
-                    branchInfo.BranchName,
-                    branchInfo.ProjectId,
-                    reason);
-
-                RemoveBranchAndCleanup(branchInfo.BranchInProjectId);
-                continue;
-            }
-
-            var projectNameWithNamespace = project.NameWithNamespace;
-            var projectName = string.IsNullOrWhiteSpace(project.Name)
-                ? GetProjectDisplayName(projectNameWithNamespace, branchInfo.ProjectId)
-                : project.Name;
-
-            int? mergeGroupId = branchInfo.MergeGroupId > 0 ? branchInfo.MergeGroupId : null;
-
-            var pendingActivity = new BranchActivity(
-                branchInfo.BranchName,
-                branchInfo.ProjectId,
-                projectName,
-                projectNameWithNamespace,
-                null,
-                null,
-                null,
-                branchInfo.LastUpdateTime,
-                mergeGroupId,
-                null,
-                null,
-                project.WebUrl,
-                BranchInProjectId: branchInfo.BranchInProjectId);
-
-            var activity = await ResolveBranchActivityIn(
-                accessDetails,
-                pendingActivity,
-                cancellationToken);
-
-            yield return activity;
         }
 
-        _logger.LogInformation("Finished streaming refresh for {Count} branch-project pairs", branches.Count);
+        _logger.LogDebug("Finished refreshing details for user {UserId}", gitlabUserId);
     }
 
     private async Task<bool> ShouldSkipBranchByLookup(
@@ -598,69 +523,34 @@ public class GitlabActivityService
     }
 
     /// <summary>
-    ///     Resolves a branch's MR and approval status into a fully populated BranchActivity record.
+    ///     Converts a <see cref="BranchWithMergeGroupInfo" /> DB record into a <see cref="BranchActivity" />
+    ///     response object, using the persisted MR, approval, and build data.
     /// </summary>
-    private async Task<BranchActivity> ResolveBranchActivityIn(
-        AccessDetailsBase accessDetails,
-        BranchActivity activity,
-        CancellationToken cancellationToken = default)
+    private BranchActivity ToBranchActivity(BranchWithMergeGroupInfo branch, string operationName)
     {
-        var mergeRequests = await _gitlabService.GetMergeRequests(
-            accessDetails,
-            activity.ProjectId,
-            activity.BranchName);
+        var projectName = GetProjectDisplayName(branch.ProjectName, branch.ProjectId);
+        int? mergeGroupId = branch.MergeGroupId > 0 ? branch.MergeGroupId : null;
 
-        var hasMr = mergeRequests.Count > 0;
-        int? approvalsRequired = null;
-        int? approvalsGiven = null;
-        string? mrTitle = null;
-        string? mrUrl = null;
+        var lastUpdated = UtcTimestamp.EnsureUtc(
+            branch.LastUpdateTime,
+            () => $"GitlabActivityService.{operationName} branch '{branch.BranchName}'/{branch.ProjectId}",
+            _logger);
 
-        if (hasMr)
-        {
-            _logger.LogDebug(
-                "Branch '{BranchName}' has {MrCount} open MR(s) in project {ProjectId}",
-                activity.BranchName,
-                mergeRequests.Count,
-                activity.ProjectId);
-
-            var first = mergeRequests[0];
-            mrTitle = first.Title;
-            mrUrl = first.WebUrl;
-
-            var approval = await _gitlabService.GetMergeRequestApprovals(
-                accessDetails,
-                activity.ProjectId,
-                first.Iid);
-
-            if (approval != null)
-            {
-                approvalsGiven = approval.ApprovedBy.Count;
-                approvalsRequired = Math.Max(approval.ApprovalsRequired ?? 0, 0);
-            }
-        }
-
-        var project = await _gitlabService.GetProject(accessDetails, activity.ProjectId);
-        var projectUrl = !string.IsNullOrWhiteSpace(project?.WebUrl)
-            ? project.WebUrl
-            : activity.ProjectUrl;
-
-        var buildJobs = await _gitlabPipelineService.GetLatestExternalJobsForBranch(
-            accessDetails,
-            activity.ProjectId,
-            activity.BranchName,
-            cancellationToken);
-
-        return activity with
-        {
-            HasMergeRequest = hasMr,
-            ApprovalsRequired = approvalsRequired,
-            ApprovalsGiven = approvalsGiven,
-            MergeRequestTitle = mrTitle,
-            MergeRequestUrl = mrUrl,
-            ProjectUrl = projectUrl,
-            BuildJobs = buildJobs
-        };
+        return new BranchActivity(
+            branch.BranchName,
+            branch.ProjectId,
+            projectName,
+            branch.ProjectName,
+            branch.HasMergeRequest,
+            branch.ApprovalsRequired,
+            branch.ApprovalsGiven,
+            lastUpdated,
+            mergeGroupId,
+            branch.MergeRequestTitle,
+            branch.MergeRequestUrl,
+            branch.ProjectUrl,
+            branch.BuildJobs,
+            BranchInProjectId: branch.BranchInProjectId);
     }
 
     /// <summary>

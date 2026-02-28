@@ -1,4 +1,5 @@
 using Dapper;
+using Mergician.Entities;
 using Mergician.Entities.Database;
 using Mergician.Services.Time;
 
@@ -152,7 +153,13 @@ public class MergeGroupRepository : IMergeGroupRepository
                     bp.project_name AS ProjectName,
                     mg.id AS MergeGroupId,
                     mg.name AS MergeGroupName,
-                    mg.last_update_time AS LastUpdateTime
+                    mg.last_update_time AS LastUpdateTime,
+                    bp.has_merge_request AS HasMergeRequest,
+                    bp.merge_request_title AS MergeRequestTitle,
+                    bp.merge_request_url AS MergeRequestUrl,
+                    bp.project_url AS ProjectUrl,
+                    bp.approvals_required AS ApprovalsRequired,
+                    bp.approvals_given AS ApprovalsGiven
                 FROM users_in_merge_groups umg
                 INNER JOIN merge_group mg ON mg.id = umg.merge_group_id
                 INNER JOIN branches_in_merge_group bmg ON bmg.merge_group_id = mg.id
@@ -170,6 +177,8 @@ public class MergeGroupRepository : IMergeGroupRepository
                 () => $"MergeGroupRepository.GetUserBranches result merge group {r.MergeGroupId}",
                 _logger);
         }
+
+        AttachBuildJobs(connection, results);
 
         _logger.LogDebug(
             "Retrieved {Count} cached branches for user {UserId}",
@@ -193,7 +202,13 @@ public class MergeGroupRepository : IMergeGroupRepository
                     bp.project_name AS ProjectName,
                     mg.id AS MergeGroupId,
                     mg.name AS MergeGroupName,
-                    mg.last_update_time AS LastUpdateTime
+                    mg.last_update_time AS LastUpdateTime,
+                    bp.has_merge_request AS HasMergeRequest,
+                    bp.merge_request_title AS MergeRequestTitle,
+                    bp.merge_request_url AS MergeRequestUrl,
+                    bp.project_url AS ProjectUrl,
+                    bp.approvals_required AS ApprovalsRequired,
+                    bp.approvals_given AS ApprovalsGiven
                 FROM users_in_merge_groups umg
                 INNER JOIN merge_group mg ON mg.id = umg.merge_group_id
                 INNER JOIN branches_in_merge_group bmg ON bmg.merge_group_id = mg.id
@@ -222,6 +237,8 @@ public class MergeGroupRepository : IMergeGroupRepository
                 () => $"MergeGroupRepository.GetMergeGroup merge group {r.MergeGroupId}",
                 _logger);
         }
+
+        AttachBuildJobs(connection, results);
 
         _logger.LogDebug(
             "Retrieved {Count} branches for user {UserId} in merge group {MergeGroupId}",
@@ -334,7 +351,13 @@ public class MergeGroupRepository : IMergeGroupRepository
                 bp.project_name AS ProjectName,
                 mg.id AS MergeGroupId,
                 mg.name AS MergeGroupName,
-                mg.last_update_time AS LastUpdateTime
+                mg.last_update_time AS LastUpdateTime,
+                bp.has_merge_request AS HasMergeRequest,
+                bp.merge_request_title AS MergeRequestTitle,
+                bp.merge_request_url AS MergeRequestUrl,
+                bp.project_url AS ProjectUrl,
+                bp.approvals_required AS ApprovalsRequired,
+                bp.approvals_given AS ApprovalsGiven
             FROM branch_in_project bp
             LEFT JOIN branches_in_merge_group bmg ON bmg.branch_in_project_id = bp.id
             LEFT JOIN merge_group mg ON mg.id = bmg.merge_group_id
@@ -349,6 +372,8 @@ public class MergeGroupRepository : IMergeGroupRepository
                 result.LastUpdateTime,
                 () => $"MergeGroupRepository.GetBranchWithMergeGroupInfo branch {branchInProjectId}",
                 _logger);
+
+            AttachBuildJobs(connection, [result]);
         }
 
         return result;
@@ -363,5 +388,107 @@ public class MergeGroupRepository : IMergeGroupRepository
                 "SELECT merge_group_id FROM branches_in_merge_group WHERE branch_in_project_id = @Id",
                 new { Id = branchInProjectId })
             .ToList();
+    }
+
+    public void UpdateBranchDetails(
+        int branchInProjectId,
+        bool hasMergeRequest,
+        string? mergeRequestTitle,
+        string? mergeRequestUrl,
+        string? projectUrl,
+        int? approvalsRequired,
+        int? approvalsGiven,
+        List<BranchBuildJob> buildJobs)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        connection.Open();
+
+        using var transaction = connection.BeginTransaction();
+
+        connection.Execute(
+            """
+            UPDATE branch_in_project
+            SET has_merge_request   = @HasMergeRequest,
+                merge_request_title = @MergeRequestTitle,
+                merge_request_url   = @MergeRequestUrl,
+                project_url         = @ProjectUrl,
+                approvals_required  = @ApprovalsRequired,
+                approvals_given     = @ApprovalsGiven
+            WHERE id = @BranchInProjectId
+            """,
+            new
+            {
+                BranchInProjectId = branchInProjectId,
+                HasMergeRequest = hasMergeRequest,
+                MergeRequestTitle = mergeRequestTitle,
+                MergeRequestUrl = mergeRequestUrl,
+                ProjectUrl = projectUrl,
+                ApprovalsRequired = approvalsRequired,
+                ApprovalsGiven = approvalsGiven
+            },
+            transaction);
+
+        connection.Execute(
+            "DELETE FROM branch_build_jobs WHERE branch_in_project_id = @Id",
+            new { Id = branchInProjectId },
+            transaction);
+
+        if (buildJobs.Count > 0)
+        {
+            connection.Execute(
+                """
+                INSERT INTO branch_build_jobs (branch_in_project_id, name, status, url)
+                VALUES (@BranchInProjectId, @Name, @Status, @Url)
+                ON CONFLICT (branch_in_project_id, name) DO UPDATE SET status = EXCLUDED.status, url = EXCLUDED.url
+                """,
+                buildJobs.Select(j => new
+                {
+                    BranchInProjectId = branchInProjectId,
+                    j.Name,
+                    j.Status,
+                    j.Url
+                }),
+                transaction);
+        }
+
+        transaction.Commit();
+
+        _logger.LogDebug(
+            "Updated branch {BranchInProjectId} details: hasMr={HasMr}, approvals={Given}/{Required}, {JobCount} build jobs",
+            branchInProjectId,
+            hasMergeRequest,
+            approvalsGiven,
+            approvalsRequired,
+            buildJobs.Count);
+    }
+
+    private void AttachBuildJobs(System.Data.IDbConnection connection, List<BranchWithMergeGroupInfo> branches)
+    {
+        if (branches.Count == 0)
+        {
+            return;
+        }
+
+        var ids = branches.Select(b => b.BranchInProjectId).Distinct().ToArray();
+
+        var jobs = connection.Query<(int BranchInProjectId, string Name, string Status, string? Url)>(
+                """
+                SELECT branch_in_project_id AS BranchInProjectId, name AS Name, status AS Status, url AS Url
+                FROM branch_build_jobs
+                WHERE branch_in_project_id = ANY(@Ids)
+                """,
+                new { Ids = ids })
+            .GroupBy(j => j.BranchInProjectId)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Select(j => new BranchBuildJob(j.Name, j.Status, j.Url)).ToList());
+
+        foreach (var branch in branches)
+        {
+            if (jobs.TryGetValue(branch.BranchInProjectId, out var branchJobs))
+            {
+                branch.BuildJobs = branchJobs;
+            }
+        }
     }
 }

@@ -177,13 +177,8 @@ interface BranchBuildJob {
   url?: string | null
 }
 
-interface KnownBranch {
-  branchInProjectId: number
-}
-
-interface DashboardPollResponse {
-  added: BranchActivity[]
-  removed: number[]
+interface DashboardResponse {
+  branches: BranchActivity[]
 }
 
 interface MergeGroup {
@@ -197,7 +192,6 @@ type GroupStatus = 'ready' | 'open' | 'waiting'
 const FAST_POLL_INTERVAL_MS = 1000
 const NORMAL_POLL_INTERVAL_MS = 5000
 const FAST_POLL_DURATION_MS = 5000
-const REFRESH_INTERVAL_MS = 15000
 
 const route = useRoute()
 const router = useRouter()
@@ -211,7 +205,6 @@ const errorMessage = ref('')
 const now = ref(Date.now())
 
 let pollIntervalId: ReturnType<typeof setInterval> | null = null
-let refreshIntervalId: ReturnType<typeof setInterval> | null = null
 let timeIntervalId: ReturnType<typeof setInterval> | null = null
 let fastPollTimeoutId: ReturnType<typeof setTimeout> | null = null
 
@@ -390,15 +383,6 @@ function handleActivityEvent(data: BranchActivity) {
   }
 }
 
-function handleBranchRemovedById(branchInProjectId: number) {
-  const idx = activities.value.findIndex(
-    a => a.branchInProjectId === branchInProjectId
-  )
-  if (idx >= 0) {
-    activities.value.splice(idx, 1)
-  }
-}
-
 function findLastIndexOf<T>(arr: T[], predicate: (item: T) => boolean): number {
   for (let i = arr.length - 1; i >= 0; i--) {
     if (predicate(arr[i])) return i
@@ -407,31 +391,13 @@ function findLastIndexOf<T>(arr: T[], predicate: (item: T) => boolean): number {
 }
 
 /**
- * Builds the list of currently known branches to send to the backend,
- * so it can compute a minimal diff.
- */
-function getKnownBranches(): KnownBranch[] {
-  const seen = new Set<number>()
-  const result: KnownBranch[] = []
-  for (const a of activities.value) {
-    if (a.branchInProjectId != null && !seen.has(a.branchInProjectId)) {
-      seen.add(a.branchInProjectId)
-      result.push({ branchInProjectId: a.branchInProjectId })
-    }
-  }
-  return result
-}
-
-/**
- * Polls the backend for dashboard data diff.
- * Sends currently known branches and applies the returned diff.
+ * Polls the backend for a full dashboard snapshot and reconciles with the displayed list.
+ * New branches are added, existing ones updated, and removed branches are cleaned up.
  */
 async function pollDashboard() {
   try {
     const response = await fetch('/api/activity/refresh-branches', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ knownBranches: getKnownBranches() })
+      method: 'POST'
     })
 
     if (response.status === 401) {
@@ -451,22 +417,21 @@ async function pollDashboard() {
       return
     }
 
-    const data: DashboardPollResponse = await response.json()
+    const data: DashboardResponse = await response.json()
 
-    // Handle removals (by branch database ID)
-    if (data.removed) {
-      for (const removedId of data.removed) {
-        handleBranchRemovedById(removedId)
-      }
-    }
+    // Remove items no longer present in the response
+    const incomingIds = new Set<number>(
+      data.branches
+        .filter(b => b.branchInProjectId != null)
+        .map(b => b.branchInProjectId!)
+    )
+    activities.value = activities.value.filter(
+      a => a.branchInProjectId == null || incomingIds.has(a.branchInProjectId)
+    )
 
-    // Handle additions (new branches from DB)
-    if (data.added && data.added.length > 0) {
-      for (const activity of data.added) {
-        handleActivityEvent(activity)
-      }
-      // Trigger an immediate refresh to resolve MR/approval status for new branches
-      refreshExistingBranches()
+    // Update or add items from the response
+    for (const activity of data.branches) {
+      handleActivityEvent(activity)
     }
   } catch (err) {
     console.error('Dashboard poll failed:', err)
@@ -490,9 +455,6 @@ function startPolling() {
     fastPollTimeoutId = null
   }, FAST_POLL_DURATION_MS)
 
-  // Start the separate MR/approval status refresh
-  refreshIntervalId = setInterval(refreshExistingBranches, REFRESH_INTERVAL_MS)
-
   // Fire the first poll immediately
   pollDashboard()
 }
@@ -502,80 +464,9 @@ function stopPolling() {
     clearInterval(pollIntervalId)
     pollIntervalId = null
   }
-  if (refreshIntervalId !== null) {
-    clearInterval(refreshIntervalId)
-    refreshIntervalId = null
-  }
   if (fastPollTimeoutId !== null) {
     clearTimeout(fastPollTimeoutId)
     fastPollTimeoutId = null
-  }
-}
-
-/**
- * Refreshes MR and approval status for all currently displayed branches by
- * streaming results via SSE as each branch is resolved.
- */
-async function refreshExistingBranches() {
-  if (activities.value.length === 0) return
-
-  try {
-    const response = await fetch('/api/activity/refresh-activity', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ knownBranches: getKnownBranches() })
-    })
-
-    if (response.status === 401) {
-      console.warn('Refresh returned 401, stopping polling')
-      stopPolling()
-      return
-    }
-
-    if (response.status === 503) {
-      errorMessage.value = 'Database is unavailable. Please try again later.'
-      stopPolling()
-      return
-    }
-
-    if (!response.ok) {
-      console.error('Refresh failed with status', response.status)
-      return
-    }
-
-    const reader = response.body?.getReader()
-    if (!reader) return
-
-    const decoder = new TextDecoder()
-    let buffer = ''
-
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-
-      buffer += decoder.decode(value, { stream: true })
-
-      let eventEnd: number
-      while ((eventEnd = buffer.indexOf('\n\n')) !== -1) {
-        const eventText = buffer.slice(0, eventEnd)
-        buffer = buffer.slice(eventEnd + 2)
-
-        if (eventText.startsWith('event: done')) {
-          return
-        }
-
-        if (eventText.startsWith('data: ')) {
-          try {
-            const data: BranchActivity = JSON.parse(eventText.slice(6))
-            handleActivityEvent(data)
-          } catch (err) {
-            console.error('Failed to parse refresh SSE data:', err)
-          }
-        }
-      }
-    }
-  } catch (err) {
-    console.error('Refresh request failed:', err)
   }
 }
 
