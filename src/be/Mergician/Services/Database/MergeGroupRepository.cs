@@ -53,9 +53,7 @@ public class MergeGroupRepository : IMergeGroupRepository
         return record;
     }
 
-    // TODO: Make this method return `MergeGroup` (and update the query to include associated branches). There
-    // is no need to `MergeGroup` so replace all usage of it with `GetMergeGroup`.
-    public MergeGroupRecord GetOrCreateMergeGroup(string name)
+    public MergeGroup GetOrCreateMergeGroup(string name)
     {
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();
@@ -76,12 +74,16 @@ public class MergeGroupRepository : IMergeGroupRepository
         }
 
         _logger.LogDebug("Got/created merge group {Id} with name '{Name}'", record.Id, name);
-        record.LastUpdateTime = UtcTimestamp.EnsureUtc(
-            record.LastUpdateTime,
-            () => $"MergeGroupRepository.GetOrCreateMergeGroup merge group {record.Id}",
-            _logger);
 
-        return record;
+        var mergeGroup = GetMergeGroupByIdInternal(connection, record.Id);
+
+        // Should never happen since we just confirmed the record above
+        if (mergeGroup == null)
+        {
+            throw new InvalidOperationException($"Failed to load merge group '{name}' after insert");
+        }
+
+        return mergeGroup;
     }
 
     public void EnsureBranchInMergeGroup(int mergeGroupId, int branchInProjectId)

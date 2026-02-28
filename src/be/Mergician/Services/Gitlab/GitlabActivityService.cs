@@ -140,15 +140,28 @@ public class GitlabActivityService
                 projectNameWithNamespace);
 
             var mergeGroup = _mergeGroupRepository.GetOrCreateMergeGroup(pushEvent.BranchName);
-            // TODO: When the above method returns a `MergeGroup`, we can check if the branch exists in
-            // the merge group before we check the database again.
-            _mergeGroupRepository.EnsureBranchInMergeGroup(mergeGroup.Id, branchRecord.Id);
-            _mergeGroupRepository.EnsureUserInMergeGroup(gitlabUserId, mergeGroup.Id);
+            if (!mergeGroup.Branches.Any(b => b.BranchInProjectId == branchRecord.Id))
+            {
+                _logger.LogDebug(
+                    "Branch {BranchId} not yet in merge group {MergeGroupId}, associating",
+                    branchRecord.Id,
+                    mergeGroup.MergeGroupId);
+                _mergeGroupRepository.EnsureBranchInMergeGroup(mergeGroup.MergeGroupId, branchRecord.Id);
+            }
+            else
+            {
+                _logger.LogDebug(
+                    "Branch {BranchId} already in merge group {MergeGroupId}, skipping association",
+                    branchRecord.Id,
+                    mergeGroup.MergeGroupId);
+            }
+
+            _mergeGroupRepository.EnsureUserInMergeGroup(gitlabUserId, mergeGroup.MergeGroupId);
 
             var lastUpdated = pushEvent.CreatedAt.ToUniversalTime();
             if (lastUpdated > mergeGroup.LastUpdateTime)
             {
-                _mergeGroupRepository.UpdateMergeGroupTimestamp(mergeGroup.Id, lastUpdated);
+                _mergeGroupRepository.UpdateMergeGroupTimestamp(mergeGroup.MergeGroupId, lastUpdated);
             }
 
             _logger.LogDebug(

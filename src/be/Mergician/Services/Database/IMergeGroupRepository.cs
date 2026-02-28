@@ -15,10 +15,10 @@ public interface IMergeGroupRepository
     BranchInProjectRecord GetOrCreateBranchRecord(string branchName, int projectId, string projectName);
 
     /// <summary>
-    ///     Gets or creates a MergeGroup by name. Returns the existing or new record.
+    ///     Gets or creates a MergeGroup by name. Returns the existing or new group with its associated branches.
     ///     Thread-safe: uses INSERT ON CONFLICT to avoid duplicates from concurrent callers.
     /// </summary>
-    MergeGroupRecord GetOrCreateMergeGroup(string name);
+    MergeGroup GetOrCreateMergeGroup(string name);
 
     /// <summary>
     ///     Associates a branch with a merge group if not already associated.
