@@ -33,7 +33,7 @@ Mergician is a tool to help developers in environments where any one product is 
 # Testing & verification
 If running on a Windows platform, do not worry about any verification other than doing a build. The following testing procedure only applies if running on Linux.
 
-After doing any non-trivial changes to the Mergician code, always run the integration tests to verify the changes work. When adding or changing functionality in Mergician, see if updating or adding to the integration tests is warrented.
+After doing any changes to the Mergician code, always run the integration tests to verify the changes work. When adding or changing functionality in Mergician, see if updating or adding to the integration tests is warrented.
 
 Always use the scripts mentioned below to start the various apps and operations. The scripts do the necessary cleanup and setup work before starting the apps.
 
