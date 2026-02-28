@@ -154,7 +154,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useCurrentUser } from '@/composables/useCurrentUser'
 
-interface BranchActivity {
+interface BranchRecord {
   branchName: string
   projectId: number
   projectName: string
@@ -178,13 +178,13 @@ interface BranchBuildJob {
 }
 
 interface DashboardResponse {
-  branches: BranchActivity[]
+  branches: BranchRecord[]
 }
 
 interface MergeGroup {
   groupKey: string
   branchName: string
-  items: BranchActivity[]
+  items: BranchRecord[]
 }
 
 type GroupStatus = 'ready' | 'open' | 'waiting'
@@ -197,7 +197,7 @@ const route = useRoute()
 const router = useRouter()
 const { currentUser, loadCurrentUser } = useCurrentUser()
 
-const activities = ref<BranchActivity[]>([])
+const activities = ref<BranchRecord[]>([])
 const initialLoading = ref(true)
 const authenticated = computed(() => currentUser.value !== null)
 const initialPhase = ref(false)
@@ -235,12 +235,12 @@ function groupStatusClass(group: MergeGroup): string {
   return `status-${getGroupStatus(group)}`
 }
 
-function itemApprovalsText(item: BranchActivity): string {
+function itemApprovalsText(item: BranchRecord): string {
   if (!item.hasMergeRequest || item.approvalsGiven == null || item.approvalsRequired == null) return ''
   return `${item.approvalsGiven}/${item.approvalsRequired}`
 }
 
-function approvalIconColor(item: BranchActivity): string {
+function approvalIconColor(item: BranchRecord): string {
   if (!item.hasMergeRequest || item.approvalsGiven == null || item.approvalsRequired == null) {
     return 'grey'
   }
@@ -250,7 +250,7 @@ function approvalIconColor(item: BranchActivity): string {
   return 'grey'
 }
 
-function approvalsTooltip(item: BranchActivity): string {
+function approvalsTooltip(item: BranchRecord): string {
   if (!item.hasMergeRequest || item.approvalsGiven == null || item.approvalsRequired == null) {
     return ''
   }
@@ -297,7 +297,7 @@ function getGroupLatestTime(group: MergeGroup): number {
  * falling back to branchName for items without a mergeGroupId.
  */
 const mergeGroups = computed<MergeGroup[]>(() => {
-  const groups = new Map<string, { branchName: string; items: BranchActivity[] }>()
+  const groups = new Map<string, { branchName: string; items: BranchRecord[] }>()
   for (const item of activities.value) {
     const groupKey = item.mergeGroupId != null ? `mg:${item.mergeGroupId}` : `bn:${item.branchName}`
     const existing = groups.get(groupKey)
@@ -348,7 +348,7 @@ function formatTimeAgo(isoString: string): string {
   return diffDay === 1 ? '1 day ago' : `${diffDay} days ago`
 }
 
-function handleActivityEvent(data: BranchActivity) {
+function handleActivityEvent(data: BranchRecord) {
   const existingIndex = activities.value.findIndex(
     a => a.branchName === data.branchName && a.projectId === data.projectId
   )

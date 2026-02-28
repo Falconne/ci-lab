@@ -5,4 +5,4 @@ namespace Mergician.Entities;
 ///     of all branches for the authenticated user.
 ///     The frontend reconciles this against its current display state.
 /// </summary>
-public record DashboardResponse(List<BranchActivity> Branches);
+public record DashboardResponse(List<BranchRecord> Branches);

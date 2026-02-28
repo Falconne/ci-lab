@@ -45,7 +45,7 @@ public class GitlabActivityService
         var dbBranches = _mergeGroupRepository.GetUserBranches(gitlabUserId);
 
         var branches = dbBranches
-            .Select(b => ToBranchActivity(b, "GetMergeGroupsForUser"))
+            .Select(b => ToBranchRecord(b, "GetMergeGroupsForUser"))
             .ToList();
 
         _logger.LogDebug(
@@ -253,7 +253,7 @@ public class GitlabActivityService
     ///     Returns null if the merge group does not exist for the user.
     ///     Data is read from the database and includes persisted MR, approval, and build details.
     /// </summary>
-    public MergeGroupResponse? GetMergeGroupBranches(int gitlabUserId, int mergeGroupId)
+    public MergeGroup? GetMergeGroupBranches(int gitlabUserId, int mergeGroupId)
     {
         var mergeGroup = _mergeGroupRepository.GetMergeGroup(gitlabUserId, mergeGroupId);
         if (mergeGroup == null)
@@ -267,7 +267,7 @@ public class GitlabActivityService
         }
 
         var branches = mergeGroup.Branches
-            .Select(b => ToBranchActivity(b, "GetMergeGroupBranches"))
+            .Select(b => ToBranchRecord(b, "GetMergeGroupBranches"))
             .ToList();
 
         _logger.LogDebug(
@@ -276,7 +276,7 @@ public class GitlabActivityService
             mergeGroupId,
             gitlabUserId);
 
-        return new MergeGroupResponse(mergeGroup.Id, mergeGroup.Name, branches);
+        return new MergeGroup(mergeGroup.Id, mergeGroup.Name, branches);
     }
 
     /// <summary>
@@ -526,10 +526,10 @@ public class GitlabActivityService
     }
 
     /// <summary>
-    ///     Converts a <see cref="BranchWithMergeGroupInfo" /> DB record into a <see cref="BranchActivity" />
+    ///     Converts a <see cref="BranchWithMergeGroupInfo" /> DB record into a <see cref="BranchRecord" />
     ///     response object, using the persisted MR, approval, and build data.
     /// </summary>
-    private BranchActivity ToBranchActivity(BranchWithMergeGroupInfo branch, string operationName)
+    private BranchRecord ToBranchRecord(BranchWithMergeGroupInfo branch, string operationName)
     {
         var projectName = GetProjectDisplayName(branch.ProjectName, branch.ProjectId);
         int? mergeGroupId = branch.MergeGroupId > 0 ? branch.MergeGroupId : null;
@@ -539,7 +539,7 @@ public class GitlabActivityService
             () => $"GitlabActivityService.{operationName} branch '{branch.BranchName}'/{branch.ProjectId}",
             _logger);
 
-        return new BranchActivity(
+        return new BranchRecord(
             branch.BranchName,
             branch.ProjectId,
             projectName,
