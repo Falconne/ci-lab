@@ -31,13 +31,13 @@ public interface IMergeGroupRepository
     void EnsureUserInMergeGroup(int gitlabUserId, int mergeGroupId);
 
     /// <summary>
-    ///     Updates the LastUpdateTime of a merge group.
+    ///     Updates the last_update_time of a branch record to reflect when it was last pushed.
     /// </summary>
-    void UpdateMergeGroupTimestamp(int mergeGroupId, DateTimeOffset lastUpdateTime);
+    void UpdateBranchTimestamp(int branchInProjectId, DateTimeOffset lastUpdateTime);
 
     /// <summary>
     ///     Returns all merge groups that the user is associated with, each containing its branches.
-    ///     Ordered by merge group LastUpdateTime descending (most recent first).
+    ///     Ordered by most recently updated merge group first, based on branch timestamps.
     /// </summary>
     List<MergeGroup> GetMergeGroupsForUser(int gitlabUserId);
 
@@ -59,7 +59,7 @@ public interface IMergeGroupRepository
     /// <summary>
     ///     Returns merge groups that have no branches left.
     /// </summary>
-    List<MergeGroupRecord> GetEmptyMergeGroups();
+    List<MergeGroupBase> GetEmptyMergeGroups();
 
     /// <summary>
     ///     Returns all tracked branches across all merge groups.

@@ -14,7 +14,7 @@ internal sealed class BranchDataRow
     public string ProjectName { get; set; } = "";
     public int MergeGroupId { get; set; }
     public string MergeGroupName { get; set; } = "";
-    public DateTimeOffset LastUpdateTime { get; set; }
+    public DateTimeOffset? LastUpdateTime { get; set; }
 
     // Persisted activity details, null until populated by the background sync thread
     public bool? HasMergeRequest { get; set; }

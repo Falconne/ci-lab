@@ -60,9 +60,9 @@
           <TransitionGroup name="card-list" tag="div" class="card-container">
             <div
               v-for="group in sortedMergeGroups"
-              :key="group.mergeGroupId.toString()"
+              :key="group.id.toString()"
               class="merge-group-card"
-              :data-merge-group-id="group.mergeGroupId"
+              :data-merge-group-id="group.id"
               @click="openMergeGroupDetails(group)"
             >
               <div class="card-accent" :class="groupStatusClass(group)" />
@@ -70,7 +70,7 @@
                 <div class="card-header">
                                   <div class="branch-info">
                       <v-icon icon="mdi-source-branch" size="small" class="branch-icon" />
-                      <span class="branch-name">{{ group.mergeGroupName }}</span>
+                      <span class="branch-name">{{ group.name }}</span>
                     </div>
                   <div class="card-header-right">
                     <span class="card-status-badge" :class="groupStatusClass(group)">
@@ -83,7 +83,7 @@
                 <div class="card-items">
                   <div
                     v-for="item in group.branches"
-                    :key="`${group.mergeGroupId}-${item.projectId}`"
+                    :key="`${group.id}-${item.projectId}`"
                     class="card-item"
                   >
                     <span class="item-main">
@@ -177,9 +177,9 @@ interface BranchBuildJob {
 }
 
 interface MergeGroup {
-  mergeGroupId: number
-  mergeGroupName: string
-  lastUpdateTime: string
+  id: number
+  name: string
+  lastUpdateTime: string | null
   branches: BranchRecord[]
 }
 
@@ -260,7 +260,7 @@ function approvalsTooltip(item: BranchRecord): string {
 }
 
 function groupTimeAgo(group: MergeGroup): string {
-  return formatTimeAgo(group.lastUpdateTime)
+  return group.lastUpdateTime ? formatTimeAgo(group.lastUpdateTime) : ''
 }
 
 /**
@@ -277,7 +277,7 @@ function truncateTitle(title: string): string {
 const sortedMergeGroups = computed<MergeGroup[]>(() => {
   if (mergeGroups.value.length === 0) return []
   return [...mergeGroups.value].sort(
-    (a, b) => new Date(b.lastUpdateTime).getTime() - new Date(a.lastUpdateTime).getTime()
+    (a, b) => new Date(b.lastUpdateTime ?? 0).getTime() - new Date(a.lastUpdateTime ?? 0).getTime()
   )
 })
 
@@ -333,14 +333,14 @@ async function pollDashboard() {
 
     const data: MergeGroup[] = await response.json()
 
-    const incomingIds = new Set<number>(data.map(g => g.mergeGroupId))
+    const incomingIds = new Set<number>(data.map(g => g.id))
 
     // Remove groups no longer present in the response
-    mergeGroups.value = mergeGroups.value.filter(g => incomingIds.has(g.mergeGroupId))
+    mergeGroups.value = mergeGroups.value.filter(g => incomingIds.has(g.id))
 
     // Update existing groups or add new ones
     for (const group of data) {
-      const existingIndex = mergeGroups.value.findIndex(g => g.mergeGroupId === group.mergeGroupId)
+      const existingIndex = mergeGroups.value.findIndex(g => g.id === group.id)
       if (existingIndex >= 0) {
         mergeGroups.value[existingIndex] = group
       } else {
@@ -387,8 +387,8 @@ function stopPolling() {
 function openMergeGroupDetails(group: MergeGroup) {
   router.push({
     name: 'merge-group-details',
-    params: { mergeGroupId: group.mergeGroupId.toString() },
-    query: { title: group.mergeGroupName }
+    params: { mergeGroupId: group.id.toString() },
+    query: { title: group.name }
   })
 }
 

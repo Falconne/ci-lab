@@ -58,15 +58,15 @@ public class MergeGroupRepository : IMergeGroupRepository
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();
 
-        var record = connection.QueryFirstOrDefault<MergeGroupRecord>(
+        var record = connection.QueryFirstOrDefault<MergeGroupBase>(
             """
-            INSERT INTO merge_group (name, last_update_time)
-            VALUES (@Name, @Now)
+            INSERT INTO merge_group (name)
+            VALUES (@Name)
             ON CONFLICT ON CONSTRAINT uq_merge_group_name
             DO UPDATE SET name = EXCLUDED.name
-            RETURNING id AS Id, name AS Name, last_update_time AS LastUpdateTime
+            RETURNING id AS Id, name AS Name
             """,
-            new { Name = name, Now = DateTimeOffset.UtcNow });
+            new { Name = name });
 
         if (record == null)
         {
@@ -124,23 +124,23 @@ public class MergeGroupRepository : IMergeGroupRepository
             mergeGroupId);
     }
 
-    public void UpdateMergeGroupTimestamp(int mergeGroupId, DateTimeOffset lastUpdateTime)
+    public void UpdateBranchTimestamp(int branchInProjectId, DateTimeOffset lastUpdateTime)
     {
         var utcTimestamp = UtcTimestamp.EnsureUtc(
             lastUpdateTime,
-            () => $"MergeGroupRepository.UpdateMergeGroupTimestamp merge group {mergeGroupId}",
+            () => $"MergeGroupRepository.UpdateBranchTimestamp branch {branchInProjectId}",
             _logger);
 
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();
 
         connection.Execute(
-            "UPDATE merge_group SET last_update_time = @Timestamp WHERE id = @Id",
-            new { Id = mergeGroupId, Timestamp = utcTimestamp });
+            "UPDATE branch_in_project SET last_update_time = @Timestamp WHERE id = @Id",
+            new { Id = branchInProjectId, Timestamp = utcTimestamp });
 
         _logger.LogDebug(
-            "Updated merge group {MergeGroupId} timestamp to {Timestamp}",
-            mergeGroupId,
+            "Updated branch {BranchInProjectId} timestamp to {Timestamp}",
+            branchInProjectId,
             utcTimestamp);
     }
 
@@ -158,7 +158,7 @@ public class MergeGroupRepository : IMergeGroupRepository
                     bp.project_name AS ProjectName,
                     mg.id AS MergeGroupId,
                     mg.name AS MergeGroupName,
-                    mg.last_update_time AS LastUpdateTime,
+                    bp.last_update_time AS LastUpdateTime,
                     bp.has_merge_request AS HasMergeRequest,
                     bp.merge_request_title AS MergeRequestTitle,
                     bp.merge_request_url AS MergeRequestUrl,
@@ -170,25 +170,27 @@ public class MergeGroupRepository : IMergeGroupRepository
                 INNER JOIN branches_in_merge_group bmg ON bmg.merge_group_id = mg.id
                 INNER JOIN branch_in_project bp ON bp.id = bmg.branch_in_project_id
                 WHERE umg.gitlab_user_id = @GitlabUserId
-                ORDER BY mg.last_update_time DESC, bp.branch_name, bp.project_name
+                ORDER BY bp.project_name, bp.branch_name
                 """,
                 new { GitlabUserId = gitlabUserId })
             .ToList();
 
         foreach (var r in rows)
         {
-            r.LastUpdateTime = UtcTimestamp.EnsureUtc(
-                r.LastUpdateTime,
-                () => $"MergeGroupRepository.GetMergeGroupsForUser merge group {r.MergeGroupId}",
-                _logger);
+            if (r.LastUpdateTime.HasValue)
+            {
+                r.LastUpdateTime = UtcTimestamp.EnsureUtc(
+                    r.LastUpdateTime.Value,
+                    () => $"MergeGroupRepository.GetMergeGroupsForUser group {r.MergeGroupId} branch {r.BranchInProjectId}",
+                    _logger);
+            }
         }
 
         AttachBuildJobs(connection, rows);
 
-        // Group flat rows into MergeGroup objects, preserving ORDER BY merge group ordering
+        // Group flat rows into MergeGroup objects, then sort by most recently updated first
         var groupOrder = new List<int>();
         var groupNames = new Dictionary<int, string>();
-        var groupTimes = new Dictionary<int, DateTimeOffset>();
         var groupBranches = new Dictionary<int, List<BranchRecord>>();
 
         foreach (var row in rows)
@@ -197,7 +199,6 @@ public class MergeGroupRepository : IMergeGroupRepository
             {
                 groupOrder.Add(row.MergeGroupId);
                 groupNames[row.MergeGroupId] = row.MergeGroupName;
-                groupTimes[row.MergeGroupId] = row.LastUpdateTime;
                 groupBranches[row.MergeGroupId] = [];
             }
 
@@ -205,7 +206,8 @@ public class MergeGroupRepository : IMergeGroupRepository
         }
 
         var result = groupOrder
-            .Select(id => new MergeGroup(id, groupNames[id], groupTimes[id], groupBranches[id]))
+            .Select(id => new MergeGroup(id, groupNames[id], groupBranches[id]))
+            .OrderByDescending(g => g.LastUpdateTime ?? DateTimeOffset.MinValue)
             .ToList();
 
         _logger.LogDebug(
@@ -271,29 +273,19 @@ public class MergeGroupRepository : IMergeGroupRepository
         _logger.LogInformation("Deleted merge group {MergeGroupId} and all its associations", mergeGroupId);
     }
 
-    public List<MergeGroupRecord> GetEmptyMergeGroups()
+    public List<MergeGroupBase> GetEmptyMergeGroups()
     {
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();
 
-        var results = connection.Query<MergeGroupRecord>(
+        return connection.Query<MergeGroupBase>(
                 """
-                SELECT mg.id AS Id, mg.name AS Name, mg.last_update_time AS LastUpdateTime
+                SELECT mg.id AS Id, mg.name AS Name
                 FROM merge_group mg
                 LEFT JOIN branches_in_merge_group bmg ON bmg.merge_group_id = mg.id
                 WHERE bmg.id IS NULL
                 """)
             .ToList();
-
-        foreach (var r in results)
-        {
-            r.LastUpdateTime = UtcTimestamp.EnsureUtc(
-                r.LastUpdateTime,
-                () => $"MergeGroupRepository.GetEmptyMergeGroups result merge group {r.Id}",
-                _logger);
-        }
-
-        return results;
     }
 
     public List<BranchInProjectRecord> GetAllBranches()
@@ -395,9 +387,9 @@ public class MergeGroupRepository : IMergeGroupRepository
 
     private MergeGroup? GetMergeGroupByIdInternal(IDbConnection connection, int mergeGroupId)
     {
-        var groupRecord = connection.QueryFirstOrDefault<MergeGroupRecord>(
+        var groupRecord = connection.QueryFirstOrDefault<MergeGroupBase>(
             """
-            SELECT id AS Id, name AS Name, last_update_time AS LastUpdateTime
+            SELECT id AS Id, name AS Name
             FROM merge_group
             WHERE id = @MergeGroupId
             """,
@@ -409,11 +401,6 @@ public class MergeGroupRepository : IMergeGroupRepository
             return null;
         }
 
-        groupRecord.LastUpdateTime = UtcTimestamp.EnsureUtc(
-            groupRecord.LastUpdateTime,
-            () => $"MergeGroupRepository.GetMergeGroupByIdInternal merge group {groupRecord.Id}",
-            _logger);
-
         var rows = connection.Query<BranchDataRow>(
                 """
                 SELECT
@@ -423,7 +410,7 @@ public class MergeGroupRepository : IMergeGroupRepository
                     bp.project_name AS ProjectName,
                     mg.id AS MergeGroupId,
                     mg.name AS MergeGroupName,
-                    mg.last_update_time AS LastUpdateTime,
+                    bp.last_update_time AS LastUpdateTime,
                     bp.has_merge_request AS HasMergeRequest,
                     bp.merge_request_title AS MergeRequestTitle,
                     bp.merge_request_url AS MergeRequestUrl,
@@ -441,10 +428,13 @@ public class MergeGroupRepository : IMergeGroupRepository
 
         foreach (var r in rows)
         {
-            r.LastUpdateTime = UtcTimestamp.EnsureUtc(
-                r.LastUpdateTime,
-                () => $"MergeGroupRepository.GetMergeGroupByIdInternal merge group {r.MergeGroupId}",
-                _logger);
+            if (r.LastUpdateTime.HasValue)
+            {
+                r.LastUpdateTime = UtcTimestamp.EnsureUtc(
+                    r.LastUpdateTime.Value,
+                    () => $"MergeGroupRepository.GetMergeGroupByIdInternal group {r.MergeGroupId} branch {r.BranchInProjectId}",
+                    _logger);
+            }
         }
 
         AttachBuildJobs(connection, rows);
@@ -452,7 +442,6 @@ public class MergeGroupRepository : IMergeGroupRepository
         return new MergeGroup(
             groupRecord.Id,
             groupRecord.Name,
-            groupRecord.LastUpdateTime,
             rows.Select(ToBranchRecord).ToList());
     }
 

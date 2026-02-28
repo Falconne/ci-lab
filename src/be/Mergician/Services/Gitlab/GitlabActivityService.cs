@@ -145,24 +145,21 @@ public class GitlabActivityService
                 _logger.LogDebug(
                     "Branch {BranchId} not yet in merge group {MergeGroupId}, associating",
                     branchRecord.Id,
-                    mergeGroup.MergeGroupId);
-                _mergeGroupRepository.EnsureBranchInMergeGroup(mergeGroup.MergeGroupId, branchRecord.Id);
+                    mergeGroup.Id);
+                _mergeGroupRepository.EnsureBranchInMergeGroup(mergeGroup.Id, branchRecord.Id);
             }
             else
             {
                 _logger.LogDebug(
                     "Branch {BranchId} already in merge group {MergeGroupId}, skipping association",
                     branchRecord.Id,
-                    mergeGroup.MergeGroupId);
+                    mergeGroup.Id);
             }
 
-            _mergeGroupRepository.EnsureUserInMergeGroup(gitlabUserId, mergeGroup.MergeGroupId);
+            _mergeGroupRepository.EnsureUserInMergeGroup(gitlabUserId, mergeGroup.Id);
 
             var lastUpdated = pushEvent.CreatedAt.ToUniversalTime();
-            if (lastUpdated > mergeGroup.LastUpdateTime)
-            {
-                _mergeGroupRepository.UpdateMergeGroupTimestamp(mergeGroup.MergeGroupId, lastUpdated);
-            }
+            _mergeGroupRepository.UpdateBranchTimestamp(branchRecord.Id, lastUpdated);
 
             _logger.LogDebug(
                 "Stored branch '{BranchName}' in project {ProjectId} for user {UserId}",
@@ -194,9 +191,14 @@ public class GitlabActivityService
         var latestRecord = DateTimeOffset.MinValue;
         foreach (var group in userGroups)
         {
+            if (!group.LastUpdateTime.HasValue)
+            {
+                continue;
+            }
+
             var ts = UtcTimestamp.EnsureUtc(
-                group.LastUpdateTime,
-                () => $"GitlabActivityService.GetBackfillSince merge group '{group.MergeGroupName}'",
+                group.LastUpdateTime.Value,
+                () => $"GitlabActivityService.GetBackfillSince merge group '{group.Name}'",
                 _logger);
 
             if (ts > latestRecord)

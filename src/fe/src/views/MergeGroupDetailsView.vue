@@ -187,9 +187,9 @@ interface BranchRecord {
 }
 
 interface MergeGroup {
-  mergeGroupId: number
-  mergeGroupName: string
-  lastUpdateTime: string
+  id: number
+  name: string
+  lastUpdateTime: string | null
   branches: BranchRecord[]
 }
 
@@ -352,9 +352,9 @@ async function pollMergeGroup() {
     const data: MergeGroup = await response.json()
 
     // Update merge group name if changed
-    if (data.mergeGroupName && data.mergeGroupName !== mergeGroupName.value) {
-      mergeGroupName.value = data.mergeGroupName
-      updateRouteTitle(data.mergeGroupName)
+    if (data.name && data.name !== mergeGroupName.value) {
+      mergeGroupName.value = data.name
+      updateRouteTitle(data.name)
     }
 
     // Remove items no longer present in the response
