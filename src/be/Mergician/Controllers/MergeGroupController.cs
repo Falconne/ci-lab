@@ -48,7 +48,7 @@ public class MergeGroupController : ControllerBase
             userId,
             mergeGroupId);
 
-        var result = _activityService.GetMergeGroupBranches(userId, mergeGroupId);
+        var result = _activityService.GetMergeGroupBranches(mergeGroupId);
 
         if (result == null)
         {

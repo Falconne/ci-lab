@@ -42,9 +42,9 @@ public interface IMergeGroupRepository
     List<MergeGroup> GetMergeGroupsForUser(int gitlabUserId);
 
     /// <summary>
-    ///     Returns a specific merge group and its branches for a user, or null when not found.
+    ///     Returns a specific merge group and its branches, or null when not found.
     /// </summary>
-    MergeGroup? GetMergeGroup(int gitlabUserId, int mergeGroupId);
+    MergeGroup? GetMergeGroup(int mergeGroupId);
 
     /// <summary>
     ///     Deletes a branch record and its references in branches_in_merge_group.

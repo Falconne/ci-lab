@@ -254,26 +254,22 @@ public class GitlabActivityService
     ///     Returns null if the merge group does not exist for the user.
     ///     Data is read from the database and includes persisted MR, approval, and build details.
     /// </summary>
-    public MergeGroup? GetMergeGroupBranches(int gitlabUserId, int mergeGroupId)
+    public MergeGroup? GetMergeGroupBranches(int mergeGroupId)
     {
-        // TODO: This method and `GetMergeGroup` should not care about user id, just return the
-        // requested merge group.
-        var mergeGroup = _mergeGroupRepository.GetMergeGroup(gitlabUserId, mergeGroupId);
+        var mergeGroup = _mergeGroupRepository.GetMergeGroup(mergeGroupId);
         if (mergeGroup == null)
         {
             _logger.LogInformation(
-                "No merge group found for user {UserId} and merge group {MergeGroupId} during poll",
-                gitlabUserId,
+                "No merge group found for merge group {MergeGroupId} during poll",
                 mergeGroupId);
 
             return null;
         }
 
         _logger.LogDebug(
-            "Returning {Count} branches for merge group {MergeGroupId} for user {UserId}",
+            "Returning {Count} branches for merge group {MergeGroupId}",
             mergeGroup.Branches.Count,
-            mergeGroupId,
-            gitlabUserId);
+            mergeGroupId);
 
         return mergeGroup;
     }

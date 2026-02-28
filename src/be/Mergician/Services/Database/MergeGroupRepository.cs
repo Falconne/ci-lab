@@ -215,10 +215,44 @@ public class MergeGroupRepository : IMergeGroupRepository
         return result;
     }
 
-    public MergeGroup? GetMergeGroup(int gitlabUserId, int mergeGroupId)
+    public MergeGroup? GetMergeGroup(int mergeGroupId)
     {
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();
+
+        var result = GetMergeGroupByIdInternal(connection, mergeGroupId);
+
+        if (result != null)
+        {
+            _logger.LogDebug(
+                "Retrieved {Count} branches for merge group {MergeGroupId}",
+                result.Branches.Count,
+                mergeGroupId);
+        }
+
+        return result;
+    }
+
+    private MergeGroup? GetMergeGroupByIdInternal(IDbConnection connection, int mergeGroupId)
+    {
+        var groupRecord = connection.QueryFirstOrDefault<MergeGroupRecord>(
+            """
+            SELECT id AS Id, name AS Name, last_update_time AS LastUpdateTime
+            FROM merge_group
+            WHERE id = @MergeGroupId
+            """,
+            new { MergeGroupId = mergeGroupId });
+
+        if (groupRecord == null)
+        {
+            _logger.LogDebug("No merge group found with id {MergeGroupId}", mergeGroupId);
+            return null;
+        }
+
+        groupRecord.LastUpdateTime = UtcTimestamp.EnsureUtc(
+            groupRecord.LastUpdateTime,
+            () => $"MergeGroupRepository.GetMergeGroupByIdInternal merge group {groupRecord.Id}",
+            _logger);
 
         var rows = connection.Query<BranchDataRow>(
                 """
@@ -236,48 +270,29 @@ public class MergeGroupRepository : IMergeGroupRepository
                     bp.project_url AS ProjectUrl,
                     bp.approvals_required AS ApprovalsRequired,
                     bp.approvals_given AS ApprovalsGiven
-                FROM users_in_merge_groups umg
-                INNER JOIN merge_group mg ON mg.id = umg.merge_group_id
-                INNER JOIN branches_in_merge_group bmg ON bmg.merge_group_id = mg.id
+                FROM branches_in_merge_group bmg
                 INNER JOIN branch_in_project bp ON bp.id = bmg.branch_in_project_id
-                WHERE umg.gitlab_user_id = @GitlabUserId
-                  AND mg.id = @MergeGroupId
+                INNER JOIN merge_group mg ON mg.id = bmg.merge_group_id
+                WHERE bmg.merge_group_id = @MergeGroupId
                 ORDER BY bp.project_name, bp.branch_name
                 """,
-                new { GitlabUserId = gitlabUserId, MergeGroupId = mergeGroupId })
+                new { MergeGroupId = mergeGroupId })
             .ToList();
-
-        if (rows.Count == 0)
-        {
-            _logger.LogDebug(
-                "No merge group found for user {UserId} with merge group {MergeGroupId}",
-                gitlabUserId,
-                mergeGroupId);
-
-            return null;
-        }
 
         foreach (var r in rows)
         {
             r.LastUpdateTime = UtcTimestamp.EnsureUtc(
                 r.LastUpdateTime,
-                () => $"MergeGroupRepository.GetMergeGroup merge group {r.MergeGroupId}",
+                () => $"MergeGroupRepository.GetMergeGroupByIdInternal merge group {r.MergeGroupId}",
                 _logger);
         }
 
         AttachBuildJobs(connection, rows);
 
-        _logger.LogDebug(
-            "Retrieved {Count} branches for user {UserId} in merge group {MergeGroupId}",
-            rows.Count,
-            gitlabUserId,
-            mergeGroupId);
-
-        var first = rows[0];
         return new MergeGroup(
-            first.MergeGroupId,
-            first.MergeGroupName,
-            first.LastUpdateTime,
+            groupRecord.Id,
+            groupRecord.Name,
+            groupRecord.LastUpdateTime,
             rows.Select(ToBranchRecord).ToList());
     }
 
