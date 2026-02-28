@@ -181,7 +181,8 @@ public class MergeGroupRepository : IMergeGroupRepository
             {
                 r.LastUpdateTime = UtcTimestamp.EnsureUtc(
                     r.LastUpdateTime.Value,
-                    () => $"MergeGroupRepository.GetMergeGroupsForUser group {r.MergeGroupId} branch {r.BranchInProjectId}",
+                    () =>
+                        $"MergeGroupRepository.GetMergeGroupsForUser group {r.MergeGroupId} branch {r.BranchInProjectId}",
                     _logger);
             }
         }
@@ -432,7 +433,8 @@ public class MergeGroupRepository : IMergeGroupRepository
             {
                 r.LastUpdateTime = UtcTimestamp.EnsureUtc(
                     r.LastUpdateTime.Value,
-                    () => $"MergeGroupRepository.GetMergeGroupByIdInternal group {r.MergeGroupId} branch {r.BranchInProjectId}",
+                    () =>
+                        $"MergeGroupRepository.GetMergeGroupByIdInternal group {r.MergeGroupId} branch {r.BranchInProjectId}",
                     _logger);
             }
         }
@@ -481,6 +483,9 @@ public class MergeGroupRepository : IMergeGroupRepository
     /// </summary>
     private static BranchRecord ToBranchRecord(BranchDataRow row)
     {
+        // TODO: Update the DB schema to store the regular project name as well as name with namespace
+        // properly. The regular name is already in the data returned from the API, there is no need
+        // to calculate it. The make it so `BranchDataRow` is not needed and we can just use BranchRecord.
         var nameWithNamespace = row.ProjectName;
         var trimmed = nameWithNamespace.Trim();
         var lastSlash = trimmed.LastIndexOf('/');

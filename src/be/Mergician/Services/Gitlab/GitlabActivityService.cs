@@ -146,6 +146,7 @@ public class GitlabActivityService
                     "Branch {BranchId} not yet in merge group {MergeGroupId}, associating",
                     branchRecord.Id,
                     mergeGroup.Id);
+
                 _mergeGroupRepository.EnsureBranchInMergeGroup(mergeGroup.Id, branchRecord.Id);
             }
             else
@@ -171,7 +172,6 @@ public class GitlabActivityService
 
     /// <summary>
     ///     Determines the start time for backfilling a user's activity.
-    ///     Uses the latest branch record timestamp or 14 days ago, whichever is more recent.
     /// </summary>
     public DateTimeOffset GetBackfillSince(int gitlabUserId)
     {
