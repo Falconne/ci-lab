@@ -485,7 +485,8 @@ public class MergeGroupRepository : IMergeGroupRepository
     {
         // TODO: Update the DB schema to store the regular project name as well as name with namespace
         // properly. The regular name is already in the data returned from the API, there is no need
-        // to calculate it. The make it so `BranchDataRow` is not needed and we can just use BranchRecord.
+        // to calculate it. The make it so `BranchDataRow` is not needed by moving anything
+        // missing into BranchRecord.
         var nameWithNamespace = row.ProjectName;
         var trimmed = nameWithNamespace.Trim();
         var lastSlash = trimmed.LastIndexOf('/');
