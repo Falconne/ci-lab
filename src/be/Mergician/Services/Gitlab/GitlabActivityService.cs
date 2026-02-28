@@ -1,7 +1,6 @@
 using Mergician.Entities;
 using Mergician.Services.Authentication;
 using Mergician.Services.Database;
-using Mergician.Services.Time;
 
 namespace Mergician.Services.Gitlab;
 
@@ -13,8 +12,6 @@ namespace Mergician.Services.Gitlab;
 /// </summary>
 public class GitlabActivityService
 {
-    private static readonly TimeSpan _maxActivityLookback = TimeSpan.FromDays(14);
-
     private readonly GitlabPipelineService _gitlabPipelineService;
 
     private readonly GitlabService _gitlabService;
@@ -168,53 +165,6 @@ public class GitlabActivityService
                 pushEvent.ProjectId,
                 gitlabUserId);
         }
-    }
-
-    /// <summary>
-    ///     Determines the start time for backfilling a user's activity.
-    /// </summary>
-    public DateTimeOffset GetBackfillSince(int gitlabUserId)
-    {
-        var sinceLimit = DateTimeOffset.UtcNow.Subtract(_maxActivityLookback);
-
-        var userGroups = _mergeGroupRepository.GetMergeGroupsForUser(gitlabUserId);
-        if (userGroups.Count == 0)
-        {
-            _logger.LogDebug(
-                "No existing branches for user {UserId}; backfilling from lookback limit {Limit}",
-                gitlabUserId,
-                sinceLimit);
-
-            return sinceLimit;
-        }
-
-        var latestRecord = DateTimeOffset.MinValue;
-        foreach (var group in userGroups)
-        {
-            if (!group.LastUpdateTime.HasValue)
-            {
-                continue;
-            }
-
-            var ts = UtcTimestamp.EnsureUtc(
-                group.LastUpdateTime.Value,
-                () => $"GitlabActivityService.GetBackfillSince merge group '{group.Name}'",
-                _logger);
-
-            if (ts > latestRecord)
-            {
-                latestRecord = ts;
-            }
-        }
-
-        var result = latestRecord > sinceLimit ? latestRecord : sinceLimit;
-        _logger.LogDebug(
-            "Backfill for user {UserId}: latest record at {LatestRecord}, using {Result}",
-            gitlabUserId,
-            latestRecord,
-            result);
-
-        return result;
     }
 
     /// <summary>

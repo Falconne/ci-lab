@@ -16,6 +16,8 @@ public class UserActivitySyncService : IHostedService, IDisposable
 
     private static readonly TimeSpan _pollInterval = TimeSpan.FromSeconds(10);
 
+    private static readonly TimeSpan _maxActivityLookback = TimeSpan.FromDays(14);
+
     private readonly GitlabActivityService _activityService;
 
     private readonly ILogger<UserActivitySyncService> _logger;
@@ -226,7 +228,7 @@ public class UserActivitySyncService : IHostedService, IDisposable
             return;
         }
 
-        var since = _activityService.GetBackfillSince(gitlabUserId);
+        var since = DateTimeOffset.UtcNow.Subtract(_maxActivityLookback);
         _logger.LogInformation(
             "Backfilling activity for user {UserId} since {Since}",
             gitlabUserId,
