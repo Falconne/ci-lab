@@ -19,6 +19,8 @@ Log.Information("============================================================");
 var allPassed = true;
 var results = new List<(string Name, bool Passed, string? Error)>();
 
+// TODO: Wait for Mergician to be healthy as the first Integration Test. Use a timeout of 5 minutes.
+
 // Abort on first failure to speed up debugging during development.
 // Change this to false to run all tests regardless of failures.
 var abortOnFirstFailure = true;
@@ -40,7 +42,10 @@ try
         results.Add(("Authentication", false, ex.Message));
         Log.Error($"FAIL: Authentication - {ex.Message}");
         allPassed = false;
-        if (abortOnFirstFailure) throw;
+        if (abortOnFirstFailure)
+        {
+            throw;
+        }
     }
     finally
     {
@@ -62,7 +67,10 @@ try
         results.Add(("Logout", false, ex.Message));
         Log.Error($"FAIL: Logout - {ex.Message}");
         allPassed = false;
-        if (abortOnFirstFailure) throw;
+        if (abortOnFirstFailure)
+        {
+            throw;
+        }
     }
     finally
     {
@@ -84,7 +92,10 @@ try
         results.Add(("Dashboard", false, ex.Message));
         Log.Error($"FAIL: Dashboard - {ex.Message}");
         allPassed = false;
-        if (abortOnFirstFailure) throw;
+        if (abortOnFirstFailure)
+        {
+            throw;
+        }
     }
     finally
     {
@@ -106,7 +117,10 @@ try
         results.Add(("Dashboard Live Updates", false, ex.Message));
         Log.Error($"FAIL: Dashboard Live Updates - {ex.Message}");
         allPassed = false;
-        if (abortOnFirstFailure) throw;
+        if (abortOnFirstFailure)
+        {
+            throw;
+        }
     }
     finally
     {
@@ -128,7 +142,10 @@ try
         results.Add(("Version and Last Updated", false, ex.Message));
         Log.Error($"FAIL: Version and Last Updated - {ex.Message}");
         allPassed = false;
-        if (abortOnFirstFailure) throw;
+        if (abortOnFirstFailure)
+        {
+            throw;
+        }
     }
     finally
     {
