@@ -1,8 +1,0 @@
-Task 1)
-Rename `BranchActivity` to `BranchRecord` and update references in the frontend and backend including logging related strings. Also do the same with `MergeGroupResponse` to `MergeGroup`.
-
-Task 2)
-Make `GetMergeGroupsForUser` return a List of MergeGroups and update the frontend to handle that structure. Remove the MergeGroupId from the BranchRecord as we can get that from MergeGroup. Delete `DashboardResponse` and update any references. If necessary, add a methods to MergeGroupRepository to fetch all merge groups where any of its branches are associated with the user.
-
-Task 3)
-Remove the need for `BranchWithMergeGroupInfo` and use the renamed `MergeGroup` class wherever `MergeGroupWithBranches` is used, they serve the same purpose. There can be a LastUpdateTime field added to `MergeGroup`. Analyse all the code and make sure the front end is only sent `MergeGroup` objects and delete any redundancy. We should not need any objects that contain branch details alongside associatedmerge group details. This can be accomplished by only using the `MergeGroup` class.
