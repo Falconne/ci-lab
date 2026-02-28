@@ -75,15 +75,7 @@ public class MergeGroupRepository : IMergeGroupRepository
 
         _logger.LogDebug("Got/created merge group {Id} with name '{Name}'", record.Id, name);
 
-        var mergeGroup = GetMergeGroupByIdInternal(connection, record.Id);
-
-        // Should never happen since we just confirmed the record above
-        if (mergeGroup == null)
-        {
-            throw new InvalidOperationException($"Failed to load merge group '{name}' after insert");
-        }
-
-        return mergeGroup;
+        return GetMergeGroupFor(connection, record);
     }
 
     public void EnsureBranchInMergeGroup(int mergeGroupId, int branchInProjectId)
@@ -225,17 +217,21 @@ public class MergeGroupRepository : IMergeGroupRepository
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();
 
-        var result = GetMergeGroupByIdInternal(connection, mergeGroupId);
+        var record = connection.QueryFirstOrDefault<MergeGroupBase>(
+            """
+            SELECT id AS Id, name AS Name
+            FROM merge_group
+            WHERE id = @MergeGroupId
+            """,
+            new { MergeGroupId = mergeGroupId });
 
-        if (result != null)
+        if (record != null)
         {
-            _logger.LogDebug(
-                "Retrieved {Count} branches for merge group {MergeGroupId}",
-                result.Branches.Count,
-                mergeGroupId);
+            return GetMergeGroupFor(connection, record);
         }
 
-        return result;
+        _logger.LogDebug("No merge group found with id {MergeGroupId}", mergeGroupId);
+        return null;
     }
 
     public void DeleteBranch(int branchInProjectId)
@@ -386,22 +382,8 @@ public class MergeGroupRepository : IMergeGroupRepository
             buildJobs.Count);
     }
 
-    private MergeGroup? GetMergeGroupByIdInternal(IDbConnection connection, int mergeGroupId)
+    private MergeGroup GetMergeGroupFor(IDbConnection connection, MergeGroupBase record)
     {
-        var groupRecord = connection.QueryFirstOrDefault<MergeGroupBase>(
-            """
-            SELECT id AS Id, name AS Name
-            FROM merge_group
-            WHERE id = @MergeGroupId
-            """,
-            new { MergeGroupId = mergeGroupId });
-
-        if (groupRecord == null)
-        {
-            _logger.LogDebug("No merge group found with id {MergeGroupId}", mergeGroupId);
-            return null;
-        }
-
         var rows = connection.Query<BranchDataRow>(
                 """
                 SELECT
@@ -424,7 +406,7 @@ public class MergeGroupRepository : IMergeGroupRepository
                 WHERE bmg.merge_group_id = @MergeGroupId
                 ORDER BY bp.project_name, bp.branch_name
                 """,
-                new { MergeGroupId = mergeGroupId })
+                new { MergeGroupId = record.Id })
             .ToList();
 
         foreach (var r in rows)
@@ -434,7 +416,7 @@ public class MergeGroupRepository : IMergeGroupRepository
                 r.LastUpdateTime = UtcTimestamp.EnsureUtc(
                     r.LastUpdateTime.Value,
                     () =>
-                        $"MergeGroupRepository.GetMergeGroupByIdInternal group {r.MergeGroupId} branch {r.BranchInProjectId}",
+                        $"MergeGroupRepository.GetMergeGroupById group {r.MergeGroupId} branch {r.BranchInProjectId}",
                     _logger);
             }
         }
@@ -442,8 +424,8 @@ public class MergeGroupRepository : IMergeGroupRepository
         AttachBuildJobs(connection, rows);
 
         return new MergeGroup(
-            groupRecord.Id,
-            groupRecord.Name,
+            record.Id,
+            record.Name,
             rows.Select(ToBranchRecord).ToList());
     }
 

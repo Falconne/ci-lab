@@ -48,6 +48,7 @@ public class MergeGroupController : ControllerBase
             userId,
             mergeGroupId);
 
+        // TODO: Use mergeGroupRepository.GetMergeGroup and get rid of _activityService.GetMergeGroupBranches
         var result = _activityService.GetMergeGroupBranches(mergeGroupId);
 
         if (result == null)
