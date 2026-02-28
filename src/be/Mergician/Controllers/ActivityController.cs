@@ -43,7 +43,7 @@ public class ActivityController : ControllerBase
 
         _logger.LogDebug("Dashboard refresh for user {UserId}", userId);
 
-        var result = _activityService.GetDashboardBranches(userId);
+        var result = _activityService.GetMergeGroupsForUser(userId);
 
         _logger.LogDebug("Returning {Count} branches for user {UserId}", result.Branches.Count, userId);
 

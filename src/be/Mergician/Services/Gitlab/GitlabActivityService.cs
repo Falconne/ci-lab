@@ -40,15 +40,18 @@ public class GitlabActivityService
     ///     Returns all current branches for the authenticated user as a full snapshot.
     ///     Data is read from the database and includes persisted MR, approval, and build details.
     /// </summary>
-    public DashboardResponse GetDashboardBranches(int gitlabUserId)
+    public DashboardResponse GetMergeGroupsForUser(int gitlabUserId)
     {
         var dbBranches = _mergeGroupRepository.GetUserBranches(gitlabUserId);
 
         var branches = dbBranches
-            .Select(b => ToBranchActivity(b, "GetDashboardBranches"))
+            .Select(b => ToBranchActivity(b, "GetMergeGroupsForUser"))
             .ToList();
 
-        _logger.LogDebug("Returning {Count} branches for dashboard for user {UserId}", branches.Count, gitlabUserId);
+        _logger.LogDebug(
+            "Returning {Count} branches for dashboard for user {UserId}",
+            branches.Count,
+            gitlabUserId);
 
         return new DashboardResponse(branches);
     }
@@ -550,7 +553,7 @@ public class GitlabActivityService
             branch.MergeRequestUrl,
             branch.ProjectUrl,
             branch.BuildJobs,
-            BranchInProjectId: branch.BranchInProjectId);
+            branch.BranchInProjectId);
     }
 
     /// <summary>
