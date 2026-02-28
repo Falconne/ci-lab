@@ -8,5 +8,6 @@ namespace Mergician.Entities;
 public record MergeGroup(
     int MergeGroupId,
     string MergeGroupName,
+    // TODO: Remove LastUpdateTime property from here and from the merge group table in the database. Only record the last update time against each branch row. The LastUpdateTime for the merge group is the latest LastUpdateTime from the Branches list.
     DateTimeOffset LastUpdateTime,
     List<BranchRecord> Branches);

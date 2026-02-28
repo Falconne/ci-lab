@@ -235,69 +235,6 @@ public class MergeGroupRepository : IMergeGroupRepository
         return result;
     }
 
-    private MergeGroup? GetMergeGroupByIdInternal(IDbConnection connection, int mergeGroupId)
-    {
-        var groupRecord = connection.QueryFirstOrDefault<MergeGroupRecord>(
-            """
-            SELECT id AS Id, name AS Name, last_update_time AS LastUpdateTime
-            FROM merge_group
-            WHERE id = @MergeGroupId
-            """,
-            new { MergeGroupId = mergeGroupId });
-
-        if (groupRecord == null)
-        {
-            _logger.LogDebug("No merge group found with id {MergeGroupId}", mergeGroupId);
-            return null;
-        }
-
-        groupRecord.LastUpdateTime = UtcTimestamp.EnsureUtc(
-            groupRecord.LastUpdateTime,
-            () => $"MergeGroupRepository.GetMergeGroupByIdInternal merge group {groupRecord.Id}",
-            _logger);
-
-        var rows = connection.Query<BranchDataRow>(
-                """
-                SELECT
-                    bp.id AS BranchInProjectId,
-                    bp.branch_name AS BranchName,
-                    bp.project_id AS ProjectId,
-                    bp.project_name AS ProjectName,
-                    mg.id AS MergeGroupId,
-                    mg.name AS MergeGroupName,
-                    mg.last_update_time AS LastUpdateTime,
-                    bp.has_merge_request AS HasMergeRequest,
-                    bp.merge_request_title AS MergeRequestTitle,
-                    bp.merge_request_url AS MergeRequestUrl,
-                    bp.project_url AS ProjectUrl,
-                    bp.approvals_required AS ApprovalsRequired,
-                    bp.approvals_given AS ApprovalsGiven
-                FROM branches_in_merge_group bmg
-                INNER JOIN branch_in_project bp ON bp.id = bmg.branch_in_project_id
-                INNER JOIN merge_group mg ON mg.id = bmg.merge_group_id
-                WHERE bmg.merge_group_id = @MergeGroupId
-                ORDER BY bp.project_name, bp.branch_name
-                """,
-                new { MergeGroupId = mergeGroupId })
-            .ToList();
-
-        foreach (var r in rows)
-        {
-            r.LastUpdateTime = UtcTimestamp.EnsureUtc(
-                r.LastUpdateTime,
-                () => $"MergeGroupRepository.GetMergeGroupByIdInternal merge group {r.MergeGroupId}",
-                _logger);
-        }
-
-        AttachBuildJobs(connection, rows);
-
-        return new MergeGroup(
-            groupRecord.Id,
-            groupRecord.Name,
-            groupRecord.LastUpdateTime,
-            rows.Select(ToBranchRecord).ToList());
-    }
-
     public void DeleteBranch(int branchInProjectId)
     {
         using var connection = _connectionFactory.CreateConnection();
@@ -454,6 +391,69 @@ public class MergeGroupRepository : IMergeGroupRepository
             approvalsGiven,
             approvalsRequired,
             buildJobs.Count);
+    }
+
+    private MergeGroup? GetMergeGroupByIdInternal(IDbConnection connection, int mergeGroupId)
+    {
+        var groupRecord = connection.QueryFirstOrDefault<MergeGroupRecord>(
+            """
+            SELECT id AS Id, name AS Name, last_update_time AS LastUpdateTime
+            FROM merge_group
+            WHERE id = @MergeGroupId
+            """,
+            new { MergeGroupId = mergeGroupId });
+
+        if (groupRecord == null)
+        {
+            _logger.LogDebug("No merge group found with id {MergeGroupId}", mergeGroupId);
+            return null;
+        }
+
+        groupRecord.LastUpdateTime = UtcTimestamp.EnsureUtc(
+            groupRecord.LastUpdateTime,
+            () => $"MergeGroupRepository.GetMergeGroupByIdInternal merge group {groupRecord.Id}",
+            _logger);
+
+        var rows = connection.Query<BranchDataRow>(
+                """
+                SELECT
+                    bp.id AS BranchInProjectId,
+                    bp.branch_name AS BranchName,
+                    bp.project_id AS ProjectId,
+                    bp.project_name AS ProjectName,
+                    mg.id AS MergeGroupId,
+                    mg.name AS MergeGroupName,
+                    mg.last_update_time AS LastUpdateTime,
+                    bp.has_merge_request AS HasMergeRequest,
+                    bp.merge_request_title AS MergeRequestTitle,
+                    bp.merge_request_url AS MergeRequestUrl,
+                    bp.project_url AS ProjectUrl,
+                    bp.approvals_required AS ApprovalsRequired,
+                    bp.approvals_given AS ApprovalsGiven
+                FROM branches_in_merge_group bmg
+                INNER JOIN branch_in_project bp ON bp.id = bmg.branch_in_project_id
+                INNER JOIN merge_group mg ON mg.id = bmg.merge_group_id
+                WHERE bmg.merge_group_id = @MergeGroupId
+                ORDER BY bp.project_name, bp.branch_name
+                """,
+                new { MergeGroupId = mergeGroupId })
+            .ToList();
+
+        foreach (var r in rows)
+        {
+            r.LastUpdateTime = UtcTimestamp.EnsureUtc(
+                r.LastUpdateTime,
+                () => $"MergeGroupRepository.GetMergeGroupByIdInternal merge group {r.MergeGroupId}",
+                _logger);
+        }
+
+        AttachBuildJobs(connection, rows);
+
+        return new MergeGroup(
+            groupRecord.Id,
+            groupRecord.Name,
+            groupRecord.LastUpdateTime,
+            rows.Select(ToBranchRecord).ToList());
     }
 
     private void AttachBuildJobs(IDbConnection connection, List<BranchDataRow> branches)
