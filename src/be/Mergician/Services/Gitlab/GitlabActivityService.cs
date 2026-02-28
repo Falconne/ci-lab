@@ -49,6 +49,7 @@ public class GitlabActivityService
         return result;
     }
 
+    // TODO: Move this to UserActivitySyncService
     /// <summary>
     ///     Fetches push events from GitLab since the given time and stores discovered
     ///     branches in the database. Called by the background sync thread.
@@ -330,7 +331,8 @@ public class GitlabActivityService
         // branches, it should be null until a value is filled in from here. Make sure the UI handles
         // null date. Merge groups that have branches with null LastUpdatedTime should be sorted to the
         // top, as it implies they were more recently updated than anything displayed. The relative order
-        // between merge groups that all have null LastUpdatedTime can be arbitrary.
+        // between merge groups that all have null LastUpdatedTime can be arbitrary. Make sure to convert
+        // the time to UTC based on Gitlab server timezone offset that we have pre-recorded.
 
         _mergeGroupRepository.UpdateBranchDetails(
             branch.BranchInProjectId.Value,
