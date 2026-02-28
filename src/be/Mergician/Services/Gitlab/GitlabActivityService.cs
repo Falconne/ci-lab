@@ -37,23 +37,43 @@ public class GitlabActivityService
     }
 
     /// <summary>
-    ///     Returns all current branches for the authenticated user as a full snapshot.
+    ///     Returns all current merge groups for the authenticated user as a full snapshot.
     ///     Data is read from the database and includes persisted MR, approval, and build details.
     /// </summary>
-    public DashboardResponse GetMergeGroupsForUser(int gitlabUserId)
+    public List<MergeGroup> GetMergeGroupsForUser(int gitlabUserId)
     {
         var dbBranches = _mergeGroupRepository.GetUserBranches(gitlabUserId);
 
-        var branches = dbBranches
-            .Select(b => ToBranchRecord(b, "GetMergeGroupsForUser"))
+        // Group flat branch rows into MergeGroup objects, preserving DB ordering (most recent first)
+        var groupOrder = new List<int>();
+        var groupNames = new Dictionary<int, string>();
+        var groupTimes = new Dictionary<int, DateTimeOffset>();
+        var groupBranches = new Dictionary<int, List<BranchRecord>>();
+
+        foreach (var b in dbBranches)
+        {
+            if (!groupBranches.ContainsKey(b.MergeGroupId))
+            {
+                groupOrder.Add(b.MergeGroupId);
+                groupNames[b.MergeGroupId] = b.MergeGroupName;
+                groupTimes[b.MergeGroupId] = b.LastUpdateTime;
+                groupBranches[b.MergeGroupId] = new List<BranchRecord>();
+            }
+
+            groupBranches[b.MergeGroupId].Add(ToBranchRecord(b, "GetMergeGroupsForUser"));
+        }
+
+        var result = groupOrder
+            .Select(id => new MergeGroup(id, groupNames[id], groupTimes[id], groupBranches[id]))
             .ToList();
 
         _logger.LogDebug(
-            "Returning {Count} branches for dashboard for user {UserId}",
-            branches.Count,
+            "Returning {GroupCount} merge groups with {BranchCount} branches for user {UserId}",
+            result.Count,
+            dbBranches.Count,
             gitlabUserId);
 
-        return new DashboardResponse(branches);
+        return result;
     }
 
     /// <summary>
@@ -276,7 +296,7 @@ public class GitlabActivityService
             mergeGroupId,
             gitlabUserId);
 
-        return new MergeGroup(mergeGroup.Id, mergeGroup.Name, branches);
+        return new MergeGroup(mergeGroup.Id, mergeGroup.Name, mergeGroup.LastUpdateTime, branches);
     }
 
     /// <summary>
@@ -532,7 +552,6 @@ public class GitlabActivityService
     private BranchRecord ToBranchRecord(BranchWithMergeGroupInfo branch, string operationName)
     {
         var projectName = GetProjectDisplayName(branch.ProjectName, branch.ProjectId);
-        int? mergeGroupId = branch.MergeGroupId > 0 ? branch.MergeGroupId : null;
 
         var lastUpdated = UtcTimestamp.EnsureUtc(
             branch.LastUpdateTime,
@@ -548,7 +567,6 @@ public class GitlabActivityService
             branch.ApprovalsRequired,
             branch.ApprovalsGiven,
             lastUpdated,
-            mergeGroupId,
             branch.MergeRequestTitle,
             branch.MergeRequestUrl,
             branch.ProjectUrl,

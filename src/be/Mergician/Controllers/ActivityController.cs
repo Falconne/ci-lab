@@ -27,7 +27,7 @@ public class ActivityController : ControllerBase
     }
 
     /// <summary>
-    ///     Returns a full snapshot of all branches tracked by the current user.
+    ///     Returns a full snapshot of all merge groups for the current user.
     ///     MR, approval, and build details are populated by the background sync thread.
     ///     Also ensures the background sync thread is running and records user activity.
     /// </summary>
@@ -45,7 +45,7 @@ public class ActivityController : ControllerBase
 
         var result = _activityService.GetMergeGroupsForUser(userId);
 
-        _logger.LogDebug("Returning {Count} branches for user {UserId}", result.Branches.Count, userId);
+        _logger.LogDebug("Returning {Count} merge groups for user {UserId}", result.Count, userId);
 
         return Ok(result);
     }

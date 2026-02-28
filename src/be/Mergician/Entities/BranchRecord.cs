@@ -16,7 +16,6 @@ public record BranchRecord(
     int? ApprovalsRequired,
     int? ApprovalsGiven,
     DateTimeOffset? LastUpdated = null,
-    int? MergeGroupId = null,
     string? MergeRequestTitle = null,
     string? MergeRequestUrl = null,
     string? ProjectUrl = null,

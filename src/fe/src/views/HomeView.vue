@@ -60,9 +60,9 @@
           <TransitionGroup name="card-list" tag="div" class="card-container">
             <div
               v-for="group in sortedMergeGroups"
-              :key="group.groupKey"
+              :key="group.mergeGroupId.toString()"
               class="merge-group-card"
-              :data-group-key="group.groupKey"
+              :data-merge-group-id="group.mergeGroupId"
               @click="openMergeGroupDetails(group)"
             >
               <div class="card-accent" :class="groupStatusClass(group)" />
@@ -70,7 +70,7 @@
                 <div class="card-header">
                                   <div class="branch-info">
                       <v-icon icon="mdi-source-branch" size="small" class="branch-icon" />
-                      <span class="branch-name">{{ group.branchName }}</span>
+                      <span class="branch-name">{{ group.mergeGroupName }}</span>
                     </div>
                   <div class="card-header-right">
                     <span class="card-status-badge" :class="groupStatusClass(group)">
@@ -82,8 +82,8 @@
                 </div>
                 <div class="card-items">
                   <div
-                    v-for="item in group.items"
-                    :key="`${group.groupKey}-${item.projectId}`"
+                    v-for="item in group.branches"
+                    :key="`${group.mergeGroupId}-${item.projectId}`"
                     class="card-item"
                   >
                     <span class="item-main">
@@ -163,7 +163,6 @@ interface BranchRecord {
   approvalsRequired: number | null
   approvalsGiven: number | null
   lastUpdated: string | null
-  mergeGroupId: number | null
   mergeRequestTitle?: string | null
   mergeRequestUrl?: string | null
   projectUrl?: string | null
@@ -177,14 +176,11 @@ interface BranchBuildJob {
   url?: string | null
 }
 
-interface DashboardResponse {
-  branches: BranchRecord[]
-}
-
 interface MergeGroup {
-  groupKey: string
-  branchName: string
-  items: BranchRecord[]
+  mergeGroupId: number
+  mergeGroupName: string
+  lastUpdateTime: string
+  branches: BranchRecord[]
 }
 
 type GroupStatus = 'ready' | 'open' | 'waiting'
@@ -197,7 +193,7 @@ const route = useRoute()
 const router = useRouter()
 const { currentUser, loadCurrentUser } = useCurrentUser()
 
-const activities = ref<BranchRecord[]>([])
+const mergeGroups = ref<MergeGroup[]>([])
 const initialLoading = ref(true)
 const authenticated = computed(() => currentUser.value !== null)
 const initialPhase = ref(false)
@@ -213,7 +209,7 @@ let fastPollTimeoutId: ReturnType<typeof setTimeout> | null = null
 function getGroupStatus(group: MergeGroup): GroupStatus {
   const statusPriority: GroupStatus[] = ['waiting', 'open', 'ready']
   let worstIndex = 2 // start with 'ready' (best)
-  for (const item of group.items) {
+  for (const item of group.branches) {
     let s: GroupStatus = 'waiting'
     if (item.hasMergeRequest) {
       if (item.approvalsRequired != null && item.approvalsGiven != null
@@ -264,13 +260,7 @@ function approvalsTooltip(item: BranchRecord): string {
 }
 
 function groupTimeAgo(group: MergeGroup): string {
-  let latest: string | null = null
-  for (const item of group.items) {
-    if (item.lastUpdated && (!latest || item.lastUpdated > latest)) {
-      latest = item.lastUpdated
-    }
-  }
-  return latest ? formatTimeAgo(latest) : ''
+  return formatTimeAgo(group.lastUpdateTime)
 }
 
 /**
@@ -281,48 +271,14 @@ function truncateTitle(title: string): string {
   return title.slice(0, 222) + '...'
 }
 
-function getGroupLatestTime(group: MergeGroup): number {
-  let latest = 0
-  for (const item of group.items) {
-    if (item.lastUpdated) {
-      const t = new Date(item.lastUpdated).getTime()
-      if (t > latest) latest = t
-    }
-  }
-  return latest
-}
-
-/**
- * Groups activities by mergeGroupId (from DB) when available,
- * falling back to branchName for items without a mergeGroupId.
- */
-const mergeGroups = computed<MergeGroup[]>(() => {
-  const groups = new Map<string, { branchName: string; items: BranchRecord[] }>()
-  for (const item of activities.value) {
-    const groupKey = item.mergeGroupId != null ? `mg:${item.mergeGroupId}` : `bn:${item.branchName}`
-    const existing = groups.get(groupKey)
-    if (existing) {
-      if (!existing.items.some(e => e.projectId === item.projectId && e.branchName === item.branchName)) {
-        existing.items.push(item)
-      }
-    } else {
-      groups.set(groupKey, { branchName: item.branchName, items: [item] })
-    }
-  }
-  return Array.from(groups.entries()).map(([groupKey, { branchName, items }]) => ({
-    groupKey,
-    branchName,
-    items
-  }))
-})
-
 /**
  * Sorted merge groups — always ordered by most recently updated first.
  */
 const sortedMergeGroups = computed<MergeGroup[]>(() => {
-  const groups = mergeGroups.value
-  if (groups.length === 0) return []
-  return [...groups].sort((a, b) => getGroupLatestTime(b) - getGroupLatestTime(a))
+  if (mergeGroups.value.length === 0) return []
+  return [...mergeGroups.value].sort(
+    (a, b) => new Date(b.lastUpdateTime).getTime() - new Date(a.lastUpdateTime).getTime()
+  )
 })
 
 /**
@@ -348,51 +304,9 @@ function formatTimeAgo(isoString: string): string {
   return diffDay === 1 ? '1 day ago' : `${diffDay} days ago`
 }
 
-function handleActivityEvent(data: BranchRecord) {
-  const existingIndex = activities.value.findIndex(
-    a => a.branchName === data.branchName && a.projectId === data.projectId
-  )
-
-  if (existingIndex >= 0) {
-    // Update existing entry in place (e.g. MR/approval data arrived)
-    activities.value[existingIndex] = data
-  } else {
-    // Find the right insertion point: group by mergeGroupId or branchName
-    const groupKey = data.mergeGroupId != null ? data.mergeGroupId : null
-    let lastGroupIndex = -1
-
-    if (groupKey != null) {
-      lastGroupIndex = findLastIndexOf(
-        activities.value,
-        a => a.mergeGroupId === groupKey
-      )
-    }
-
-    if (lastGroupIndex < 0) {
-      lastGroupIndex = findLastIndexOf(
-        activities.value,
-        a => a.branchName === data.branchName
-      )
-    }
-
-    if (lastGroupIndex >= 0) {
-      activities.value.splice(lastGroupIndex + 1, 0, data)
-    } else {
-      activities.value.push(data)
-    }
-  }
-}
-
-function findLastIndexOf<T>(arr: T[], predicate: (item: T) => boolean): number {
-  for (let i = arr.length - 1; i >= 0; i--) {
-    if (predicate(arr[i])) return i
-  }
-  return -1
-}
-
 /**
  * Polls the backend for a full dashboard snapshot and reconciles with the displayed list.
- * New branches are added, existing ones updated, and removed branches are cleaned up.
+ * Groups are updated in place; removed groups are cleaned up.
  */
 async function pollDashboard() {
   try {
@@ -417,21 +331,21 @@ async function pollDashboard() {
       return
     }
 
-    const data: DashboardResponse = await response.json()
+    const data: MergeGroup[] = await response.json()
 
-    // Remove items no longer present in the response
-    const incomingIds = new Set<number>(
-      data.branches
-        .filter(b => b.branchInProjectId != null)
-        .map(b => b.branchInProjectId!)
-    )
-    activities.value = activities.value.filter(
-      a => a.branchInProjectId == null || incomingIds.has(a.branchInProjectId)
-    )
+    const incomingIds = new Set<number>(data.map(g => g.mergeGroupId))
 
-    // Update or add items from the response
-    for (const activity of data.branches) {
-      handleActivityEvent(activity)
+    // Remove groups no longer present in the response
+    mergeGroups.value = mergeGroups.value.filter(g => incomingIds.has(g.mergeGroupId))
+
+    // Update existing groups or add new ones
+    for (const group of data) {
+      const existingIndex = mergeGroups.value.findIndex(g => g.mergeGroupId === group.mergeGroupId)
+      if (existingIndex >= 0) {
+        mergeGroups.value[existingIndex] = group
+      } else {
+        mergeGroups.value.push(group)
+      }
     }
   } catch (err) {
     console.error('Dashboard poll failed:', err)
@@ -471,15 +385,10 @@ function stopPolling() {
 }
 
 function openMergeGroupDetails(group: MergeGroup) {
-  const mergeGroupId = group.items.find(item => item.mergeGroupId != null)?.mergeGroupId
-  if (mergeGroupId == null) {
-    return
-  }
-
   router.push({
     name: 'merge-group-details',
-    params: { mergeGroupId: mergeGroupId.toString() },
-    query: { title: group.branchName }
+    params: { mergeGroupId: group.mergeGroupId.toString() },
+    query: { title: group.mergeGroupName }
   })
 }
 

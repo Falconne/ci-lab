@@ -179,7 +179,6 @@ interface BranchRecord {
   approvalsRequired: number | null
   approvalsGiven: number | null
   lastUpdated: string | null
-  mergeGroupId: number | null
   mergeRequestTitle?: string | null
   mergeRequestUrl?: string | null
   projectUrl?: string | null
@@ -190,6 +189,7 @@ interface BranchRecord {
 interface MergeGroup {
   mergeGroupId: number
   mergeGroupName: string
+  lastUpdateTime: string
   branches: BranchRecord[]
 }
 
