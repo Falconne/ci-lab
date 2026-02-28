@@ -71,7 +71,7 @@ public class GitlabActivityService
         var pushEvents = _gitlabService.GetPushEventsSince(accessDetails, since, cancellationToken);
         var processedKeys = new HashSet<string>();
 
-        await foreach (var pushEvent in pushEvents.WithCancellation(cancellationToken))
+        await foreach (var pushEvent in pushEvents)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
