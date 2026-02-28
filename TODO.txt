@@ -1,3 +1,10 @@
+Task 1)
 Make the front end show small horizontal loading animations in places where data is null (e.g. waiting to know if an MR exists or not) and it is waiting for that data to be filled in in the database. Make sure to differentiate cases such as where no no approvals are needed vs not known yet.
 
 In the case of the overall status labels that appear against branches and MRs (e.g. Ready, Waiting), these should not be calculated until all the data needed to calculate them is available, so they too should have palceholder laoding animation until this is the case.
+
+Task 2)
+When waiting for the initial data load on the dashboard and merge group details page, instead of the small spinner that appears at the top of the page, make it such that the bottom of the blue top bar of the page has a thin progress bar like animations (but since we don't know how long the load will take, it should be an indeterminate progress bar that just animates continuously until the data is loaded).
+
+Task 3)
+Do a full code review of the front end and back end perform any cleanups and improvements deemed useful. Aim for cleaner code, better maintainability and performance, but don't make changes for the sake of it, make sure the changes add value. Each distince change should be in its own commit with a clear commit message.
