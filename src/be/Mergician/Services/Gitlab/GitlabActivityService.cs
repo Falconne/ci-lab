@@ -1,5 +1,4 @@
 using Mergician.Entities;
-using Mergician.Entities.Database;
 using Mergician.Services.Authentication;
 using Mergician.Services.Database;
 using Mergician.Services.Time;
@@ -42,35 +41,12 @@ public class GitlabActivityService
     /// </summary>
     public List<MergeGroup> GetMergeGroupsForUser(int gitlabUserId)
     {
-        var dbBranches = _mergeGroupRepository.GetUserBranches(gitlabUserId);
-
-        // Group flat branch rows into MergeGroup objects, preserving DB ordering (most recent first)
-        var groupOrder = new List<int>();
-        var groupNames = new Dictionary<int, string>();
-        var groupTimes = new Dictionary<int, DateTimeOffset>();
-        var groupBranches = new Dictionary<int, List<BranchRecord>>();
-
-        foreach (var b in dbBranches)
-        {
-            if (!groupBranches.ContainsKey(b.MergeGroupId))
-            {
-                groupOrder.Add(b.MergeGroupId);
-                groupNames[b.MergeGroupId] = b.MergeGroupName;
-                groupTimes[b.MergeGroupId] = b.LastUpdateTime;
-                groupBranches[b.MergeGroupId] = new List<BranchRecord>();
-            }
-
-            groupBranches[b.MergeGroupId].Add(ToBranchRecord(b, "GetMergeGroupsForUser"));
-        }
-
-        var result = groupOrder
-            .Select(id => new MergeGroup(id, groupNames[id], groupTimes[id], groupBranches[id]))
-            .ToList();
+        var result = _mergeGroupRepository.GetUserBranches(gitlabUserId);
 
         _logger.LogDebug(
             "Returning {GroupCount} merge groups with {BranchCount} branches for user {UserId}",
             result.Count,
-            dbBranches.Count,
+            result.Sum(g => g.Branches.Count),
             gitlabUserId);
 
         return result;
@@ -189,8 +165,8 @@ public class GitlabActivityService
     {
         var sinceLimit = DateTimeOffset.UtcNow.Subtract(_maxActivityLookback);
 
-        var userBranches = _mergeGroupRepository.GetUserBranches(gitlabUserId);
-        if (userBranches.Count == 0)
+        var userGroups = _mergeGroupRepository.GetUserBranches(gitlabUserId);
+        if (userGroups.Count == 0)
         {
             _logger.LogDebug(
                 "No existing branches for user {UserId}; backfilling from lookback limit {Limit}",
@@ -201,12 +177,11 @@ public class GitlabActivityService
         }
 
         var latestRecord = DateTimeOffset.MinValue;
-        foreach (var branch in userBranches)
+        foreach (var group in userGroups)
         {
             var ts = UtcTimestamp.EnsureUtc(
-                branch.LastUpdateTime,
-                () =>
-                    $"GitlabActivityService.GetBackfillSince branch '{branch.BranchName}'/{branch.ProjectId}",
+                group.LastUpdateTime,
+                () => $"GitlabActivityService.GetBackfillSince merge group '{group.MergeGroupName}'",
                 _logger);
 
             if (ts > latestRecord)
@@ -234,7 +209,8 @@ public class GitlabActivityService
         int gitlabUserId,
         CancellationToken cancellationToken)
     {
-        var userBranches = _mergeGroupRepository.GetUserBranches(gitlabUserId);
+        var userGroups = _mergeGroupRepository.GetUserBranches(gitlabUserId);
+        var userBranches = userGroups.SelectMany(g => g.Branches).ToList();
         _logger.LogDebug(
             "Checking {Count} tracked branches for user {UserId} for deletion",
             userBranches.Count,
@@ -256,7 +232,10 @@ public class GitlabActivityService
                     branch.BranchName,
                     branch.ProjectId);
 
-                RemoveBranchAndCleanup(branch.BranchInProjectId);
+                if (branch.BranchInProjectId.HasValue)
+                {
+                    RemoveBranchAndCleanup(branch.BranchInProjectId.Value);
+                }
             }
             else if (lookup.IsUnavailable)
             {
@@ -286,17 +265,13 @@ public class GitlabActivityService
             return null;
         }
 
-        var branches = mergeGroup.Branches
-            .Select(b => ToBranchRecord(b, "GetMergeGroupBranches"))
-            .ToList();
-
         _logger.LogDebug(
             "Returning {Count} branches for merge group {MergeGroupId} for user {UserId}",
-            branches.Count,
+            mergeGroup.Branches.Count,
             mergeGroupId,
             gitlabUserId);
 
-        return new MergeGroup(mergeGroup.Id, mergeGroup.Name, mergeGroup.LastUpdateTime, branches);
+        return mergeGroup;
     }
 
     /// <summary>
@@ -306,10 +281,20 @@ public class GitlabActivityService
     /// </summary>
     public async Task RefreshBranchDetails(
         AccessDetailsBase accessDetails,
-        BranchWithMergeGroupInfo branch,
+        BranchRecord branch,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+
+        if (!branch.BranchInProjectId.HasValue)
+        {
+            _logger.LogWarning(
+                "BranchRecord for '{BranchName}' in project {ProjectId} has no BranchInProjectId; skipping detail refresh",
+                branch.BranchName,
+                branch.ProjectId);
+
+            return;
+        }
 
         _logger.LogDebug(
             "Refreshing details for branch '{BranchName}' in project {ProjectId}",
@@ -375,7 +360,7 @@ public class GitlabActivityService
             cancellationToken);
 
         _mergeGroupRepository.UpdateBranchDetails(
-            branch.BranchInProjectId,
+            branch.BranchInProjectId.Value,
             hasMr,
             mrTitle,
             mrUrl,
@@ -401,7 +386,8 @@ public class GitlabActivityService
         int gitlabUserId,
         CancellationToken cancellationToken)
     {
-        var userBranches = _mergeGroupRepository.GetUserBranches(gitlabUserId);
+        var userGroups = _mergeGroupRepository.GetUserBranches(gitlabUserId);
+        var userBranches = userGroups.SelectMany(g => g.Branches).ToList();
 
         _logger.LogDebug(
             "Refreshing details for {Count} branches for user {UserId}",
@@ -519,64 +505,6 @@ public class GitlabActivityService
         return true;
     }
 
-    private string GetProjectDisplayName(string projectNameWithNamespace, int projectId)
-    {
-        var trimmed = projectNameWithNamespace.Trim();
-        if (trimmed.Length == 0)
-        {
-            _logger.LogWarning(
-                "Project {ProjectId} has empty NameWithNamespace; using empty display name",
-                projectId);
-
-            return trimmed;
-        }
-
-        var lastSlash = trimmed.LastIndexOf('/');
-        if (lastSlash < 0 || lastSlash >= trimmed.Length - 1)
-        {
-            _logger.LogDebug(
-                "Project {ProjectId} NameWithNamespace '{ProjectNameWithNamespace}' has no namespace separator; using full value as display name",
-                projectId,
-                trimmed);
-
-            return trimmed;
-        }
-
-        return trimmed[(lastSlash + 1)..].Trim();
-    }
-
-    /// <summary>
-    ///     Converts a <see cref="BranchWithMergeGroupInfo" /> DB record into a <see cref="BranchRecord" />
-    ///     response object, using the persisted MR, approval, and build data.
-    /// </summary>
-    private BranchRecord ToBranchRecord(BranchWithMergeGroupInfo branch, string operationName)
-    {
-        var projectName = GetProjectDisplayName(branch.ProjectName, branch.ProjectId);
-
-        var lastUpdated = UtcTimestamp.EnsureUtc(
-            branch.LastUpdateTime,
-            () => $"GitlabActivityService.{operationName} branch '{branch.BranchName}'/{branch.ProjectId}",
-            _logger);
-
-        return new BranchRecord(
-            branch.BranchName,
-            branch.ProjectId,
-            projectName,
-            branch.ProjectName,
-            branch.HasMergeRequest,
-            branch.ApprovalsRequired,
-            branch.ApprovalsGiven,
-            lastUpdated,
-            branch.MergeRequestTitle,
-            branch.MergeRequestUrl,
-            branch.ProjectUrl,
-            branch.BuildJobs,
-            branch.BranchInProjectId);
-    }
-
-    /// <summary>
-    ///     Removes a branch from the DB and cleans up any empty merge groups.
-    /// </summary>
     private void RemoveBranchAndCleanup(int branchInMergeGroupId)
     {
         _mergeGroupRepository.DeleteBranch(branchInMergeGroupId);

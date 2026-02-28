@@ -139,12 +139,12 @@ public class MergeGroupRepository : IMergeGroupRepository
             utcTimestamp);
     }
 
-    public List<BranchWithMergeGroupInfo> GetUserBranches(int gitlabUserId)
+    public List<MergeGroup> GetUserBranches(int gitlabUserId)
     {
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();
 
-        var results = connection.Query<BranchWithMergeGroupInfo>(
+        var rows = connection.Query<BranchDataRow>(
                 """
                 SELECT
                     bp.id AS BranchInProjectId,
@@ -167,33 +167,57 @@ public class MergeGroupRepository : IMergeGroupRepository
                 WHERE umg.gitlab_user_id = @GitlabUserId
                 ORDER BY mg.last_update_time DESC, bp.branch_name, bp.project_name
                 """,
-                                new { GitlabUserId = gitlabUserId })
+                new { GitlabUserId = gitlabUserId })
             .ToList();
 
-        foreach (var r in results)
+        foreach (var r in rows)
         {
             r.LastUpdateTime = UtcTimestamp.EnsureUtc(
                 r.LastUpdateTime,
-                () => $"MergeGroupRepository.GetUserBranches result merge group {r.MergeGroupId}",
+                () => $"MergeGroupRepository.GetUserBranches merge group {r.MergeGroupId}",
                 _logger);
         }
 
-        AttachBuildJobs(connection, results);
+        AttachBuildJobs(connection, rows);
+
+        // Group flat rows into MergeGroup objects, preserving ORDER BY merge group ordering
+        var groupOrder = new List<int>();
+        var groupNames = new Dictionary<int, string>();
+        var groupTimes = new Dictionary<int, DateTimeOffset>();
+        var groupBranches = new Dictionary<int, List<BranchRecord>>();
+
+        foreach (var row in rows)
+        {
+            if (!groupBranches.ContainsKey(row.MergeGroupId))
+            {
+                groupOrder.Add(row.MergeGroupId);
+                groupNames[row.MergeGroupId] = row.MergeGroupName;
+                groupTimes[row.MergeGroupId] = row.LastUpdateTime;
+                groupBranches[row.MergeGroupId] = [];
+            }
+
+            groupBranches[row.MergeGroupId].Add(ToBranchRecord(row));
+        }
+
+        var result = groupOrder
+            .Select(id => new MergeGroup(id, groupNames[id], groupTimes[id], groupBranches[id]))
+            .ToList();
 
         _logger.LogDebug(
-            "Retrieved {Count} cached branches for user {UserId}",
-            results.Count,
+            "Retrieved {GroupCount} merge groups with {BranchCount} branches for user {UserId}",
+            result.Count,
+            rows.Count,
             gitlabUserId);
 
-        return results;
+        return result;
     }
 
-    public MergeGroupWithBranches? GetMergeGroup(int gitlabUserId, int mergeGroupId)
+    public MergeGroup? GetMergeGroup(int gitlabUserId, int mergeGroupId)
     {
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();
 
-        var results = connection.Query<BranchWithMergeGroupInfo>(
+        var rows = connection.Query<BranchDataRow>(
                 """
                 SELECT
                     bp.id AS BranchInProjectId,
@@ -220,7 +244,7 @@ public class MergeGroupRepository : IMergeGroupRepository
                 new { GitlabUserId = gitlabUserId, MergeGroupId = mergeGroupId })
             .ToList();
 
-        if (results.Count == 0)
+        if (rows.Count == 0)
         {
             _logger.LogDebug(
                 "No merge group found for user {UserId} with merge group {MergeGroupId}",
@@ -230,7 +254,7 @@ public class MergeGroupRepository : IMergeGroupRepository
             return null;
         }
 
-        foreach (var r in results)
+        foreach (var r in rows)
         {
             r.LastUpdateTime = UtcTimestamp.EnsureUtc(
                 r.LastUpdateTime,
@@ -238,22 +262,20 @@ public class MergeGroupRepository : IMergeGroupRepository
                 _logger);
         }
 
-        AttachBuildJobs(connection, results);
+        AttachBuildJobs(connection, rows);
 
         _logger.LogDebug(
             "Retrieved {Count} branches for user {UserId} in merge group {MergeGroupId}",
-            results.Count,
+            rows.Count,
             gitlabUserId,
             mergeGroupId);
 
-        var first = results[0];
-        return new MergeGroupWithBranches
-        {
-            Id = first.MergeGroupId,
-            Name = first.MergeGroupName,
-            LastUpdateTime = first.LastUpdateTime,
-            Branches = results
-        };
+        var first = rows[0];
+        return new MergeGroup(
+            first.MergeGroupId,
+            first.MergeGroupName,
+            first.LastUpdateTime,
+            rows.Select(ToBranchRecord).ToList());
     }
 
     public void DeleteBranch(int branchInProjectId)
@@ -335,48 +357,6 @@ public class MergeGroupRepository : IMergeGroupRepository
         return connection.QueryFirstOrDefault<BranchInProjectRecord>(
             "SELECT id AS Id, branch_name AS BranchName, project_id AS ProjectId, project_name AS ProjectName FROM branch_in_project WHERE branch_name = @BranchName AND project_id = @ProjectId",
             new { BranchName = branchName, ProjectId = projectId });
-    }
-
-    public BranchWithMergeGroupInfo? GetBranchWithMergeGroupInfo(int branchInProjectId)
-    {
-        using var connection = _connectionFactory.CreateConnection();
-        connection.Open();
-
-        var result = connection.QueryFirstOrDefault<BranchWithMergeGroupInfo>(
-            """
-            SELECT
-                bp.id AS BranchInProjectId,
-                bp.branch_name AS BranchName,
-                bp.project_id AS ProjectId,
-                bp.project_name AS ProjectName,
-                mg.id AS MergeGroupId,
-                mg.name AS MergeGroupName,
-                mg.last_update_time AS LastUpdateTime,
-                bp.has_merge_request AS HasMergeRequest,
-                bp.merge_request_title AS MergeRequestTitle,
-                bp.merge_request_url AS MergeRequestUrl,
-                bp.project_url AS ProjectUrl,
-                bp.approvals_required AS ApprovalsRequired,
-                bp.approvals_given AS ApprovalsGiven
-            FROM branch_in_project bp
-            LEFT JOIN branches_in_merge_group bmg ON bmg.branch_in_project_id = bp.id
-            LEFT JOIN merge_group mg ON mg.id = bmg.merge_group_id
-            WHERE bp.id = @BranchInProjectId
-            LIMIT 1
-            """,
-            new { BranchInProjectId = branchInProjectId });
-
-        if (result != null)
-        {
-            result.LastUpdateTime = UtcTimestamp.EnsureUtc(
-                result.LastUpdateTime,
-                () => $"MergeGroupRepository.GetBranchWithMergeGroupInfo branch {branchInProjectId}",
-                _logger);
-
-            AttachBuildJobs(connection, [result]);
-        }
-
-        return result;
     }
 
     public List<int> GetMergeGroupIdsForBranch(int branchInProjectId)
@@ -462,7 +442,7 @@ public class MergeGroupRepository : IMergeGroupRepository
             buildJobs.Count);
     }
 
-    private void AttachBuildJobs(System.Data.IDbConnection connection, List<BranchWithMergeGroupInfo> branches)
+    private void AttachBuildJobs(System.Data.IDbConnection connection, List<BranchDataRow> branches)
     {
         if (branches.Count == 0)
         {
@@ -490,5 +470,34 @@ public class MergeGroupRepository : IMergeGroupRepository
                 branch.BuildJobs = branchJobs;
             }
         }
+    }
+
+    /// <summary>
+    ///     Converts a <see cref="BranchDataRow" /> SQL result into a <see cref="BranchRecord" /> response object.
+    ///     Extracts the short project display name from the stored NameWithNamespace.
+    /// </summary>
+    private static BranchRecord ToBranchRecord(BranchDataRow row)
+    {
+        var nameWithNamespace = row.ProjectName;
+        var trimmed = nameWithNamespace.Trim();
+        var lastSlash = trimmed.LastIndexOf('/');
+        var displayName = lastSlash >= 0 && lastSlash < trimmed.Length - 1
+            ? trimmed[(lastSlash + 1)..].Trim()
+            : trimmed;
+
+        return new BranchRecord(
+            row.BranchName,
+            row.ProjectId,
+            displayName,
+            nameWithNamespace,
+            row.HasMergeRequest,
+            row.ApprovalsRequired,
+            row.ApprovalsGiven,
+            row.LastUpdateTime,
+            row.MergeRequestTitle,
+            row.MergeRequestUrl,
+            row.ProjectUrl,
+            row.BuildJobs,
+            row.BranchInProjectId);
     }
 }

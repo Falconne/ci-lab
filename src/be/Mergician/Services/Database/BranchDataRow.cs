@@ -1,12 +1,12 @@
 using Mergician.Entities;
 
-namespace Mergician.Entities.Database;
+namespace Mergician.Services.Database;
 
 /// <summary>
-/// Represents a branch along with its merge group information,
-/// returned from joined queries.
+///     Internal Dapper mapping class for SQL queries that join branch_in_project
+///     with merge_group. Not exposed outside the repository layer.
 /// </summary>
-public class BranchWithMergeGroupInfo
+internal sealed class BranchDataRow
 {
     public int BranchInProjectId { get; set; }
     public string BranchName { get; set; } = "";

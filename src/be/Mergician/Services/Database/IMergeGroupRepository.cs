@@ -36,15 +36,15 @@ public interface IMergeGroupRepository
     void UpdateMergeGroupTimestamp(int mergeGroupId, DateTimeOffset lastUpdateTime);
 
     /// <summary>
-    ///     Returns all branches in merge groups that the user is associated with,
-    ///     ordered by merge group LastUpdateTime descending (most recent first).
+    ///     Returns all merge groups that the user is associated with, each containing its branches.
+    ///     Ordered by merge group LastUpdateTime descending (most recent first).
     /// </summary>
-    List<BranchWithMergeGroupInfo> GetUserBranches(int gitlabUserId);
+    List<MergeGroup> GetUserBranches(int gitlabUserId);
 
     /// <summary>
     ///     Returns a specific merge group and its branches for a user, or null when not found.
     /// </summary>
-    MergeGroupWithBranches? GetMergeGroup(int gitlabUserId, int mergeGroupId);
+    MergeGroup? GetMergeGroup(int gitlabUserId, int mergeGroupId);
 
     /// <summary>
     ///     Deletes a branch record and its references in branches_in_merge_group.
@@ -71,13 +71,6 @@ public interface IMergeGroupRepository
     ///     Returns a tracked branch record for the branch and project, or null if it is not tracked.
     /// </summary>
     BranchInProjectRecord? GetBranchRecord(string branchName, int projectId);
-
-    /// <summary>
-    ///     Returns a tracked branch record by its database ID along with its merge group info,
-    ///     or null if the branch is not tracked. Returns information for the first associated
-    ///     merge group if the branch appears in multiple groups.
-    /// </summary>
-    BranchWithMergeGroupInfo? GetBranchWithMergeGroupInfo(int branchInProjectId);
 
     /// <summary>
     ///     Returns the merge group IDs that a branch belongs to.
