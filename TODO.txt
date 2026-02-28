@@ -1,1 +1,5 @@
+Task 1)
 Rename `BranchActivity` to `BranchRecord` and update references in the frontend and backend including logging related strings. Also do the same with `MergeGroupResponse` to `MergeGroup`.
+
+Task 2)
+Make `GetMergeGroupsForUser` return a List of MergeGroups and update the frontend to handle that structure. Remove the MergeGroupId from the BranchRecord as we can get that from MergeGroup. Delete `DashboardResponse` and update any references.
