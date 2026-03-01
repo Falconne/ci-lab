@@ -218,7 +218,7 @@ public class UserActivitySyncService : IHostedService, IDisposable
                 project.Name);
 
             var mergeGroup = _mergeGroupRepository.GetOrCreateMergeGroup(pushEvent.BranchName);
-            if (!mergeGroup.Branches.Any(b => b.BranchInProjectId == branchRecord.Id))
+            if (!mergeGroup.Branches.Any(b => b.Id == branchRecord.Id))
             {
                 _logger.LogDebug(
                     "Branch {BranchId} not yet in merge group {MergeGroupId}, associating",

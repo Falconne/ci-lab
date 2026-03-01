@@ -8,12 +8,12 @@ namespace Mergician.Entities;
 /// </summary>
 public class MergeGroup : MergeGroupBase
 {
-    public MergeGroup(int id, string name, List<BranchRecord> branches)
+    public MergeGroup(int id, string name, List<BranchWithActivity> branches)
     {
         Id = id;
         Name = name;
         Branches = branches;
     }
 
-    public List<BranchRecord> Branches { get; init; }
+    public List<BranchWithActivity> Branches { get; init; }
 }

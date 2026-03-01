@@ -167,7 +167,7 @@ interface BranchBuildJob {
   url?: string | null
 }
 
-interface BranchRecord {
+interface BranchWithActivity {
   branchName: string
   projectId: number
   projectName: string
@@ -180,13 +180,13 @@ interface BranchRecord {
   mergeRequestUrl?: string | null
   projectUrl?: string | null
   buildJobs?: BranchBuildJob[] | null
-  branchInProjectId?: number | null
+  id: number
 }
 
 interface MergeGroup {
   id: number
   name: string
-  branches: BranchRecord[]
+  branches: BranchWithActivity[]
 }
 
 const FAST_POLL_INTERVAL_MS = 1000
@@ -197,7 +197,7 @@ const route = useRoute()
 const router = useRouter()
 const { setAppLoading } = useAppLoading()
 
-const activities = ref<BranchRecord[]>([])
+const activities = ref<BranchWithActivity[]>([])
 const mergeGroupName = ref('')
 const initialLoading = ref(true)
 const initialPhase = ref(false)
@@ -224,24 +224,24 @@ const overallStatusClass = computed<string>(() => {
   return 'status-waiting'
 })
 
-function itemStatusClass(item: BranchRecord): string {
+function itemStatusClass(item: BranchWithActivity): string {
   const label = itemStatusLabel(item)
   if (label === 'Ready') return 'status-ready'
   if (label === 'Open') return 'status-open'
   return 'status-waiting'
 }
 
-function branchUrl(item: BranchRecord): string {
+function branchUrl(item: BranchWithActivity): string {
   if (!item.projectUrl) return ''
   return `${item.projectUrl}/-/tree/${encodeURIComponent(item.branchName)}?ref_type=heads`
 }
 
-function createMrUrl(item: BranchRecord): string {
+function createMrUrl(item: BranchWithActivity): string {
   if (!item.projectUrl) return ''
   return `${item.projectUrl}/-/merge_requests/new?merge_request[source_branch]=${encodeURIComponent(item.branchName)}`
 }
 
-function itemStatusLabel(item: BranchRecord): string {
+function itemStatusLabel(item: BranchWithActivity): string {
   if (!item.hasMergeRequest) {
     return 'Waiting'
   }
@@ -253,14 +253,14 @@ function itemStatusLabel(item: BranchRecord): string {
   return 'Open'
 }
 
-function itemStatusColor(item: BranchRecord): string {
+function itemStatusColor(item: BranchWithActivity): string {
   const status = itemStatusLabel(item)
   if (status === 'Ready') return 'success'
   if (status === 'Open') return 'info'
   return 'warning'
 }
 
-function itemApprovalsText(item: BranchRecord): string {
+function itemApprovalsText(item: BranchWithActivity): string {
   if (!item.hasMergeRequest || item.approvalsGiven == null || item.approvalsRequired == null) {
     return 'Not available'
   }
@@ -298,7 +298,7 @@ function goBack() {
 
 // --- Incremental data management ---
 
-function handleActivityEvent(data: BranchRecord) {
+function handleActivityEvent(data: BranchWithActivity) {
   const existingIndex = activities.value.findIndex(
     a => a.branchName === data.branchName && a.projectId === data.projectId
   )
@@ -359,14 +359,8 @@ async function pollMergeGroup() {
     }
 
     // Remove items no longer present in the response
-    const incomingIds = new Set<number>(
-      data.branches
-        .filter(b => b.branchInProjectId != null)
-        .map(b => b.branchInProjectId!)
-    )
-    activities.value = activities.value.filter(
-      a => a.branchInProjectId == null || incomingIds.has(a.branchInProjectId)
-    )
+    const incomingIds = new Set<number>(data.branches.map(b => b.id))
+    activities.value = activities.value.filter(a => incomingIds.has(a.id))
 
     // Update or add items from the response
     for (const activity of data.branches) {

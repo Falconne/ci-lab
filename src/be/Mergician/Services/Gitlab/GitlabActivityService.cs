@@ -62,10 +62,7 @@ public class GitlabActivityService
                     branch.BranchName,
                     branch.ProjectId);
 
-                if (branch.BranchInProjectId.HasValue)
-                {
-                    RemoveBranchAndCleanup(branch.BranchInProjectId.Value);
-                }
+                RemoveBranchAndCleanup(branch.Id);
             }
             else if (lookup.IsUnavailable)
             {
@@ -221,20 +218,10 @@ public class GitlabActivityService
     /// </summary>
     private async Task RefreshBranchDetails(
         AccessDetailsBase accessDetails,
-        BranchRecord branch,
+        BranchWithActivity branch,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-
-        if (!branch.BranchInProjectId.HasValue)
-        {
-            _logger.LogWarning(
-                "BranchRecord for '{BranchName}' in project {ProjectId} has no BranchInProjectId; skipping detail refresh",
-                branch.BranchName,
-                branch.ProjectId);
-
-            return;
-        }
 
         _logger.LogDebug(
             "Refreshing details for branch '{BranchName}' in project {ProjectId}",
@@ -317,7 +304,7 @@ public class GitlabActivityService
         }
 
         _mergeGroupRepository.UpdateBranchDetails(
-            branch.BranchInProjectId.Value,
+            branch.Id,
             hasMr,
             mrTitle,
             mrUrl,

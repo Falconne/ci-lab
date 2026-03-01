@@ -67,11 +67,6 @@ public interface IMergeGroupRepository
     List<BranchInProjectRecord> GetAllBranches();
 
     /// <summary>
-    ///     Returns a tracked branch record for the branch and project, or null if it is not tracked.
-    /// </summary>
-    BranchInProjectRecord? GetBranchRecord(string branchName, int projectId);
-
-    /// <summary>
     ///     Returns the merge group IDs that a branch belongs to.
     /// </summary>
     List<int> GetMergeGroupIdsForBranch(int branchInProjectId);

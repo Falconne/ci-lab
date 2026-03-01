@@ -151,7 +151,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useCurrentUser } from '@/composables/useCurrentUser'
 import { useAppLoading } from '@/composables/useAppLoading'
 
-interface BranchRecord {
+interface BranchWithActivity {
   branchName: string
   projectId: number
   projectName: string
@@ -164,7 +164,7 @@ interface BranchRecord {
   mergeRequestUrl?: string | null
   projectUrl?: string | null
   buildJobs?: BranchBuildJob[] | null
-  branchInProjectId?: number | null
+  id: number
 }
 
 interface BranchBuildJob {
@@ -176,7 +176,7 @@ interface BranchBuildJob {
 interface MergeGroup {
   id: number
   name: string
-  branches: BranchRecord[]
+  branches: BranchWithActivity[]
 }
 
 type GroupStatus = 'ready' | 'open' | 'waiting'
@@ -206,7 +206,7 @@ let fastPollTimeoutId: ReturnType<typeof setTimeout> | null = null
 /**
  * Whether a branch's detail data (MR status, approvals, build jobs) has not yet been fetched.
  */
-function isBranchLoading(item: BranchRecord): boolean {
+function isBranchLoading(item: BranchWithActivity): boolean {
   return item.hasMergeRequest === null
 }
 
@@ -243,12 +243,12 @@ function groupStatusClass(group: MergeGroup): string {
   return `status-${getGroupStatus(group)}`
 }
 
-function itemApprovalsText(item: BranchRecord): string {
+function itemApprovalsText(item: BranchWithActivity): string {
   if (!item.hasMergeRequest || item.approvalsGiven == null || item.approvalsRequired == null) return ''
   return `${item.approvalsGiven}/${item.approvalsRequired}`
 }
 
-function approvalIconColor(item: BranchRecord): string {
+function approvalIconColor(item: BranchWithActivity): string {
   if (!item.hasMergeRequest || item.approvalsGiven == null || item.approvalsRequired == null) {
     return 'grey'
   }
@@ -258,7 +258,7 @@ function approvalIconColor(item: BranchRecord): string {
   return 'grey'
 }
 
-function approvalsTooltip(item: BranchRecord): string {
+function approvalsTooltip(item: BranchWithActivity): string {
   if (!item.hasMergeRequest || item.approvalsGiven == null || item.approvalsRequired == null) {
     return ''
   }

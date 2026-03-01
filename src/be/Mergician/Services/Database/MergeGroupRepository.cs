@@ -133,12 +133,12 @@ public class MergeGroupRepository : IMergeGroupRepository
 
         // query branches along with their merge group info; map using Dapper multi-mapping
         var rows = connection
-            .Query<int, string, BranchRecord, (int MergeGroupId, string MergeGroupName, BranchRecord Branch)>(
+            .Query<int, string, BranchWithActivity, (int MergeGroupId, string MergeGroupName, BranchWithActivity Branch)>(
                 """
                 SELECT
                     mg.id AS MergeGroupId,
                     mg.name AS MergeGroupName,
-                    bp.id AS BranchInProjectId,
+                    bp.id AS Id,
                     bp.branch_name AS BranchName,
                     bp.project_id AS ProjectId,
                     bp.project_name AS ProjectName,
@@ -159,25 +159,8 @@ public class MergeGroupRepository : IMergeGroupRepository
                 """,
                 (mgId, mgName, branch) => (mgId, mgName, branch),
                 new { GitlabUserId = gitlabUserId },
-                splitOn: "MergeGroupName,BranchInProjectId")
+                splitOn: "MergeGroupName,Id")
             .ToList();
-
-        // normalize timestamps to UTC on the branch objects
-        for (var i = 0; i < rows.Count; i++)
-        {
-            var (mgId, mgName, branch) = rows[i];
-            if (branch.LastUpdated.HasValue)
-            {
-                var utc = UtcTimestamp.EnsureUtc(
-                    branch.LastUpdated.Value,
-                    () =>
-                        $"MergeGroupRepository.GetMergeGroupsForUser group {mgId} branch {branch.BranchInProjectId}",
-                    _logger);
-
-                branch = branch with { LastUpdated = utc };
-                rows[i] = (mgId, mgName, branch);
-            }
-        }
 
         // Attach build jobs to all branch records
         AttachBuildJobs(connection, rows.Select(t => t.Branch).ToList());
@@ -185,7 +168,7 @@ public class MergeGroupRepository : IMergeGroupRepository
         // Group flat rows into MergeGroup objects
         var groupOrder = new List<int>();
         var groupNames = new Dictionary<int, string>();
-        var groupBranches = new Dictionary<int, List<BranchRecord>>();
+        var groupBranches = new Dictionary<int, List<BranchWithActivity>>();
 
         foreach (var tuple in rows)
         {
@@ -193,7 +176,7 @@ public class MergeGroupRepository : IMergeGroupRepository
             {
                 groupOrder.Add(tuple.MergeGroupId);
                 groupNames[tuple.MergeGroupId] = tuple.MergeGroupName;
-                groupBranches[tuple.MergeGroupId] = new List<BranchRecord>();
+                groupBranches[tuple.MergeGroupId] = new List<BranchWithActivity>();
             }
 
             groupBranches[tuple.MergeGroupId].Add(tuple.Branch);
@@ -295,17 +278,6 @@ public class MergeGroupRepository : IMergeGroupRepository
             .ToList();
     }
 
-    // TODO: Check is this is used anywhere other than tests and if not delete it
-    public BranchInProjectRecord? GetBranchRecord(string branchName, int projectId)
-    {
-        using var connection = _connectionFactory.CreateConnection();
-        connection.Open();
-
-        return connection.QueryFirstOrDefault<BranchInProjectRecord>(
-            "SELECT id AS Id, branch_name AS BranchName, project_id AS ProjectId, project_name AS ProjectName FROM branch_in_project WHERE branch_name = @BranchName AND project_id = @ProjectId",
-            new { BranchName = branchName, ProjectId = projectId });
-    }
-
     public List<int> GetMergeGroupIdsForBranch(int branchInProjectId)
     {
         using var connection = _connectionFactory.CreateConnection();
@@ -400,7 +372,7 @@ public class MergeGroupRepository : IMergeGroupRepository
     private MergeGroup GetBranchesFor(IDbConnection connection, MergeGroupBase record)
     {
         // query only branch details; merge group id/name already known
-        var branches = connection.Query<BranchRecord>(
+        var branches = connection.Query<BranchWithActivity>(
                 """
                 SELECT
                     bp.branch_name AS BranchName,
@@ -414,7 +386,7 @@ public class MergeGroupRepository : IMergeGroupRepository
                     bp.merge_request_title AS MergeRequestTitle,
                     bp.merge_request_url AS MergeRequestUrl,
                     bp.project_url AS ProjectUrl,
-                    bp.id AS BranchInProjectId
+                    bp.id AS Id
                 FROM branches_in_merge_group bmg
                 INNER JOIN branch_in_project bp ON bp.id = bmg.branch_in_project_id
                 WHERE bmg.merge_group_id = @MergeGroupId
@@ -431,7 +403,7 @@ public class MergeGroupRepository : IMergeGroupRepository
             branches);
     }
 
-    private static void AttachBuildJobs(IDbConnection connection, List<BranchRecord> branches)
+    private static void AttachBuildJobs(IDbConnection connection, List<BranchWithActivity> branches)
     {
         if (branches.Count == 0)
         {
@@ -439,15 +411,9 @@ public class MergeGroupRepository : IMergeGroupRepository
         }
 
         var ids = branches
-            .Select(b => b.BranchInProjectId ?? 0)
-            .Where(id => id != 0)
+            .Select(b => b.Id)
             .Distinct()
             .ToArray();
-
-        if (ids.Length == 0)
-        {
-            return;
-        }
 
         var jobs = connection.Query<(int BranchInProjectId, string Name, string Status, string? Url)>(
                 """
@@ -464,8 +430,7 @@ public class MergeGroupRepository : IMergeGroupRepository
         for (var i = 0; i < branches.Count; i++)
         {
             var branch = branches[i];
-            if (branch.BranchInProjectId.HasValue
-                && jobs.TryGetValue(branch.BranchInProjectId.Value, out var branchJobs))
+            if (jobs.TryGetValue(branch.Id, out var branchJobs))
             {
                 branches[i] = branch with { BuildJobs = branchJobs };
             }
