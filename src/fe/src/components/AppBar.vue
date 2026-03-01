@@ -24,9 +24,13 @@
       </div>
     </template>
 
-    <template v-slot:extension v-if="appLoading">
-      <v-progress-linear indeterminate color="white" height="3" class="app-bar-progress" />
-    </template>
+    <v-progress-linear
+      v-if="appLoading"
+      indeterminate
+      color="white"
+      height="3"
+      class="app-bar-progress"
+    />
   </v-app-bar>
 </template>
 
@@ -102,6 +106,7 @@ function goHome() {
 
 .app-bar-progress {
   position: absolute;
+  top: auto !important;
   bottom: 0;
   left: 0;
   right: 0;
