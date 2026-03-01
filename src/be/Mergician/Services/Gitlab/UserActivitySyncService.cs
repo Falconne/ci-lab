@@ -204,7 +204,6 @@ public class UserActivitySyncService : IHostedService, IDisposable
                 continue;
             }
 
-            var projectNameWithNamespace = project.NameWithNamespace;
             if (string.IsNullOrWhiteSpace(project.Name))
             {
                 _logger.LogError("Invalid empty project name in project id {id}", pushEvent.ProjectId);
@@ -214,8 +213,8 @@ public class UserActivitySyncService : IHostedService, IDisposable
             var branchRecord = _mergeGroupRepository.GetOrCreateBranchRecord(
                 pushEvent.BranchName,
                 pushEvent.ProjectId,
-                projectNameWithNamespace,
-                project.Name);
+                project.Name,
+                project.NameWithNamespace);
 
             var mergeGroup = _mergeGroupRepository.GetOrCreateMergeGroup(pushEvent.BranchName);
             if (!mergeGroup.Branches.Any(b => b.Id == branchRecord.Id))
@@ -254,6 +253,31 @@ public class UserActivitySyncService : IHostedService, IDisposable
 
             // Phase 1: Backfill from the user's last known activity or 14 days
             await BackfillUserActivity(gitlabUserId, context, ct);
+
+            // Phase 1b: Immediately refresh MR/approval/build details for all backfilled branches
+            // so that activity data is visible to the frontend without waiting for the first poll delay.
+            var initialAccessUser = context.AccessUser;
+            if (initialAccessUser != null)
+            {
+                _logger.LogInformation("Performing initial branch detail refresh for user {UserId} after backfill", gitlabUserId);
+                try
+                {
+                    await _activityService.RefreshAllBranchDetails(initialAccessUser, gitlabUserId, ct);
+                    _logger.LogInformation("Initial branch detail refresh completed for user {UserId}", gitlabUserId);
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Initial branch detail refresh failed for user {UserId}, will be retried on first poll cycle", gitlabUserId);
+                }
+            }
+            else
+            {
+                _logger.LogWarning("No access token available for initial branch detail refresh for user {UserId}", gitlabUserId);
+            }
 
             // Phase 2: Continuous polling loop
             while (!ct.IsCancellationRequested)
