@@ -23,6 +23,9 @@ yarn-error.log*
 .npm
 .node_repl_history
 
+# TypeScript incremental compiler output
+*.tsbuildinfo
+
 # Frontend build artifacts
 dist/
 .vite/
