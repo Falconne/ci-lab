@@ -25,7 +25,7 @@ var abortOnFirstFailure = true;
 
 try
 {
-    // Pre-flight: Wait for Mergician to be healthy before running tests
+    // Wait for Mergician to be healthy before running tests
     {
         var healthUrl = $"{TestConfig.MergicianUrl}/api/health";
         var timeout = TimeSpan.FromMinutes(5);
@@ -34,7 +34,10 @@ try
         using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
 
         Log.Information("");
-        Log.Information("--- Pre-flight: Waiting for Mergician to be healthy at {Url} (timeout: {Timeout}) ---", healthUrl, timeout);
+        Log.Information(
+            "--- Waiting for Mergician to be healthy at {Url} (timeout: {Timeout}) ---",
+            healthUrl,
+            timeout);
 
         var healthy = false;
         while (DateTime.UtcNow < deadline)
