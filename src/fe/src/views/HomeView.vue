@@ -73,10 +73,11 @@
                       <span class="branch-name">{{ group.name }}</span>
                     </div>
                   <div class="card-header-right">
-                    <span class="card-status-badge" :class="groupStatusClass(group)">
+                    <span v-if="isGroupFullyLoaded(group)" class="card-status-badge" :class="groupStatusClass(group)">
                       <span class="status-dot" />
                       {{ groupStatusLabel(group) }}
                     </span>
+                    <span v-else class="skeleton-badge"><span class="skeleton-shimmer" /></span>
                     <span class="card-time">{{ groupTimeAgo(group) }}</span>
                   </div>
                 </div>
@@ -94,22 +95,27 @@
                           </span>
                         </template>
                       </v-tooltip>
-                      <span
-                        v-if="item.mergeRequestTitle"
-                        class="item-mr-title"
-                        :title="item.mergeRequestTitle"
-                      >
-                        | {{ truncateTitle(item.mergeRequestTitle as string) }}
-                      </span>
-                      <span
-                        v-else-if="item.hasMergeRequest === false"
-                        class="item-no-mr"
-                      >
-                        | No Merge Request
-                      </span>
+                      <template v-if="isBranchLoading(item)">
+                        <span class="item-skeleton-inline"><span class="skeleton-shimmer" /></span>
+                      </template>
+                      <template v-else>
+                        <span
+                          v-if="item.mergeRequestTitle"
+                          class="item-mr-title"
+                          :title="item.mergeRequestTitle"
+                        >
+                          | {{ truncateTitle(item.mergeRequestTitle as string) }}
+                        </span>
+                        <span
+                          v-else-if="item.hasMergeRequest === false"
+                          class="item-no-mr"
+                        >
+                          | No Merge Request
+                        </span>
+                      </template>
                     </span>
                     <v-tooltip
-                      v-if="itemApprovalsText(item)"
+                      v-if="!isBranchLoading(item) && itemApprovalsText(item)"
                       location="top"
                       :text="approvalsTooltip(item)"
                     >
@@ -131,7 +137,8 @@
                       </template>
                     </v-tooltip>
                     <span class="item-time">
-                      <v-tooltip v-if="item.lastUpdated" location="top" :text="formatDateTime(item.lastUpdated)">
+                      <span v-if="isBranchLoading(item)" class="skeleton-time"><span class="skeleton-shimmer" /></span>
+                      <v-tooltip v-else-if="item.lastUpdated" location="top" :text="formatDateTime(item.lastUpdated)">
                         <template v-slot:activator="{ props }">
                           <span v-bind="props">{{ formatTimeAgo(item.lastUpdated) }}</span>
                         </template>
@@ -204,6 +211,21 @@ let timeIntervalId: ReturnType<typeof setInterval> | null = null
 let fastPollTimeoutId: ReturnType<typeof setTimeout> | null = null
 
 // --- Status logic ---
+
+/**
+ * Whether a branch's detail data (MR status, approvals, build jobs) has not yet been fetched.
+ */
+function isBranchLoading(item: BranchRecord): boolean {
+  return item.hasMergeRequest === null
+}
+
+/**
+ * Whether all branches in a group have had their details resolved.
+ * The group's overall status badge should only be shown when this is true.
+ */
+function isGroupFullyLoaded(group: MergeGroup): boolean {
+  return group.branches.length > 0 && group.branches.every(b => b.hasMergeRequest !== null)
+}
 
 function getGroupStatus(group: MergeGroup): GroupStatus {
   const statusPriority: GroupStatus[] = ['waiting', 'open', 'ready']
@@ -668,6 +690,51 @@ onUnmounted(() => {
 /* FLIP move transition for reordering */
 .card-list-move {
   transition: transform 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+/* ---- Skeleton loading shimmer ---- */
+@keyframes shimmer {
+  0% { background-position: -200px 0; }
+  100% { background-position: 200px 0; }
+}
+
+.skeleton-shimmer {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #e0e0e0 25%, #f5f5f5 50%, #e0e0e0 75%);
+  background-size: 400px 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* Skeleton for status badge — replaces the real badge while data is loading */
+.skeleton-badge {
+  display: inline-block;
+  width: 60px;
+  height: 20px;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* Skeleton for MR title area — inline with project name */
+.item-skeleton-inline {
+  display: inline-block;
+  width: 100px;
+  height: 14px;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+/* Skeleton for the time column */
+.skeleton-time {
+  display: inline-block;
+  width: 60px;
+  height: 12px;
+  border-radius: 4px;
+  overflow: hidden;
 }
 
 /* ---- Responsive ---- */

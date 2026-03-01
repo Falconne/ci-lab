@@ -39,10 +39,11 @@
             <div class="d-flex align-center flex-wrap ga-3">
               <v-icon icon="mdi-source-merge" size="small" color="primary" />
               <span class="text-h6 font-weight-bold">{{ mergeGroupName }}</span>
-              <span class="card-status-badge" :class="overallStatusClass">
+              <span v-if="isFullyLoaded" class="card-status-badge" :class="overallStatusClass">
                 <span class="status-dot" />
                 {{ overallStatusLabel }}
               </span>
+              <span v-else class="skeleton-badge"><span class="skeleton-shimmer" /></span>
               <v-progress-circular
                 v-if="initialPhase"
                 indeterminate
@@ -83,15 +84,19 @@
                     </a>
                     <span v-else class="branch-title-text">{{ item.projectName }} | {{ item.branchName }}</span>
                   </div>
-                  <v-chip size="small" :color="itemStatusColor(item)" variant="tonal" class="flex-shrink-0">
+                  <v-chip v-if="item.hasMergeRequest !== null" size="small" :color="itemStatusColor(item)" variant="tonal" class="flex-shrink-0">
                     {{ itemStatusLabel(item) }}
                   </v-chip>
+                  <span v-else class="skeleton-chip"><span class="skeleton-shimmer" /></span>
                 </div>
 
                 <!-- Detail rows -->
                 <div class="detail-row">
                   <span class="detail-label">Approvals:</span>
-                  <span class="detail-value">{{ itemApprovalsText(item) }}</span>
+                  <span class="detail-value">
+                    <span v-if="item.hasMergeRequest === null" class="skeleton-detail"><span class="skeleton-shimmer" /></span>
+                    <template v-else>{{ itemApprovalsText(item) }}</template>
+                  </span>
                 </div>
 
                 <div class="detail-row">
@@ -119,7 +124,7 @@
                         — Create
                       </a>
                     </span>
-                    <span v-else class="text-medium-emphasis">Resolving...</span>
+                    <span v-else class="skeleton-detail"><span class="skeleton-shimmer" /></span>
                   </span>
                 </div>
 
@@ -148,7 +153,7 @@
                       </v-chip>
                     </div>
                     <span v-else-if="item.hasMergeRequest != null" class="text-medium-emphasis">No external jobs on latest pipeline</span>
-                    <span v-else class="text-medium-emphasis">Resolving...</span>
+                    <span v-else class="skeleton-detail"><span class="skeleton-shimmer" /></span>
                   </span>
                 </div>
               </div>
@@ -207,6 +212,10 @@ const errorMessage = ref('')
 
 let pollIntervalId: ReturnType<typeof setInterval> | null = null
 let fastPollTimeoutId: ReturnType<typeof setTimeout> | null = null
+
+const isFullyLoaded = computed<boolean>(() => {
+  return activities.value.length > 0 && activities.value.every(b => b.hasMergeRequest !== null)
+})
 
 const overallStatusLabel = computed<string>(() => {
   const statuses = activities.value.map(item => itemStatusLabel(item))
@@ -583,6 +592,51 @@ onUnmounted(() => {
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 4px;
+}
+
+/* ---- Skeleton loading shimmer ---- */
+@keyframes shimmer {
+  0% { background-position: -200px 0; }
+  100% { background-position: 200px 0; }
+}
+
+.skeleton-shimmer {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #e0e0e0 25%, #f5f5f5 50%, #e0e0e0 75%);
+  background-size: 400px 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* Skeleton for status badge */
+.skeleton-badge {
+  display: inline-block;
+  width: 60px;
+  height: 20px;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* Skeleton for status chip on branch cards */
+.skeleton-chip {
+  display: inline-block;
+  width: 56px;
+  height: 24px;
+  border-radius: 12px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+/* Skeleton for detail value rows (approvals, MR, build jobs) */
+.skeleton-detail {
+  display: inline-block;
+  width: 120px;
+  height: 14px;
+  border-radius: 4px;
+  overflow: hidden;
+  vertical-align: middle;
 }
 
 /* ---- Responsive ---- */
