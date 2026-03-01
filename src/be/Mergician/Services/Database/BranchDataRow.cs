@@ -2,6 +2,9 @@ using Mergician.Entities;
 
 namespace Mergician.Services.Database;
 
+// TODO: Having a `BranchDataRow` and a `BranchRecord` is redundant. Get rid of this class and use
+// `BranchRecord` everywhere, adjusting it if needed to support both needs.
+
 /// <summary>
 ///     Internal Dapper mapping class for SQL queries that join branch_in_project
 ///     with merge_group. Not exposed outside the repository layer.
