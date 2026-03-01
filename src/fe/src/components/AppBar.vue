@@ -23,6 +23,10 @@
         </v-btn>
       </div>
     </template>
+
+    <template v-slot:extension v-if="appLoading">
+      <v-progress-linear indeterminate color="white" height="3" class="app-bar-progress" />
+    </template>
   </v-app-bar>
 </template>
 
@@ -30,12 +34,14 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useCurrentUser } from '@/composables/useCurrentUser'
+import { useAppLoading } from '@/composables/useAppLoading'
 
 const route = useRoute()
 const router = useRouter()
 const frontendVersion = ref(__APP_VERSION__)
 const backendVersion = ref('unknown')
 const { currentUser, loadCurrentUser, clearCurrentUser } = useCurrentUser()
+const { appLoading } = useAppLoading()
 const pageTitle = computed(() => {
   if (route.name === 'merge-group-details') {
     const mergeGroupTitle = (route.query.title as string | undefined)?.trim()
@@ -92,5 +98,12 @@ function goHome() {
   font-size: 1rem;
   font-weight: 500;
   opacity: 0.95;
+}
+
+.app-bar-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
 }
 </style>

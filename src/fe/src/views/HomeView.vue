@@ -33,8 +33,7 @@
         </div>
 
         <div v-else-if="initialLoading" class="text-center pa-8">
-          <v-progress-circular indeterminate color="primary" size="48" />
-          <p class="mt-4 text-body-1">Loading dashboard...</p>
+          <p class="text-body-1 text-grey">Loading...</p>
         </div>
 
         <div v-else-if="sortedMergeGroups.length === 0 && !initialPhase" class="text-center pa-8">
@@ -43,20 +42,10 @@
         </div>
 
         <div v-else-if="sortedMergeGroups.length === 0 && initialPhase" class="text-center pa-8">
-          <v-progress-circular indeterminate color="primary" size="48" />
-          <p class="mt-4 text-body-1">Loading dashboard...</p>
+          <p class="text-body-1 text-grey">Loading dashboard...</p>
         </div>
 
         <div v-else class="dashboard-cards">
-          <v-progress-circular
-            v-if="initialPhase"
-            indeterminate
-            color="primary"
-            size="18"
-            width="2"
-            class="mb-2 streaming-indicator"
-          />
-
           <TransitionGroup name="card-list" tag="div" class="card-container">
             <div
               v-for="group in sortedMergeGroups"
@@ -160,6 +149,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useCurrentUser } from '@/composables/useCurrentUser'
+import { useAppLoading } from '@/composables/useAppLoading'
 
 interface BranchRecord {
   branchName: string
@@ -198,6 +188,7 @@ const FAST_POLL_DURATION_MS = 5000
 const route = useRoute()
 const router = useRouter()
 const { currentUser, loadCurrentUser } = useCurrentUser()
+const { setAppLoading } = useAppLoading()
 
 const mergeGroups = ref<MergeGroup[]>([])
 const initialLoading = ref(true)
@@ -398,11 +389,13 @@ function startPolling() {
 
   // Start with fast polling (every 1s for 5 seconds)
   initialPhase.value = true
+  setAppLoading(true)
   pollIntervalId = setInterval(pollDashboard, FAST_POLL_INTERVAL_MS)
 
   // After 5 seconds, switch to normal polling interval
   fastPollTimeoutId = setTimeout(() => {
     initialPhase.value = false
+    setAppLoading(false)
     if (pollIntervalId !== null) {
       clearInterval(pollIntervalId)
       pollIntervalId = setInterval(pollDashboard, NORMAL_POLL_INTERVAL_MS)
@@ -423,6 +416,7 @@ function stopPolling() {
     clearTimeout(fastPollTimeoutId)
     fastPollTimeoutId = null
   }
+  setAppLoading(false)
 }
 
 function openMergeGroupDetails(group: MergeGroup) {
@@ -466,11 +460,6 @@ onUnmounted(() => {
 /* ---- Card container ---- */
 .dashboard-cards {
   position: relative;
-}
-
-.streaming-indicator {
-  display: block;
-  margin: 0 auto 8px;
 }
 
 .card-container {

@@ -29,8 +29,7 @@
         </v-alert>
 
         <div v-if="initialLoading" class="text-center pa-8">
-          <v-progress-circular indeterminate color="primary" size="44" />
-          <p class="mt-4 text-body-1">Loading merge group details...</p>
+          <p class="text-body-1 text-grey">Loading merge group details...</p>
         </div>
 
         <template v-else>
@@ -44,14 +43,6 @@
                 {{ overallStatusLabel }}
               </span>
               <span v-else class="skeleton-badge"><span class="skeleton-shimmer" /></span>
-              <v-progress-circular
-                v-if="initialPhase"
-                indeterminate
-                color="primary"
-                size="16"
-                width="2"
-                class="ml-2"
-              />
             </div>
           </div>
 
@@ -168,6 +159,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useAppLoading } from '@/composables/useAppLoading'
 
 interface BranchBuildJob {
   name: string
@@ -203,6 +195,7 @@ const FAST_POLL_DURATION_MS = 5000
 
 const route = useRoute()
 const router = useRouter()
+const { setAppLoading } = useAppLoading()
 
 const activities = ref<BranchRecord[]>([])
 const mergeGroupName = ref('')
@@ -391,11 +384,13 @@ function startPolling() {
 
   // Start with fast polling (every 1s for 5 seconds)
   initialPhase.value = true
+  setAppLoading(true)
   pollIntervalId = setInterval(pollMergeGroup, FAST_POLL_INTERVAL_MS)
 
   // After 5 seconds, switch to normal polling interval
   fastPollTimeoutId = setTimeout(() => {
     initialPhase.value = false
+    setAppLoading(false)
     if (pollIntervalId !== null) {
       clearInterval(pollIntervalId)
       pollIntervalId = setInterval(pollMergeGroup, NORMAL_POLL_INTERVAL_MS)
@@ -416,6 +411,7 @@ function stopPolling() {
     clearTimeout(fastPollTimeoutId)
     fastPollTimeoutId = null
   }
+  setAppLoading(false)
 }
 
 function updateRouteTitle(name: string) {
