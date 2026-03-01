@@ -85,7 +85,7 @@ public class MergeGroupRepository : IMergeGroupRepository
 
         _logger.LogDebug("Got/created merge group {Id} with name '{Name}'", record.Id, name);
 
-        return GetMergeGroupFor(connection, record);
+        return GetBranchesFor(connection, record);
     }
 
     public void EnsureBranchInMergeGroup(int mergeGroupId, int branchInProjectId)
@@ -132,7 +132,8 @@ public class MergeGroupRepository : IMergeGroupRepository
         connection.Open();
 
         // query branches along with their merge group info; map using Dapper multi-mapping
-        var rows = connection.Query<int, string, BranchRecord, (int MergeGroupId, string MergeGroupName, BranchRecord Branch)>(
+        var rows = connection
+            .Query<int, string, BranchRecord, (int MergeGroupId, string MergeGroupName, BranchRecord Branch)>(
                 """
                 SELECT
                     mg.id AS MergeGroupId,
@@ -162,15 +163,17 @@ public class MergeGroupRepository : IMergeGroupRepository
             .ToList();
 
         // normalize timestamps to UTC on the branch objects
-        for (int i = 0; i < rows.Count; i++)
+        for (var i = 0; i < rows.Count; i++)
         {
             var (mgId, mgName, branch) = rows[i];
             if (branch.LastUpdated.HasValue)
             {
                 var utc = UtcTimestamp.EnsureUtc(
                     branch.LastUpdated.Value,
-                    () => $"MergeGroupRepository.GetMergeGroupsForUser group {mgId} branch {branch.BranchInProjectId}",
+                    () =>
+                        $"MergeGroupRepository.GetMergeGroupsForUser group {mgId} branch {branch.BranchInProjectId}",
                     _logger);
+
                 branch = branch with { LastUpdated = utc };
                 rows[i] = (mgId, mgName, branch);
             }
@@ -224,7 +227,7 @@ public class MergeGroupRepository : IMergeGroupRepository
 
         if (record != null)
         {
-            return GetMergeGroupFor(connection, record);
+            return GetBranchesFor(connection, record);
         }
 
         _logger.LogDebug("No merge group found with id {MergeGroupId}", mergeGroupId);
@@ -393,7 +396,7 @@ public class MergeGroupRepository : IMergeGroupRepository
             utcCommitTime);
     }
 
-    private MergeGroup GetMergeGroupFor(IDbConnection connection, MergeGroupBase record)
+    private MergeGroup GetBranchesFor(IDbConnection connection, MergeGroupBase record)
     {
         // query only branch details; merge group id/name already known
         var branches = connection.Query<BranchRecord>(
@@ -420,7 +423,7 @@ public class MergeGroupRepository : IMergeGroupRepository
             .ToList();
 
         // normalize timestamps
-        for (int i = 0; i < branches.Count; i++)
+        for (var i = 0; i < branches.Count; i++)
         {
             var branch = branches[i];
             if (branch.LastUpdated.HasValue)
@@ -474,14 +477,14 @@ public class MergeGroupRepository : IMergeGroupRepository
                 g => g.Key,
                 g => g.Select(j => new BranchBuildJob(j.Name, j.Status, j.Url)).ToList());
 
-        for (int i = 0; i < branches.Count; i++)
+        for (var i = 0; i < branches.Count; i++)
         {
             var branch = branches[i];
-            if (branch.BranchInProjectId.HasValue && jobs.TryGetValue(branch.BranchInProjectId.Value, out var branchJobs))
+            if (branch.BranchInProjectId.HasValue
+                && jobs.TryGetValue(branch.BranchInProjectId.Value, out var branchJobs))
             {
                 branches[i] = branch with { BuildJobs = branchJobs };
             }
         }
     }
-
 }
