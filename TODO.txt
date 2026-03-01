@@ -1,0 +1,2 @@
+Task 1)
+When we store time in the database, we convert it to UTC, so there is no need to `EnsureUtc` on time values coming from the DB. Remove these unnecesary checks. We only need to do this for datetimes coming from external sources.

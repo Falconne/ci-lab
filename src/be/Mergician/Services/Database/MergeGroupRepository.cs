@@ -295,6 +295,7 @@ public class MergeGroupRepository : IMergeGroupRepository
             .ToList();
     }
 
+    // TODO: Check is this is used anywhere other than tests and if not delete it
     public BranchInProjectRecord? GetBranchRecord(string branchName, int projectId)
     {
         using var connection = _connectionFactory.CreateConnection();
@@ -422,23 +423,6 @@ public class MergeGroupRepository : IMergeGroupRepository
                 new { MergeGroupId = record.Id })
             .ToList();
 
-        // normalize timestamps
-        for (var i = 0; i < branches.Count; i++)
-        {
-            var branch = branches[i];
-            if (branch.LastUpdated.HasValue)
-            {
-                branches[i] = branch with
-                {
-                    LastUpdated = UtcTimestamp.EnsureUtc(
-                        branch.LastUpdated.Value,
-                        () =>
-                            $"MergeGroupRepository.GetMergeGroupById group {record.Id} branch {branch.BranchInProjectId}",
-                        _logger)
-                };
-            }
-        }
-
         AttachBuildJobs(connection, branches);
 
         return new MergeGroup(
@@ -447,7 +431,7 @@ public class MergeGroupRepository : IMergeGroupRepository
             branches);
     }
 
-    private void AttachBuildJobs(IDbConnection connection, List<BranchRecord> branches)
+    private static void AttachBuildJobs(IDbConnection connection, List<BranchRecord> branches)
     {
         if (branches.Count == 0)
         {
