@@ -12,4 +12,7 @@ public class GitLabBranchCommit
 {
     [JsonPropertyName("id")]
     public string Id { get; set; } = "";
+
+    [JsonPropertyName("committed_date")]
+    public DateTimeOffset? CommittedDate { get; set; }
 }

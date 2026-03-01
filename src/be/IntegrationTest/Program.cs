@@ -19,14 +19,56 @@ Log.Information("============================================================");
 var allPassed = true;
 var results = new List<(string Name, bool Passed, string? Error)>();
 
-// TODO: Wait for Mergician to be healthy as the first Integration Test. Use a timeout of 5 minutes.
-
 // Abort on first failure to speed up debugging during development.
 // Change this to false to run all tests regardless of failures.
 var abortOnFirstFailure = true;
 
 try
 {
+    // Pre-flight: Wait for Mergician to be healthy before running tests
+    {
+        var healthUrl = $"{TestConfig.MergicianUrl}/api/health";
+        var timeout = TimeSpan.FromMinutes(5);
+        var pollInterval = TimeSpan.FromSeconds(3);
+        var deadline = DateTime.UtcNow + timeout;
+        using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+
+        Log.Information("");
+        Log.Information("--- Pre-flight: Waiting for Mergician to be healthy at {Url} (timeout: {Timeout}) ---", healthUrl, timeout);
+
+        var healthy = false;
+        while (DateTime.UtcNow < deadline)
+        {
+            try
+            {
+                var response = await httpClient.GetAsync(healthUrl);
+                if (response.IsSuccessStatusCode)
+                {
+                    Log.Information("Mergician is healthy (HTTP {StatusCode})", (int)response.StatusCode);
+                    healthy = true;
+                    break;
+                }
+
+                Log.Debug("Health check returned HTTP {StatusCode}, retrying...", (int)response.StatusCode);
+            }
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+            {
+                Log.Debug("Health check failed ({Message}), retrying...", ex.Message);
+            }
+
+            await Task.Delay(pollInterval);
+        }
+
+        if (!healthy)
+        {
+            throw new TimeoutException(
+                $"Mergician did not become healthy at {healthUrl} within {timeout.TotalMinutes} minutes");
+        }
+
+        results.Add(("HealthCheck", true, null));
+        Log.Information("PASS: HealthCheck");
+    }
+
     // Test 1: Authentication via GitLab OAuth
     var authTest = new AuthenticationTest();
     try

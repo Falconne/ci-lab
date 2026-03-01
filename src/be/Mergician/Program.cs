@@ -59,7 +59,6 @@ try
     builder.Services.AddSingleton<GitlabService>();
     builder.Services.AddSingleton<GitlabPipelineService>();
     builder.Services.AddSingleton<VersionService>();
-    builder.Services.AddSingleton<GitlabActivityService>();
 
     // Register background user activity sync service
     builder.Services.AddSingleton<UserActivitySyncService>();

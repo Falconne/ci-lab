@@ -1,4 +1,5 @@
 using Mergician.Services.Authentication;
+using Mergician.Services.Database;
 using Mergician.Services.Gitlab;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -10,18 +11,18 @@ namespace Mergician.Controllers;
 [Route("api/[controller]")]
 public class ActivityController : ControllerBase
 {
-    private readonly GitlabActivityService _activityService;
-
     private readonly ILogger<ActivityController> _logger;
+
+    private readonly IMergeGroupRepository _mergeGroupRepository;
 
     private readonly UserActivitySyncService _syncService;
 
     public ActivityController(
-        GitlabActivityService activityService,
+        IMergeGroupRepository mergeGroupRepository,
         UserActivitySyncService syncService,
         ILogger<ActivityController> logger)
     {
-        _activityService = activityService;
+        _mergeGroupRepository = mergeGroupRepository;
         _syncService = syncService;
         _logger = logger;
     }
@@ -43,9 +44,13 @@ public class ActivityController : ControllerBase
 
         _logger.LogDebug("Dashboard refresh for user {UserId}", userId);
 
-        var result = _activityService.GetMergeGroupsForUser(userId);
+        var result = _mergeGroupRepository.GetMergeGroupsForUser(userId);
 
-        _logger.LogDebug("Returning {Count} merge groups for user {UserId}", result.Count, userId);
+        _logger.LogDebug(
+            "Returning {GroupCount} merge groups with {BranchCount} branches for user {UserId}",
+            result.Count,
+            result.Sum(g => g.Branches.Count),
+            userId);
 
         return Ok(result);
     }

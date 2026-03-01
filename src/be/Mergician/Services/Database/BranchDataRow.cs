@@ -12,6 +12,7 @@ internal sealed class BranchDataRow
     public string BranchName { get; set; } = "";
     public int ProjectId { get; set; }
     public string ProjectName { get; set; } = "";
+    public string? ProjectDisplayName { get; set; }
     public int MergeGroupId { get; set; }
     public string MergeGroupName { get; set; } = "";
     public DateTimeOffset? LastUpdateTime { get; set; }

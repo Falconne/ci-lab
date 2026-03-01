@@ -225,6 +225,50 @@ public class GitlabService
     }
 
     /// <summary>
+    ///     Fetches full branch details including the latest commit information.
+    ///     Returns null when the branch does not exist or the request fails.
+    /// </summary>
+    public async Task<GitLabBranchDetails?> GetBranchDetails(
+        AccessDetailsBase accessDetails,
+        int projectId,
+        string branchName)
+    {
+        var encodedBranch = Uri.EscapeDataString(branchName);
+        var request = accessDetails.CreateRequest(
+            HttpMethod.Get,
+            $"projects/{projectId}/repository/branches/{encodedBranch}");
+
+        var client = _httpClientFactory.CreateClient("GitLabOAuth");
+        try
+        {
+            var response = await client.SendAsync(request);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogDebug(
+                    "GetBranchDetails for '{BranchName}' in project {ProjectId} returned {StatusCode}",
+                    branchName,
+                    projectId,
+                    (int)response.StatusCode);
+
+                return null;
+            }
+
+            var json = await response.Content.ReadAsStringAsync();
+            return JsonSerializer.Deserialize<GitLabBranchDetails>(json, _jsonOptions);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "GetBranchDetails failed for '{BranchName}' in project {ProjectId}",
+                branchName,
+                projectId);
+
+            return null;
+        }
+    }
+
+    /// <summary>
     ///     Checks branch lookup status in the given project.
     ///     Returns Missing only for 404 responses; all other failures are Unavailable.
     /// </summary>

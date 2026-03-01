@@ -23,20 +23,24 @@ public class MergeGroupRepository : IMergeGroupRepository
         _logger = logger;
     }
 
-    public BranchInProjectRecord GetOrCreateBranchRecord(string branchName, int projectId, string projectName)
+    public BranchInProjectRecord GetOrCreateBranchRecord(
+        string branchName,
+        int projectId,
+        string projectName,
+        string projectDisplayName)
     {
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();
 
         var record = connection.QueryFirstOrDefault<BranchInProjectRecord>(
             """
-            INSERT INTO branch_in_project (branch_name, project_id, project_name)
-            VALUES (@BranchName, @ProjectId, @ProjectName)
+            INSERT INTO branch_in_project (branch_name, project_id, project_name, project_display_name)
+            VALUES (@BranchName, @ProjectId, @ProjectName, @ProjectDisplayName)
             ON CONFLICT (branch_name, project_id)
-            DO UPDATE SET project_name = EXCLUDED.project_name
+            DO UPDATE SET project_name = EXCLUDED.project_name, project_display_name = EXCLUDED.project_display_name
             RETURNING id, branch_name AS BranchName, project_id AS ProjectId, project_name AS ProjectName
             """,
-            new { BranchName = branchName, ProjectId = projectId, ProjectName = projectName });
+            new { BranchName = branchName, ProjectId = projectId, ProjectName = projectName, ProjectDisplayName = projectDisplayName });
 
         if (record == null)
         {
@@ -116,26 +120,6 @@ public class MergeGroupRepository : IMergeGroupRepository
             mergeGroupId);
     }
 
-    public void UpdateBranchTimestamp(int branchInProjectId, DateTimeOffset lastUpdateTime)
-    {
-        var utcTimestamp = UtcTimestamp.EnsureUtc(
-            lastUpdateTime,
-            () => $"MergeGroupRepository.UpdateBranchTimestamp branch {branchInProjectId}",
-            _logger);
-
-        using var connection = _connectionFactory.CreateConnection();
-        connection.Open();
-
-        connection.Execute(
-            "UPDATE branch_in_project SET last_update_time = @Timestamp WHERE id = @Id",
-            new { Id = branchInProjectId, Timestamp = utcTimestamp });
-
-        _logger.LogDebug(
-            "Updated branch {BranchInProjectId} timestamp to {Timestamp}",
-            branchInProjectId,
-            utcTimestamp);
-    }
-
     public List<MergeGroup> GetMergeGroupsForUser(int gitlabUserId)
     {
         using var connection = _connectionFactory.CreateConnection();
@@ -148,6 +132,7 @@ public class MergeGroupRepository : IMergeGroupRepository
                     bp.branch_name AS BranchName,
                     bp.project_id AS ProjectId,
                     bp.project_name AS ProjectName,
+                    bp.project_display_name AS ProjectDisplayName,
                     mg.id AS MergeGroupId,
                     mg.name AS MergeGroupName,
                     bp.last_update_time AS LastUpdateTime,
@@ -181,8 +166,7 @@ public class MergeGroupRepository : IMergeGroupRepository
 
         AttachBuildJobs(connection, rows);
 
-        // TODO: We don't care about ordering at this stage
-        // Group flat rows into MergeGroup objects, then sort by most recently updated first
+        // Group flat rows into MergeGroup objects
         var groupOrder = new List<int>();
         var groupNames = new Dictionary<int, string>();
         var groupBranches = new Dictionary<int, List<BranchRecord>>();
@@ -201,7 +185,6 @@ public class MergeGroupRepository : IMergeGroupRepository
 
         var result = groupOrder
             .Select(id => new MergeGroup(id, groupNames[id], groupBranches[id]))
-            .OrderByDescending(g => g.LastUpdateTime ?? DateTimeOffset.MinValue)
             .ToList();
 
         _logger.LogDebug(
@@ -325,12 +308,23 @@ public class MergeGroupRepository : IMergeGroupRepository
         string? projectUrl,
         int? approvalsRequired,
         int? approvalsGiven,
-        List<BranchBuildJob> buildJobs)
+        List<BranchBuildJob> buildJobs,
+        DateTimeOffset? lastCommitTime = null)
     {
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();
 
         using var transaction = connection.BeginTransaction();
+
+        // If a commit time is provided, convert to UTC and include it in the update
+        DateTimeOffset? utcCommitTime = null;
+        if (lastCommitTime.HasValue)
+        {
+            utcCommitTime = UtcTimestamp.EnsureUtc(
+                lastCommitTime.Value,
+                () => $"MergeGroupRepository.UpdateBranchDetails branch {branchInProjectId}",
+                _logger);
+        }
 
         connection.Execute(
             """
@@ -340,7 +334,8 @@ public class MergeGroupRepository : IMergeGroupRepository
                 merge_request_url   = @MergeRequestUrl,
                 project_url         = @ProjectUrl,
                 approvals_required  = @ApprovalsRequired,
-                approvals_given     = @ApprovalsGiven
+                approvals_given     = @ApprovalsGiven,
+                last_update_time    = COALESCE(@LastCommitTime, last_update_time)
             WHERE id = @BranchInProjectId
             """,
             new
@@ -351,7 +346,8 @@ public class MergeGroupRepository : IMergeGroupRepository
                 MergeRequestUrl = mergeRequestUrl,
                 ProjectUrl = projectUrl,
                 ApprovalsRequired = approvalsRequired,
-                ApprovalsGiven = approvalsGiven
+                ApprovalsGiven = approvalsGiven,
+                LastCommitTime = utcCommitTime
             },
             transaction);
 
@@ -375,12 +371,13 @@ public class MergeGroupRepository : IMergeGroupRepository
         transaction.Commit();
 
         _logger.LogDebug(
-            "Updated branch {BranchInProjectId} details: hasMr={HasMr}, approvals={Given}/{Required}, {JobCount} build jobs",
+            "Updated branch {BranchInProjectId} details: hasMr={HasMr}, approvals={Given}/{Required}, {JobCount} build jobs, commitTime={CommitTime}",
             branchInProjectId,
             hasMergeRequest,
             approvalsGiven,
             approvalsRequired,
-            buildJobs.Count);
+            buildJobs.Count,
+            utcCommitTime);
     }
 
     private MergeGroup GetMergeGroupFor(IDbConnection connection, MergeGroupBase record)
@@ -392,6 +389,7 @@ public class MergeGroupRepository : IMergeGroupRepository
                     bp.branch_name AS BranchName,
                     bp.project_id AS ProjectId,
                     bp.project_name AS ProjectName,
+                    bp.project_display_name AS ProjectDisplayName,
                     mg.id AS MergeGroupId,
                     mg.name AS MergeGroupName,
                     bp.last_update_time AS LastUpdateTime,
@@ -462,20 +460,21 @@ public class MergeGroupRepository : IMergeGroupRepository
 
     /// <summary>
     ///     Converts a <see cref="BranchDataRow" /> SQL result into a <see cref="BranchRecord" /> response object.
-    ///     Extracts the short project display name from the stored NameWithNamespace.
     /// </summary>
     private static BranchRecord ToBranchRecord(BranchDataRow row)
     {
-        // TODO: Update the DB schema to store the regular project name as well as name with namespace
-        // properly. The regular name is already in the data returned from the API, there is no need
-        // to calculate it. The make it so `BranchDataRow` is not needed by moving anything
-        // missing into BranchRecord.
         var nameWithNamespace = row.ProjectName;
-        var trimmed = nameWithNamespace.Trim();
-        var lastSlash = trimmed.LastIndexOf('/');
-        var displayName = lastSlash >= 0 && lastSlash < trimmed.Length - 1
-            ? trimmed[(lastSlash + 1)..].Trim()
-            : trimmed;
+
+        // Use the stored display name. Fall back to parsing the namespace if not yet populated.
+        var displayName = row.ProjectDisplayName;
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            var trimmed = nameWithNamespace.Trim();
+            var lastSlash = trimmed.LastIndexOf('/');
+            displayName = lastSlash >= 0 && lastSlash < trimmed.Length - 1
+                ? trimmed[(lastSlash + 1)..].Trim()
+                : trimmed;
+        }
 
         return new BranchRecord(
             row.BranchName,

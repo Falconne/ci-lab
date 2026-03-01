@@ -12,7 +12,11 @@ public interface IMergeGroupRepository
     ///     Gets or creates a BranchInProject record. Returns the existing or new record.
     ///     Thread-safe: uses INSERT ON CONFLICT to avoid duplicates from concurrent callers.
     /// </summary>
-    BranchInProjectRecord GetOrCreateBranchRecord(string branchName, int projectId, string projectName);
+    BranchInProjectRecord GetOrCreateBranchRecord(
+        string branchName,
+        int projectId,
+        string projectName,
+        string projectDisplayName);
 
     /// <summary>
     ///     Gets or creates a MergeGroup by name. Returns the existing or new group with its associated branches.
@@ -29,11 +33,6 @@ public interface IMergeGroupRepository
     ///     Associates a user with a merge group if not already associated.
     /// </summary>
     void EnsureUserInMergeGroup(int gitlabUserId, int mergeGroupId);
-
-    /// <summary>
-    ///     Updates the last_update_time of a branch record to reflect when it was last pushed.
-    /// </summary>
-    void UpdateBranchTimestamp(int branchInProjectId, DateTimeOffset lastUpdateTime);
 
     /// <summary>
     ///     Returns all merge groups that the user is associated with, each containing its branches.
@@ -89,5 +88,6 @@ public interface IMergeGroupRepository
         string? projectUrl,
         int? approvalsRequired,
         int? approvalsGiven,
-        List<BranchBuildJob> buildJobs);
+        List<BranchBuildJob> buildJobs,
+        DateTimeOffset? lastCommitTime = null);
 }

@@ -179,7 +179,6 @@ interface BranchBuildJob {
 interface MergeGroup {
   id: number
   name: string
-  lastUpdateTime: string | null
   branches: BranchRecord[]
 }
 
@@ -259,8 +258,22 @@ function approvalsTooltip(item: BranchRecord): string {
   return `${item.approvalsGiven} of ${item.approvalsRequired} needed approvals given`
 }
 
+/**
+ * Returns the latest lastUpdated timestamp across all branches in the group, or null.
+ */
+function groupLatestTimestamp(group: MergeGroup): string | null {
+  let latest: string | null = null
+  for (const b of group.branches) {
+    if (b.lastUpdated && (!latest || b.lastUpdated > latest)) {
+      latest = b.lastUpdated
+    }
+  }
+  return latest
+}
+
 function groupTimeAgo(group: MergeGroup): string {
-  return group.lastUpdateTime ? formatTimeAgo(group.lastUpdateTime) : ''
+  const ts = groupLatestTimestamp(group)
+  return ts ? formatTimeAgo(ts) : ''
 }
 
 /**
@@ -276,9 +289,15 @@ function truncateTitle(title: string): string {
  */
 const sortedMergeGroups = computed<MergeGroup[]>(() => {
   if (mergeGroups.value.length === 0) return []
-  return [...mergeGroups.value].sort(
-    (a, b) => new Date(b.lastUpdateTime ?? 0).getTime() - new Date(a.lastUpdateTime ?? 0).getTime()
-  )
+  return [...mergeGroups.value].sort((a, b) => {
+    const aTs = groupLatestTimestamp(a)
+    const bTs = groupLatestTimestamp(b)
+    // Groups with no timestamp (newly discovered, not yet refreshed) sort to the top
+    if (!aTs && !bTs) return 0
+    if (!aTs) return -1
+    if (!bTs) return 1
+    return new Date(bTs).getTime() - new Date(aTs).getTime()
+  })
 })
 
 /**

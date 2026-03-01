@@ -1,5 +1,6 @@
 using Mergician.Entities;
 using Mergician.Services.Authentication;
+using Mergician.Services.Database;
 using Mergician.Services.Gitlab;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -11,18 +12,18 @@ namespace Mergician.Controllers;
 [Route("api/merge-groups")]
 public class MergeGroupController : ControllerBase
 {
-    private readonly GitlabActivityService _activityService;
-
     private readonly ILogger<MergeGroupController> _logger;
+
+    private readonly IMergeGroupRepository _mergeGroupRepository;
 
     private readonly UserActivitySyncService _syncService;
 
     public MergeGroupController(
-        GitlabActivityService activityService,
+        IMergeGroupRepository mergeGroupRepository,
         UserActivitySyncService syncService,
         ILogger<MergeGroupController> logger)
     {
-        _activityService = activityService;
+        _mergeGroupRepository = mergeGroupRepository;
         _syncService = syncService;
         _logger = logger;
     }
@@ -48,8 +49,7 @@ public class MergeGroupController : ControllerBase
             userId,
             mergeGroupId);
 
-        // TODO: Use mergeGroupRepository.GetMergeGroup and get rid of _activityService.GetMergeGroupBranches
-        var result = _activityService.GetMergeGroupBranches(mergeGroupId);
+        var result = _mergeGroupRepository.GetMergeGroup(mergeGroupId);
 
         if (result == null)
         {

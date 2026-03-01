@@ -189,7 +189,6 @@ interface BranchRecord {
 interface MergeGroup {
   id: number
   name: string
-  lastUpdateTime: string | null
   branches: BranchRecord[]
 }
 
