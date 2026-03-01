@@ -20,7 +20,7 @@ public class UserActivitySyncService : IHostedService, IDisposable
 
     private static readonly TimeSpan _maxActivityLookback = TimeSpan.FromDays(14);
 
-    private readonly GitlabPipelineService _gitlabPipelineService;
+    private readonly GitlabActivityService _activityService;
 
     private readonly GitlabService _gitlabService;
 
@@ -34,12 +34,12 @@ public class UserActivitySyncService : IHostedService, IDisposable
 
     public UserActivitySyncService(
         GitlabService gitlabService,
-        GitlabPipelineService gitlabPipelineService,
+        GitlabActivityService activityService,
         IMergeGroupRepository mergeGroupRepository,
         ILogger<UserActivitySyncService> logger)
     {
         _gitlabService = gitlabService;
-        _gitlabPipelineService = gitlabPipelineService;
+        _activityService = activityService;
         _mergeGroupRepository = mergeGroupRepository;
         _logger = logger;
     }
@@ -172,7 +172,7 @@ public class UserActivitySyncService : IHostedService, IDisposable
                 continue;
             }
 
-            if (await ShouldSkipBranchByLookup(
+            if (await _activityService.ShouldSkipBranchByLookup(
                     accessDetails,
                     pushEvent.BranchName,
                     pushEvent.ProjectId,
@@ -194,7 +194,7 @@ public class UserActivitySyncService : IHostedService, IDisposable
                 continue;
             }
 
-            if (ShouldSkipScheduledForDeletion(
+            if (_activityService.ShouldSkipScheduledForDeletion(
                     pushEvent.BranchName,
                     pushEvent.ProjectId,
                     project.NameWithNamespace,
@@ -245,216 +245,6 @@ public class UserActivitySyncService : IHostedService, IDisposable
         }
     }
 
-    /// <summary>
-    ///     Checks all tracked branches for a user and removes any that have been deleted from GitLab.
-    ///     Called by the background sync thread during each poll cycle.
-    /// </summary>
-    private async Task CleanupDeletedBranches(
-        AccessDetailsBase accessDetails,
-        int gitlabUserId,
-        CancellationToken cancellationToken)
-    {
-        var userGroups = _mergeGroupRepository.GetMergeGroupsForUser(gitlabUserId);
-        var userBranches = userGroups.SelectMany(g => g.Branches).ToList();
-        _logger.LogDebug(
-            "Checking {Count} tracked branches for user {UserId} for deletion",
-            userBranches.Count,
-            gitlabUserId);
-
-        foreach (var branch in userBranches)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            var lookup = await _gitlabService.GetBranchLookupResult(
-                accessDetails,
-                branch.ProjectId,
-                branch.BranchName);
-
-            if (lookup.IsMissing)
-            {
-                _logger.LogInformation(
-                    "Background sync: branch '{BranchName}' in project {ProjectId} no longer exists, removing",
-                    branch.BranchName,
-                    branch.ProjectId);
-
-                if (branch.BranchInProjectId.HasValue)
-                {
-                    RemoveBranchAndCleanup(branch.BranchInProjectId.Value);
-                }
-            }
-            else if (lookup.IsUnavailable)
-            {
-                _logger.LogDebug(
-                    "Background sync: branch lookup unavailable for '{BranchName}' in project {ProjectId}; skipping",
-                    branch.BranchName,
-                    branch.ProjectId);
-            }
-        }
-    }
-
-    /// <summary>
-    ///     Fetches MR, approval, and build job details from GitLab for the given branch
-    ///     and persists them in the database. Called by the background sync thread.
-    ///     Silently skips if project info is unavailable.
-    /// </summary>
-    private async Task RefreshBranchDetails(
-        AccessDetailsBase accessDetails,
-        BranchRecord branch,
-        CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-
-        if (!branch.BranchInProjectId.HasValue)
-        {
-            _logger.LogWarning(
-                "BranchRecord for '{BranchName}' in project {ProjectId} has no BranchInProjectId; skipping detail refresh",
-                branch.BranchName,
-                branch.ProjectId);
-
-            return;
-        }
-
-        _logger.LogDebug(
-            "Refreshing details for branch '{BranchName}' in project {ProjectId}",
-            branch.BranchName,
-            branch.ProjectId);
-
-        var project = await _gitlabService.GetProject(accessDetails, branch.ProjectId);
-        if (project == null)
-        {
-            _logger.LogDebug(
-                "Project {ProjectId} not found when refreshing details for '{BranchName}'; skipping",
-                branch.ProjectId,
-                branch.BranchName);
-
-            return;
-        }
-
-        if (GitlabService.IsScheduledForDeletion(project.NameWithNamespace))
-        {
-            _logger.LogInformation(
-                "Skipping detail refresh for branch '{BranchName}' in project {ProjectId}: project scheduled for deletion",
-                branch.BranchName,
-                branch.ProjectId);
-
-            return;
-        }
-
-        var projectUrl = project.WebUrl;
-
-        var mergeRequests = await _gitlabService.GetMergeRequests(
-            accessDetails,
-            branch.ProjectId,
-            branch.BranchName);
-
-        var hasMr = mergeRequests.Count > 0;
-        int? approvalsRequired = null;
-        int? approvalsGiven = null;
-        string? mrTitle = null;
-        string? mrUrl = null;
-
-        if (hasMr)
-        {
-            var first = mergeRequests[0];
-            mrTitle = first.Title;
-            mrUrl = first.WebUrl;
-
-            var approval = await _gitlabService.GetMergeRequestApprovals(
-                accessDetails,
-                branch.ProjectId,
-                first.Iid);
-
-            if (approval != null)
-            {
-                approvalsGiven = approval.ApprovedBy.Count;
-                approvalsRequired = Math.Max(approval.ApprovalsRequired ?? 0, 0);
-            }
-        }
-
-        var buildJobs = await _gitlabPipelineService.GetLatestExternalJobsForBranch(
-            accessDetails,
-            branch.ProjectId,
-            branch.BranchName,
-            cancellationToken);
-
-        // Fetch the branch's latest commit date from GitLab to use as the last updated timestamp
-        var branchDetails = await _gitlabService.GetBranchDetails(
-            accessDetails,
-            branch.ProjectId,
-            branch.BranchName);
-
-        DateTimeOffset? lastCommitTime = null;
-        if (branchDetails?.Commit?.CommittedDate != null)
-        {
-            lastCommitTime = branchDetails.Commit.CommittedDate.Value.ToUniversalTime();
-            _logger.LogDebug(
-                "Branch '{BranchName}' in project {ProjectId}: latest commit at {CommitTime}",
-                branch.BranchName,
-                branch.ProjectId,
-                lastCommitTime);
-        }
-
-        _mergeGroupRepository.UpdateBranchDetails(
-            branch.BranchInProjectId.Value,
-            hasMr,
-            mrTitle,
-            mrUrl,
-            projectUrl,
-            approvalsRequired,
-            approvalsGiven,
-            buildJobs,
-            lastCommitTime);
-
-        _logger.LogDebug(
-            "Updated details for branch '{BranchName}' in project {ProjectId}: hasMr={HasMr}, {JobCount} jobs",
-            branch.BranchName,
-            branch.ProjectId,
-            hasMr,
-            buildJobs.Count);
-    }
-
-    /// <summary>
-    ///     Refreshes MR, approval, and build details for all branches tracked by the given user.
-    ///     Called by the background sync thread as a second pass after activity sync.
-    /// </summary>
-    private async Task RefreshAllBranchDetails(
-        AccessDetailsBase accessDetails,
-        int gitlabUserId,
-        CancellationToken cancellationToken)
-    {
-        var userGroups = _mergeGroupRepository.GetMergeGroupsForUser(gitlabUserId);
-        var userBranches = userGroups.SelectMany(g => g.Branches).ToList();
-
-        _logger.LogDebug(
-            "Refreshing details for {Count} branches for user {UserId}",
-            userBranches.Count,
-            gitlabUserId);
-
-        foreach (var branch in userBranches)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            try
-            {
-                await RefreshBranchDetails(accessDetails, branch, cancellationToken);
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(
-                    ex,
-                    "Failed to refresh details for branch '{BranchName}' in project {ProjectId}; skipping",
-                    branch.BranchName,
-                    branch.ProjectId);
-            }
-        }
-
-        _logger.LogDebug("Finished refreshing details for user {UserId}", gitlabUserId);
-    }
-
     private async Task RunUserSync(int gitlabUserId, UserSyncContext context, CancellationToken ct)
     {
         try
@@ -500,10 +290,10 @@ public class UserActivitySyncService : IHostedService, IDisposable
                     lastPollTime = now;
 
                     // Check for deleted branches and clean up DB records
-                    await CleanupDeletedBranches(accessUser, gitlabUserId, ct);
+                    await _activityService.CleanupDeletedBranches(accessUser, gitlabUserId, ct);
 
                     // Refresh MR, approval, and build status for all tracked branches
-                    await RefreshAllBranchDetails(accessUser, gitlabUserId, ct);
+                    await _activityService.RefreshAllBranchDetails(accessUser, gitlabUserId, ct);
                 }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested)
                 {
@@ -579,106 +369,4 @@ public class UserActivitySyncService : IHostedService, IDisposable
         }
     }
 
-    private async Task<bool> ShouldSkipBranchByLookup(
-        AccessDetailsBase accessDetails,
-        string branchName,
-        int projectId,
-        int? trackedBranchInProjectId,
-        string operationName,
-        CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-
-        var branchLookup = await _gitlabService.GetBranchLookupResult(
-            accessDetails,
-            projectId,
-            branchName);
-
-        if (branchLookup.IsMissing)
-        {
-            _logger.LogInformation(
-                "Skipping branch '{BranchName}' in project {ProjectId} during {OperationName}: branch no longer exists",
-                branchName,
-                projectId,
-                operationName);
-
-            if (trackedBranchInProjectId.HasValue)
-            {
-                _logger.LogInformation(
-                    "Removing tracked branch record {BranchRecordId} for '{BranchName}' in project {ProjectId} during {OperationName}",
-                    trackedBranchInProjectId.Value,
-                    branchName,
-                    projectId,
-                    operationName);
-
-                RemoveBranchAndCleanup(trackedBranchInProjectId.Value);
-            }
-
-            return true;
-        }
-
-        if (branchLookup.IsUnavailable)
-        {
-            _logger.LogWarning(
-                "Skipping branch '{BranchName}' in project {ProjectId} during {OperationName}: branch lookup unavailable",
-                branchName,
-                projectId,
-                operationName);
-
-            return true;
-        }
-
-        return false;
-    }
-
-    private bool ShouldSkipScheduledForDeletion(
-        string branchName,
-        int projectId,
-        string projectNameWithNamespace,
-        int? trackedBranchInMergeGroupId,
-        string operationName)
-    {
-        if (!GitlabService.IsScheduledForDeletion(projectNameWithNamespace))
-        {
-            return false;
-        }
-
-        _logger.LogInformation(
-            "Skipping branch '{BranchName}' in project {ProjectId} during {OperationName}: project/group is scheduled for deletion ('{ProjectNameWithNamespace}')",
-            branchName,
-            projectId,
-            operationName,
-            projectNameWithNamespace);
-
-        if (trackedBranchInMergeGroupId.HasValue)
-        {
-            _logger.LogInformation(
-                "Removing tracked branch record {BranchRecordId} for '{BranchName}' in project {ProjectId} during {OperationName} because project is scheduled for deletion",
-                trackedBranchInMergeGroupId.Value,
-                branchName,
-                projectId,
-                operationName);
-
-            RemoveBranchAndCleanup(trackedBranchInMergeGroupId.Value);
-        }
-
-        return true;
-    }
-
-    private void RemoveBranchAndCleanup(int branchInMergeGroupId)
-    {
-        _mergeGroupRepository.DeleteBranch(branchInMergeGroupId);
-
-        // Clean up any merge groups that are now empty
-        var emptyGroups = _mergeGroupRepository.GetEmptyMergeGroups();
-        foreach (var group in emptyGroups)
-        {
-            _logger.LogInformation(
-                "Removing empty merge group {MergeGroupId} '{Name}'",
-                group.Id,
-                group.Name);
-
-            _mergeGroupRepository.DeleteMergeGroup(group.Id);
-        }
-    }
 }

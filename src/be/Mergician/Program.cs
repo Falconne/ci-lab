@@ -58,6 +58,7 @@ try
     builder.Services.AddSingleton<GitLabTimezoneService>();
     builder.Services.AddSingleton<GitlabService>();
     builder.Services.AddSingleton<GitlabPipelineService>();
+    builder.Services.AddSingleton<GitlabActivityService>();
     builder.Services.AddSingleton<VersionService>();
 
     // Register background user activity sync service
