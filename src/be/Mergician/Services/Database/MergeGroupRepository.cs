@@ -40,7 +40,13 @@ public class MergeGroupRepository : IMergeGroupRepository
             DO UPDATE SET project_name = EXCLUDED.project_name, project_display_name = EXCLUDED.project_display_name
             RETURNING id, branch_name AS BranchName, project_id AS ProjectId, project_name AS ProjectName
             """,
-            new { BranchName = branchName, ProjectId = projectId, ProjectName = projectName, ProjectDisplayName = projectDisplayName });
+            new
+            {
+                BranchName = branchName,
+                ProjectId = projectId,
+                ProjectName = projectName,
+                ProjectDisplayName = projectDisplayName
+            });
 
         if (record == null)
         {
@@ -463,24 +469,11 @@ public class MergeGroupRepository : IMergeGroupRepository
     /// </summary>
     private static BranchRecord ToBranchRecord(BranchDataRow row)
     {
-        var nameWithNamespace = row.ProjectName;
-
-        // Use the stored display name. Fall back to parsing the namespace if not yet populated.
-        var displayName = row.ProjectDisplayName;
-        if (string.IsNullOrWhiteSpace(displayName))
-        {
-            var trimmed = nameWithNamespace.Trim();
-            var lastSlash = trimmed.LastIndexOf('/');
-            displayName = lastSlash >= 0 && lastSlash < trimmed.Length - 1
-                ? trimmed[(lastSlash + 1)..].Trim()
-                : trimmed;
-        }
-
         return new BranchRecord(
             row.BranchName,
             row.ProjectId,
-            displayName,
-            nameWithNamespace,
+            row.ProjectDisplayName,
+            row.ProjectName,
             row.HasMergeRequest,
             row.ApprovalsRequired,
             row.ApprovalsGiven,
