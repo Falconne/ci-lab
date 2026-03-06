@@ -13,4 +13,7 @@ Task 4)
 Similar to checking Gitlab health, also check database access and health on startup. If it fails, display this in the loading error box and keep retrying till it works.
 
 Task 5)
+In the frontend, move the version display in the top bar from the left side to the right side. Put it on the left of the user name and make its font 2 points smaller.
+
+Task 6)
 Run the integration tests to ensure they still work after all the changes. There is no need to check for the error states above, we only need to know that the happy path still works.

@@ -5,19 +5,20 @@ using Mergician.Services.Gitlab;
 namespace Mergician.Services;
 
 /// <summary>
-/// Background service that periodically checks for deleted branches
-/// and removes them from the database. Runs once daily at 3am NZST (New Zealand Standard Time).
-/// Uses the GitLab service user token for API access.
+///     Background service that periodically checks for deleted branches
+///     and removes them from the database. Runs once daily at 3am NZST (New Zealand Standard Time).
+///     Uses the GitLab service user token for API access.
 /// </summary>
 public class CleanupService : BackgroundService
 {
-    private readonly IServiceProvider _serviceProvider;
+    // NZST is UTC+12, NZDT is UTC+13
+    // TimeZoneInfo handles DST automatically
+    private static readonly TimeZoneInfo _nzTimeZone =
+        TimeZoneInfo.FindSystemTimeZoneById("Pacific/Auckland");
+
     private readonly ILogger<CleanupService> _logger;
 
-    // New Zealand Standard Time is UTC+12, NZDT is UTC+13
-    // TimeZoneInfo handles DST automatically
-    private static readonly TimeZoneInfo NzTimeZone =
-        TimeZoneInfo.FindSystemTimeZoneById("Pacific/Auckland");
+    private readonly IServiceProvider _serviceProvider;
 
     public CleanupService(IServiceProvider serviceProvider, ILogger<CleanupService> logger)
     {
@@ -31,7 +32,7 @@ public class CleanupService : BackgroundService
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            var delay = CalculateDelayUntilNext3amNz();
+            var delay = CalculateDelayUntilNext3amNZ();
             _logger.LogInformation("CleanupService sleeping for {Delay} until next 3am NZST run", delay);
 
             try
@@ -80,7 +81,10 @@ public class CleanupService : BackgroundService
 
         foreach (var branch in allBranches)
         {
-            if (stoppingToken.IsCancellationRequested) break;
+            if (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
 
             var branchLookup = await gitlabService.GetBranchLookupResult(
                 serviceUser,
@@ -91,7 +95,8 @@ public class CleanupService : BackgroundService
             {
                 _logger.LogInformation(
                     "CleanupService: branch '{BranchName}' in project {ProjectId} no longer exists, removing",
-                    branch.BranchName, branch.ProjectId);
+                    branch.BranchName,
+                    branch.ProjectId);
 
                 mergeGroupRepository.DeleteBranch(branch.Id);
                 deletedCount++;
@@ -111,19 +116,22 @@ public class CleanupService : BackgroundService
         {
             _logger.LogInformation(
                 "CleanupService: removing empty merge group {MergeGroupId} '{Name}'",
-                group.Id, group.Name);
+                group.Id,
+                group.Name);
+
             mergeGroupRepository.DeleteMergeGroup(group.Id);
         }
 
         _logger.LogInformation(
             "CleanupService completed: removed {DeletedBranches} branches, {EmptyGroups} empty merge groups",
-            deletedCount, emptyGroups.Count);
+            deletedCount,
+            emptyGroups.Count);
     }
 
-    private static TimeSpan CalculateDelayUntilNext3amNz()
+    private static TimeSpan CalculateDelayUntilNext3amNZ()
     {
         var nowUtc = DateTimeOffset.UtcNow;
-        var nowNz = TimeZoneInfo.ConvertTime(nowUtc, NzTimeZone);
+        var nowNz = TimeZoneInfo.ConvertTime(nowUtc, _nzTimeZone);
 
         // Target 3am today or tomorrow in NZ timezone
         var targetNz = new DateTimeOffset(nowNz.Year, nowNz.Month, nowNz.Day, 3, 0, 0, nowNz.Offset);

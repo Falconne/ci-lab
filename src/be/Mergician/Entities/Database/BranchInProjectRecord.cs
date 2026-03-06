@@ -9,7 +9,11 @@ public record BranchInProjectRecord
 
     public int ProjectId { get; set; }
 
+    // Used by the frontend
+    // ReSharper disable once UnusedMember.Global
     public string ProjectName { get; set; } = "";
 
+    // Used by the frontend
+    // ReSharper disable once UnusedMember.Global
     public string ProjectNameWithNamespace { get; set; } = "";
 }
