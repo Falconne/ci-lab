@@ -1,0 +1,5 @@
+Tsk 1)
+When Mergician is starting up, the frontend should display a loading box that goes away once loading is complete. When it's in the `DetectTimezone` method to check Gitlab timezone, the stays in the UI should be "Checking Gitlab..." (no need to say specifically what). If the timezone check fails, this indicates a problem with Gitlab. The timezeone check should keep retrying until it works and the frontend should say "Error contacting Gitlab, please contact administrator." until Gitlab works again and the frontend should recover.
+
+Task 2)
+When Mergician is starting up, before checking the Gitlab timezone do a Gitlab health check API call. If this fails, keep retrying and ensure the frontend shows the "Error contacting Gitlab, please contact administrator." error. If the health check endpoint also returns the server time, then this check can be combined with the timezone check.
