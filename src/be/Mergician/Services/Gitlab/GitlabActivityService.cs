@@ -55,22 +55,17 @@ public class GitlabActivityService
                 branch.ProjectId,
                 branch.BranchName);
 
-            if (lookup.IsMissing)
+            if (lookup.Exists)
             {
-                _logger.LogInformation(
-                    "Background sync: branch '{BranchName}' in project {ProjectId} no longer exists, removing",
-                    branch.BranchName,
-                    branch.ProjectId);
+                continue;
+            }
 
-                RemoveBranchAndCleanup(branch.Id);
-            }
-            else if (lookup.IsUnavailable)
-            {
-                _logger.LogDebug(
-                    "Background sync: branch lookup unavailable for '{BranchName}' in project {ProjectId}; skipping",
-                    branch.BranchName,
-                    branch.ProjectId);
-            }
+            _logger.LogInformation(
+                "Background sync: branch '{BranchName}' in project {ProjectId} no longer exists or is in error state, removing",
+                branch.BranchName,
+                branch.ProjectId);
+
+            RemoveBranchAndCleanup(branch.Id);
         }
     }
 
@@ -105,7 +100,7 @@ public class GitlabActivityService
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(
+                _logger.LogError(
                     ex,
                     "Failed to refresh details for branch '{BranchName}' in project {ProjectId}; skipping",
                     branch.BranchName,

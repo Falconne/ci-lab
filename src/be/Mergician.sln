@@ -9,9 +9,13 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bootstrap", "Bootstrap\Boot
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{B2C3D4E5-F6A7-8901-BCDE-F12345678901}"
 	ProjectSection(SolutionItems) = preProject
+		..\..\.github\instructions\bootstrapper.instructions.md = ..\..\.github\instructions\bootstrapper.instructions.md
 		..\..\.github\copilot-instructions.md = ..\..\.github\copilot-instructions.md
 		..\..\.github\instructions\csharp.instructions.md = ..\..\.github\instructions\csharp.instructions.md
+		..\..\.github\instructions\docker-compose.instructions.md = ..\..\.github\instructions\docker-compose.instructions.md
+		..\..\.github\instructions\frontend.instructions.md = ..\..\.github\instructions\frontend.instructions.md
 		..\..\.github\instructions\integration-test.instructions.md = ..\..\.github\instructions\integration-test.instructions.md
+		..\..\.github\instructions\mergician.instructions.md = ..\..\.github\instructions\mergician.instructions.md
 		..\..\TODO.txt = ..\..\TODO.txt
 	EndProjectSection
 EndProject
@@ -80,5 +84,8 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {2275A097-F724-4573-94D6-6E9645815359}
 	EndGlobalSection
 EndGlobal

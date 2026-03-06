@@ -17,3 +17,6 @@ In the frontend, move the version display in the top bar from the left side to t
 
 Task 6)
 Run the integration tests to ensure they still work after all the changes. There is no need to check for the error states above, we only need to know that the happy path still works.
+
+Task 7)
+When catching exceptions, ensure that an error is logged rather than just a warning.

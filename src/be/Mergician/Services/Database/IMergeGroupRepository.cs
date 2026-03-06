@@ -3,6 +3,8 @@ using Mergician.Entities.Database;
 
 namespace Mergician.Services.Database;
 
+// TODO: In this repository, rename any methods starting with Delete* to Remove*.
+
 /// <summary>
 ///     Repository interface for merge-group and branch database operations.
 /// </summary>

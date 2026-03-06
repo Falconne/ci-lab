@@ -37,6 +37,8 @@ public class CleanupService : BackgroundService
 
             try
             {
+                // TODO: Using a delay for a task that runs once a day is not ideal. Refactor to use
+                // a timer or a more best-practice methods for getting this task to run at 3am every day.
                 await Task.Delay(delay, stoppingToken);
             }
             catch (OperationCanceledException)
@@ -128,6 +130,7 @@ public class CleanupService : BackgroundService
             emptyGroups.Count);
     }
 
+    // ReSharper disable once InconsistentNaming
     private static TimeSpan CalculateDelayUntilNext3amNZ()
     {
         var nowUtc = DateTimeOffset.UtcNow;
