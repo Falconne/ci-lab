@@ -59,6 +59,7 @@ public class UserActivitySyncService : IHostedService, IDisposable
         return Task.CompletedTask;
     }
 
+    // Stop background sync threads when server is shutting down
     public async Task StopAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("UserActivitySyncService stopping, cancelling all user sync threads");
@@ -79,15 +80,15 @@ public class UserActivitySyncService : IHostedService, IDisposable
             _logger.LogInformation("Waiting for {Count} user sync threads to stop", tasks.Length);
             try
             {
-                await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
+                await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(15), cancellationToken);
             }
             catch (TimeoutException)
             {
-                _logger.LogWarning("Some user sync threads did not stop within 30 seconds");
+                _logger.LogWarning("Some user sync threads did not stop within 15 seconds");
             }
             catch (OperationCanceledException)
             {
-                _logger.LogInformation("Cancellation requested while waiting for sync threads to stop");
+                // Ignored
             }
         }
 
@@ -194,7 +195,7 @@ public class UserActivitySyncService : IHostedService, IDisposable
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(
+                    _logger.LogError(
                         ex,
                         "Error during sync poll for user {UserId}, will retry next cycle",
                         gitlabUserId);
