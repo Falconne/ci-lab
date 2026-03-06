@@ -138,45 +138,30 @@ public class UserActivitySyncService : IHostedService, IDisposable
             // Phase 1: Backfill from the user's last known activity or 14 days
             await BackfillUserActivity(gitlabUserId, context, ct);
 
-            // Phase 1b: Immediately refresh MR/approval/build details for all backfilled branches
-            // so that activity data is visible to the frontend without waiting for the first poll delay.
-            var initialAccessUser = context.AccessUser;
-            if (initialAccessUser != null)
-            {
-                _logger.LogInformation(
-                    "Performing initial branch detail refresh for user {UserId} after backfill",
-                    gitlabUserId);
-
-                try
-                {
-                    await _activityService.RefreshAllBranchDetails(initialAccessUser, gitlabUserId, ct);
-                    _logger.LogInformation(
-                        "Initial branch detail refresh completed for user {UserId}",
-                        gitlabUserId);
-                }
-                catch (OperationCanceledException) when (ct.IsCancellationRequested)
-                {
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(
-                        ex,
-                        "Initial branch detail refresh failed for user {UserId}, will be retried on first poll cycle",
-                        gitlabUserId);
-                }
-            }
-            else
-            {
-                _logger.LogWarning(
-                    "No access token available for initial branch detail refresh for user {UserId}",
-                    gitlabUserId);
-            }
-
+            var firstRefresh = true;
             // Phase 2: Continuous polling loop
             while (!ct.IsCancellationRequested)
             {
-                await Task.Delay(_pollInterval, ct);
+                var accessUser = context.AccessUser;
+                if (accessUser == null)
+                {
+                    _logger.LogError(
+                        "No access token available for user {UserId}, skipping poll cycle",
+                        gitlabUserId);
+
+                    await Task.Delay(_pollInterval, ct);
+                    continue;
+                }
+
+                if (!firstRefresh)
+                {
+                    firstRefresh = false;
+                    await Task.Delay(_pollInterval, ct);
+                }
+                else
+                {
+                    await _activityService.RefreshAllBranchDetails(accessUser, gitlabUserId, ct);
+                }
 
                 var inactiveFor = DateTimeOffset.UtcNow - context.LastPollActivity;
                 if (inactiveFor > _inactivityTimeout)
@@ -187,16 +172,6 @@ public class UserActivitySyncService : IHostedService, IDisposable
                         inactiveFor);
 
                     break;
-                }
-
-                var accessUser = context.AccessUser;
-                if (accessUser == null)
-                {
-                    _logger.LogWarning(
-                        "No access token available for user {UserId}, skipping poll cycle",
-                        gitlabUserId);
-
-                    continue;
                 }
 
                 try
