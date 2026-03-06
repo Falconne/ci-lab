@@ -1,4 +1,3 @@
-using Mergician.Entities;
 using Mergician.Services.Authentication;
 using Mergician.Services.Database;
 using System.Collections.Concurrent;
@@ -129,6 +128,125 @@ public class UserActivitySyncService : IHostedService, IDisposable
         }
     }
 
+    private async Task RunUserSync(int gitlabUserId, UserSyncContext context, CancellationToken ct)
+    {
+        try
+        {
+            _logger.LogInformation("Background sync thread started for user {UserId}", gitlabUserId);
+            var lastPollTime = DateTimeOffset.UtcNow;
+
+            // Phase 1: Backfill from the user's last known activity or 14 days
+            await BackfillUserActivity(gitlabUserId, context, ct);
+
+            // Phase 1b: Immediately refresh MR/approval/build details for all backfilled branches
+            // so that activity data is visible to the frontend without waiting for the first poll delay.
+            var initialAccessUser = context.AccessUser;
+            if (initialAccessUser != null)
+            {
+                _logger.LogInformation(
+                    "Performing initial branch detail refresh for user {UserId} after backfill",
+                    gitlabUserId);
+
+                try
+                {
+                    await _activityService.RefreshAllBranchDetails(initialAccessUser, gitlabUserId, ct);
+                    _logger.LogInformation(
+                        "Initial branch detail refresh completed for user {UserId}",
+                        gitlabUserId);
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(
+                        ex,
+                        "Initial branch detail refresh failed for user {UserId}, will be retried on first poll cycle",
+                        gitlabUserId);
+                }
+            }
+            else
+            {
+                _logger.LogWarning(
+                    "No access token available for initial branch detail refresh for user {UserId}",
+                    gitlabUserId);
+            }
+
+            // Phase 2: Continuous polling loop
+            while (!ct.IsCancellationRequested)
+            {
+                await Task.Delay(_pollInterval, ct);
+
+                var inactiveFor = DateTimeOffset.UtcNow - context.LastPollActivity;
+                if (inactiveFor > _inactivityTimeout)
+                {
+                    _logger.LogInformation(
+                        "User {UserId} inactive for {Inactive}, stopping sync thread",
+                        gitlabUserId,
+                        inactiveFor);
+
+                    break;
+                }
+
+                var accessUser = context.AccessUser;
+                if (accessUser == null)
+                {
+                    _logger.LogWarning(
+                        "No access token available for user {UserId}, skipping poll cycle",
+                        gitlabUserId);
+
+                    continue;
+                }
+
+                try
+                {
+                    var now = DateTimeOffset.UtcNow;
+                    // Poll for new push events since the last successful poll
+                    await SyncUserActivityFromGitLab(accessUser, gitlabUserId, lastPollTime, ct);
+
+                    lastPollTime = now;
+
+                    // Check for deleted branches and clean up DB records
+                    await _activityService.CleanupDeletedBranches(accessUser, gitlabUserId, ct);
+
+                    // Refresh MR, approval, and build status for all tracked branches
+                    await _activityService.RefreshAllBranchDetails(accessUser, gitlabUserId, ct);
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(
+                        ex,
+                        "Error during sync poll for user {UserId}, will retry next cycle",
+                        gitlabUserId);
+                }
+            }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            _logger.LogInformation(
+                "Background sync thread cancelled for user {UserId}",
+                gitlabUserId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Background sync thread failed unexpectedly for user {UserId}",
+                gitlabUserId);
+        }
+        finally
+        {
+            _logger.LogInformation(
+                "Background sync thread stopped for user {UserId}",
+                gitlabUserId);
+        }
+    }
+
     /// <summary>
     ///     Fetches push events from GitLab since the given time and stores discovered
     ///     branches in the database. Called by the background sync thread.
@@ -244,115 +362,6 @@ public class UserActivitySyncService : IHostedService, IDisposable
         }
     }
 
-    private async Task RunUserSync(int gitlabUserId, UserSyncContext context, CancellationToken ct)
-    {
-        try
-        {
-            _logger.LogInformation("Background sync thread started for user {UserId}", gitlabUserId);
-            var lastPollTime = DateTimeOffset.UtcNow;
-
-            // Phase 1: Backfill from the user's last known activity or 14 days
-            await BackfillUserActivity(gitlabUserId, context, ct);
-
-            // Phase 1b: Immediately refresh MR/approval/build details for all backfilled branches
-            // so that activity data is visible to the frontend without waiting for the first poll delay.
-            var initialAccessUser = context.AccessUser;
-            if (initialAccessUser != null)
-            {
-                _logger.LogInformation("Performing initial branch detail refresh for user {UserId} after backfill", gitlabUserId);
-                try
-                {
-                    await _activityService.RefreshAllBranchDetails(initialAccessUser, gitlabUserId, ct);
-                    _logger.LogInformation("Initial branch detail refresh completed for user {UserId}", gitlabUserId);
-                }
-                catch (OperationCanceledException) when (ct.IsCancellationRequested)
-                {
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Initial branch detail refresh failed for user {UserId}, will be retried on first poll cycle", gitlabUserId);
-                }
-            }
-            else
-            {
-                _logger.LogWarning("No access token available for initial branch detail refresh for user {UserId}", gitlabUserId);
-            }
-
-            // Phase 2: Continuous polling loop
-            while (!ct.IsCancellationRequested)
-            {
-                await Task.Delay(_pollInterval, ct);
-
-                var inactiveFor = DateTimeOffset.UtcNow - context.LastPollActivity;
-                if (inactiveFor > _inactivityTimeout)
-                {
-                    _logger.LogInformation(
-                        "User {UserId} inactive for {Inactive}, stopping sync thread",
-                        gitlabUserId,
-                        inactiveFor);
-
-                    break;
-                }
-
-                var accessUser = context.AccessUser;
-                if (accessUser == null)
-                {
-                    _logger.LogWarning(
-                        "No access token available for user {UserId}, skipping poll cycle",
-                        gitlabUserId);
-
-                    continue;
-                }
-
-                try
-                {
-                    var now = DateTimeOffset.UtcNow;
-                    // Poll for new push events since the last successful poll
-                    await SyncUserActivityFromGitLab(accessUser, gitlabUserId, lastPollTime, ct);
-
-                    lastPollTime = now;
-
-                    // Check for deleted branches and clean up DB records
-                    await _activityService.CleanupDeletedBranches(accessUser, gitlabUserId, ct);
-
-                    // Refresh MR, approval, and build status for all tracked branches
-                    await _activityService.RefreshAllBranchDetails(accessUser, gitlabUserId, ct);
-                }
-                catch (OperationCanceledException) when (ct.IsCancellationRequested)
-                {
-                    break;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(
-                        ex,
-                        "Error during sync poll for user {UserId}, will retry next cycle",
-                        gitlabUserId);
-                }
-            }
-        }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
-        {
-            _logger.LogInformation(
-                "Background sync thread cancelled for user {UserId}",
-                gitlabUserId);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(
-                ex,
-                "Background sync thread failed unexpectedly for user {UserId}",
-                gitlabUserId);
-        }
-        finally
-        {
-            _logger.LogInformation(
-                "Background sync thread stopped for user {UserId}",
-                gitlabUserId);
-        }
-    }
-
     private async Task BackfillUserActivity(
         int gitlabUserId,
         UserSyncContext context,
@@ -392,5 +401,4 @@ public class UserActivitySyncService : IHostedService, IDisposable
                 gitlabUserId);
         }
     }
-
 }
