@@ -164,7 +164,7 @@ public class GitlabService
                 continue;
             }
 
-            _logger.LogWarning(
+            _logger.LogError(
                 "Unexpected X-Next-Page header value '{NextPage}' when fetching GitLab push events",
                 nextPage);
 
@@ -318,7 +318,7 @@ public class GitlabService
             return new GitLabBranchLookupResult(GitLabBranchLookupStatus.Missing, (int)response.StatusCode);
         }
 
-        _logger.LogWarning(
+        _logger.LogError(
             "Branch lookup unavailable for '{BranchName}' in project {ProjectId} (status {StatusCode})",
             branchName,
             projectId,
@@ -346,7 +346,7 @@ public class GitlabService
         var response = await client.SendAsync(request);
         if (!response.IsSuccessStatusCode)
         {
-            _logger.LogWarning(
+            _logger.LogError(
                 "GetMergeRequests failed with status {StatusCode} for project {ProjectId}, branch '{BranchName}'",
                 (int)response.StatusCode,
                 projectId,
@@ -386,7 +386,7 @@ public class GitlabService
                 return new GitLabApprovalState { ApprovalsRequired = 0, ApprovedBy = [] };
             }
 
-            _logger.LogWarning(
+            _logger.LogError(
                 "GetMergeRequestApprovals failed with status {StatusCode}",
                 (int)response.StatusCode);
 
