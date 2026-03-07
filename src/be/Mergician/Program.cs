@@ -108,9 +108,21 @@ try
     app.UseSerilogRequestLogging();
     app.UseCors();
 
-    app.Use(async (context, next) =>
-    {
-        if (!context.Request.Path.StartsWithSegments("/api") ||
+    // ---------------------------------------------------------------------
+    // Startup gating middleware
+    //
+    // When the application is still performing its initial health checks and
+    // migrations, we mark it as "not ready" via StartupService.  Any client
+    // requests during that period should not be forwarded to the normal
+    // controllers because many services (database, GitLab) may be unavailable
+    // and would return errors.  Instead we intercept API calls here and return
+    // a 503 Service Unavailable with the current startup status.  This allows
+    // the frontend to detect a restart and display the startup overlay, and
+    // avoids spamming the backend with failing requests while it's booting.
+    //
+    // The endpoint /api/startup/status itself is excluded so the status can be
+    // polled unconditionally.
+    // ---------------------------------------------------------------------
             context.Request.Path.StartsWithSegments("/api/startup"))
         {
             await next();
