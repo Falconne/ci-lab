@@ -34,6 +34,7 @@ public class GitlabActivityService
     ///     Checks all tracked branches for a user and removes any that have been deleted from GitLab.
     ///     Called by the background sync thread during each poll cycle.
     /// </summary>
+    // TODO: Move this method into `UserActivitySyncService`.
     public async Task CleanupDeletedBranches(
         AccessDetailsBase accessDetails,
         int gitlabUserId,
@@ -116,6 +117,7 @@ public class GitlabActivityService
     ///     If the branch no longer exists and a tracked record ID is provided, removes it from the DB.
     ///     Returns true if the branch should be skipped.
     /// </summary>
+    // TODO: Move this method to a BranchesService class under Service/Gitlab. Rename to ShouldSkipByLookup
     public async Task<bool> ShouldSkipBranchByLookup(
         AccessDetailsBase accessDetails,
         string branchName,
@@ -131,7 +133,7 @@ public class GitlabActivityService
             projectId,
             branchName);
 
-        if (branchLookup.IsMissing)
+        if (!branchLookup.IsMissing)
         {
             _logger.LogInformation(
                 "Skipping branch '{BranchName}' in project {ProjectId} during {OperationName}: branch no longer exists",
@@ -156,7 +158,7 @@ public class GitlabActivityService
 
         if (branchLookup.IsUnavailable)
         {
-            _logger.LogWarning(
+            _logger.LogError(
                 "Skipping branch '{BranchName}' in project {ProjectId} during {OperationName}: branch lookup unavailable",
                 branchName,
                 projectId,
@@ -173,6 +175,7 @@ public class GitlabActivityService
     ///     If so, and a tracked record ID is provided, removes it from the DB.
     ///     Returns true if the branch should be skipped.
     /// </summary>
+    // TODO: Move this method to a BranchesService class under Service/Gitlab.
     public bool ShouldSkipScheduledForDeletion(
         string branchName,
         int projectId,
