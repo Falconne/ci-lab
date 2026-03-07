@@ -8,9 +8,9 @@ namespace Mergician.Entities;
 ///     HasMergeRequest may be null to indicate that MR status has not yet been resolved.
 ///     LastUpdated contains the UTC timestamp of the most recent push to the branch.
 ///     Inherits Id, BranchName, ProjectId, ProjectName, and ProjectNameWithNamespace from
-///     <see cref="BranchInProjectRecord" />.
+///     <see cref="BranchInProject" />.
 /// </summary>
-public record BranchWithActivity : BranchInProjectRecord
+public record BranchWithActivity : BranchInProject
 {
     public bool? HasMergeRequest { get; init; }
     public int? ApprovalsRequired { get; init; }

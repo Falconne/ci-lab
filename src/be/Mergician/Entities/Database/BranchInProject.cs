@@ -1,7 +1,6 @@
 namespace Mergician.Entities.Database;
 
-// TODO: Rename to BranchInProject and update any references in frontend.
-public record BranchInProjectRecord
+public record BranchInProject
 {
     public int Id { get; set; }
 

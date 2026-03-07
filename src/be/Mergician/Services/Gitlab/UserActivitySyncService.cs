@@ -21,6 +21,8 @@ public class UserActivitySyncService : IHostedService, IDisposable
 
     private readonly GitlabActivityService _activityService;
 
+    private readonly BranchesService _branchesService;
+
     private readonly GitlabService _gitlabService;
 
     private readonly ILogger<UserActivitySyncService> _logger;
@@ -34,11 +36,13 @@ public class UserActivitySyncService : IHostedService, IDisposable
     public UserActivitySyncService(
         GitlabService gitlabService,
         GitlabActivityService activityService,
+        BranchesService branchesService,
         IMergeGroupRepository mergeGroupRepository,
         ILogger<UserActivitySyncService> logger)
     {
         _gitlabService = gitlabService;
         _activityService = activityService;
+        _branchesService = branchesService;
         _mergeGroupRepository = mergeGroupRepository;
         _logger = logger;
     }
@@ -184,7 +188,7 @@ public class UserActivitySyncService : IHostedService, IDisposable
                     lastPollTime = now;
 
                     // Check for deleted branches and clean up DB records
-                    await _activityService.CleanupDeletedBranches(accessUser, gitlabUserId, ct);
+                    await CleanupDeletedBranches(accessUser, gitlabUserId, ct);
 
                     // Refresh MR, approval, and build status for all tracked branches
                     await _activityService.RefreshAllBranchDetails(accessUser, gitlabUserId, ct);
@@ -220,6 +224,45 @@ public class UserActivitySyncService : IHostedService, IDisposable
             _logger.LogInformation(
                 "Background sync thread stopped for user {UserId}",
                 gitlabUserId);
+        }
+    }
+
+    /// <summary>
+    ///     Checks all tracked branches for a user and removes any that have been deleted from GitLab.
+    ///     Called by the background sync thread during each poll cycle.
+    /// </summary>
+    private async Task CleanupDeletedBranches(
+        AccessDetailsBase accessDetails,
+        int gitlabUserId,
+        CancellationToken cancellationToken)
+    {
+        var userGroups = _mergeGroupRepository.GetMergeGroupsForUser(gitlabUserId);
+        var userBranches = userGroups.SelectMany(g => g.Branches).ToList();
+        _logger.LogDebug(
+            "Checking {Count} tracked branches for user {UserId} for deletion",
+            userBranches.Count,
+            gitlabUserId);
+
+        foreach (var branch in userBranches)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var lookup = await _gitlabService.GetBranchLookupResult(
+                accessDetails,
+                branch.ProjectId,
+                branch.BranchName);
+
+            if (lookup.Exists)
+            {
+                continue;
+            }
+
+            _logger.LogInformation(
+                "Background sync: branch '{BranchName}' in project {ProjectId} no longer exists or is in error state, removing",
+                branch.BranchName,
+                branch.ProjectId);
+
+            _branchesService.RemoveBranchAndCleanup(branch.Id);
         }
     }
 
@@ -266,7 +309,7 @@ public class UserActivitySyncService : IHostedService, IDisposable
                 continue;
             }
 
-            if (await _activityService.ShouldSkipBranchByLookup(
+            if (await _branchesService.ShouldSkipByLookup(
                     accessDetails,
                     pushEvent.BranchName,
                     pushEvent.ProjectId,
@@ -288,7 +331,7 @@ public class UserActivitySyncService : IHostedService, IDisposable
                 continue;
             }
 
-            if (_activityService.ShouldSkipScheduledForDeletion(
+            if (_branchesService.ShouldSkipScheduledForDeletion(
                     pushEvent.BranchName,
                     pushEvent.ProjectId,
                     project.NameWithNamespace,

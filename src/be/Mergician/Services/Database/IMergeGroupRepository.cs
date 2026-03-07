@@ -3,8 +3,6 @@ using Mergician.Entities.Database;
 
 namespace Mergician.Services.Database;
 
-// TODO: In this repository, rename any methods starting with Delete* to Remove*.
-
 /// <summary>
 ///     Repository interface for merge-group and branch database operations.
 /// </summary>
@@ -14,7 +12,7 @@ public interface IMergeGroupRepository
     ///     Gets or creates a BranchInProject record. Returns the existing or new record.
     ///     Thread-safe: uses INSERT ON CONFLICT to avoid duplicates from concurrent callers.
     /// </summary>
-    BranchInProjectRecord GetOrCreateBranchRecord(
+    BranchInProject GetOrCreateBranchRecord(
         string branchName,
         int projectId,
         string projectName,
@@ -48,14 +46,14 @@ public interface IMergeGroupRepository
     MergeGroup? GetMergeGroup(int mergeGroupId);
 
     /// <summary>
-    ///     Deletes a branch record and its references in branches_in_merge_group.
+    ///     Removes a branch record and its references in branches_in_merge_group.
     /// </summary>
-    void DeleteBranch(int branchInProjectId);
+    void RemoveBranch(int branchInProjectId);
 
     /// <summary>
-    ///     Deletes a merge group and all its references (branches_in_merge_group and users_in_merge_groups).
+    ///     Removes a merge group and all its references (branches_in_merge_group and users_in_merge_groups).
     /// </summary>
-    void DeleteMergeGroup(int mergeGroupId);
+    void RemoveMergeGroup(int mergeGroupId);
 
     /// <summary>
     ///     Returns merge groups that have no branches left.
@@ -66,7 +64,7 @@ public interface IMergeGroupRepository
     ///     Returns all tracked branches across all merge groups.
     ///     Used by the cleanup service.
     /// </summary>
-    List<BranchInProjectRecord> GetAllBranches();
+    List<BranchInProject> GetAllBranches();
 
     /// <summary>
     ///     Returns the merge group IDs that a branch belongs to.

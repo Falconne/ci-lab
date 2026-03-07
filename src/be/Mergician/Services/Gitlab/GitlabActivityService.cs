@@ -5,7 +5,7 @@ using Mergician.Services.Database;
 namespace Mergician.Services.Gitlab;
 
 /// <summary>
-///     Provides methods for refreshing and cleaning up branch data against the GitLab API.
+///     Provides methods for refreshing branch details against the GitLab API.
 ///     Used by the background sync threads managed by <see cref="UserActivitySyncService" />.
 /// </summary>
 public class GitlabActivityService
@@ -28,46 +28,6 @@ public class GitlabActivityService
         _gitlabPipelineService = gitlabPipelineService;
         _mergeGroupRepository = mergeGroupRepository;
         _logger = logger;
-    }
-
-    /// <summary>
-    ///     Checks all tracked branches for a user and removes any that have been deleted from GitLab.
-    ///     Called by the background sync thread during each poll cycle.
-    /// </summary>
-    // TODO: Move this method into `UserActivitySyncService`.
-    public async Task CleanupDeletedBranches(
-        AccessDetailsBase accessDetails,
-        int gitlabUserId,
-        CancellationToken cancellationToken)
-    {
-        var userGroups = _mergeGroupRepository.GetMergeGroupsForUser(gitlabUserId);
-        var userBranches = userGroups.SelectMany(g => g.Branches).ToList();
-        _logger.LogDebug(
-            "Checking {Count} tracked branches for user {UserId} for deletion",
-            userBranches.Count,
-            gitlabUserId);
-
-        foreach (var branch in userBranches)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            var lookup = await _gitlabService.GetBranchLookupResult(
-                accessDetails,
-                branch.ProjectId,
-                branch.BranchName);
-
-            if (lookup.Exists)
-            {
-                continue;
-            }
-
-            _logger.LogInformation(
-                "Background sync: branch '{BranchName}' in project {ProjectId} no longer exists or is in error state, removing",
-                branch.BranchName,
-                branch.ProjectId);
-
-            RemoveBranchAndCleanup(branch.Id);
-        }
     }
 
     /// <summary>
@@ -110,104 +70,6 @@ public class GitlabActivityService
         }
 
         _logger.LogDebug("Finished refreshing details for user {UserId}", gitlabUserId);
-    }
-
-    /// <summary>
-    ///     Checks if a branch should be skipped by looking it up in GitLab.
-    ///     If the branch no longer exists and a tracked record ID is provided, removes it from the DB.
-    ///     Returns true if the branch should be skipped.
-    /// </summary>
-    // TODO: Move this method to a BranchesService class under Service/Gitlab. Rename to ShouldSkipByLookup
-    public async Task<bool> ShouldSkipBranchByLookup(
-        AccessDetailsBase accessDetails,
-        string branchName,
-        int projectId,
-        int? trackedBranchInProjectId,
-        string operationName,
-        CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-
-        var branchLookup = await _gitlabService.GetBranchLookupResult(
-            accessDetails,
-            projectId,
-            branchName);
-
-        if (!branchLookup.IsMissing)
-        {
-            _logger.LogInformation(
-                "Skipping branch '{BranchName}' in project {ProjectId} during {OperationName}: branch no longer exists",
-                branchName,
-                projectId,
-                operationName);
-
-            if (trackedBranchInProjectId.HasValue)
-            {
-                _logger.LogInformation(
-                    "Removing tracked branch record {BranchRecordId} for '{BranchName}' in project {ProjectId} during {OperationName}",
-                    trackedBranchInProjectId.Value,
-                    branchName,
-                    projectId,
-                    operationName);
-
-                RemoveBranchAndCleanup(trackedBranchInProjectId.Value);
-            }
-
-            return true;
-        }
-
-        if (branchLookup.IsUnavailable)
-        {
-            _logger.LogError(
-                "Skipping branch '{BranchName}' in project {ProjectId} during {OperationName}: branch lookup unavailable",
-                branchName,
-                projectId,
-                operationName);
-
-            return true;
-        }
-
-        return false;
-    }
-
-    /// <summary>
-    ///     Checks if a branch should be skipped because its project is scheduled for deletion.
-    ///     If so, and a tracked record ID is provided, removes it from the DB.
-    ///     Returns true if the branch should be skipped.
-    /// </summary>
-    // TODO: Move this method to a BranchesService class under Service/Gitlab.
-    public bool ShouldSkipScheduledForDeletion(
-        string branchName,
-        int projectId,
-        string projectNameWithNamespace,
-        int? trackedBranchInMergeGroupId,
-        string operationName)
-    {
-        if (!GitlabService.IsScheduledForDeletion(projectNameWithNamespace))
-        {
-            return false;
-        }
-
-        _logger.LogInformation(
-            "Skipping branch '{BranchName}' in project {ProjectId} during {OperationName}: project/group is scheduled for deletion ('{ProjectNameWithNamespace}')",
-            branchName,
-            projectId,
-            operationName,
-            projectNameWithNamespace);
-
-        if (trackedBranchInMergeGroupId.HasValue)
-        {
-            _logger.LogInformation(
-                "Removing tracked branch record {BranchRecordId} for '{BranchName}' in project {ProjectId} during {OperationName} because project is scheduled for deletion",
-                trackedBranchInMergeGroupId.Value,
-                branchName,
-                projectId,
-                operationName);
-
-            RemoveBranchAndCleanup(trackedBranchInMergeGroupId.Value);
-        }
-
-        return true;
     }
 
     /// <summary>
@@ -318,22 +180,5 @@ public class GitlabActivityService
             branch.ProjectId,
             hasMr,
             buildJobs.Count);
-    }
-
-    private void RemoveBranchAndCleanup(int branchInMergeGroupId)
-    {
-        _mergeGroupRepository.DeleteBranch(branchInMergeGroupId);
-
-        // Clean up any merge groups that are now empty
-        var emptyGroups = _mergeGroupRepository.GetEmptyMergeGroups();
-        foreach (var group in emptyGroups)
-        {
-            _logger.LogInformation(
-                "Removing empty merge group {MergeGroupId} '{Name}'",
-                group.Id,
-                group.Name);
-
-            _mergeGroupRepository.DeleteMergeGroup(group.Id);
-        }
     }
 }

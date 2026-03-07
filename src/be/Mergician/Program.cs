@@ -3,7 +3,6 @@ using Mergician.Services;
 using Mergician.Services.Authentication;
 using Mergician.Services.Database;
 using Mergician.Services.Gitlab;
-using Mergician.Services.Time;
 using Microsoft.AspNetCore.Authentication;
 using Serilog;
 
@@ -58,6 +57,7 @@ try
     builder.Services.AddSingleton<GitLabTimezoneService>();
     builder.Services.AddSingleton<GitlabService>();
     builder.Services.AddSingleton<GitlabPipelineService>();
+    builder.Services.AddSingleton<BranchesService>();
     builder.Services.AddSingleton<GitlabActivityService>();
     builder.Services.AddSingleton<VersionService>();
 

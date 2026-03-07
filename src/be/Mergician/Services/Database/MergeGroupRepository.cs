@@ -23,7 +23,7 @@ public class MergeGroupRepository : IMergeGroupRepository
         _logger = logger;
     }
 
-    public BranchInProjectRecord GetOrCreateBranchRecord(
+    public BranchInProject GetOrCreateBranchRecord(
         string branchName,
         int projectId,
         string projectName,
@@ -32,7 +32,7 @@ public class MergeGroupRepository : IMergeGroupRepository
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();
 
-        var record = connection.QueryFirstOrDefault<BranchInProjectRecord>(
+        var record = connection.QueryFirstOrDefault<BranchInProject>(
             """
             INSERT INTO branch_in_project (branch_name, project_id, project_name, project_display_name)
             VALUES (@BranchName, @ProjectId, @ProjectName, @ProjectDisplayName)
@@ -217,7 +217,7 @@ public class MergeGroupRepository : IMergeGroupRepository
         return null;
     }
 
-    public void DeleteBranch(int branchInProjectId)
+    public void RemoveBranch(int branchInProjectId)
     {
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();
@@ -237,11 +237,11 @@ public class MergeGroupRepository : IMergeGroupRepository
         transaction.Commit();
 
         _logger.LogInformation(
-            "Deleted branch record {BranchId} and its merge group associations",
+            "Removed branch record {BranchId} and its merge group associations",
             branchInProjectId);
     }
 
-    public void DeleteMergeGroup(int mergeGroupId)
+    public void RemoveMergeGroup(int mergeGroupId)
     {
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();
@@ -250,7 +250,7 @@ public class MergeGroupRepository : IMergeGroupRepository
             "DELETE FROM merge_group WHERE id = @Id",
             new { Id = mergeGroupId });
 
-        _logger.LogInformation("Deleted merge group {MergeGroupId} and all its associations", mergeGroupId);
+        _logger.LogInformation("Removed merge group {MergeGroupId} and all its associations", mergeGroupId);
     }
 
     public List<MergeGroupBase> GetEmptyMergeGroups()
@@ -268,12 +268,12 @@ public class MergeGroupRepository : IMergeGroupRepository
             .ToList();
     }
 
-    public List<BranchInProjectRecord> GetAllBranches()
+    public List<BranchInProject> GetAllBranches()
     {
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();
 
-        return connection.Query<BranchInProjectRecord>(
+        return connection.Query<BranchInProject>(
                 "SELECT id AS Id, branch_name AS BranchName, project_id AS ProjectId, project_name AS ProjectName FROM branch_in_project")
             .ToList();
     }

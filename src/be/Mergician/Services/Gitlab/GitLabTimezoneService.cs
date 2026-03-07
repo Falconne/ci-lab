@@ -2,9 +2,7 @@ using Mergician.Entities;
 using Mergician.Services.Authentication;
 using System.Text.Json;
 
-namespace Mergician.Services.Time;
-
-// TODO: move this class into the Services/Gitlab folder and adjust namespaces.
+namespace Mergician.Services.Gitlab;
 
 /// <summary>
 ///     Detects and stores the GitLab server's timezone offset from UTC.

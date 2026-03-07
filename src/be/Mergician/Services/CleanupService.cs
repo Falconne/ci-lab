@@ -9,7 +9,7 @@ namespace Mergician.Services;
 ///     and removes them from the database. Runs once daily at 3am NZST (New Zealand Standard Time).
 ///     Uses the GitLab service user token for API access.
 /// </summary>
-public class CleanupService : BackgroundService
+public class CleanupService : IHostedService, IDisposable
 {
     // NZST is UTC+12, NZDT is UTC+13
     // TimeZoneInfo handles DST automatically
@@ -20,44 +20,69 @@ public class CleanupService : BackgroundService
 
     private readonly IServiceProvider _serviceProvider;
 
+    private CancellationToken _stoppingToken;
+
+    private Timer? _timer;
+
     public CleanupService(IServiceProvider serviceProvider, ILogger<CleanupService> logger)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
     }
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    public void Dispose()
     {
+        _timer?.Dispose();
+    }
+
+    public Task StartAsync(CancellationToken cancellationToken)
+    {
+        _stoppingToken = cancellationToken;
         _logger.LogInformation("CleanupService started. Will run daily at 3am NZST");
+        ScheduleNextRun();
+        return Task.CompletedTask;
+    }
 
-        while (!stoppingToken.IsCancellationRequested)
+    public Task StopAsync(CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("CleanupService stopping");
+        _timer?.Change(Timeout.Infinite, 0);
+        return Task.CompletedTask;
+    }
+
+    private void ScheduleNextRun()
+    {
+        var delay = CalculateDelayUntilNext3amNZ();
+        _logger.LogInformation("CleanupService sleeping for {Delay} until next 3am NZST run", delay);
+        _timer?.Dispose();
+        _timer = new Timer(
+            async _ => await RunAndReschedule(),
+            null,
+            delay,
+            Timeout.InfiniteTimeSpan);
+    }
+
+    private async Task RunAndReschedule()
+    {
+        if (_stoppingToken.IsCancellationRequested)
         {
-            var delay = CalculateDelayUntilNext3amNZ();
-            _logger.LogInformation("CleanupService sleeping for {Delay} until next 3am NZST run", delay);
-
-            try
-            {
-                // TODO: Using a delay for a task that runs once a day is not ideal. Refactor to use
-                // a timer or a more best-practice methods for getting this task to run at 3am every day.
-                await Task.Delay(delay, stoppingToken);
-            }
-            catch (OperationCanceledException)
-            {
-                _logger.LogInformation("CleanupService stopping due to cancellation");
-                break;
-            }
-
-            try
-            {
-                await RunCleanup(stoppingToken);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "CleanupService encountered an error during cleanup");
-            }
+            _logger.LogInformation("CleanupService stopping due to cancellation");
+            return;
         }
 
-        _logger.LogInformation("CleanupService stopped");
+        try
+        {
+            await RunCleanup(_stoppingToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "CleanupService encountered an error during cleanup");
+        }
+
+        if (!_stoppingToken.IsCancellationRequested)
+        {
+            ScheduleNextRun();
+        }
     }
 
     private async Task RunCleanup(CancellationToken stoppingToken)
@@ -100,7 +125,7 @@ public class CleanupService : BackgroundService
                     branch.BranchName,
                     branch.ProjectId);
 
-                mergeGroupRepository.DeleteBranch(branch.Id);
+                mergeGroupRepository.RemoveBranch(branch.Id);
                 deletedCount++;
             }
             else if (branchLookup.IsUnavailable)
@@ -121,7 +146,7 @@ public class CleanupService : BackgroundService
                 group.Id,
                 group.Name);
 
-            mergeGroupRepository.DeleteMergeGroup(group.Id);
+            mergeGroupRepository.RemoveMergeGroup(group.Id);
         }
 
         _logger.LogInformation(
