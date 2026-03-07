@@ -35,7 +35,7 @@ public class MergeGroupController : ControllerBase
     ///     Returns 404 if the merge group does not exist for the current user.
     /// </summary>
     [HttpPost("{mergeGroupId:int}/refresh")]
-    public IActionResult Refresh(int mergeGroupId)
+    public ActionResult<MergeGroup> Refresh(int mergeGroupId)
     {
         var currentUser = HttpContext.GetGitlabUser();
 

@@ -1,3 +1,4 @@
+using Mergician.Entities;
 using Mergician.Services.Authentication;
 using Mergician.Services.Database;
 using Mergician.Services.Gitlab;
@@ -33,7 +34,7 @@ public class ActivityController : ControllerBase
     ///     Also ensures the background sync thread is running and records user activity.
     /// </summary>
     [HttpPost("refresh")]
-    public IActionResult Refresh()
+    public ActionResult<List<MergeGroup>> Refresh()
     {
         var currentUser = HttpContext.GetGitlabUser();
 

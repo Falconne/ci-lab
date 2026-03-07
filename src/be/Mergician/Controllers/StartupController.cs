@@ -20,7 +20,7 @@ public class StartupController : ControllerBase
     ///     and display a loading box until the application is ready.
     /// </summary>
     [HttpGet("status")]
-    public IActionResult GetStatus()
+    public ActionResult<StartupStatus> GetStatus()
     {
         return Ok(_startupService.GetStatus());
     }

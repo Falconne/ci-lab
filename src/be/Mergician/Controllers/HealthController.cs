@@ -8,7 +8,7 @@ namespace Mergician.Controllers;
 public class HealthController : ControllerBase
 {
     [HttpGet]
-    public IActionResult Get()
+    public ActionResult<HealthStatus> Get()
     {
         return Ok(new HealthStatus
         {

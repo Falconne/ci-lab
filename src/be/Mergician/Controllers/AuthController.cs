@@ -123,7 +123,7 @@ public class AuthController : ControllerBase
 
     [Authorize]
     [HttpGet("me")]
-    public async Task<IActionResult> Me()
+    public async Task<ActionResult<GitLabUserInfo>> Me()
     {
         var accessUser = HttpContext.GetGitlabUser();
 
@@ -135,7 +135,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("logout")]
-    public IActionResult Logout()
+    public ActionResult Logout()
     {
         var useSecureCookies = CookieSecurity.ShouldUseSecureCookies(Request);
 

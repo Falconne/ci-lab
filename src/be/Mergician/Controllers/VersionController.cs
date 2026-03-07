@@ -16,7 +16,7 @@ public class VersionController : ControllerBase
     }
 
     [HttpGet]
-    public IActionResult GetVersion()
+    public ActionResult<VersionResponse> GetVersion()
     {
         return Ok(new VersionResponse(_versionService.GetVersion()));
     }
