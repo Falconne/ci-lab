@@ -4,23 +4,25 @@
       <div class="d-flex align-center app-title-link" @click="goHome" data-mergician-home-link>
         <v-icon icon="mdi-source-merge" class="mr-2" />
         Mergician
-        <span class="version-text ml-3">
-          fe: {{ frontendVersion.slice(0, 7) }} | be: {{ backendVersion.slice(0, 7) }}
-        </span>
         <v-divider vertical class="mx-4 title-divider" />
         <span class="page-title">{{ pageTitle }}</span>
       </div>
     </v-app-bar-title>
 
     <template v-slot:append>
-      <div v-if="currentUser" class="d-flex align-center">
-        <v-avatar v-if="currentUser.avatar_url" size="32" class="mr-2">
-          <v-img :src="currentUser.avatar_url" />
-        </v-avatar>
-        <span class="mr-4 text-body-2">{{ currentUser.name }}</span>
-        <v-btn variant="outlined" size="small" @click="logout">
-          Logout
-        </v-btn>
+      <div class="d-flex align-center">
+        <span class="version-text mr-4">
+          fe: {{ frontendVersion.slice(0, 7) }} | be: {{ backendVersion.slice(0, 7) }}
+        </span>
+        <template v-if="currentUser">
+          <v-avatar v-if="currentUser.avatar_url" size="32" class="mr-2">
+            <v-img :src="currentUser.avatar_url" />
+          </v-avatar>
+          <span class="mr-4 text-body-2">{{ currentUser.name }}</span>
+          <v-btn variant="outlined" size="small" @click="logout">
+            Logout
+          </v-btn>
+        </template>
       </div>
     </template>
 
@@ -87,7 +89,7 @@ function goHome() {
 }
 
 .version-text {
-  font-size: 0.75rem;
+  font-size: 0.65rem;
   opacity: 0.7;
   font-weight: normal;
 }
