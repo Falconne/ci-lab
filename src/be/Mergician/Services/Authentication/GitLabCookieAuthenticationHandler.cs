@@ -1,11 +1,9 @@
 using Mergician.Entities;
-using Mergician.Utilities;
+using Mergician.Services.Gitlab;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Options;
-using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
-using System.Text.Json;
 
 namespace Mergician.Services.Authentication;
 
@@ -24,7 +22,7 @@ public class GitLabCookieAuthenticationHandler : AuthenticationHandler<Authentic
 
     private readonly string _apiBaseUrl;
 
-    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly GitlabService _gitlabService;
 
     private readonly GitLabOAuthService _oauthService;
 
@@ -33,12 +31,12 @@ public class GitLabCookieAuthenticationHandler : AuthenticationHandler<Authentic
         ILoggerFactory logger,
         UrlEncoder encoder,
         GitLabOAuthService oauthService,
-        IHttpClientFactory httpClientFactory,
+        GitlabService gitlabService,
         GitLabAuthSettings authSettings)
         : base(options, logger, encoder)
     {
         _oauthService = oauthService;
-        _httpClientFactory = httpClientFactory;
+        _gitlabService = gitlabService;
         _apiBaseUrl = authSettings.ApiBaseUrl;
     }
 
@@ -117,20 +115,9 @@ public class GitLabCookieAuthenticationHandler : AuthenticationHandler<Authentic
         return AuthenticateResult.Success(ticket);
     }
 
-    private static readonly JsonSerializerOptions _jsonOptions = JsonOptions.SnakeCaseLower;
-
     private async Task<GitLabUserInfo?> ValidateToken(string accessToken)
     {
-        var url = $"{_apiBaseUrl}/user";
-        var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-
-        var client = _httpClientFactory.CreateClient("GitLabOAuth");
-        var response = await client.SendAsync(request);
-        if (!response.IsSuccessStatusCode)
-            return null;
-
-        var json = await response.Content.ReadAsStringAsync();
-        return JsonSerializer.Deserialize<GitLabUserInfo>(json, _jsonOptions);
+        var accessDetails = new AccessDetailsBase(accessToken, _apiBaseUrl);
+        return await _gitlabService.GetCurrentUser(accessDetails);
     }
 }

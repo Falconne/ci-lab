@@ -11,7 +11,7 @@ public class GitlabService
 {
     private static readonly JsonSerializerOptions _jsonOptions = JsonOptions.CaseInsensitive;
 
-    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly GitLabApiClient _gitLabApiClient;
 
     private readonly ILogger<GitlabService> _logger;
 
@@ -20,12 +20,12 @@ public class GitlabService
     private readonly GitLabTimezoneService _timezoneService;
 
     public GitlabService(
-        IHttpClientFactory httpClientFactory,
+        GitLabApiClient gitLabApiClient,
         CacheService<int, GitLabProject> projectCache,
         GitLabTimezoneService timezoneService,
         ILogger<GitlabService> logger)
     {
-        _httpClientFactory = httpClientFactory;
+        _gitLabApiClient = gitLabApiClient;
         _projectCache = projectCache;
         _timezoneService = timezoneService;
         _logger = logger;
@@ -51,18 +51,28 @@ public class GitlabService
 
     public async Task<GitLabUserInfo?> GetCurrentUser(AccessDetailsBase accessDetails)
     {
-        var request = accessDetails.CreateRequest(HttpMethod.Get, "user");
+        return await _gitLabApiClient.ExecuteAsync(
+            async (client, cancellationToken) =>
+            {
+                using var request = accessDetails.CreateRequest(HttpMethod.Get, "user");
+                using var response = await client.SendAsync(request, cancellationToken);
 
-        var client = _httpClientFactory.CreateClient("GitLabOAuth");
-        var response = await client.SendAsync(request);
-        if (!response.IsSuccessStatusCode)
-        {
-            _logger.LogError("GetCurrentUser failed with status {StatusCode}", (int)response.StatusCode);
-            return null;
-        }
+                if (!response.IsSuccessStatusCode)
+                {
+                    if (GitLabApiClient.IsRetriableStatusCode(response.StatusCode))
+                    {
+                        throw new GitLabUnexpectedResponseException("GetCurrentUser", response.StatusCode);
+                    }
 
-        var json = await response.Content.ReadAsStringAsync();
-        return JsonSerializer.Deserialize<GitLabUserInfo>(json, _jsonOptions);
+                    _logger.LogError("GetCurrentUser failed with status {StatusCode}", (int)response.StatusCode);
+                    return null;
+                }
+
+                var json = await response.Content.ReadAsStringAsync(cancellationToken);
+                return GitLabApiClient.DeserializeOrThrow<GitLabUserInfo>(json, _jsonOptions, "GetCurrentUser");
+            },
+            "GetCurrentUser",
+            GitLabApiFailureBehavior.EnterStartupMode);
     }
 
     /// <summary>
@@ -91,7 +101,6 @@ public class GitlabService
             afterDate,
             _timezoneService.GitLabUtcOffset);
 
-        var client = _httpClientFactory.CreateClient("GitLabOAuth");
         var page = 1;
         var yieldedCount = 0;
         var emittedBranchProjects = new HashSet<string>();
@@ -100,23 +109,51 @@ public class GitlabService
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var request = accessDetails.CreateRequest(
-                HttpMethod.Get,
-                $"events?after={afterDate}&action=pushed&sort=desc&per_page=100&page={page}");
+            var operationName = $"GetPushEventsForUserSince(page={page})";
+            var pageResult = await _gitLabApiClient.ExecuteAsync(
+                async (httpClient, token) =>
+                {
+                    using var request = accessDetails.CreateRequest(
+                        HttpMethod.Get,
+                        $"events?after={afterDate}&action=pushed&sort=desc&per_page=100&page={page}");
 
-            var response = await client.SendAsync(request, cancellationToken);
-            if (!response.IsSuccessStatusCode)
+                    using var response = await httpClient.SendAsync(request, token);
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        if (GitLabApiClient.IsRetriableStatusCode(response.StatusCode))
+                        {
+                            throw new GitLabUnexpectedResponseException(operationName, response.StatusCode);
+                        }
+
+                        _logger.LogError(
+                            "GetPushEventsForUserSince failed on page {Page} with status {StatusCode}",
+                            page,
+                            (int)response.StatusCode);
+
+                        return (PageEvents: new List<GitLabPushEvent>(), NextPage: (string?)null, Success: false);
+                    }
+
+                    var json = await response.Content.ReadAsStringAsync(token);
+                    var parsedEvents = GitLabApiClient.DeserializeOrThrow<List<GitLabPushEvent>>(
+                        json,
+                        _jsonOptions,
+                        operationName);
+                    var nextPage = response.Headers.TryGetValues("X-Next-Page", out var nextPageValues)
+                        ? nextPageValues.FirstOrDefault()
+                        : null;
+
+                    return (PageEvents: parsedEvents, NextPage: nextPage, Success: true);
+                },
+                operationName,
+                GitLabApiFailureBehavior.Throw,
+                cancellationToken);
+
+            if (!pageResult.Success)
             {
-                _logger.LogError(
-                    "GetPushEventsForUserSince failed on page {Page} with status {StatusCode}",
-                    page,
-                    (int)response.StatusCode);
-
                 yield break;
             }
 
-            var json = await response.Content.ReadAsStringAsync(cancellationToken);
-            var pageEvents = JsonSerializer.Deserialize<List<GitLabPushEvent>>(json, _jsonOptions) ?? [];
+            var pageEvents = pageResult.PageEvents;
 
             _logger.LogDebug(
                 "Fetched {Count} GitLab push events from page {Page} (after={AfterDate})",
@@ -148,12 +185,7 @@ public class GitlabService
                 yield return (pushEvent.PushData.Ref, pushEvent.ProjectId, pushEvent.CreatedAt);
             }
 
-            if (!response.Headers.TryGetValues("X-Next-Page", out var nextPageValues))
-            {
-                break;
-            }
-
-            var nextPage = nextPageValues.FirstOrDefault();
+            var nextPage = pageResult.NextPage;
             if (string.IsNullOrWhiteSpace(nextPage))
             {
                 break;
@@ -185,24 +217,32 @@ public class GitlabService
             return cached;
         }
 
-        var request = accessDetails.CreateRequest(
-            HttpMethod.Get,
-            $"projects/{projectId}");
+        var operationName = $"GetProject({projectId})";
+        var project = await _gitLabApiClient.ExecuteAsync(
+            async (client, cancellationToken) =>
+            {
+                using var request = accessDetails.CreateRequest(HttpMethod.Get, $"projects/{projectId}");
+                using var response = await client.SendAsync(request, cancellationToken);
+                if (!response.IsSuccessStatusCode)
+                {
+                    if (GitLabApiClient.IsRetriableStatusCode(response.StatusCode))
+                    {
+                        throw new GitLabUnexpectedResponseException(operationName, response.StatusCode);
+                    }
 
-        var client = _httpClientFactory.CreateClient("GitLabOAuth");
-        var response = await client.SendAsync(request);
-        if (!response.IsSuccessStatusCode)
-        {
-            _logger.LogWarning(
-                "GetProject({ProjectId}) failed with status {StatusCode}",
-                projectId,
-                (int)response.StatusCode);
+                    _logger.LogError(
+                        "GetProject({ProjectId}) failed with status {StatusCode}",
+                        projectId,
+                        (int)response.StatusCode);
 
-            return null;
-        }
+                    return null;
+                }
 
-        var json = await response.Content.ReadAsStringAsync();
-        var project = JsonSerializer.Deserialize<GitLabProject>(json, _jsonOptions);
+                var json = await response.Content.ReadAsStringAsync(cancellationToken);
+                return GitLabApiClient.DeserializeOrThrow<GitLabProject>(json, _jsonOptions, operationName);
+            },
+            operationName,
+            GitLabApiFailureBehavior.Throw);
 
         if (project != null)
         {
@@ -233,38 +273,48 @@ public class GitlabService
         string branchName)
     {
         var encodedBranch = Uri.EscapeDataString(branchName);
-        var request = accessDetails.CreateRequest(
-            HttpMethod.Get,
-            $"projects/{projectId}/repository/branches/{encodedBranch}");
+        var operationName = $"GetBranchDetails(projectId={projectId}, branchName={branchName})";
 
-        var client = _httpClientFactory.CreateClient("GitLabOAuth");
-        try
-        {
-            var response = await client.SendAsync(request);
-            if (!response.IsSuccessStatusCode)
+        return await _gitLabApiClient.ExecuteAsync(
+            async (client, cancellationToken) =>
             {
-                _logger.LogDebug(
-                    "GetBranchDetails for '{BranchName}' in project {ProjectId} returned {StatusCode}",
-                    branchName,
-                    projectId,
-                    (int)response.StatusCode);
+                using var request = accessDetails.CreateRequest(
+                    HttpMethod.Get,
+                    $"projects/{projectId}/repository/branches/{encodedBranch}");
 
-                return null;
-            }
+                using var response = await client.SendAsync(request, cancellationToken);
+                if (!response.IsSuccessStatusCode)
+                {
+                    if (response.StatusCode == HttpStatusCode.NotFound)
+                    {
+                        _logger.LogDebug(
+                            "GetBranchDetails for '{BranchName}' in project {ProjectId} returned {StatusCode}",
+                            branchName,
+                            projectId,
+                            (int)response.StatusCode);
 
-            var json = await response.Content.ReadAsStringAsync();
-            return JsonSerializer.Deserialize<GitLabBranchDetails>(json, _jsonOptions);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(
-                ex,
-                "GetBranchDetails failed for '{BranchName}' in project {ProjectId}",
-                branchName,
-                projectId);
+                        return null;
+                    }
 
-            return null;
-        }
+                    if (GitLabApiClient.IsRetriableStatusCode(response.StatusCode))
+                    {
+                        throw new GitLabUnexpectedResponseException(operationName, response.StatusCode);
+                    }
+
+                    _logger.LogError(
+                        "GetBranchDetails for '{BranchName}' in project {ProjectId} returned {StatusCode}",
+                        branchName,
+                        projectId,
+                        (int)response.StatusCode);
+
+                    return null;
+                }
+
+                var json = await response.Content.ReadAsStringAsync(cancellationToken);
+                return GitLabApiClient.DeserializeOrThrow<GitLabBranchDetails>(json, _jsonOptions, operationName);
+            },
+            operationName,
+            GitLabApiFailureBehavior.Throw);
     }
 
     /// <summary>
@@ -277,56 +327,54 @@ public class GitlabService
         string branchName)
     {
         var encodedBranch = Uri.EscapeDataString(branchName);
-        var request = accessDetails.CreateRequest(
-            HttpMethod.Get,
-            $"projects/{projectId}/repository/branches/{encodedBranch}");
+        var operationName = $"GetBranchLookupResult(projectId={projectId}, branchName={branchName})";
 
-        var client = _httpClientFactory.CreateClient("GitLabOAuth");
-        HttpResponseMessage response;
-        try
-        {
-            response = await client.SendAsync(request);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(
-                ex,
-                "Branch lookup failed for branch '{BranchName}' in project {ProjectId} due to request error",
-                branchName,
-                projectId);
+        return await _gitLabApiClient.ExecuteAsync(
+            async (client, cancellationToken) =>
+            {
+                using var request = accessDetails.CreateRequest(
+                    HttpMethod.Get,
+                    $"projects/{projectId}/repository/branches/{encodedBranch}");
 
-            return new GitLabBranchLookupResult(
-                GitLabBranchLookupStatus.Unavailable,
-                null,
-                ex.Message);
-        }
+                using var response = await client.SendAsync(request, cancellationToken);
+                if (response.IsSuccessStatusCode)
+                {
+                    _logger.LogDebug("Branch '{BranchName}' exists in project {ProjectId}", branchName, projectId);
+                    return new GitLabBranchLookupResult(
+                        GitLabBranchLookupStatus.Exists,
+                        (int)response.StatusCode);
+                }
 
-        if (response.IsSuccessStatusCode)
-        {
-            _logger.LogDebug("Branch '{BranchName}' exists in project {ProjectId}", branchName, projectId);
-            return new GitLabBranchLookupResult(GitLabBranchLookupStatus.Exists, (int)response.StatusCode);
-        }
+                if (response.StatusCode == HttpStatusCode.NotFound)
+                {
+                    _logger.LogDebug(
+                        "Branch '{BranchName}' does not exist in project {ProjectId} (status {StatusCode})",
+                        branchName,
+                        projectId,
+                        (int)response.StatusCode);
 
-        if (response.StatusCode == HttpStatusCode.NotFound)
-        {
-            _logger.LogDebug(
-                "Branch '{BranchName}' does not exist in project {ProjectId} (status {StatusCode})",
-                branchName,
-                projectId,
-                (int)response.StatusCode);
+                    return new GitLabBranchLookupResult(
+                        GitLabBranchLookupStatus.Missing,
+                        (int)response.StatusCode);
+                }
 
-            return new GitLabBranchLookupResult(GitLabBranchLookupStatus.Missing, (int)response.StatusCode);
-        }
+                if (GitLabApiClient.IsRetriableStatusCode(response.StatusCode))
+                {
+                    throw new GitLabUnexpectedResponseException(operationName, response.StatusCode);
+                }
 
-        _logger.LogError(
-            "Branch lookup unavailable for '{BranchName}' in project {ProjectId} (status {StatusCode})",
-            branchName,
-            projectId,
-            (int)response.StatusCode);
+                _logger.LogError(
+                    "Branch lookup unavailable for '{BranchName}' in project {ProjectId} (status {StatusCode})",
+                    branchName,
+                    projectId,
+                    (int)response.StatusCode);
 
-        return new GitLabBranchLookupResult(
-            GitLabBranchLookupStatus.Unavailable,
-            (int)response.StatusCode);
+                return new GitLabBranchLookupResult(
+                    GitLabBranchLookupStatus.Unavailable,
+                    (int)response.StatusCode);
+            },
+            operationName,
+            GitLabApiFailureBehavior.Throw);
     }
 
     /// <summary>
@@ -338,25 +386,40 @@ public class GitlabService
         string sourceBranch)
     {
         var encodedBranch = Uri.EscapeDataString(sourceBranch);
-        var request = accessDetails.CreateRequest(
-            HttpMethod.Get,
-            $"projects/{projectId}/merge_requests?source_branch={encodedBranch}&state=opened");
+        var operationName = $"GetMergeRequests(projectId={projectId}, sourceBranch={sourceBranch})";
 
-        var client = _httpClientFactory.CreateClient("GitLabOAuth");
-        var response = await client.SendAsync(request);
-        if (!response.IsSuccessStatusCode)
-        {
-            _logger.LogError(
-                "GetMergeRequests failed with status {StatusCode} for project {ProjectId}, branch '{BranchName}'",
-                (int)response.StatusCode,
-                projectId,
-                sourceBranch);
+        return await _gitLabApiClient.ExecuteAsync(
+            async (client, cancellationToken) =>
+            {
+                using var request = accessDetails.CreateRequest(
+                    HttpMethod.Get,
+                    $"projects/{projectId}/merge_requests?source_branch={encodedBranch}&state=opened");
 
-            return [];
-        }
+                using var response = await client.SendAsync(request, cancellationToken);
+                if (!response.IsSuccessStatusCode)
+                {
+                    if (GitLabApiClient.IsRetriableStatusCode(response.StatusCode))
+                    {
+                        throw new GitLabUnexpectedResponseException(operationName, response.StatusCode);
+                    }
 
-        var json = await response.Content.ReadAsStringAsync();
-        return JsonSerializer.Deserialize<List<GitLabMergeRequest>>(json, _jsonOptions) ?? [];
+                    _logger.LogError(
+                        "GetMergeRequests failed with status {StatusCode} for project {ProjectId}, branch '{BranchName}'",
+                        (int)response.StatusCode,
+                        projectId,
+                        sourceBranch);
+
+                    return [];
+                }
+
+                var json = await response.Content.ReadAsStringAsync(cancellationToken);
+                return GitLabApiClient.DeserializeOrThrow<List<GitLabMergeRequest>>(
+                    json,
+                    _jsonOptions,
+                    operationName);
+            },
+            operationName,
+            GitLabApiFailureBehavior.Throw);
     }
 
     /// <summary>
@@ -367,33 +430,45 @@ public class GitlabService
         int projectId,
         int mergeRequestIid)
     {
-        var request = accessDetails.CreateRequest(
-            HttpMethod.Get,
-            $"projects/{projectId}/merge_requests/{mergeRequestIid}/approvals");
+        var operationName = $"GetMergeRequestApprovals(projectId={projectId}, mergeRequestIid={mergeRequestIid})";
 
-        var client = _httpClientFactory.CreateClient("GitLabOAuth");
-        var response = await client.SendAsync(request);
-        if (!response.IsSuccessStatusCode)
-        {
-            if (response.StatusCode == HttpStatusCode.NotFound)
+        return await _gitLabApiClient.ExecuteAsync(
+            async (client, cancellationToken) =>
             {
-                _logger.LogInformation(
-                    "GetMergeRequestApprovals is not available for project {ProjectId}, MR {MergeRequestIid} (status {StatusCode}); assuming 0 approvals required",
-                    projectId,
-                    mergeRequestIid,
-                    (int)response.StatusCode);
+                using var request = accessDetails.CreateRequest(
+                    HttpMethod.Get,
+                    $"projects/{projectId}/merge_requests/{mergeRequestIid}/approvals");
 
-                return new GitLabApprovalState { ApprovalsRequired = 0, ApprovedBy = [] };
-            }
+                using var response = await client.SendAsync(request, cancellationToken);
+                if (!response.IsSuccessStatusCode)
+                {
+                    if (response.StatusCode == HttpStatusCode.NotFound)
+                    {
+                        _logger.LogInformation(
+                            "GetMergeRequestApprovals is not available for project {ProjectId}, MR {MergeRequestIid} (status {StatusCode}); assuming 0 approvals required",
+                            projectId,
+                            mergeRequestIid,
+                            (int)response.StatusCode);
 
-            _logger.LogError(
-                "GetMergeRequestApprovals failed with status {StatusCode}",
-                (int)response.StatusCode);
+                        return new GitLabApprovalState { ApprovalsRequired = 0, ApprovedBy = [] };
+                    }
 
-            return null;
-        }
+                    if (GitLabApiClient.IsRetriableStatusCode(response.StatusCode))
+                    {
+                        throw new GitLabUnexpectedResponseException(operationName, response.StatusCode);
+                    }
 
-        var json = await response.Content.ReadAsStringAsync();
-        return JsonSerializer.Deserialize<GitLabApprovalState>(json, _jsonOptions);
+                    _logger.LogError(
+                        "GetMergeRequestApprovals failed with status {StatusCode}",
+                        (int)response.StatusCode);
+
+                    return null;
+                }
+
+                var json = await response.Content.ReadAsStringAsync(cancellationToken);
+                return GitLabApiClient.DeserializeOrThrow<GitLabApprovalState>(json, _jsonOptions, operationName);
+            },
+            operationName,
+            GitLabApiFailureBehavior.Throw);
     }
 }

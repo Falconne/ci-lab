@@ -34,6 +34,7 @@ try
     builder.Services.AddSingleton(mergicianSettings);
     builder.Services.AddSingleton(mergicianSettings.Database);
     builder.Services.AddSingleton<DatabaseMigrationService>();
+    builder.Services.AddSingleton<StartupStateService>();
 
     // Register database services
     builder.Services.AddSingleton<IDbConnectionFactory>(
@@ -53,6 +54,7 @@ try
 
     builder.Services.AddHttpContextAccessor();
     builder.Services.AddSingleton<GitLabOAuthService>();
+    builder.Services.AddSingleton<GitLabApiClient>();
     builder.Services.AddSingleton<CacheService<int, GitLabProject>>();
     builder.Services.AddSingleton<GitLabTimezoneService>();
     builder.Services.AddSingleton<GitlabService>();
@@ -133,12 +135,27 @@ try
             return;
         }
 
-        var startupService = context.RequestServices.GetRequiredService<StartupService>();
-        var startupStatus = startupService.GetStatus();
+        var startupStateService = context.RequestServices.GetRequiredService<StartupStateService>();
+        var startupStatus = startupStateService.GetStatus();
 
         if (startupStatus.IsReady)
         {
-            await next();
+            try
+            {
+                await next();
+            }
+            catch (GitLabStartupRequiredException ex) when (!context.Response.HasStarted)
+            {
+                Log.Error(
+                    ex,
+                    "GitLab call {OperationName} forced the application back into startup mode",
+                    ex.OperationName);
+
+                context.Response.Clear();
+                context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+                await context.Response.WriteAsJsonAsync(startupStateService.GetStatus());
+            }
+
             return;
         }
 

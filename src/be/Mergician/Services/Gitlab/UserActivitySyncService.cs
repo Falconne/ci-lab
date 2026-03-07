@@ -197,6 +197,13 @@ public class UserActivitySyncService : IHostedService, IDisposable
                 {
                     break;
                 }
+                catch (GitLabApiFailureException ex)
+                {
+                    _logger.LogError(
+                        ex,
+                        "GitLab became unavailable during the sync poll for user {UserId}; ending this poll cycle",
+                        gitlabUserId);
+                }
                 catch (Exception ex)
                 {
                     _logger.LogError(
@@ -411,6 +418,13 @@ public class UserActivitySyncService : IHostedService, IDisposable
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
             throw;
+        }
+        catch (GitLabApiFailureException ex)
+        {
+            _logger.LogError(
+                ex,
+                "GitLab became unavailable during backfill for user {UserId}; continuing with the normal polling loop",
+                gitlabUserId);
         }
         catch (Exception ex)
         {

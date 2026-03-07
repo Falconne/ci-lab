@@ -74,6 +74,10 @@ public class CleanupService : IHostedService, IDisposable
         {
             await RunCleanup(_stoppingToken);
         }
+        catch (GitLabApiFailureException ex)
+        {
+            _logger.LogError(ex, "CleanupService skipping this cleanup cycle because GitLab is unavailable");
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "CleanupService encountered an error during cleanup");

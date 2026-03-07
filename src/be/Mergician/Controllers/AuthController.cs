@@ -70,11 +70,13 @@ public class AuthController : ControllerBase
         {
             tokenResponse = await _oauthService.ExchangeCodeForToken(code, redirectUri);
         }
-        catch (HttpRequestException ex)
+        catch (GitLabStartupRequiredException ex)
         {
-            _logger.LogError(ex, "Failed to connect to GitLab for token exchange (redirect_uri={RedirectUri}). " +
-                "Check that the GitLab InternalUrl is reachable from the Mergician container", redirectUri);
-            return Redirect($"/?error=connection&message={Uri.EscapeDataString("Unable to reach GitLab for authentication")}");
+            _logger.LogError(
+                ex,
+                "GitLab became unavailable during OAuth callback (redirect_uri={RedirectUri}); returning to startup mode",
+                redirectUri);
+            return Redirect("/");
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

@@ -59,6 +59,14 @@ public class GitlabActivityService
             {
                 throw;
             }
+            catch (GitLabApiFailureException ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "GitLab became unavailable while refreshing branch details for user {UserId}; ending the current refresh cycle",
+                    gitlabUserId);
+                break;
+            }
             catch (Exception ex)
             {
                 _logger.LogError(

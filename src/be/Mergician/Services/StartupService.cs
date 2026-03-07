@@ -19,23 +19,25 @@ public class StartupService : IHostedService
 
     private readonly MergicianSettings _settings;
 
-    private readonly GitLabTimezoneService _timezoneService;
+    private readonly StartupStateService _startupStateService;
 
-    private volatile StartupStatus _status = new() { IsReady = false, Message = "Starting up..." };
+    private readonly GitLabTimezoneService _timezoneService;
 
     public StartupService(
         MergicianSettings settings,
         DatabaseMigrationService databaseMigrationService,
+        StartupStateService startupStateService,
         GitLabTimezoneService timezoneService,
         ILogger<StartupService> logger)
     {
         _settings = settings;
         _databaseMigrationService = databaseMigrationService;
+        _startupStateService = startupStateService;
         _timezoneService = timezoneService;
         _logger = logger;
     }
 
-    public StartupStatus GetStatus() => _status;
+    public StartupStatus GetStatus() => _startupStateService.GetStatus();
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
@@ -47,24 +49,50 @@ public class StartupService : IHostedService
 
     private void SetStatus(bool isReady, string message, string? error = null)
     {
-        _status = new StartupStatus { IsReady = isReady, Message = message, Error = error };
+        _startupStateService.SetStatus(isReady, message, error);
     }
 
     private async Task RunStartupChecks(CancellationToken cancellationToken)
     {
-        _logger.LogInformation("StartupService: beginning startup checks");
+        try
+        {
+            _logger.LogInformation("StartupService: beginning startup checks");
 
-        // Step 1: Validate service token is configured. This is a permanent error if missing.
+            if (!await RunInitialStartupChecks(cancellationToken))
+            {
+                return;
+            }
+
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                _logger.LogInformation("StartupService: waiting for a GitLab recovery request");
+                await _startupStateService.WaitForGitLabRecovery(cancellationToken);
+                _logger.LogInformation("StartupService: GitLab recovery requested, re-running GitLab checks");
+                await RunGitLabChecksUntilReady(cancellationToken, isRecoveryRun: true);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogInformation("StartupService: stopping due to cancellation");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "StartupService failed unexpectedly");
+            SetStatus(false, "Startup failed", "Unexpected startup error, please contact administrator.");
+        }
+    }
+
+    private async Task<bool> RunInitialStartupChecks(CancellationToken cancellationToken)
+    {
         if (string.IsNullOrWhiteSpace(_settings.GitLab.ServiceToken))
         {
             _logger.LogError("Startup check failed: GitLab service token is not configured");
             SetStatus(false, "Configuration error", "Gitlab Service token is not configured");
-            return;
+            return false;
         }
 
         _logger.LogInformation("StartupService: service token is configured");
 
-        // Step 2: Run database migration with retry until it succeeds.
         while (!cancellationToken.IsCancellationRequested)
         {
             SetStatus(false, "Checking database...");
@@ -85,21 +113,31 @@ public class StartupService : IHostedService
 
         if (cancellationToken.IsCancellationRequested)
         {
-            return;
+            return false;
         }
 
-        // Step 3: Check GitLab health and detect timezone with retry until it succeeds.
+        await RunGitLabChecksUntilReady(cancellationToken, isRecoveryRun: false);
+        return !cancellationToken.IsCancellationRequested;
+    }
+
+    private async Task RunGitLabChecksUntilReady(CancellationToken cancellationToken, bool isRecoveryRun)
+    {
         while (!cancellationToken.IsCancellationRequested)
         {
             SetStatus(false, "Checking GitLab...");
+
             try
             {
-                _logger.LogInformation("StartupService: checking GitLab connectivity and detecting timezone");
-                await _timezoneService.DetectTimezone();
+                _logger.LogInformation(
+                    "StartupService: checking GitLab connectivity and detecting timezone{Suffix}",
+                    isRecoveryRun ? " during recovery" : string.Empty);
+
+                await _timezoneService.DetectTimezone(cancellationToken);
                 _logger.LogInformation("StartupService: GitLab check passed");
-                break;
+                SetStatus(true, "Ready");
+                return;
             }
-            catch (Exception ex)
+            catch (GitLabApiFailureException ex)
             {
                 _logger.LogError(
                     ex,
@@ -114,13 +152,5 @@ public class StartupService : IHostedService
                 await Task.Delay(_retryDelay, cancellationToken);
             }
         }
-
-        if (cancellationToken.IsCancellationRequested)
-        {
-            return;
-        }
-
-        _logger.LogInformation("StartupService: all startup checks passed, application is ready");
-        SetStatus(true, "Ready");
     }
 }
