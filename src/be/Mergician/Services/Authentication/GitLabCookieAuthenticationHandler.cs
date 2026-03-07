@@ -26,21 +26,53 @@ public class GitLabCookieAuthenticationHandler : AuthenticationHandler<Authentic
 
     private readonly GitLabOAuthService _oauthService;
 
+    private readonly StartupStateService _startupStateService;
+
     public GitLabCookieAuthenticationHandler(
         IOptionsMonitor<AuthenticationSchemeOptions> options,
         ILoggerFactory logger,
         UrlEncoder encoder,
         GitLabOAuthService oauthService,
         GitlabService gitlabService,
-        GitLabAuthSettings authSettings)
+        GitLabAuthSettings authSettings,
+        StartupStateService startupStateService)
         : base(options, logger, encoder)
     {
         _oauthService = oauthService;
         _gitlabService = gitlabService;
         _apiBaseUrl = authSettings.ApiBaseUrl;
+        _startupStateService = startupStateService;
     }
 
     protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
+    {
+        // When the application is not ready (initial startup or GitLab recovery),
+        // skip token validation entirely. GitLab is unreachable so any validation
+        // attempt will exhaust retries and throw. Endpoints that don't require
+        // [Authorize] (like /api/startup/status) will proceed unauthenticated.
+        if (!_startupStateService.GetStatus().IsReady)
+        {
+            Logger.LogDebug("Skipping authentication: application is not ready");
+            return AuthenticateResult.NoResult();
+        }
+
+        try
+        {
+            return await AuthenticateCore();
+        }
+        catch (GitLabApiFailureException ex)
+        {
+            Logger.LogWarning(ex, "GitLab unavailable during authentication, skipping token validation");
+            return AuthenticateResult.NoResult();
+        }
+        catch (GitLabStartupRequiredException ex)
+        {
+            Logger.LogWarning(ex, "GitLab recovery triggered during authentication, skipping token validation");
+            return AuthenticateResult.NoResult();
+        }
+    }
+
+    private async Task<AuthenticateResult> AuthenticateCore()
     {
         var accessToken = Request.Cookies["gl_access_token"];
         if (!string.IsNullOrEmpty(accessToken))

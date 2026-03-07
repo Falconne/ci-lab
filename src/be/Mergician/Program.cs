@@ -128,14 +128,30 @@ try
     // ---------------------------------------------------------------------
     app.Use(async (context, next) =>
     {
+        var startupStateService = context.RequestServices.GetRequiredService<StartupStateService>();
+
         if (!context.Request.Path.StartsWithSegments("/api")
             || context.Request.Path.StartsWithSegments("/api/startup"))
         {
-            await next();
+            try
+            {
+                await next();
+            }
+            catch (GitLabStartupRequiredException ex) when (!context.Response.HasStarted)
+            {
+                Log.Error(
+                    ex,
+                    "GitLab call {OperationName} forced the application back into startup mode (from exempted path)",
+                    ex.OperationName);
+
+                context.Response.Clear();
+                context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+                await context.Response.WriteAsJsonAsync(startupStateService.GetStatus());
+            }
+
             return;
         }
 
-        var startupStateService = context.RequestServices.GetRequiredService<StartupStateService>();
         var startupStatus = startupStateService.GetStatus();
 
         if (startupStatus.IsReady)
