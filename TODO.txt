@@ -1,0 +1,2 @@
+Task 1)
+Controllers should return strong types where possible. For example, prefer returning `ActionResult<T>` over just `IActionResult`. Refactor existing controllers that could be improved this way and adjust the frontend if needed.

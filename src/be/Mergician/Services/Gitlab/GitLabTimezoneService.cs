@@ -13,6 +13,8 @@ namespace Mergician.Services.Gitlab;
 /// </summary>
 public class GitLabTimezoneService
 {
+    // TODO: There are a lot of repeated JsonSerializerOptions throughout the codebase. Centralise
+    // them in a single static helper class and reference them from there.
     private static readonly JsonSerializerOptions _jsonOptions =
         new() { PropertyNameCaseInsensitive = true };
 
