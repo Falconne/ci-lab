@@ -366,12 +366,6 @@ public class UserActivitySyncService : IHostedService, IDisposable
             if (isNewToMergeGroup)
             {
                 _logger.LogDebug(
-                    "Refreshing details for newly discovered branch {BranchId} before it becomes visible",
-                    branchRecord.Id);
-
-                await _activityService.RefreshBranchDetails(accessDetails, branchRecord, cancellationToken);
-
-                _logger.LogDebug(
                     "Branch {BranchId} not yet in merge group {MergeGroupId}, associating",
                     branchRecord.Id,
                     mergeGroup.Id);

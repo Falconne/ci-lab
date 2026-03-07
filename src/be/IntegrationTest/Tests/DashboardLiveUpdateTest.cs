@@ -95,13 +95,26 @@ public class DashboardLiveUpdateTest : IDisposable
 
         await _browser.TakeScreenshot("live_04_branch_without_mr");
 
-        // Verify that the branch card shows "Waiting" status (no MR)
-        var hasWaitingStatus = await BranchCardHasStatus(branchName, "Waiting");
-        if (!hasWaitingStatus)
-            throw new InvalidOperationException(
-                $"Branch '{branchName}' should show 'Waiting' status before MR creation");
+        // The branch may appear in a loading state (no status badge) or already showing
+        // "Waiting" if the regular poll populated data before we checked. Both are valid.
+        var isAlreadyWaiting = await BranchCardHasStatus(branchName, "Waiting");
+        if (isAlreadyWaiting)
+        {
+            Log.Information("Branch '{BranchName}' shows 'Waiting' status immediately", branchName);
+        }
+        else
+        {
+            Log.Information(
+                "Branch '{BranchName}' appeared without status badge (data loading), waiting for 'Waiting' status...",
+                branchName);
 
-        Log.Information("Branch '{BranchName}' correctly shows 'Waiting' status", branchName);
+            var becameWaiting = await WaitForBranchToReachStatus(branchName, "Waiting", 30);
+            if (!becameWaiting)
+                throw new InvalidOperationException(
+                    $"Branch '{branchName}' did not reach 'Waiting' status within timeout");
+
+            Log.Information("Branch '{BranchName}' reached 'Waiting' status after loading", branchName);
+        }
 
         // verify explicit no-MR text is shown before an MR exists
         var card = _browser.Page.Locator(".merge-group-card").Filter(new() { HasTextString = branchName }).First;
@@ -358,6 +371,34 @@ public class DashboardLiveUpdateTest : IDisposable
                 if (statusText.Equals(expectedStatus, StringComparison.OrdinalIgnoreCase))
                     return true;
             }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    ///     Waits until a branch card shows the specified status badge.
+    /// </summary>
+    private async Task<bool> WaitForBranchToReachStatus(string branchName, string expectedStatus, int timeoutSeconds)
+    {
+        for (var s = 0; s < timeoutSeconds; s++)
+        {
+            if (await BranchCardHasStatus(branchName, expectedStatus))
+            {
+                Log.Information(
+                    "Branch '{BranchName}' reached status '{Status}' after ~{Seconds}s",
+                    branchName, expectedStatus, s);
+                return true;
+            }
+
+            if (s % 10 == 0)
+            {
+                Log.Information(
+                    "Waiting for branch '{BranchName}' to reach status '{Status}'... {Seconds}s",
+                    branchName, expectedStatus, s);
+            }
+
+            await Task.Delay(1000);
         }
 
         return false;

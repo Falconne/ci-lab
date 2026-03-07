@@ -85,7 +85,7 @@ public class GitlabActivityService
     ///     Fetches MR, approval, and build job details from GitLab for the given branch
     ///     and persists them in the database. Silently skips if project info is unavailable.
     /// </summary>
-    public async Task RefreshBranchDetails(
+    private async Task RefreshBranchDetails(
         AccessDetailsBase accessDetails,
         BranchInProject branch,
         CancellationToken cancellationToken)
