@@ -56,20 +56,7 @@ public class GitLabCookieAuthenticationHandler : AuthenticationHandler<Authentic
             return AuthenticateResult.NoResult();
         }
 
-        try
-        {
-            return await AuthenticateCore();
-        }
-        catch (GitLabApiFailureException ex)
-        {
-            Logger.LogWarning(ex, "GitLab unavailable during authentication, skipping token validation");
-            return AuthenticateResult.NoResult();
-        }
-        catch (GitLabStartupRequiredException ex)
-        {
-            Logger.LogWarning(ex, "GitLab recovery triggered during authentication, skipping token validation");
-            return AuthenticateResult.NoResult();
-        }
+        return await AuthenticateCore();
     }
 
     private async Task<AuthenticateResult> AuthenticateCore()
