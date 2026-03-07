@@ -10,28 +10,13 @@ public class GitlabUserFactory
 {
     private readonly string _apiBaseUrl;
 
-    private readonly ILogger<GitlabUserFactory> _logger;
-
     private readonly string? _serviceToken;
 
-    public GitlabUserFactory(string apiBaseUrl, string? serviceToken, ILogger<GitlabUserFactory> logger)
+    public GitlabUserFactory(string apiBaseUrl, string? serviceToken)
     {
         _apiBaseUrl = apiBaseUrl;
         _serviceToken = serviceToken;
-        _logger = logger;
-
-        if (!IsServiceTokenConfigured)
-        {
-            _logger.LogWarning(
-                "GitLab service token is not configured. Set the Mergician:GitLab:ServiceToken setting");
-        }
-        else
-        {
-            _logger.LogInformation("GitLab service user configured");
-        }
     }
-
-    public bool IsServiceTokenConfigured => !string.IsNullOrWhiteSpace(_serviceToken);
 
     /// <summary>
     ///     Returns an <see cref="AccessDetailsBase" /> for the configured service account.
@@ -40,9 +25,8 @@ public class GitlabUserFactory
     /// </summary>
     public AccessDetailsBase GetServiceUser()
     {
-        if (!IsServiceTokenConfigured)
+        if (string.IsNullOrWhiteSpace(_serviceToken))
         {
-            _logger.LogError("GitLab service token is not configured — service user cannot be created");
             throw new InvalidOperationException("GitLab service token is not configured");
         }
 

@@ -6,8 +6,8 @@ namespace Mergician.Services.Gitlab;
 
 /// <summary>
 ///     Detects and stores the GitLab server's timezone offset from UTC.
-///     On startup, makes a lightweight API call using the service user account
-///     to determine the server's timezone by inspecting the offset of returned timestamps.
+///     Called by <see cref="Services.StartupService" /> during startup to determine the server's
+///     timezone by inspecting the offset of returned timestamps.
 ///     This offset is used to adjust date-only parameters sent to the GitLab API
 ///     (e.g. the 'after' parameter in the events endpoint).
 /// </summary>
@@ -50,65 +50,43 @@ public class GitLabTimezoneService
     }
 
     /// <summary>
-    ///     Detects the GitLab server's timezone by making a lightweight API call.
-    ///     Uses the service user to call GET /api/v4/personal_access_tokens/self
-    ///     and inspects the timezone offset of the created_at timestamp.
+    ///     Detects the GitLab server's timezone by calling GET /api/v4/personal_access_tokens/self.
+    ///     Also acts as a GitLab connectivity health check. Throws on failure so the caller
+    ///     can implement retry logic.
     /// </summary>
     public async Task DetectTimezone()
     {
-        if (!_userFactory.IsServiceTokenConfigured)
-        {
-            _logger.LogError(
-                "GitLab service token is not configured; assuming GitLab server uses UTC");
+        var serviceUser = _userFactory.GetServiceUser();
+        var request = serviceUser.CreateRequest(HttpMethod.Get, "personal_access_tokens/self");
+        var client = _httpClientFactory.CreateClient("GitLabOAuth");
+        var response = await client.SendAsync(request);
 
-            return;
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException(
+                $"GitLab timezone detection failed: GET personal_access_tokens/self returned {(int)response.StatusCode}");
         }
 
-        try
+        var json = await response.Content.ReadAsStringAsync();
+        var tokenInfo = JsonSerializer.Deserialize<GitLabTokenSelfInfo>(json, _jsonOptions);
+
+        if (tokenInfo?.CreatedAt == null)
         {
-            var serviceUser = _userFactory.GetServiceUser();
-            var request = serviceUser.CreateRequest(HttpMethod.Get, "personal_access_tokens/self");
-            var client = _httpClientFactory.CreateClient("GitLabOAuth");
-            var response = await client.SendAsync(request);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                _logger.LogWarning(
-                    "GitLab timezone detection failed: GET personal_access_tokens/self returned {StatusCode}; assuming UTC",
-                    (int)response.StatusCode);
-
-                return;
-            }
-
-            var json = await response.Content.ReadAsStringAsync();
-            var tokenInfo = JsonSerializer.Deserialize<GitLabTokenSelfInfo>(json, _jsonOptions);
-
-            if (tokenInfo?.CreatedAt == null)
-            {
-                _logger.LogWarning(
-                    "GitLab timezone detection failed: could not parse created_at from token response; assuming UTC");
-
-                return;
-            }
-
-            GitLabUtcOffset = tokenInfo.CreatedAt.Value.Offset;
-
-            if (GitLabUtcOffset == TimeSpan.Zero)
-            {
-                _logger.LogInformation("GitLab server timezone detected: UTC");
-            }
-            else
-            {
-                _logger.LogInformation(
-                    "GitLab server timezone detected: UTC{Offset:+hh\\:mm;-hh\\:mm}",
-                    GitLabUtcOffset);
-            }
+            throw new InvalidOperationException(
+                "GitLab timezone detection failed: could not parse created_at from token response");
         }
-        catch (Exception ex)
+
+        GitLabUtcOffset = tokenInfo.CreatedAt.Value.Offset;
+
+        if (GitLabUtcOffset == TimeSpan.Zero)
         {
-            _logger.LogWarning(
-                ex,
-                "GitLab timezone detection failed due to an error; assuming GitLab server uses UTC");
+            _logger.LogInformation("GitLab server timezone detected: UTC");
+        }
+        else
+        {
+            _logger.LogInformation(
+                "GitLab server timezone detected: UTC{Offset:+hh\\:mm;-hh\\:mm}",
+                GitLabUtcOffset);
         }
     }
 }

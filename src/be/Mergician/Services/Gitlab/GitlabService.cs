@@ -257,7 +257,7 @@ public class GitlabService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(
+            _logger.LogError(
                 ex,
                 "GetBranchDetails failed for '{BranchName}' in project {ProjectId}",
                 branchName,
@@ -289,7 +289,7 @@ public class GitlabService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(
+            _logger.LogError(
                 ex,
                 "Branch lookup failed for branch '{BranchName}' in project {ProjectId} due to request error",
                 branchName,

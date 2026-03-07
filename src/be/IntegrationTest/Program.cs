@@ -1,6 +1,7 @@
 using IntegrationTest;
 using IntegrationTest.Tests;
 using Serilog;
+using System.Text.Json;
 
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Debug()
@@ -25,9 +26,9 @@ var abortOnFirstFailure = true;
 
 try
 {
-    // Wait for Mergician to be healthy before running tests
+    // Wait for Mergician to be fully started and ready before running tests
     {
-        var healthUrl = $"{TestConfig.MergicianUrl}/api/health";
+        var startupUrl = $"{TestConfig.MergicianUrl}/api/startup/status";
         var timeout = TimeSpan.FromMinutes(5);
         var pollInterval = TimeSpan.FromSeconds(3);
         var deadline = DateTime.UtcNow + timeout;
@@ -35,41 +36,54 @@ try
 
         Log.Information("");
         Log.Information(
-            "--- Waiting for Mergician to be healthy at {Url} (timeout: {Timeout}) ---",
-            healthUrl,
+            "--- Waiting for Mergician to be ready at {Url} (timeout: {Timeout}) ---",
+            startupUrl,
             timeout);
 
-        var healthy = false;
+        var ready = false;
         while (DateTime.UtcNow < deadline)
         {
             try
             {
-                var response = await httpClient.GetAsync(healthUrl);
+                var response = await httpClient.GetAsync(startupUrl);
                 if (response.IsSuccessStatusCode)
                 {
-                    Log.Information("Mergician is healthy (HTTP {StatusCode})", (int)response.StatusCode);
-                    healthy = true;
-                    break;
-                }
+                    var json = await response.Content.ReadAsStringAsync();
+                    using var doc = JsonDocument.Parse(json);
+                    var isReady = doc.RootElement.TryGetProperty("isReady", out var prop) && prop.GetBoolean();
+                    if (isReady)
+                    {
+                        Log.Information("Mergician is ready");
+                        ready = true;
+                        break;
+                    }
 
-                Log.Debug("Health check returned HTTP {StatusCode}, retrying...", (int)response.StatusCode);
+                    var message = doc.RootElement.TryGetProperty("message", out var msgProp)
+                        ? msgProp.GetString()
+                        : "unknown";
+                    Log.Debug("Mergician not yet ready (message: {Message}), retrying...", message);
+                }
+                else
+                {
+                    Log.Debug("Startup status returned HTTP {StatusCode}, retrying...", (int)response.StatusCode);
+                }
             }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
             {
-                Log.Debug("Health check failed ({Message}), retrying...", ex.Message);
+                Log.Debug("Startup check failed ({Message}), retrying...", ex.Message);
             }
 
             await Task.Delay(pollInterval);
         }
 
-        if (!healthy)
+        if (!ready)
         {
             throw new TimeoutException(
-                $"Mergician did not become healthy at {healthUrl} within {timeout.TotalMinutes} minutes");
+                $"Mergician did not become ready at {startupUrl} within {timeout.TotalMinutes} minutes");
         }
 
-        results.Add(("HealthCheck", true, null));
-        Log.Information("PASS: HealthCheck");
+        results.Add(("StartupCheck", true, null));
+        Log.Information("PASS: StartupCheck");
     }
 
     // Test 1: Authentication via GitLab OAuth

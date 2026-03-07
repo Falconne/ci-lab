@@ -74,15 +74,14 @@ try
 
     builder.Services.AddAuthorization();
 
-    // GitlabUserFactory is still needed for service user access (background tasks, health checks)
-    builder.Services.AddSingleton(sp =>
-    {
-        var logger = sp.GetRequiredService<ILogger<GitlabUserFactory>>();
-        return new GitlabUserFactory(
-            gitlabApiBaseUrl,
-            mergicianSettings.GitLab.ServiceToken,
-            logger);
-    });
+    // GitlabUserFactory is needed for service user access (background tasks)
+    builder.Services.AddSingleton(new GitlabUserFactory(
+        gitlabApiBaseUrl,
+        mergicianSettings.GitLab.ServiceToken));
+
+    // Register startup service (runs health checks before marking app as ready)
+    builder.Services.AddSingleton<StartupService>();
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<StartupService>());
 
     // Register background cleanup service
     builder.Services.AddHostedService<CleanupService>();
@@ -104,16 +103,7 @@ try
 
     var app = builder.Build();
 
-    Log.Information("Running database migrations");
-    var migrationService = app.Services.GetRequiredService<DatabaseMigrationService>();
-    migrationService.MigrateDatabase();
-    Log.Information("Database migrations completed");
-
     Log.Information("GitLab API base URL: {GitLabApiBaseUrl}", gitlabApiBaseUrl);
-
-    // Detect GitLab server timezone on startup
-    var timezoneService = app.Services.GetRequiredService<GitLabTimezoneService>();
-    await timezoneService.DetectTimezone();
 
     app.UseSerilogRequestLogging();
     app.UseCors();

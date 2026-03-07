@@ -1,26 +1,10 @@
 <template>
   <v-app>
-    <!-- Configuration error - blocks all functionality -->
-    <v-main v-if="configError">
-      <v-container>
-        <v-row justify="center" align="center" style="min-height: 80vh;">
-          <v-col cols="12" md="8" lg="6">
-            <v-alert type="error" prominent border="start" class="mt-8">
-              <v-alert-title>Configuration Error</v-alert-title>
-              <div v-for="error in configErrors" :key="error" class="mt-2">
-                {{ error }}
-              </div>
-              <div class="mt-4 text-body-2 text-medium-emphasis">
-                Please configure the application and restart the server.
-              </div>
-            </v-alert>
-          </v-col>
-        </v-row>
-      </v-container>
-    </v-main>
+    <!-- Startup overlay blocks the UI until the application is fully initialized -->
+    <StartupOverlay v-if="!isReady" :message="message" :error="error" />
 
-    <!-- Normal layout (only shown after health check passes) -->
-    <template v-else-if="healthChecked">
+    <!-- Normal layout shown once startup is complete -->
+    <template v-else>
       <AppBar />
       <v-main>
         <router-view v-slot="{ Component, route }">
@@ -50,11 +34,12 @@
 
 <script setup lang="ts">
 import AppBar from '@/components/AppBar.vue'
+import StartupOverlay from '@/components/StartupOverlay.vue'
 import { useVersionCheck } from '@/composables/useVersionCheck'
-import { useHealthCheck } from '@/composables/useHealthCheck'
+import { useStartupCheck } from '@/composables/useStartupCheck'
 
 const { updateAvailable, reload } = useVersionCheck()
-const { configError, configErrors, healthChecked } = useHealthCheck()
+const { isReady, message, error } = useStartupCheck()
 </script>
 
 <style scoped>

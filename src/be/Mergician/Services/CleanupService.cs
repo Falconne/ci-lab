@@ -94,12 +94,6 @@ public class CleanupService : IHostedService, IDisposable
         var gitlabService = scope.ServiceProvider.GetRequiredService<GitlabService>();
         var userFactory = scope.ServiceProvider.GetRequiredService<GitlabUserFactory>();
 
-        if (!userFactory.IsServiceTokenConfigured)
-        {
-            _logger.LogWarning("CleanupService skipping: GitLab service token not configured");
-            return;
-        }
-
         var serviceUser = userFactory.GetServiceUser();
         var allBranches = mergeGroupRepository.GetAllBranches();
         _logger.LogInformation("CleanupService checking {Count} tracked branches", allBranches.Count);

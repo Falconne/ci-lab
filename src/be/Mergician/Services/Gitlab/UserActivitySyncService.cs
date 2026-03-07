@@ -414,7 +414,7 @@ public class UserActivitySyncService : IHostedService, IDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(
+            _logger.LogError(
                 ex,
                 "Backfill failed for user {UserId}, will continue with polling",
                 gitlabUserId);
