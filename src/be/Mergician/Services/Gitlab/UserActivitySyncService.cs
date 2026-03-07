@@ -183,7 +183,7 @@ public class UserActivitySyncService : IHostedService, IDisposable
                 {
                     var now = DateTimeOffset.UtcNow;
                     // Poll for new push events since the last successful poll
-                    await SyncUserActivityFromGitLab(accessUser, gitlabUserId, lastPollTime, ct);
+                    await FetchNewUserActivityFromGitLab(accessUser, gitlabUserId, lastPollTime, ct);
 
                     lastPollTime = now;
 
@@ -270,7 +270,7 @@ public class UserActivitySyncService : IHostedService, IDisposable
     ///     Fetches push events from GitLab since the given time and stores discovered
     ///     branches in the database. Called by the background sync thread.
     /// </summary>
-    private async Task SyncUserActivityFromGitLab(
+    private async Task FetchNewUserActivityFromGitLab(
         AccessDetailsBase accessDetails,
         int gitlabUserId,
         DateTimeOffset since,
@@ -404,7 +404,7 @@ public class UserActivitySyncService : IHostedService, IDisposable
 
         try
         {
-            await SyncUserActivityFromGitLab(accessUser, gitlabUserId, since, ct);
+            await FetchNewUserActivityFromGitLab(accessUser, gitlabUserId, since, ct);
 
             _logger.LogInformation("Backfill completed for user {UserId}", gitlabUserId);
         }
