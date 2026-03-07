@@ -111,50 +111,41 @@ public class GitlabPipelineService
         var encodedBranch = Uri.EscapeDataString(branchName);
         var operationName = $"GetBranchHeadCommitSha(projectId={projectId}, branchName={branchName})";
 
-        return await _gitLabApiClient.ExecuteAsync(
-            async (client, token) =>
-            {
-                using var request = accessDetails.CreateRequest(
+        GitLabBranchDetails details;
+
+        try
+        {
+            details = await _gitLabApiClient.ExecuteAsync<GitLabBranchDetails>(
+                () => accessDetails.CreateRequest(
                     HttpMethod.Get,
-                    $"projects/{projectId}/repository/branches/{encodedBranch}");
+                    $"projects/{projectId}/repository/branches/{encodedBranch}"),
+                _jsonOptions,
+                operationName,
+                GitLabApiFailureBehavior.Throw,
+                cancellationToken);
+        }
+        catch (GitLabUnexpectedResponseException ex)
+        {
+            _logger.LogError(
+                "GetBranchHeadCommitSha failed with status {StatusCode} for branch '{BranchName}' in project {ProjectId}",
+                (int)ex.StatusCode,
+                branchName,
+                projectId);
 
-                using var response = await client.SendAsync(request, token);
-                if (!response.IsSuccessStatusCode)
-                {
-                    if (GitLabApiClient.IsRetriableStatusCode(response.StatusCode))
-                    {
-                        throw new GitLabUnexpectedResponseException(operationName, response.StatusCode);
-                    }
+            return null;
+        }
 
-                    _logger.LogError(
-                        "GetBranchHeadCommitSha failed with status {StatusCode} for branch '{BranchName}' in project {ProjectId}",
-                        (int)response.StatusCode,
-                        branchName,
-                        projectId);
+        if (string.IsNullOrWhiteSpace(details.Commit?.Id))
+        {
+            _logger.LogError(
+                "GetBranchHeadCommitSha returned no commit id for branch '{BranchName}' in project {ProjectId}",
+                branchName,
+                projectId);
 
-                    return null;
-                }
+            return null;
+        }
 
-                var json = await response.Content.ReadAsStringAsync(token);
-                var details = GitLabApiClient.DeserializeOrThrow<GitLabBranchDetails>(
-                    json,
-                    _jsonOptions,
-                    operationName);
-                if (string.IsNullOrWhiteSpace(details.Commit?.Id))
-                {
-                    _logger.LogError(
-                        "GetBranchHeadCommitSha returned no commit id for branch '{BranchName}' in project {ProjectId}",
-                        branchName,
-                        projectId);
-
-                    return null;
-                }
-
-                return details.Commit.Id;
-            },
-            operationName,
-            GitLabApiFailureBehavior.Throw,
-            cancellationToken);
+        return details.Commit.Id;
     }
 
     private async Task<GitLabPipeline?> GetLatestPipeline(
@@ -166,40 +157,29 @@ public class GitlabPipelineService
         var encodedBranch = Uri.EscapeDataString(branchName);
         var operationName = $"GetLatestPipeline(projectId={projectId}, branchName={branchName})";
 
-        return await _gitLabApiClient.ExecuteAsync(
-            async (client, token) =>
-            {
-                using var request = accessDetails.CreateRequest(
+        try
+        {
+            var pipelines = await _gitLabApiClient.ExecuteAsync<List<GitLabPipeline>>(
+                () => accessDetails.CreateRequest(
                     HttpMethod.Get,
-                    $"projects/{projectId}/pipelines?ref={encodedBranch}&order_by=updated_at&sort=desc&per_page=1");
+                    $"projects/{projectId}/pipelines?ref={encodedBranch}&order_by=updated_at&sort=desc&per_page=1"),
+                _jsonOptions,
+                operationName,
+                GitLabApiFailureBehavior.Throw,
+                cancellationToken);
 
-                using var response = await client.SendAsync(request, token);
-                if (!response.IsSuccessStatusCode)
-                {
-                    if (GitLabApiClient.IsRetriableStatusCode(response.StatusCode))
-                    {
-                        throw new GitLabUnexpectedResponseException(operationName, response.StatusCode);
-                    }
+            return pipelines.FirstOrDefault();
+        }
+        catch (GitLabUnexpectedResponseException ex)
+        {
+            _logger.LogError(
+                "GetLatestPipeline failed with status {StatusCode} for branch '{BranchName}' in project {ProjectId}",
+                (int)ex.StatusCode,
+                branchName,
+                projectId);
 
-                    _logger.LogError(
-                        "GetLatestPipeline failed with status {StatusCode} for branch '{BranchName}' in project {ProjectId}",
-                        (int)response.StatusCode,
-                        branchName,
-                        projectId);
-
-                    return null;
-                }
-
-                var json = await response.Content.ReadAsStringAsync(token);
-                var pipelines = GitLabApiClient.DeserializeOrThrow<List<GitLabPipeline>>(
-                    json,
-                    _jsonOptions,
-                    operationName);
-                return pipelines.FirstOrDefault();
-            },
-            operationName,
-            GitLabApiFailureBehavior.Throw,
-            cancellationToken);
+            return null;
+        }
     }
 
     private async Task<List<BranchBuildJob>> GetExternalJobsFromPipeline(
@@ -210,47 +190,37 @@ public class GitlabPipelineService
     {
         var operationName = $"GetExternalJobsFromPipeline(projectId={projectId}, pipelineId={pipelineId})";
 
-        return await _gitLabApiClient.ExecuteAsync(
-            async (client, token) =>
-            {
-                using var request = accessDetails.CreateRequest(
+        List<GitLabPipelineJob> jobs;
+
+        try
+        {
+            jobs = await _gitLabApiClient.ExecuteAsync<List<GitLabPipelineJob>>(
+                () => accessDetails.CreateRequest(
                     HttpMethod.Get,
-                    $"projects/{projectId}/pipelines/{pipelineId}/jobs?per_page=100");
+                    $"projects/{projectId}/pipelines/{pipelineId}/jobs?per_page=100"),
+                _jsonOptions,
+                operationName,
+                GitLabApiFailureBehavior.Throw,
+                cancellationToken);
+        }
+        catch (GitLabUnexpectedResponseException ex)
+        {
+            _logger.LogError(
+                "GetExternalJobsFromPipeline failed with status {StatusCode} for project {ProjectId}, pipeline {PipelineId}",
+                (int)ex.StatusCode,
+                projectId,
+                pipelineId);
 
-                using var response = await client.SendAsync(request, token);
-                if (!response.IsSuccessStatusCode)
-                {
-                    if (GitLabApiClient.IsRetriableStatusCode(response.StatusCode))
-                    {
-                        throw new GitLabUnexpectedResponseException(operationName, response.StatusCode);
-                    }
+            return [];
+        }
 
-                    _logger.LogError(
-                        "GetExternalJobsFromPipeline failed with status {StatusCode} for project {ProjectId}, pipeline {PipelineId}",
-                        (int)response.StatusCode,
-                        projectId,
-                        pipelineId);
-
-                    return [];
-                }
-
-                var json = await response.Content.ReadAsStringAsync(token);
-                var jobs = GitLabApiClient.DeserializeOrThrow<List<GitLabPipelineJob>>(
-                    json,
-                    _jsonOptions,
-                    operationName);
-
-                return jobs
-                    .Where(job => string.Equals(job.Stage, "external", StringComparison.OrdinalIgnoreCase))
-                    .Select(job => new BranchBuildJob(
-                        string.IsNullOrWhiteSpace(job.Name) ? "external-job" : job.Name,
-                        string.IsNullOrWhiteSpace(job.Status) ? "unknown" : job.Status,
-                        string.IsNullOrWhiteSpace(job.WebUrl) ? null : job.WebUrl))
-                    .ToList();
-            },
-            operationName,
-            GitLabApiFailureBehavior.Throw,
-            cancellationToken);
+        return jobs
+            .Where(job => string.Equals(job.Stage, "external", StringComparison.OrdinalIgnoreCase))
+            .Select(job => new BranchBuildJob(
+                string.IsNullOrWhiteSpace(job.Name) ? "external-job" : job.Name,
+                string.IsNullOrWhiteSpace(job.Status) ? "unknown" : job.Status,
+                string.IsNullOrWhiteSpace(job.WebUrl) ? null : job.WebUrl))
+            .ToList();
     }
 
     private async Task<List<BranchBuildJob>> GetExternalStatusesFromCommit(
@@ -264,46 +234,36 @@ public class GitlabPipelineService
         var operationName =
             $"GetExternalStatusesFromCommit(projectId={projectId}, commitSha={commitSha}, pipelineId={pipelineId})";
 
-        return await _gitLabApiClient.ExecuteAsync(
-            async (client, token) =>
-            {
-                using var request = accessDetails.CreateRequest(
+        List<GitLabCommitStatus> statuses;
+
+        try
+        {
+            statuses = await _gitLabApiClient.ExecuteAsync<List<GitLabCommitStatus>>(
+                () => accessDetails.CreateRequest(
                     HttpMethod.Get,
-                    $"projects/{projectId}/repository/commits/{encodedCommit}/statuses?pipeline_id={pipelineId}&per_page=100");
+                    $"projects/{projectId}/repository/commits/{encodedCommit}/statuses?pipeline_id={pipelineId}&per_page=100"),
+                _jsonOptions,
+                operationName,
+                GitLabApiFailureBehavior.Throw,
+                cancellationToken);
+        }
+        catch (GitLabUnexpectedResponseException ex)
+        {
+            _logger.LogError(
+                "GetExternalStatusesFromCommit failed with status {StatusCode} for project {ProjectId}, commit {CommitSha}, pipeline {PipelineId}",
+                (int)ex.StatusCode,
+                projectId,
+                commitSha,
+                pipelineId);
 
-                using var response = await client.SendAsync(request, token);
-                if (!response.IsSuccessStatusCode)
-                {
-                    if (GitLabApiClient.IsRetriableStatusCode(response.StatusCode))
-                    {
-                        throw new GitLabUnexpectedResponseException(operationName, response.StatusCode);
-                    }
+            return [];
+        }
 
-                    _logger.LogError(
-                        "GetExternalStatusesFromCommit failed with status {StatusCode} for project {ProjectId}, commit {CommitSha}, pipeline {PipelineId}",
-                        (int)response.StatusCode,
-                        projectId,
-                        commitSha,
-                        pipelineId);
-
-                    return [];
-                }
-
-                var json = await response.Content.ReadAsStringAsync(token);
-                var statuses = GitLabApiClient.DeserializeOrThrow<List<GitLabCommitStatus>>(
-                    json,
-                    _jsonOptions,
-                    operationName);
-
-                return statuses
-                    .Select(status => new BranchBuildJob(
-                        string.IsNullOrWhiteSpace(status.Name) ? "external-job" : status.Name,
-                        string.IsNullOrWhiteSpace(status.Status) ? "unknown" : status.Status,
-                        status.TargetUrl))
-                    .ToList();
-            },
-            operationName,
-            GitLabApiFailureBehavior.Throw,
-            cancellationToken);
+        return statuses
+            .Select(status => new BranchBuildJob(
+                string.IsNullOrWhiteSpace(status.Name) ? "external-job" : status.Name,
+                string.IsNullOrWhiteSpace(status.Status) ? "unknown" : status.Status,
+                status.TargetUrl))
+            .ToList();
     }
 }

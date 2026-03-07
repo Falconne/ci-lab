@@ -39,10 +39,11 @@ public class GitLabOAuthService
     public async Task<GitLabOAuthTokenResponse?> ExchangeCodeForToken(string code, string redirectUri)
     {
         var gitlabUrl = _settings.GitLab.ServerUrl.TrimEnd('/');
-        return await _gitLabApiClient.ExecuteAsync(
-            async (client, cancellationToken) =>
-            {
-                using var request = new HttpRequestMessage(HttpMethod.Post, $"{gitlabUrl}/oauth/token")
+
+        try
+        {
+            return await _gitLabApiClient.ExecuteAsync<GitLabOAuthTokenResponse>(
+                () => new HttpRequestMessage(HttpMethod.Post, $"{gitlabUrl}/oauth/token")
                 {
                     Content = new FormUrlEncodedContent(new Dictionary<string, string>
                     {
@@ -52,43 +53,30 @@ public class GitLabOAuthService
                         ["grant_type"] = "authorization_code",
                         ["redirect_uri"] = redirectUri
                     })
-                };
-
-                using var response = await client.SendAsync(request, cancellationToken);
-                if (!response.IsSuccessStatusCode)
-                {
-                    if (GitLabApiClient.IsRetriableStatusCode(response.StatusCode))
-                    {
-                        throw new GitLabUnexpectedResponseException("ExchangeCodeForToken", response.StatusCode);
-                    }
-
-                    var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
-                    _logger.LogError(
-                        "GitLab token exchange failed: {StatusCode} {Body} (redirect_uri={RedirectUri})",
-                        (int)response.StatusCode,
-                        errorBody,
-                        redirectUri);
-                    return null;
-                }
-
-                var json = await response.Content.ReadAsStringAsync(cancellationToken);
-                return GitLabApiClient.DeserializeOrThrow<GitLabOAuthTokenResponse>(
-                    json,
-                    _jsonOptions,
-                    "ExchangeCodeForToken");
-            },
-            "ExchangeCodeForToken",
-            GitLabApiFailureBehavior.EnterStartupMode);
+                },
+                _jsonOptions,
+                "ExchangeCodeForToken",
+                GitLabApiFailureBehavior.EnterStartupMode);
+        }
+        catch (GitLabUnexpectedResponseException ex)
+        {
+            _logger.LogError(
+                "GitLab token exchange failed: {StatusCode} {Body} (redirect_uri={RedirectUri})",
+                (int)ex.StatusCode,
+                ex.ResponseBody,
+                redirectUri);
+            return null;
+        }
     }
 
     public async Task<GitLabOAuthTokenResponse?> RefreshToken(string refreshToken)
     {
         var gitlabUrl = _settings.GitLab.ServerUrl.TrimEnd('/');
 
-        return await _gitLabApiClient.ExecuteAsync(
-            async (client, cancellationToken) =>
-            {
-                using var request = new HttpRequestMessage(HttpMethod.Post, $"{gitlabUrl}/oauth/token")
+        try
+        {
+            return await _gitLabApiClient.ExecuteAsync<GitLabOAuthTokenResponse>(
+                () => new HttpRequestMessage(HttpMethod.Post, $"{gitlabUrl}/oauth/token")
                 {
                     Content = new FormUrlEncodedContent(new Dictionary<string, string>
                     {
@@ -97,31 +85,18 @@ public class GitLabOAuthService
                         ["refresh_token"] = refreshToken,
                         ["grant_type"] = "refresh_token"
                     })
-                };
-
-                using var response = await client.SendAsync(request, cancellationToken);
-                if (!response.IsSuccessStatusCode)
-                {
-                    if (GitLabApiClient.IsRetriableStatusCode(response.StatusCode))
-                    {
-                        throw new GitLabUnexpectedResponseException("RefreshToken", response.StatusCode);
-                    }
-
-                    var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
-                    _logger.LogError(
-                        "GitLab token refresh failed: {StatusCode} {Body}",
-                        (int)response.StatusCode,
-                        errorBody);
-                    return null;
-                }
-
-                var json = await response.Content.ReadAsStringAsync(cancellationToken);
-                return GitLabApiClient.DeserializeOrThrow<GitLabOAuthTokenResponse>(
-                    json,
-                    _jsonOptions,
-                    "RefreshToken");
-            },
-            "RefreshToken",
-            GitLabApiFailureBehavior.EnterStartupMode);
+                },
+                _jsonOptions,
+                "RefreshToken",
+                GitLabApiFailureBehavior.EnterStartupMode);
+        }
+        catch (GitLabUnexpectedResponseException ex)
+        {
+            _logger.LogError(
+                "GitLab token refresh failed: {StatusCode} {Body}",
+                (int)ex.StatusCode,
+                ex.ResponseBody);
+            return null;
+        }
     }
 }

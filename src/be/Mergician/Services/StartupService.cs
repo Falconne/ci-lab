@@ -151,6 +151,21 @@ public class StartupService : IHostedService
 
                 await Task.Delay(_retryDelay, cancellationToken);
             }
+            catch (GitLabUnexpectedResponseException ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "StartupService: GitLab returned unexpected status {StatusCode}, will retry in {Delay}",
+                    (int)ex.StatusCode,
+                    _retryDelay);
+
+                SetStatus(
+                    false,
+                    "Checking GitLab...",
+                    "Error contacting GitLab, please contact administrator.");
+
+                await Task.Delay(_retryDelay, cancellationToken);
+            }
         }
     }
 }

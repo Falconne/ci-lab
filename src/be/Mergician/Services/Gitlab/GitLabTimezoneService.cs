@@ -57,32 +57,9 @@ public class GitLabTimezoneService
     public async Task DetectTimezone(CancellationToken cancellationToken = default)
     {
         var serviceUser = _userFactory.GetServiceUser();
-        var tokenInfo = await _gitLabApiClient.ExecuteAsync(
-            async (client, token) =>
-            {
-                using var request = serviceUser.CreateRequest(HttpMethod.Get, "personal_access_tokens/self");
-                using var response = await client.SendAsync(request, token);
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    throw new HttpRequestException(
-                        $"GitLab timezone detection failed: GET personal_access_tokens/self returned {(int)response.StatusCode}");
-                }
-
-                var json = await response.Content.ReadAsStringAsync(token);
-                var parsed = GitLabApiClient.DeserializeOrThrow<GitLabTokenSelfInfo>(
-                    json,
-                    _jsonOptions,
-                    "DetectTimezone");
-
-                if (parsed.CreatedAt == null)
-                {
-                    throw new JsonException(
-                        "GitLab timezone detection failed: could not parse created_at from token response");
-                }
-
-                return parsed;
-            },
+        var tokenInfo = await _gitLabApiClient.ExecuteAsync<GitLabTokenSelfInfo>(
+            () => serviceUser.CreateRequest(HttpMethod.Get, "personal_access_tokens/self"),
+            _jsonOptions,
             "DetectTimezone",
             GitLabApiFailureBehavior.Throw,
             cancellationToken);
