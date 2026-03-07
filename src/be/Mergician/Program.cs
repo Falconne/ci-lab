@@ -123,6 +123,9 @@ try
     // The endpoint /api/startup/status itself is excluded so the status can be
     // polled unconditionally.
     // ---------------------------------------------------------------------
+    app.Use(async (context, next) =>
+    {
+        if (!context.Request.Path.StartsWithSegments("/api") ||
             context.Request.Path.StartsWithSegments("/api/startup"))
         {
             await next();
