@@ -126,7 +126,7 @@ public class GitlabPipelineService
                         throw new GitLabUnexpectedResponseException(operationName, response.StatusCode);
                     }
 
-                    _logger.LogWarning(
+                    _logger.LogError(
                         "GetBranchHeadCommitSha failed with status {StatusCode} for branch '{BranchName}' in project {ProjectId}",
                         (int)response.StatusCode,
                         branchName,
@@ -142,7 +142,7 @@ public class GitlabPipelineService
                     operationName);
                 if (string.IsNullOrWhiteSpace(details.Commit?.Id))
                 {
-                    _logger.LogWarning(
+                    _logger.LogError(
                         "GetBranchHeadCommitSha returned no commit id for branch '{BranchName}' in project {ProjectId}",
                         branchName,
                         projectId);
@@ -181,7 +181,7 @@ public class GitlabPipelineService
                         throw new GitLabUnexpectedResponseException(operationName, response.StatusCode);
                     }
 
-                    _logger.LogWarning(
+                    _logger.LogError(
                         "GetLatestPipeline failed with status {StatusCode} for branch '{BranchName}' in project {ProjectId}",
                         (int)response.StatusCode,
                         branchName,
@@ -225,7 +225,7 @@ public class GitlabPipelineService
                         throw new GitLabUnexpectedResponseException(operationName, response.StatusCode);
                     }
 
-                    _logger.LogWarning(
+                    _logger.LogError(
                         "GetExternalJobsFromPipeline failed with status {StatusCode} for project {ProjectId}, pipeline {PipelineId}",
                         (int)response.StatusCode,
                         projectId,
@@ -279,7 +279,7 @@ public class GitlabPipelineService
                         throw new GitLabUnexpectedResponseException(operationName, response.StatusCode);
                     }
 
-                    _logger.LogWarning(
+                    _logger.LogError(
                         "GetExternalStatusesFromCommit failed with status {StatusCode} for project {ProjectId}, commit {CommitSha}, pipeline {PipelineId}",
                         (int)response.StatusCode,
                         projectId,

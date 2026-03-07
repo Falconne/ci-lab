@@ -128,7 +128,7 @@ public class CleanupService : IHostedService, IDisposable
             }
             else if (branchLookup.IsUnavailable)
             {
-                _logger.LogWarning(
+                _logger.LogError(
                     "CleanupService: branch lookup unavailable for '{BranchName}' in project {ProjectId}; skipping deletion this cycle",
                     branch.BranchName,
                     branch.ProjectId);
