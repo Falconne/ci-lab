@@ -1,4 +1,5 @@
 using Mergician.Entities;
+using Mergician.Utilities;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Options;
 using System.Net.Http.Headers;
@@ -116,10 +117,7 @@ public class GitLabCookieAuthenticationHandler : AuthenticationHandler<Authentic
         return AuthenticateResult.Success(ticket);
     }
 
-    private static readonly JsonSerializerOptions _jsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
-    };
+    private static readonly JsonSerializerOptions _jsonOptions = JsonOptions.SnakeCaseLower;
 
     private async Task<GitLabUserInfo?> ValidateToken(string accessToken)
     {

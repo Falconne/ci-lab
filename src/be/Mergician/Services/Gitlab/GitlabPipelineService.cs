@@ -1,13 +1,13 @@
 using Mergician.Entities;
 using Mergician.Services.Authentication;
+using Mergician.Utilities;
 using System.Text.Json;
 
 namespace Mergician.Services.Gitlab;
 
 public class GitlabPipelineService
 {
-    private static readonly JsonSerializerOptions _jsonOptions =
-        new() { PropertyNameCaseInsensitive = true };
+    private static readonly JsonSerializerOptions _jsonOptions = JsonOptions.CaseInsensitive;
 
     private readonly IHttpClientFactory _httpClientFactory;
 
