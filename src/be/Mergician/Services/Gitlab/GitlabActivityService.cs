@@ -1,4 +1,5 @@
 using Mergician.Entities;
+using Mergician.Entities.Database;
 using Mergician.Services.Authentication;
 using Mergician.Services.Database;
 
@@ -84,9 +85,9 @@ public class GitlabActivityService
     ///     Fetches MR, approval, and build job details from GitLab for the given branch
     ///     and persists them in the database. Silently skips if project info is unavailable.
     /// </summary>
-    private async Task RefreshBranchDetails(
+    public async Task RefreshBranchDetails(
         AccessDetailsBase accessDetails,
-        BranchWithActivity branch,
+        BranchInProject branch,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();

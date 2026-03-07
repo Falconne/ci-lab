@@ -361,8 +361,16 @@ public class UserActivitySyncService : IHostedService, IDisposable
                 project.NameWithNamespace);
 
             var mergeGroup = _mergeGroupRepository.GetOrCreateMergeGroup(pushEvent.BranchName);
-            if (!mergeGroup.Branches.Any(b => b.Id == branchRecord.Id))
+            var isNewToMergeGroup = !mergeGroup.Branches.Any(b => b.Id == branchRecord.Id);
+
+            if (isNewToMergeGroup)
             {
+                _logger.LogDebug(
+                    "Refreshing details for newly discovered branch {BranchId} before it becomes visible",
+                    branchRecord.Id);
+
+                await _activityService.RefreshBranchDetails(accessDetails, branchRecord, cancellationToken);
+
                 _logger.LogDebug(
                     "Branch {BranchId} not yet in merge group {MergeGroupId}, associating",
                     branchRecord.Id,
