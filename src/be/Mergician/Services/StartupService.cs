@@ -39,15 +39,21 @@ public class StartupService : IHostedService
         _logger = logger;
     }
 
-    public StartupStatus GetStatus() => _startupStateService.GetStatus();
-
     public Task StartAsync(CancellationToken cancellationToken)
     {
         _ = Task.Run(() => RunStartupChecks(cancellationToken), cancellationToken);
         return Task.CompletedTask;
     }
 
-    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task StopAsync(CancellationToken cancellationToken)
+    {
+        return Task.CompletedTask;
+    }
+
+    public StartupStatus GetStatus()
+    {
+        return _startupStateService.GetStatus();
+    }
 
     private void SetStatus(bool isReady, string message, string? error = null)
     {
@@ -70,7 +76,7 @@ public class StartupService : IHostedService
                 _logger.LogInformation("StartupService: waiting for a GitLab recovery request");
                 await _startupStateService.WaitForGitLabRecovery(cancellationToken);
                 _logger.LogInformation("StartupService: GitLab recovery requested, re-running GitLab checks");
-                await RunGitLabChecksUntilReady(cancellationToken, isRecoveryRun: true);
+                await RunGitLabChecksUntilReady(true, cancellationToken);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -107,8 +113,16 @@ public class StartupService : IHostedService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "StartupService: database check failed, will retry in {Delay}", _retryDelay);
-                SetStatus(false, "Checking database...", "Database is unavailable, please contact administrator.");
+                _logger.LogError(
+                    ex,
+                    "StartupService: database check failed, will retry in {Delay}",
+                    _retryDelay);
+
+                SetStatus(
+                    false,
+                    "Checking database...",
+                    "Database is unavailable, please contact administrator.");
+
                 await Task.Delay(_retryDelay, cancellationToken);
             }
         }
@@ -118,13 +132,13 @@ public class StartupService : IHostedService
             return false;
         }
 
-        await RunGitLabChecksUntilReady(cancellationToken, isRecoveryRun: false);
+        await RunGitLabChecksUntilReady(false, cancellationToken);
         return !cancellationToken.IsCancellationRequested;
     }
 
-    private async Task RunGitLabChecksUntilReady(CancellationToken cancellationToken, bool isRecoveryRun)
+    private async Task RunGitLabChecksUntilReady(bool isInRecoveryMode, CancellationToken cancellationToken)
     {
-        var retryDelay = isRecoveryRun ? _gitLabRecoveryDelay : _retryDelay;
+        var retryDelay = isInRecoveryMode ? _gitLabRecoveryDelay : _retryDelay;
 
         while (!cancellationToken.IsCancellationRequested)
         {
@@ -134,7 +148,7 @@ public class StartupService : IHostedService
             {
                 _logger.LogInformation(
                     "StartupService: checking GitLab connectivity and detecting timezone{Suffix}",
-                    isRecoveryRun ? " during recovery" : string.Empty);
+                    isInRecoveryMode ? " during recovery" : string.Empty);
 
                 await _timezoneService.DetectTimezone(cancellationToken);
                 _logger.LogInformation("StartupService: GitLab check passed");
