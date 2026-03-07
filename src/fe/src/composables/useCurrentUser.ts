@@ -1,4 +1,5 @@
 import { readonly, ref } from 'vue'
+import { fetchBackend, isStartupRequiredError } from '@/composables/useBackendFetch'
 
 export interface CurrentUser {
   id: number
@@ -21,8 +22,10 @@ async function loadCurrentUser(): Promise<CurrentUser | null> {
   }
 
   loadingPromise = (async () => {
+    let startupRequired = false
+
     try {
-      const response = await fetch('/api/auth/me')
+      const response = await fetchBackend('/api/auth/me')
       if (response.ok) {
         currentUser.value = await response.json()
       } else if (response.status === 401) {
@@ -32,11 +35,19 @@ async function loadCurrentUser(): Promise<CurrentUser | null> {
         currentUser.value = null
       }
     } catch (err) {
+      if (isStartupRequiredError(err)) {
+        startupRequired = true
+        throw err
+      }
+
       console.error('[Mergician] Failed to load current user:', err)
       currentUser.value = null
     } finally {
-      loaded.value = true
       loadingPromise = null
+
+      if (!startupRequired) {
+        loaded.value = true
+      }
     }
 
     return currentUser.value

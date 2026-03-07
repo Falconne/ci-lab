@@ -148,6 +148,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { fetchBackend, isStartupRequiredError } from '@/composables/useBackendFetch'
 import { useCurrentUser } from '@/composables/useCurrentUser'
 import { useAppLoading } from '@/composables/useAppLoading'
 
@@ -342,7 +343,7 @@ function formatTimeAgo(isoString: string): string {
  */
 async function pollDashboard() {
   try {
-    const response = await fetch('/api/activity/refresh', {
+    const response = await fetchBackend('/api/activity/refresh', {
       method: 'POST'
     })
 
@@ -380,6 +381,12 @@ async function pollDashboard() {
       }
     }
   } catch (err) {
+    if (isStartupRequiredError(err)) {
+      console.info('[Mergician] Dashboard polling paused while startup is in progress')
+      stopPolling()
+      return
+    }
+
     console.error('Dashboard poll failed:', err)
   }
 }
@@ -445,6 +452,11 @@ onMounted(async () => {
     initialLoading.value = false
     startPolling()
   } catch (err) {
+    if (isStartupRequiredError(err)) {
+      console.info('[Mergician] Dashboard mount paused while startup is in progress')
+      return
+    }
+
     console.error('Failed to load dashboard:', err)
     initialLoading.value = false
   }

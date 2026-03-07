@@ -159,6 +159,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { fetchBackend, isStartupRequiredError } from '@/composables/useBackendFetch'
 import { useAppLoading } from '@/composables/useAppLoading'
 
 interface BranchBuildJob {
@@ -323,7 +324,7 @@ async function pollMergeGroup() {
   if (!mergeGroupId) return
 
   try {
-    const response = await fetch(`/api/merge-groups/${mergeGroupId}/refresh`, {
+    const response = await fetchBackend(`/api/merge-groups/${mergeGroupId}/refresh`, {
       method: 'POST'
     })
 
@@ -367,6 +368,12 @@ async function pollMergeGroup() {
       handleActivityEvent(activity)
     }
   } catch (err) {
+    if (isStartupRequiredError(err)) {
+      console.info('[Mergician] Merge group polling paused while startup is in progress')
+      stopPolling()
+      return
+    }
+
     console.error('Merge group poll failed:', err)
   }
 }

@@ -39,6 +39,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { fetchBackend, isStartupRequiredError } from '@/composables/useBackendFetch'
 import { useCurrentUser } from '@/composables/useCurrentUser'
 import { useAppLoading } from '@/composables/useAppLoading'
 
@@ -58,22 +59,42 @@ const pageTitle = computed(() => {
 })
 
 onMounted(async () => {
-  await loadCurrentUser()
+  try {
+    await loadCurrentUser()
+  } catch (loadError) {
+    if (!isStartupRequiredError(loadError)) {
+      console.error('[Mergician] Failed to load current user in the app bar', loadError)
+    }
+
+    return
+  }
 
   // Fetch backend version
   try {
-    const response = await fetch('/api/version')
+    const response = await fetchBackend('/api/version')
     if (response.ok) {
       const data = await response.json()
       backendVersion.value = data.version || 'unknown'
     }
-  } catch {
-    // Could not fetch backend version
+  } catch (versionError) {
+    if (!isStartupRequiredError(versionError)) {
+      console.warn('[Mergician] Could not fetch backend version', versionError)
+    }
   }
 })
 
 async function logout() {
-  await fetch('/api/auth/logout', { method: 'POST' })
+  try {
+    await fetchBackend('/api/auth/logout', { method: 'POST' })
+  } catch (logoutError) {
+    if (isStartupRequiredError(logoutError)) {
+      return
+    }
+
+    console.error('[Mergician] Logout failed', logoutError)
+    return
+  }
+
   clearCurrentUser()
   window.location.href = '/'
 }

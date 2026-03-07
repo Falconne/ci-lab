@@ -33,13 +33,18 @@
 </template>
 
 <script setup lang="ts">
+import { onMounted } from 'vue'
 import AppBar from '@/components/AppBar.vue'
 import StartupOverlay from '@/components/StartupOverlay.vue'
 import { useVersionCheck } from '@/composables/useVersionCheck'
 import { useStartupCheck } from '@/composables/useStartupCheck'
 
 const { updateAvailable, reload } = useVersionCheck()
-const { isReady, message, error } = useStartupCheck()
+const { isReady, message, error, startMonitoring } = useStartupCheck()
+
+onMounted(() => {
+  void startMonitoring()
+})
 </script>
 
 <style scoped>

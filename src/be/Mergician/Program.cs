@@ -108,6 +108,33 @@ try
     app.UseSerilogRequestLogging();
     app.UseCors();
 
+    app.Use(async (context, next) =>
+    {
+        if (!context.Request.Path.StartsWithSegments("/api") ||
+            context.Request.Path.StartsWithSegments("/api/startup"))
+        {
+            await next();
+            return;
+        }
+
+        var startupService = context.RequestServices.GetRequiredService<StartupService>();
+        var startupStatus = startupService.GetStatus();
+
+        if (startupStatus.IsReady)
+        {
+            await next();
+            return;
+        }
+
+        Log.Information(
+            "Rejecting request to {Path} because startup is still in progress: {Message}",
+            context.Request.Path,
+            startupStatus.Message);
+
+        context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+        await context.Response.WriteAsJsonAsync(startupStatus);
+    });
+
     // Authentication and authorization middleware
     app.UseAuthentication();
     app.UseAuthorization();
