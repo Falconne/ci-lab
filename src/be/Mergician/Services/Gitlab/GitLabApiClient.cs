@@ -129,12 +129,6 @@ public class GitLabApiClient
             {
                 lastException = ex;
             }
-            catch (JsonException)
-            {
-                // JSON parsing errors indicate an unrecoverable problem with the
-                // response payload and should not be retried.
-                throw;
-            }
 
             if (attempt == totalAttempts)
             {
