@@ -132,11 +132,17 @@ public class StartupService : IHostedService
             return false;
         }
 
-        await RunGitLabChecksUntilReady(false, cancellationToken);
+        if (await RunGitLabChecksUntilReady(false, cancellationToken))
+        {
+            SetStatus(true, "Ready");
+        }
+
         return !cancellationToken.IsCancellationRequested;
     }
 
-    private async Task RunGitLabChecksUntilReady(bool isInRecoveryMode, CancellationToken cancellationToken)
+    private async Task<bool> RunGitLabChecksUntilReady(
+        bool isInRecoveryMode,
+        CancellationToken cancellationToken)
     {
         var retryDelay = isInRecoveryMode ? _gitLabRecoveryDelay : _retryDelay;
 
@@ -152,8 +158,7 @@ public class StartupService : IHostedService
 
                 await _timezoneService.DetectTimezone(cancellationToken);
                 _logger.LogInformation("StartupService: GitLab check passed");
-                SetStatus(true, "Ready");
-                return;
+                return true;
             }
             catch (GitLabApiFailureException ex)
             {
@@ -165,7 +170,7 @@ public class StartupService : IHostedService
                 SetStatus(
                     false,
                     "Checking GitLab...",
-                    "Error contacting GitLab, please contact administrator.");
+                    "Error connecting to GitLab, please contact administrator.");
 
                 await Task.Delay(retryDelay, cancellationToken);
             }
@@ -180,10 +185,12 @@ public class StartupService : IHostedService
                 SetStatus(
                     false,
                     "Checking GitLab...",
-                    "Error contacting GitLab, please contact administrator.");
+                    "Error connecting to GitLab, please contact administrator.");
 
                 await Task.Delay(retryDelay, cancellationToken);
             }
         }
+
+        return false;
     }
 }
