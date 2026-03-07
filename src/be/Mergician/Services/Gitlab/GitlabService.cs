@@ -71,7 +71,7 @@ public class GitlabService
     ///     filtering in-process to preserve sub-day precision.
     /// </summary>
     public async IAsyncEnumerable<(string BranchName, int ProjectId, DateTimeOffset CreatedAt)>
-        GetPushEventsSince(
+        GetPushEventsForUserSince(
             AccessDetailsBase accessDetails,
             DateTimeOffset since,
             [EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -85,7 +85,7 @@ public class GitlabService
         var afterDate = sinceInGitLabLocal.AddDays(-1).ToString("yyyy-MM-dd");
 
         _logger.LogDebug(
-            "GetPushEventsSince: sinceUtc={SinceUtc}, gitLabLocal={GitLabLocal}, afterDate={AfterDate}, gitLabOffset={Offset}",
+            "GetPushEventsForUserSince: sinceUtc={SinceUtc}, gitLabLocal={GitLabLocal}, afterDate={AfterDate}, gitLabOffset={Offset}",
             sinceUtc,
             sinceInGitLabLocal,
             afterDate,
@@ -108,7 +108,7 @@ public class GitlabService
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogError(
-                    "GetPushEventsSince failed on page {Page} with status {StatusCode}",
+                    "GetPushEventsForUserSince failed on page {Page} with status {StatusCode}",
                     page,
                     (int)response.StatusCode);
 

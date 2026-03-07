@@ -281,7 +281,7 @@ public class UserActivitySyncService : IHostedService, IDisposable
             gitlabUserId,
             since);
 
-        var pushEvents = _gitlabService.GetPushEventsSince(accessDetails, since, cancellationToken);
+        var pushEvents = _gitlabService.GetPushEventsForUserSince(accessDetails, since, cancellationToken);
         var processedKeys = new HashSet<string>();
 
         await foreach (var pushEvent in pushEvents)
