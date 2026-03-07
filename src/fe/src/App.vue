@@ -1,7 +1,7 @@
 <template>
   <v-app>
     <!-- Startup overlay blocks the UI until the application is fully initialized -->
-    <StartupOverlay v-if="!isReady" :message="message" :error="error" />
+    <StartupOverlay v-if="!isReady" :message="message" :error="error" :is-git-lab-recovery="isGitLabRecovery" />
 
     <!-- Normal layout shown once startup is complete -->
     <template v-else>
@@ -40,7 +40,7 @@ import { useVersionCheck } from '@/composables/useVersionCheck'
 import { useStartupCheck } from '@/composables/useStartupCheck'
 
 const { updateAvailable, reload } = useVersionCheck()
-const { isReady, message, error, startMonitoring } = useStartupCheck()
+const { isReady, message, error, isGitLabRecovery, startMonitoring } = useStartupCheck()
 
 onMounted(() => {
   void startMonitoring()

@@ -13,6 +13,8 @@ public class StartupService : IHostedService
 {
     private static readonly TimeSpan _retryDelay = TimeSpan.FromSeconds(5);
 
+    private static readonly TimeSpan _gitLabRecoveryDelay = TimeSpan.FromSeconds(15);
+
     private readonly DatabaseMigrationService _databaseMigrationService;
 
     private readonly ILogger<StartupService> _logger;
@@ -122,6 +124,8 @@ public class StartupService : IHostedService
 
     private async Task RunGitLabChecksUntilReady(CancellationToken cancellationToken, bool isRecoveryRun)
     {
+        var retryDelay = isRecoveryRun ? _gitLabRecoveryDelay : _retryDelay;
+
         while (!cancellationToken.IsCancellationRequested)
         {
             SetStatus(false, "Checking GitLab...");
@@ -142,14 +146,14 @@ public class StartupService : IHostedService
                 _logger.LogError(
                     ex,
                     "StartupService: GitLab check failed, will retry in {Delay}",
-                    _retryDelay);
+                    retryDelay);
 
                 SetStatus(
                     false,
                     "Checking GitLab...",
                     "Error contacting GitLab, please contact administrator.");
 
-                await Task.Delay(_retryDelay, cancellationToken);
+                await Task.Delay(retryDelay, cancellationToken);
             }
             catch (GitLabUnexpectedResponseException ex)
             {
@@ -157,14 +161,14 @@ public class StartupService : IHostedService
                     ex,
                     "StartupService: GitLab returned unexpected status {StatusCode}, will retry in {Delay}",
                     (int)ex.StatusCode,
-                    _retryDelay);
+                    retryDelay);
 
                 SetStatus(
                     false,
                     "Checking GitLab...",
                     "Error contacting GitLab, please contact administrator.");
 
-                await Task.Delay(_retryDelay, cancellationToken);
+                await Task.Delay(retryDelay, cancellationToken);
             }
         }
     }

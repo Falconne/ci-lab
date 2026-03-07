@@ -141,6 +141,16 @@ public class GitLabApiClient
                 break;
             }
 
+            // If another thread already triggered GitLab recovery mode, stop retrying
+            // immediately so we don't waste time hitting an unreachable GitLab instance.
+            if (_startupStateService.IsInGitLabRecoveryMode)
+            {
+                _logger.LogInformation(
+                    "GitLab call {OperationName} aborting retries: GitLab recovery mode is active",
+                    operationName);
+                break;
+            }
+
             var delay = _retryDelays[attempt - 1];
             _logger.LogError(
                 lastException,
@@ -164,9 +174,14 @@ public class GitLabApiClient
             operationName,
             totalAttempts);
 
+        // Always enter recovery mode when retries are exhausted, regardless of the
+        // caller's failure behavior. This ensures the frontend shows the GitLab error
+        // overlay and other threads stop wasting time retrying against an unreachable
+        // GitLab instance.
+        _startupStateService.EnterGitLabRecoveryMode();
+
         if (failureBehavior == GitLabApiFailureBehavior.EnterStartupMode)
         {
-            _startupStateService.EnterGitLabRecoveryMode();
             throw new GitLabStartupRequiredException(operationName, failureException);
         }
 

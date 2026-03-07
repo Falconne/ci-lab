@@ -10,12 +10,26 @@ public class StartupStateService
 
     private int _gitLabRecoveryPending;
 
+    private volatile bool _isInGitLabRecoveryMode;
+
+    /// <summary>
+    ///     True when the application has entered GitLab recovery mode.
+    ///     Used by <see cref="Gitlab.GitLabApiClient" /> to abort remaining retries
+    ///     so that all threads stop hitting an unreachable GitLab instance.
+    /// </summary>
+    public bool IsInGitLabRecoveryMode => _isInGitLabRecoveryMode;
+
     public void EnterGitLabRecoveryMode()
     {
-        SetStatus(
-            false,
-            "Checking GitLab...",
-            "Error contacting GitLab, please contact administrator.");
+        _isInGitLabRecoveryMode = true;
+
+        _status = new StartupStatus
+        {
+            IsReady = false,
+            Message = "Checking GitLab...",
+            Error = "Error contacting GitLab, please contact administrator.",
+            IsGitLabRecovery = true
+        };
 
         if (Interlocked.Exchange(ref _gitLabRecoveryPending, 1) == 0)
         {
@@ -27,11 +41,17 @@ public class StartupStateService
 
     public void SetStatus(bool isReady, string message, string? error = null)
     {
+        if (isReady)
+        {
+            _isInGitLabRecoveryMode = false;
+        }
+
         _status = new StartupStatus
         {
             IsReady = isReady,
             Message = message,
-            Error = error
+            Error = error,
+            IsGitLabRecovery = _isInGitLabRecoveryMode
         };
     }
 

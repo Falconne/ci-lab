@@ -55,6 +55,7 @@ async function tryReadStartupStatus(response: Response): Promise<StartupStatus |
       isReady: data.isReady,
       message: data.message,
       error: typeof data.error === 'string' ? data.error : null,
+      isGitLabRecovery: data.isGitLabRecovery === true,
     }
   } catch {
     return null
