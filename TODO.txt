@@ -1,2 +1,9 @@
 Task 1)
 Controllers should return strong types where possible. For example, prefer returning `ActionResult<T>` over just `IActionResult`. Refactor existing controllers that could be improved this way and adjust the frontend if needed.
+
+Task 2)
+If Gitlab goes down, we must handle this gracefully in the backend. If any Gitlab API call fails in an unexpected way or returns an unexpected 5XX error, then the frontend and backend should go back into the "startup" mode, but skip over the DB migrations and other checks and go straight to the Gitlab health check (if this is not the last check, then move this to be the last check).
+
+Every Gitlab API call should retry 3 times with a linear backoff strategy, starting withe a delay of 2 seconds and ending with a delay of 10 seconds. Once the retries are exhausted, then go into the "startup" mode as described above.
+
+Centralise the core Gitlab API call into a single method in a new service so that retries and returning to startup can be handled from a single location. Refactor the code so that the "return to startup" mode is handled in a clean way.

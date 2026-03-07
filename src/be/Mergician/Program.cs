@@ -75,9 +75,10 @@ try
     builder.Services.AddAuthorization();
 
     // GitlabUserFactory is needed for service user access (background tasks)
-    builder.Services.AddSingleton(new GitlabUserFactory(
-        gitlabApiBaseUrl,
-        mergicianSettings.GitLab.ServiceToken));
+    builder.Services.AddSingleton(
+        new GitlabUserFactory(
+            gitlabApiBaseUrl,
+            mergicianSettings.GitLab.ServiceToken));
 
     // Register startup service (runs health checks before marking app as ready)
     builder.Services.AddSingleton<StartupService>();
@@ -115,7 +116,7 @@ try
     // migrations, we mark it as "not ready" via StartupService.  Any client
     // requests during that period should not be forwarded to the normal
     // controllers because many services (database, GitLab) may be unavailable
-    // and would return errors.  Instead we intercept API calls here and return
+    // and would return errors. Instead we intercept API calls here and return
     // a 503 Service Unavailable with the current startup status.  This allows
     // the frontend to detect a restart and display the startup overlay, and
     // avoids spamming the backend with failing requests while it's booting.
@@ -125,8 +126,8 @@ try
     // ---------------------------------------------------------------------
     app.Use(async (context, next) =>
     {
-        if (!context.Request.Path.StartsWithSegments("/api") ||
-            context.Request.Path.StartsWithSegments("/api/startup"))
+        if (!context.Request.Path.StartsWithSegments("/api")
+            || context.Request.Path.StartsWithSegments("/api/startup"))
         {
             await next();
             return;
