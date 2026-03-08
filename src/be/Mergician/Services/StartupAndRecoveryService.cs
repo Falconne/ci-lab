@@ -17,6 +17,8 @@ public class StartupAndRecoveryService : BackgroundService
 
     private readonly GitLabHealthService _gitLabHealthService;
 
+    private readonly GitLabRecoveryService _gitLabRecoveryService;
+
     private readonly ILogger<StartupAndRecoveryService> _logger;
 
     private readonly MergicianSettings _settings;
@@ -28,12 +30,14 @@ public class StartupAndRecoveryService : BackgroundService
         DatabaseMigrationService databaseMigrationService,
         HealthService startupStateService,
         GitLabHealthService gitLabHealthService,
+        GitLabRecoveryService gitLabRecoveryService,
         ILogger<StartupAndRecoveryService> logger)
     {
         _settings = settings;
         _databaseMigrationService = databaseMigrationService;
         _startupStateService = startupStateService;
         _gitLabHealthService = gitLabHealthService;
+        _gitLabRecoveryService = gitLabRecoveryService;
         _logger = logger;
     }
 
@@ -85,7 +89,7 @@ public class StartupAndRecoveryService : BackgroundService
             while (!cancellationToken.IsCancellationRequested)
             {
                 _logger.LogInformation("StartupAndRecoveryService: monitoring for a GitLab recovery request");
-                await _gitLabHealthService.WaitForGitLabRecoveryRequest(cancellationToken);
+                await _gitLabRecoveryService.WaitForGitLabRecoveryRequest(cancellationToken);
                 _logger.LogInformation("StartupAndRecoveryService: GitLab recovery requested, re-running GitLab checks");
                 if (await _gitLabHealthService.WaitForGitLabHealthy(true, cancellationToken))
                 {

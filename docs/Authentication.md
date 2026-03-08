@@ -6,7 +6,7 @@ Mergician uses **GitLab OAuth 2.0** for authentication. There is no separate use
 
 When an unauthenticated user visits Mergician, the backend detects the missing authentication tokens and returns `401 Unauthorized`. The frontend then redirects the user to GitLab's OAuth authorization page. After the user grants permission, GitLab redirects back to Mergician with an authorization code. Mergician exchanges this code for an access token and refresh token, stores them securely in HTTP-only cookies, and redirects the user to the dashboard.
 
-On subsequent requests, ASP.NET Core's authentication middleware automatically validates the access token by making a test API call to GitLab. If the token has expired, the middleware transparently refreshes it using the refresh token and updates the cookies—all without the user or controller code needing to be aware of this. Controllers simply use the `[Authorize]` attribute and retrieve the authenticated user context via `HttpContext.GetGitlabUser()`.
+On subsequent requests, ASP.NET Core's authentication middleware automatically validates the access token by making a test API call to GitLab. If the token has expired, the middleware transparently refreshes it using the refresh token and updates the cookies—all without the user or controller code needing to be aware of this. Controllers simply use the `[Authorize]` attribute and retrieve the authenticated user context via `HttpContext.GetGitLabUser()`.
 
 ## Authentication Flow
 
@@ -42,8 +42,8 @@ sequenceDiagram
     Mergician Backend->>Mergician Backend: Authentication middleware<br/>validates token with GitLab
     Mergician Backend->>GitLab: GET /api/v4/user (validate token)
     GitLab->>Mergician Backend: 200 OK
-    Mergician Backend->>Mergician Backend: Create GitlabAccessUser<br/>Store in HttpContext.Items
-    Mergician Backend->>Mergician Backend: ActivityController receives request<br/>Retrieves user via GetGitlabUser()
+    Mergician Backend->>Mergician Backend: Create AccessDetailsForUser<br/>Store in HttpContext.Items
+    Mergician Backend->>Mergician Backend: ActivityController receives request<br/>Retrieves user via GetGitLabUser()
     Mergician Backend->>Browser: Stream activity events
 ```
 
@@ -83,7 +83,7 @@ Important notes about the authorization `code`:
 8. **Authenticated requests**: On subsequent requests, the authentication middleware:
    - Reads the `gl_access_token` cookie
    - Validates it by making a test call to `GET /api/v4/user` on GitLab
-   - If valid, creates a `GitlabAccessUser` object and stores it in `HttpContext.Items`
+   - If valid, creates an `AccessDetailsForUser` object and stores it in `HttpContext.Items`
    - If invalid but a `gl_refresh_token` exists, transparently refreshes the token and updates the cookies
    - If both tokens are invalid or missing, returns `NoResult()` which triggers a 401 for `[Authorize]` endpoints
 
@@ -106,7 +106,7 @@ This handler runs **before every controller action** (when `app.UseAuthenticatio
 
 1. Checks for `gl_access_token` in the request cookies
 2. Validates the token by calling `GET /api/v4/user` on GitLab
-3. If valid: Creates a `GitlabAccessUser` object and stores it in `HttpContext.Items`, then returns `AuthenticateResult.Success()`
+3. If valid: Creates an `AccessDetailsForUser` object and stores it in `HttpContext.Items`, then returns `AuthenticateResult.Success()`
 4. If invalid but `gl_refresh_token` exists: Calls GitLab's token refresh endpoint, updates the cookies, and returns success
 5. If no valid tokens: Returns `AuthenticateResult.NoResult()`
 
@@ -120,9 +120,9 @@ This handler runs **before every controller action** (when `app.UseAuthenticatio
 Conversely, when the `GitLabCookieAuthenticationHandler` successfully authenticates a request it does two things:
 
 - It returns `AuthenticateResult.Success()` so the runtime considers the request authenticated.
-- It creates a `GitlabAccessUser` and stores it in `HttpContext.Items[GitLabCookieAuthenticationHandler.GitlabAccessUserKey]` for use by controllers and services.
+- It creates an `AccessDetailsForUser` and stores it in `HttpContext.Items[GitLabCookieAuthenticationHandler.GitLabAccessUserKey]` for use by controllers and services.
 
-Because `[Authorize]` prevents controller actions from running for unauthenticated requests, any controller action that is executed under `[Authorize]` can rely on `HttpContext.GetGitlabUser()` returning a non-null `GitlabAccessUser`. If you call `HttpContext.GetGitlabUser()` from an endpoint that is *not* protected by `[Authorize]`, you must still check for `null` because the request may be unauthenticated.
+Because `[Authorize]` prevents controller actions from running for unauthenticated requests, any controller action that is executed under `[Authorize]` can rely on `HttpContext.GetGitLabUser()` returning a non-null `AccessDetailsForUser`. If you call `HttpContext.GetGitLabUser()` from an endpoint that is *not* protected by `[Authorize]`, you must still check for `null` because the request may be unauthenticated.
 
 ```mermaid
 flowchart TD
@@ -130,14 +130,14 @@ flowchart TD
     B -->|No| C{gl_refresh_token<br/>cookie exists?}
     B -->|Yes| D[Validate token with GitLab<br/>GET /api/v4/user]
     D --> E{Token valid?}
-    E -->|Yes| F[Create GitlabAccessUser<br/>Store in HttpContext.Items<br/>Return Success]
+    E -->|Yes| F[Create AccessDetailsForUser<br/>Store in HttpContext.Items<br/>Return Success]
     E -->|No| C
     C -->|No| G[Return NoResult<br/>Controller sees 401]
     C -->|Yes| H[Refresh token with GitLab<br/>POST /oauth/token]
     H --> I{Refresh<br/>successful?}
-    I -->|Yes| J[Update cookies with new tokens<br/>Create GitlabAccessUser<br/>Return Success]
+    I -->|Yes| J[Update cookies with new tokens<br/>Create AccessDetailsForUser<br/>Return Success]
     I -->|No| K[Return Fail<br/>Controller sees 401]
-    F --> L[Controller action executes<br/>Can call GetGitlabUser]
+    F --> L[Controller action executes<br/>Can call GetGitLabUser]
     J --> L
 ```
 
@@ -145,7 +145,7 @@ flowchart TD
 
 Controllers simply:
 1. Add the `[Authorize]` attribute to the class or method
-2. Retrieve the authenticated user context via `HttpContext.GetGitlabUser()`
+2. Retrieve the authenticated user context via `HttpContext.GetGitLabUser()`
 
 Example from [ActivityController.cs](../src/be/Mergician/Controllers/ActivityController.cs):
 
@@ -158,20 +158,20 @@ public class ActivityController : ControllerBase
     [HttpGet("stream")]
     public async Task StreamPushActivity(CancellationToken cancellationToken)
     {
-        var currentUser = HttpContext.GetGitlabUser()!;
+        var currentUser = HttpContext.GetGitLabUser()!;
         // Use currentUser to make GitLab API calls
     }
 }
 ```
 
-The `GetGitlabUser()` extension method simply retrieves the `GitlabAccessUser` object that the authentication handler stored in `HttpContext.Items`.
+The `GetGitLabUser()` extension method simply retrieves the `AccessDetailsForUser` object that the authentication handler stored in `HttpContext.Items`.
 
-### GitlabAccessUser
+### AccessDetailsForUser
 
-The `GitlabAccessUser` class wraps the access token and provides a convenient `CreateRequest()` method for making authenticated API calls to GitLab:
+The `AccessDetailsForUser` class wraps the access token and provides a convenient `CreateRequest()` method for making authenticated API calls to GitLab:
 
 ```csharp
-public class GitlabAccessUser
+public class AccessDetailsForUser
 {
     private readonly string _accessToken;
     private readonly string _apiBaseUrl;
@@ -186,7 +186,7 @@ public class GitlabAccessUser
 }
 ```
 
-Services like `GitlabService` receive a `GitlabAccessUser` and use it to create authenticated requests without needing to know about cookie management or token storage.
+Services like `GitLabService` receive an `AccessDetailsForUser` and use it to create authenticated requests without needing to know about cookie management or token storage.
 
 ## Token Storage & Management
 
@@ -261,10 +261,10 @@ The logout flow is simple:
 | File | Purpose |
 |------|---------|
 | [AuthController.cs](../src/be/Mergician/Controllers/AuthController.cs) | Login, OAuth callback, `/me`, and logout endpoints |
-| [GitLabCookieAuthenticationHandler.cs](../src/be/Mergician/Services/GitLabCookieAuthenticationHandler.cs) | ASP.NET authentication handler that validates/refreshes tokens automatically |
-| [GitLabOAuthService.cs](../src/be/Mergician/Services/Gitlab/GitLabOAuthService.cs) | OAuth token exchange and refresh logic |
-| [GitlabAccessUser.cs](../src/be/Mergician/Services/Gitlab/GitlabAccessUser.cs) | Wrapper for access token with helper to create authenticated requests |
-| [HttpContextExtensions.cs](../src/be/Mergician/Services/HttpContextExtensions.cs) | Extension method to retrieve authenticated user from HttpContext |
+| [GitLabCookieAuthenticationHandler.cs](../src/be/Mergician/Services/Authentication/GitLabCookieAuthenticationHandler.cs) | ASP.NET authentication handler that validates/refreshes tokens automatically |
+| [GitLabOAuthService.cs](../src/be/Mergician/Services/GitLab/GitLabOAuthService.cs) | OAuth token exchange and refresh logic |
+| [AccessDetailsForUser.cs](../src/be/Mergician/Services/Authentication/AccessDetailsForUser.cs) | Wrapper for access token with helper to create authenticated requests |
+| [HttpContextExtensions.cs](../src/be/Mergician/Services/Authentication/HttpContextExtensions.cs) | Extension method to retrieve authenticated user from HttpContext |
 | [MergicianSettings.cs](../src/be/Mergician/Entities/MergicianSettings.cs) | Strongly-typed configuration settings |
 | [Program.cs](../src/be/Mergician/Program.cs) | Authentication middleware registration |
 | [HomeView.vue](../src/fe/src/views/HomeView.vue) | Dashboard UI; redirects to login on 401 |

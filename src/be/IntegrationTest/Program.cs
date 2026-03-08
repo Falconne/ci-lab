@@ -28,7 +28,7 @@ try
 {
     // Wait for Mergician to be fully started and ready before running tests
     {
-        var startupUrl = $"{TestConfig.MergicianUrl}/api/startup/status";
+        var healthUrl = $"{TestConfig.MergicianUrl}/api/health";
         var timeout = TimeSpan.FromMinutes(5);
         var pollInterval = TimeSpan.FromSeconds(3);
         var deadline = DateTime.UtcNow + timeout;
@@ -37,7 +37,7 @@ try
         Log.Information("");
         Log.Information(
             "--- Waiting for Mergician to be ready at {Url} (timeout: {Timeout}) ---",
-            startupUrl,
+            healthUrl,
             timeout);
 
         var ready = false;
@@ -45,30 +45,23 @@ try
         {
             try
             {
-                var response = await httpClient.GetAsync(startupUrl);
-                if (response.IsSuccessStatusCode)
+                var response = await httpClient.GetAsync(healthUrl);
+                var json = await response.Content.ReadAsStringAsync();
+                using var doc = JsonDocument.Parse(json);
+                var isReady = doc.RootElement.TryGetProperty("isReady", out var prop) && prop.GetBoolean();
+                if (isReady)
                 {
-                    var json = await response.Content.ReadAsStringAsync();
-                    using var doc = JsonDocument.Parse(json);
-                    var isReady = doc.RootElement.TryGetProperty("isReady", out var prop) && prop.GetBoolean();
-                    if (isReady)
-                    {
-                        Log.Information("Mergician is ready");
-                        ready = true;
-                        break;
-                    }
+                    Log.Information("Mergician is ready");
+                    ready = true;
+                    break;
+                }
 
-                    var message = doc.RootElement.TryGetProperty("message", out var msgProp)
-                        ? msgProp.GetString()
-                        : "unknown";
-                    Log.Debug("Mergician not yet ready (message: {Message}), retrying...", message);
-                }
-                else
-                {
-                    Log.Debug("Startup status returned HTTP {StatusCode}, retrying...", (int)response.StatusCode);
-                }
+                var message = doc.RootElement.TryGetProperty("message", out var msgProp)
+                    ? msgProp.GetString()
+                    : "unknown";
+                Log.Debug("Mergician not yet ready (message: {Message}), retrying...", message);
             }
-            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
             {
                 Log.Debug("Startup check failed ({Message}), retrying...", ex.Message);
             }
@@ -79,7 +72,7 @@ try
         if (!ready)
         {
             throw new TimeoutException(
-                $"Mergician did not become ready at {startupUrl} within {timeout.TotalMinutes} minutes");
+                $"Mergician did not become ready at {healthUrl} within {timeout.TotalMinutes} minutes");
         }
 
         results.Add(("StartupCheck", true, null));

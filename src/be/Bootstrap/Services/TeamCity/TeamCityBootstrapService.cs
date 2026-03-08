@@ -353,11 +353,12 @@ public class TeamCityBootstrapService : IDisposable
                         }
                     }
 
-                    Log.Warning($"Token '{tokenName}' exists but we don't have a valid value stored");
+                    // Token exists in TeamCity but we don't have a valid stored value.
+                    // Delete it so we can recreate it and capture the new value.
                     Log.Warning(
-                        "Cannot retrieve existing token value via API - TeamCity only returns values on creation");
+                        $"Token '{tokenName}' exists but we don't have a valid stored value. Deleting and recreating it.");
 
-                    return null;
+                    await DeleteToken(endpoint, tokenName);
                 }
 
                 Log.Information(
@@ -372,6 +373,31 @@ public class TeamCityBootstrapService : IDisposable
 
             return null;
         });
+    }
+
+    private async Task DeleteToken(string tokensEndpoint, string tokenName)
+    {
+        try
+        {
+            // TeamCity DELETE endpoint uses the token name directly as a path segment
+            var deleteEndpoint = $"{tokensEndpoint}/{tokenName}";
+            var request = new RestRequest(deleteEndpoint, Method.Delete);
+            var response = await _client.ExecuteAsync(request);
+
+            if (response.IsSuccessful)
+            {
+                Log.Information($"Deleted existing token '{tokenName}'");
+            }
+            else
+            {
+                Log.Warning(
+                    $"Failed to delete token '{tokenName}' at {deleteEndpoint}: {(int)response.StatusCode} {response.StatusCode}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warning($"Exception deleting token '{tokenName}': {ex.Message}");
+        }
     }
 
     private async Task<bool> CheckTokenExists(string endpoint, string tokenName)

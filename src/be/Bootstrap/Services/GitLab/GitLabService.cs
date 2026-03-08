@@ -585,35 +585,25 @@ public class GitLabService : IDisposable
         var expectedRedirectUris = redirectUri
             .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
-        var existingApp = applications
-            .Where(app => app.Name == name)
-            .OrderByDescending(app => app.Id)
-            .FirstOrDefault();
-
-        if (existingApp is null)
-        {
-            existingApp = applications
-                .Where(app => expectedRedirectUris.Any(expected =>
+        // Find existing apps by name or callback URL match
+        var existingApps = applications
+            .Where(app =>
+                app.Name == name ||
+                expectedRedirectUris.Any(expected =>
                     app.CallbackUrl.Contains(expected, StringComparison.OrdinalIgnoreCase)))
-                .OrderByDescending(app => app.Id)
-                .FirstOrDefault();
+            .ToList();
 
-            if (existingApp is not null)
-            {
-                Log.Information(
-                    $"Found existing OAuth application by callback URL (id={existingApp.Id}, name='{existingApp.Name}'). Reusing it.");
-            }
-        }
-
-        if (existingApp is not null)
+        // Delete all matching apps: GitLab never returns secrets via the list API,
+        // so reusing an existing app would leave us without the client secret.
+        foreach (var app in existingApps)
         {
             Log.Information(
-                $"OAuth application '{existingApp.Name}' already exists (id={existingApp.Id}). Reusing existing credentials.");
-
-            return existingApp;
+                $"Deleting existing OAuth application (id={app.Id}, name='{app.Name}') to obtain a fresh secret.");
+            var deleteRequest = new RestRequest($"applications/{app.Id}", Method.Delete);
+            await _client.ExecuteAsync(deleteRequest);
         }
 
-        Log.Information($"OAuth application '{name}' not found. Creating a new application.");
+        Log.Information($"Creating OAuth application '{name}'.");
 
         var createRequest = new RestRequest("applications", Method.Post)
             .AddJsonBody(new { name, redirect_uri = redirectUri, scopes, confidential = true });

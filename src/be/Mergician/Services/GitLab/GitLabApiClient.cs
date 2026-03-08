@@ -12,7 +12,7 @@ public class GitLabApiClient
         TimeSpan.FromSeconds(10)
     ];
 
-    private readonly GitLabHealthService _gitLabHealthService;
+    private readonly GitLabRecoveryService _gitLabRecoveryService;
 
     private readonly IHttpClientFactory _httpClientFactory;
 
@@ -20,11 +20,11 @@ public class GitLabApiClient
 
     public GitLabApiClient(
         IHttpClientFactory httpClientFactory,
-        GitLabHealthService gitLabHealthService,
+        GitLabRecoveryService gitLabRecoveryService,
         ILogger<GitLabApiClient> logger)
     {
         _httpClientFactory = httpClientFactory;
-        _gitLabHealthService = gitLabHealthService;
+        _gitLabRecoveryService = gitLabRecoveryService;
         _logger = logger;
     }
 
@@ -141,7 +141,7 @@ public class GitLabApiClient
 
             // If another thread already triggered GitLab recovery mode, stop retrying
             // immediately so we don't waste time hitting an unreachable GitLab instance.
-            if (_gitLabHealthService.IsInGitLabRecoveryMode)
+            if (_gitLabRecoveryService.IsInGitLabRecoveryMode)
             {
                 _logger.LogInformation(
                     "GitLab call {OperationName} aborting retries: GitLab recovery mode is active",
@@ -176,7 +176,7 @@ public class GitLabApiClient
         // caller's failure behavior. This ensures the frontend shows the GitLab error
         // overlay and other threads stop wasting time retrying against an unreachable
         // GitLab instance.
-        _gitLabHealthService.EnterGitLabRecoveryMode();
+        _gitLabRecoveryService.EnterGitLabRecoveryMode();
 
         if (failureBehavior == GitLabApiFailureBehavior.EnterStartupMode)
         {
