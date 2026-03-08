@@ -2,7 +2,7 @@ using Mergician.Services;
 using System.Net;
 using System.Text.Json;
 
-namespace Mergician.Services.Gitlab;
+namespace Mergician.Services.GitLab;
 
 public class GitLabApiClient
 {

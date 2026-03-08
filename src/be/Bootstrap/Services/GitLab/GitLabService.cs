@@ -1,22 +1,22 @@
-using Bootstrap.Entities.Gitlab;
+using Bootstrap.Entities.GitLab;
 using LibGit2Sharp;
 using RestSharp;
 using Serilog;
 using System.Net;
 
-namespace Bootstrap.Services.Gitlab;
+namespace Bootstrap.Services.GitLab;
 
-public class GitlabService : IDisposable
+public class GitLabService : IDisposable
 {
     private readonly RestClient _client;
 
     private readonly string _token;
 
-    public GitlabService(string gitlabURL, string token)
+    public GitLabService(string gitLabURL, string token)
     {
         _token = token;
         _client = new RestClient(
-            new RestClientOptions($"{gitlabURL.TrimEnd('/')}/api/v4")
+            new RestClientOptions($"{gitLabURL.TrimEnd('/')}/api/v4")
             {
                 ThrowOnAnyError = false,
                 RemoteCertificateValidationCallback = (_, _, _, _) => true,
@@ -50,14 +50,14 @@ public class GitlabService : IDisposable
         return client;
     }
 
-    public async Task<GitlabGroup> CreateGroup(string groupName)
+    public async Task<GitLabGroup> CreateGroup(string groupName)
     {
         Log.Information($"Creating GitLab group '{groupName}'");
 
         var searchRequest = new RestRequest("groups")
             .AddQueryParameter("search", groupName);
 
-        var searchResponse = await _client.ExecuteGetAsync<GitlabGroup[]>(searchRequest);
+        var searchResponse = await _client.ExecuteGetAsync<GitLabGroup[]>(searchRequest);
 
         if (searchResponse is { IsSuccessful: true, Data: not null })
         {
@@ -80,7 +80,7 @@ public class GitlabService : IDisposable
                     visibility = "public"
                 });
 
-        var createResponse = await _client.ExecutePostAsync<GitlabGroup>(createRequest);
+        var createResponse = await _client.ExecutePostAsync<GitLabGroup>(createRequest);
 
         if (createResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created
             && createResponse.Data is not null)
@@ -94,7 +94,7 @@ public class GitlabService : IDisposable
             $"Failed to create GitLab group '{groupName}': {(int)createResponse.StatusCode} {createResponse.StatusCode} - {createResponse.Content}");
     }
 
-    public async Task<GitlabProject> CreateProject(string projectName, int? namespaceId = null)
+    public async Task<GitLabProject> CreateProject(string projectName, int? namespaceId = null)
     {
         Log.Information($"Creating Gitlab project '{projectName}'");
 
@@ -108,7 +108,7 @@ public class GitlabService : IDisposable
             searchRequest.AddQueryParameter("namespace_id", namespaceId.Value.ToString());
         }
 
-        var searchResponse = await _client.ExecuteGetAsync<GitlabProject[]>(searchRequest);
+        var searchResponse = await _client.ExecuteGetAsync<GitLabProject[]>(searchRequest);
 
         if (searchResponse is { IsSuccessful: true, Data: not null })
         {
@@ -141,7 +141,7 @@ public class GitlabService : IDisposable
         var createRequest = new RestRequest("projects", Method.Post)
             .AddJsonBody(requestBody);
 
-        var createResponse = await _client.ExecutePostAsync<GitlabProject>(createRequest);
+        var createResponse = await _client.ExecutePostAsync<GitLabProject>(createRequest);
 
         if (createResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created
             && createResponse.Data is not null)
@@ -163,7 +163,7 @@ public class GitlabService : IDisposable
         var userSearchRequest = new RestRequest("users")
             .AddQueryParameter("username", username);
 
-        var userSearchResponse = await _client.ExecuteGetAsync<GitlabUser[]>(userSearchRequest);
+        var userSearchResponse = await _client.ExecuteGetAsync<GitLabUser[]>(userSearchRequest);
 
         if (userSearchResponse is not { IsSuccessful: true, Data: not null }
             || userSearchResponse.Data.Length == 0)
@@ -176,7 +176,7 @@ public class GitlabService : IDisposable
 
         // Check if user is already a member
         var checkRequest = new RestRequest($"groups/{groupId}/members/{userId}");
-        var checkResponse = await _client.ExecuteGetAsync<GitlabProjectMember>(checkRequest);
+        var checkResponse = await _client.ExecuteGetAsync<GitLabProjectMember>(checkRequest);
 
         if (checkResponse.IsSuccessful && checkResponse.Data is not null)
         {
@@ -190,7 +190,7 @@ public class GitlabService : IDisposable
             var updateRequest = new RestRequest($"groups/{groupId}/members/{userId}", Method.Put)
                 .AddJsonBody(new { access_level = accessLevel });
 
-            var updateResponse = await _client.ExecuteAsync<GitlabProjectMember>(updateRequest);
+            var updateResponse = await _client.ExecuteAsync<GitLabProjectMember>(updateRequest);
 
             if (updateResponse.StatusCode is HttpStatusCode.OK && updateResponse.Data is not null)
             {
@@ -209,7 +209,7 @@ public class GitlabService : IDisposable
         var addRequest = new RestRequest($"groups/{groupId}/members", Method.Post)
             .AddJsonBody(new { user_id = userId, access_level = accessLevel });
 
-        var addResponse = await _client.ExecutePostAsync<GitlabProjectMember>(addRequest);
+        var addResponse = await _client.ExecutePostAsync<GitLabProjectMember>(addRequest);
 
         if (addResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created
             && addResponse.Data is not null)
@@ -231,7 +231,7 @@ public class GitlabService : IDisposable
         var userSearchRequest = new RestRequest("users")
             .AddQueryParameter("username", username);
 
-        var userSearchResponse = await _client.ExecuteGetAsync<GitlabUser[]>(userSearchRequest);
+        var userSearchResponse = await _client.ExecuteGetAsync<GitLabUser[]>(userSearchRequest);
 
         if (userSearchResponse is not { IsSuccessful: true, Data: not null }
             || userSearchResponse.Data.Length == 0)
@@ -244,7 +244,7 @@ public class GitlabService : IDisposable
 
         // Check if user is already a member
         var checkRequest = new RestRequest($"projects/{projectId}/members/{userId}");
-        var checkResponse = await _client.ExecuteGetAsync<GitlabProjectMember>(checkRequest);
+        var checkResponse = await _client.ExecuteGetAsync<GitLabProjectMember>(checkRequest);
 
         if (checkResponse.IsSuccessful && checkResponse.Data is not null)
         {
@@ -259,7 +259,7 @@ public class GitlabService : IDisposable
             var updateRequest = new RestRequest($"projects/{projectId}/members/{userId}", Method.Put)
                 .AddJsonBody(new { access_level = accessLevel });
 
-            var updateResponse = await _client.ExecuteAsync<GitlabProjectMember>(updateRequest);
+            var updateResponse = await _client.ExecuteAsync<GitLabProjectMember>(updateRequest);
 
             if (updateResponse.StatusCode is HttpStatusCode.OK && updateResponse.Data is not null)
             {
@@ -278,7 +278,7 @@ public class GitlabService : IDisposable
         var addRequest = new RestRequest($"projects/{projectId}/members", Method.Post)
             .AddJsonBody(new { user_id = userId, access_level = accessLevel });
 
-        var addResponse = await _client.ExecutePostAsync<GitlabProjectMember>(addRequest);
+        var addResponse = await _client.ExecutePostAsync<GitLabProjectMember>(addRequest);
 
         if (addResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created
             && addResponse.Data is not null)
@@ -292,7 +292,7 @@ public class GitlabService : IDisposable
             $"Failed to add project member '{username}': {(int)addResponse.StatusCode} - {addResponse.Content}");
     }
 
-    public async Task<GitlabProject> CreateTopLevelProject(string projectName, int? namespaceId = null)
+    public async Task<GitLabProject> CreateTopLevelProject(string projectName, int? namespaceId = null)
     {
         return await CreateAndPopulateProject(
             projectName,
@@ -346,7 +346,7 @@ public class GitlabService : IDisposable
             });
     }
 
-    public async Task<GitlabProject> CreateRegularProject(string projectName, int? namespaceId = null)
+    public async Task<GitLabProject> CreateRegularProject(string projectName, int? namespaceId = null)
     {
         return await CreateAndPopulateProject(projectName, namespaceId);
     }
@@ -355,7 +355,7 @@ public class GitlabService : IDisposable
     {
         var request = new RestRequest($"projects/{projectId}/repository/commits");
 
-        var response = await _client.ExecuteGetAsync<GitlabCommit[]>(request);
+        var response = await _client.ExecuteGetAsync<GitLabCommit[]>(request);
 
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
@@ -400,7 +400,7 @@ public class GitlabService : IDisposable
             $"Failed to create file '{filePath}': {(int)response.StatusCode} - {response.Content}");
     }
 
-    private async Task<GitlabProject> CreateAndPopulateProject(
+    private async Task<GitLabProject> CreateAndPopulateProject(
         string projectName,
         int? namespaceId = null,
         Func<string, Task>? populateSpecificFiles = null)
@@ -469,7 +469,7 @@ public class GitlabService : IDisposable
 
     private void InitializeAndPushRepository(
         string tempDir,
-        GitlabProject project,
+        GitLabProject project,
         string projectName)
     {
         Repository.Init(tempDir);
@@ -535,7 +535,7 @@ public class GitlabService : IDisposable
         var searchRequest = new RestRequest("users")
             .AddQueryParameter("username", username);
 
-        var searchResponse = await _client.ExecuteGetAsync<GitlabUser[]>(searchRequest);
+        var searchResponse = await _client.ExecuteGetAsync<GitLabUser[]>(searchRequest);
 
         if (searchResponse is { IsSuccessful: true, Data: not null } && searchResponse.Data.Length > 0)
         {
@@ -555,7 +555,7 @@ public class GitlabService : IDisposable
                     skip_confirmation = true
                 });
 
-        var createResponse = await _client.ExecutePostAsync<GitlabUser>(createRequest);
+        var createResponse = await _client.ExecutePostAsync<GitLabUser>(createRequest);
 
         if (createResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created
             && createResponse.Data is not null)
@@ -711,14 +711,14 @@ public class GitlabService : IDisposable
     ///     Creates a branch from the given ref (defaults to "main").
     ///     Returns the branch if created or already exists.
     /// </summary>
-    public async Task<GitlabBranch> CreateBranch(int projectId, string branchName, string fromRef = "main")
+    public async Task<GitLabBranch> CreateBranch(int projectId, string branchName, string fromRef = "main")
     {
         Log.Information($"Creating branch '{branchName}' in project {projectId} from '{fromRef}'");
 
         // Check if branch already exists
         var encodedBranch = Uri.EscapeDataString(branchName);
         var checkRequest = new RestRequest($"projects/{projectId}/repository/branches/{encodedBranch}");
-        var checkResponse = await _client.ExecuteGetAsync<GitlabBranch>(checkRequest);
+        var checkResponse = await _client.ExecuteGetAsync<GitLabBranch>(checkRequest);
 
         if (checkResponse.IsSuccessful && checkResponse.Data is not null)
         {
@@ -729,7 +729,7 @@ public class GitlabService : IDisposable
         var createRequest = new RestRequest($"projects/{projectId}/repository/branches", Method.Post)
             .AddJsonBody(new { branch = branchName, @ref = fromRef });
 
-        var createResponse = await _client.ExecutePostAsync<GitlabBranch>(createRequest);
+        var createResponse = await _client.ExecutePostAsync<GitLabBranch>(createRequest);
 
         if (createResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created
             && createResponse.Data is not null)
@@ -821,7 +821,7 @@ public class GitlabService : IDisposable
     /// <summary>
     ///     Creates a merge request. Returns it if created, or returns the existing one if already open.
     /// </summary>
-    public async Task<GitlabMergeRequest> CreateMergeRequest(
+    public async Task<GitLabMergeRequest> CreateMergeRequest(
         int projectId,
         string sourceBranch,
         string targetBranch,
@@ -839,7 +839,7 @@ public class GitlabService : IDisposable
             .AddQueryParameter("target_branch", targetBranch)
             .AddQueryParameter("state", "opened");
 
-        var searchResponse = await userClient.ExecuteGetAsync<GitlabMergeRequest[]>(searchRequest);
+        var searchResponse = await userClient.ExecuteGetAsync<GitLabMergeRequest[]>(searchRequest);
 
         if (searchResponse is { IsSuccessful: true, Data: not null } && searchResponse.Data.Length > 0)
         {
@@ -850,7 +850,7 @@ public class GitlabService : IDisposable
         var createRequest = new RestRequest($"projects/{projectId}/merge_requests", Method.Post)
             .AddJsonBody(new { source_branch = sourceBranch, target_branch = targetBranch, title });
 
-        var createResponse = await userClient.ExecutePostAsync<GitlabMergeRequest>(createRequest);
+        var createResponse = await userClient.ExecutePostAsync<GitLabMergeRequest>(createRequest);
 
         if (createResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created
             && createResponse.Data is not null)
@@ -909,7 +909,7 @@ public class GitlabService : IDisposable
         var userSearchRequest = new RestRequest("users")
             .AddQueryParameter("username", username);
 
-        var userSearchResponse = await _client.ExecuteGetAsync<GitlabUser[]>(userSearchRequest);
+        var userSearchResponse = await _client.ExecuteGetAsync<GitLabUser[]>(userSearchRequest);
 
         if (userSearchResponse is not { IsSuccessful: true, Data: not null }
             || userSearchResponse.Data.Length == 0)
@@ -981,7 +981,7 @@ public class GitlabService : IDisposable
         var searchRequest = new RestRequest("groups")
             .AddQueryParameter("search", groupName);
 
-        var searchResponse = await _client.ExecuteGetAsync<GitlabGroup[]>(searchRequest);
+        var searchResponse = await _client.ExecuteGetAsync<GitLabGroup[]>(searchRequest);
 
         if (searchResponse is not { IsSuccessful: true, Data: not null })
         {
@@ -1049,7 +1049,7 @@ public class GitlabService : IDisposable
         var searchRequest = new RestRequest("projects")
             .AddQueryParameter("search", projectName);
 
-        var searchResponse = await _client.ExecuteGetAsync<GitlabProject[]>(searchRequest);
+        var searchResponse = await _client.ExecuteGetAsync<GitLabProject[]>(searchRequest);
 
         if (searchResponse is not { IsSuccessful: true, Data: not null })
         {
@@ -1109,7 +1109,7 @@ public class GitlabService : IDisposable
     private async Task<bool> GroupExists(string groupName)
     {
         var request = new RestRequest("groups").AddQueryParameter("search", groupName);
-        var response = await _client.ExecuteGetAsync<GitlabGroup[]>(request);
+        var response = await _client.ExecuteGetAsync<GitLabGroup[]>(request);
 
         if (response is not { IsSuccessful: true, Data: not null })
         {
@@ -1122,7 +1122,7 @@ public class GitlabService : IDisposable
     private async Task<bool> ProjectExists(string projectName)
     {
         var request = new RestRequest("projects").AddQueryParameter("search", projectName);
-        var response = await _client.ExecuteGetAsync<GitlabProject[]>(request);
+        var response = await _client.ExecuteGetAsync<GitLabProject[]>(request);
 
         if (response is not { IsSuccessful: true, Data: not null })
         {

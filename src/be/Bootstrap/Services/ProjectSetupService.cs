@@ -1,5 +1,5 @@
-using Bootstrap.Entities.Gitlab;
-using Bootstrap.Services.Gitlab;
+using Bootstrap.Entities.GitLab;
+using Bootstrap.Services.GitLab;
 using Bootstrap.Services.TeamCity;
 using LibGit2Sharp;
 using Serilog;
@@ -13,7 +13,7 @@ public class ProjectSetupService
 
     private readonly string _gitlabInternalURL;
 
-    private readonly GitlabService _gitlabService;
+    private readonly GitLabService _gitlabService;
 
     private readonly string _gitlabToken;
 
@@ -34,7 +34,7 @@ public class ProjectSetupService
     private readonly Dictionary<string, string> _userTokens = new();
 
     public ProjectSetupService(
-        GitlabService gitlabService,
+        GitLabService gitLabService,
         TeamCityService teamCityService,
         TeamCityVCSRootService teamCityVCSRootService,
         TeamCityVersionedSettingsService teamCityVersionedSettingsService,
@@ -43,7 +43,7 @@ public class ProjectSetupService
         string gitlabToken,
         string? gitlabInternalURL = null)
     {
-        _gitlabService = gitlabService;
+        _gitlabService = gitLabService;
         _teamCityService = teamCityService;
         _teamCityVCSRootService = teamCityVCSRootService;
         _teamCityVersionedSettingsService = teamCityVersionedSettingsService;
@@ -313,7 +313,7 @@ public class ProjectSetupService
         Log.Information("CI Lab builds setup complete!");
     }
 
-    private async Task<GitlabProject?> GetOrCreateTeamCityConfigProject()
+    private async Task<GitLabProject?> GetOrCreateTeamCityConfigProject()
     {
         // Search for the project
         var project = await _gitlabService.CreateProject("TeamCityConfig");

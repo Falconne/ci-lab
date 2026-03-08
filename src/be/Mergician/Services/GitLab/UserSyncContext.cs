@@ -1,6 +1,6 @@
 using Mergician.Services.Authentication;
 
-namespace Mergician.Services.Gitlab;
+namespace Mergician.Services.GitLab;
 
 /// <summary>
 ///     Thread-safe context tracking a single user's background activity sync state.

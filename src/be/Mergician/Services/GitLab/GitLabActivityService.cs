@@ -3,30 +3,30 @@ using Mergician.Entities.Database;
 using Mergician.Services.Authentication;
 using Mergician.Services.Database;
 
-namespace Mergician.Services.Gitlab;
+namespace Mergician.Services.GitLab;
 
 /// <summary>
 ///     Provides methods for refreshing branch details against the GitLab API.
 ///     Used by the background sync threads managed by <see cref="UserActivitySyncService" />.
 /// </summary>
-public class GitlabActivityService
+public class GitLabActivityService
 {
-    private readonly GitlabPipelineService _gitlabPipelineService;
+    private readonly GitLabPipelineService _gitLabPipelineService;
 
-    private readonly GitlabService _gitlabService;
+    private readonly GitLabService _gitLabService;
 
-    private readonly ILogger<GitlabActivityService> _logger;
+    private readonly ILogger<GitLabActivityService> _logger;
 
     private readonly IMergeGroupRepository _mergeGroupRepository;
 
-    public GitlabActivityService(
-        GitlabService gitlabService,
-        GitlabPipelineService gitlabPipelineService,
+    public GitLabActivityService(
+        GitLabService gitLabService,
+        GitLabPipelineService gitLabPipelineService,
         IMergeGroupRepository mergeGroupRepository,
-        ILogger<GitlabActivityService> logger)
+        ILogger<GitLabActivityService> logger)
     {
-        _gitlabService = gitlabService;
-        _gitlabPipelineService = gitlabPipelineService;
+        _gitLabService = gitLabService;
+        _gitLabPipelineService = gitLabPipelineService;
         _mergeGroupRepository = mergeGroupRepository;
         _logger = logger;
     }
@@ -37,16 +37,16 @@ public class GitlabActivityService
     /// </summary>
     public async Task RefreshAllBranchDetails(
         AccessDetailsBase accessDetails,
-        int gitlabUserId,
+        int gitLabUserId,
         CancellationToken cancellationToken)
     {
-        var userGroups = _mergeGroupRepository.GetMergeGroupsForUser(gitlabUserId);
+        var userGroups = _mergeGroupRepository.GetMergeGroupsForUser(gitLabUserId);
         var userBranches = userGroups.SelectMany(g => g.Branches).ToList();
 
         _logger.LogDebug(
             "Refreshing details for {Count} branches for user {UserId}",
             userBranches.Count,
-            gitlabUserId);
+            gitLabUserId);
 
         foreach (var branch in userBranches)
         {
@@ -65,7 +65,7 @@ public class GitlabActivityService
                 _logger.LogError(
                     ex,
                     "GitLab became unavailable while refreshing branch details for user {UserId}; ending the current refresh cycle",
-                    gitlabUserId);
+                    gitLabUserId);
                 break;
             }
             catch (Exception ex)
@@ -78,7 +78,7 @@ public class GitlabActivityService
             }
         }
 
-        _logger.LogDebug("Finished refreshing details for user {UserId}", gitlabUserId);
+        _logger.LogDebug("Finished refreshing details for user {UserId}", gitLabUserId);
     }
 
     /// <summary>
@@ -97,7 +97,7 @@ public class GitlabActivityService
             branch.BranchName,
             branch.ProjectId);
 
-        var project = await _gitlabService.GetProject(accessDetails, branch.ProjectId);
+        var project = await _gitLabService.GetProject(accessDetails, branch.ProjectId);
         if (project == null)
         {
             _logger.LogDebug(
@@ -108,7 +108,7 @@ public class GitlabActivityService
             return;
         }
 
-        if (GitlabService.IsScheduledForDeletion(project.NameWithNamespace))
+        if (GitLabService.IsScheduledForDeletion(project.NameWithNamespace))
         {
             _logger.LogInformation(
                 "Skipping detail refresh for branch '{BranchName}' in project {ProjectId}: project scheduled for deletion",
@@ -120,7 +120,7 @@ public class GitlabActivityService
 
         var projectUrl = project.WebUrl;
 
-        var mergeRequests = await _gitlabService.GetMergeRequests(
+        var mergeRequests = await _gitLabService.GetMergeRequests(
             accessDetails,
             branch.ProjectId,
             branch.BranchName);
@@ -137,7 +137,7 @@ public class GitlabActivityService
             mrTitle = first.Title;
             mrUrl = first.WebUrl;
 
-            var approval = await _gitlabService.GetMergeRequestApprovals(
+            var approval = await _gitLabService.GetMergeRequestApprovals(
                 accessDetails,
                 branch.ProjectId,
                 first.Iid);
@@ -149,14 +149,14 @@ public class GitlabActivityService
             }
         }
 
-        var buildJobs = await _gitlabPipelineService.GetLatestExternalJobsForBranch(
+        var buildJobs = await _gitLabPipelineService.GetLatestExternalJobsForBranch(
             accessDetails,
             branch.ProjectId,
             branch.BranchName,
             cancellationToken);
 
         // Fetch the branch's latest commit date from GitLab to use as the last updated timestamp
-        var branchDetails = await _gitlabService.GetBranchDetails(
+        var branchDetails = await _gitLabService.GetBranchDetails(
             accessDetails,
             branch.ProjectId,
             branch.BranchName);

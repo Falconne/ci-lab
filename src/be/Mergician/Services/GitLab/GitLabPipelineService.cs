@@ -3,19 +3,19 @@ using Mergician.Services.Authentication;
 using Mergician.Utilities;
 using System.Text.Json;
 
-namespace Mergician.Services.Gitlab;
+namespace Mergician.Services.GitLab;
 
-public class GitlabPipelineService
+public class GitLabPipelineService
 {
     private static readonly JsonSerializerOptions _jsonOptions = JsonOptions.CaseInsensitive;
 
     private readonly GitLabApiClient _gitLabApiClient;
 
-    private readonly ILogger<GitlabPipelineService> _logger;
+    private readonly ILogger<GitLabPipelineService> _logger;
 
-    public GitlabPipelineService(
+    public GitLabPipelineService(
         GitLabApiClient gitLabApiClient,
-        ILogger<GitlabPipelineService> logger)
+        ILogger<GitLabPipelineService> logger)
     {
         _gitLabApiClient = gitLabApiClient;
         _logger = logger;

@@ -1,7 +1,7 @@
 using Mergician.Services.Authentication;
 using Mergician.Services.Database;
 
-namespace Mergician.Services.Gitlab;
+namespace Mergician.Services.GitLab;
 
 /// <summary>
 ///     Provides helper methods for deciding whether a branch should be skipped
@@ -9,18 +9,18 @@ namespace Mergician.Services.Gitlab;
 /// </summary>
 public class BranchesService
 {
-    private readonly GitlabService _gitlabService;
+    private readonly GitLabService _gitLabService;
 
     private readonly ILogger<BranchesService> _logger;
 
     private readonly IMergeGroupRepository _mergeGroupRepository;
 
     public BranchesService(
-        GitlabService gitlabService,
+        GitLabService gitLabService,
         IMergeGroupRepository mergeGroupRepository,
         ILogger<BranchesService> logger)
     {
-        _gitlabService = gitlabService;
+        _gitLabService = gitLabService;
         _mergeGroupRepository = mergeGroupRepository;
         _logger = logger;
     }
@@ -40,7 +40,7 @@ public class BranchesService
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        var branchLookup = await _gitlabService.GetBranchLookupResult(
+        var branchLookup = await _gitLabService.GetBranchLookupResult(
             accessDetails,
             projectId,
             branchName);
@@ -94,7 +94,7 @@ public class BranchesService
         int? trackedBranchInMergeGroupId,
         string operationName)
     {
-        if (!GitlabService.IsScheduledForDeletion(projectNameWithNamespace))
+        if (!GitLabService.IsScheduledForDeletion(projectNameWithNamespace))
         {
             return false;
         }

@@ -1,8 +1,8 @@
 using System.Text.Json.Serialization;
 
-namespace Bootstrap.Entities.Gitlab;
+namespace Bootstrap.Entities.GitLab;
 
-public sealed class GitlabMergeRequest
+public sealed class GitLabMergeRequest
 {
     [JsonPropertyName("id")]
     public int Id { get; set; }

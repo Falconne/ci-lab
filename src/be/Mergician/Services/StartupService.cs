@@ -1,6 +1,6 @@
 using Mergician.Entities;
 using Mergician.Services.Database;
-using Mergician.Services.Gitlab;
+using Mergician.Services.GitLab;
 
 namespace Mergician.Services;
 
@@ -115,7 +115,7 @@ public class StartupService : BackgroundService
         if (string.IsNullOrWhiteSpace(_settings.GitLab.ServiceToken))
         {
             _logger.LogError("Startup check failed: GitLab service token is not configured");
-            SetStatus(false, "Configuration error", "Gitlab Service token is not configured");
+            SetStatus(false, "Configuration error", "GitLab Service token is not configured");
             return false;
         }
 

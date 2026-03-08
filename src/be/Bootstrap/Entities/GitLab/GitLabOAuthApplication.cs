@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace Bootstrap.Entities.Gitlab;
+namespace Bootstrap.Entities.GitLab;
 
 public class GitLabOAuthApplication
 {

@@ -1,5 +1,5 @@
 using Mergician.Entities;
-using Mergician.Services.Gitlab;
+using Mergician.Services.GitLab;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Options;
 using System.Security.Claims;
@@ -18,11 +18,11 @@ public class GitLabCookieAuthenticationHandler : AuthenticationHandler<Authentic
 {
     public const string SchemeName = "GitLabCookie";
 
-    public const string GitlabAccessUserKey = "AccessDetailsForUser";
+    public const string GitLabAccessUserKey = "AccessDetailsForUser";
 
     private readonly string _apiBaseUrl;
 
-    private readonly GitlabService _gitlabService;
+    private readonly GitLabService _gitLabService;
 
     private readonly GitLabOAuthService _oauthService;
 
@@ -33,13 +33,13 @@ public class GitLabCookieAuthenticationHandler : AuthenticationHandler<Authentic
         ILoggerFactory logger,
         UrlEncoder encoder,
         GitLabOAuthService oauthService,
-        GitlabService gitlabService,
+        GitLabService gitLabService,
         GitLabAuthSettings authSettings,
         StartupStateService startupStateService)
         : base(options, logger, encoder)
     {
         _oauthService = oauthService;
-        _gitlabService = gitlabService;
+        _gitLabService = gitLabService;
         _apiBaseUrl = authSettings.ApiBaseUrl;
         _startupStateService = startupStateService;
     }
@@ -137,7 +137,7 @@ public class GitLabCookieAuthenticationHandler : AuthenticationHandler<Authentic
     private AuthenticateResult CreateSuccessResult(string accessToken, int userId)
     {
         var user = new AccessDetailsForUser(accessToken, _apiBaseUrl, userId);
-        Context.Items[GitlabAccessUserKey] = user;
+        Context.Items[GitLabAccessUserKey] = user;
 
         var claims = new[] { new Claim(ClaimTypes.Authentication, "gitlab-oauth") };
         var identity = new ClaimsIdentity(claims, SchemeName);
@@ -155,6 +155,6 @@ public class GitLabCookieAuthenticationHandler : AuthenticationHandler<Authentic
     private async Task<GitLabUserInfo?> ValidateToken(string accessToken)
     {
         var accessDetails = new AccessDetailsBase(accessToken, _apiBaseUrl);
-        return await _gitlabService.GetCurrentUser(accessDetails);
+        return await _gitLabService.GetCurrentUser(accessDetails);
     }
 }

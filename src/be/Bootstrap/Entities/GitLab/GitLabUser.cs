@@ -1,6 +1,6 @@
-namespace Bootstrap.Entities.Gitlab;
+namespace Bootstrap.Entities.GitLab;
 
-public sealed class GitlabUser
+public sealed class GitLabUser
 {
     public int Id { get; set; }
 

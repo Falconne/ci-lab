@@ -1,6 +1,6 @@
-namespace Bootstrap.Entities.Gitlab;
+namespace Bootstrap.Entities.GitLab;
 
-public class GitlabGroup
+public class GitLabGroup
 {
     public int Id { get; set; }
     public string Name { get; set; } = string.Empty;

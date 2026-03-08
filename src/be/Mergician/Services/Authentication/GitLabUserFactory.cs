@@ -6,13 +6,13 @@ namespace Mergician.Services.Authentication;
 ///     and does not require an HTTP context. Current user authentication is
 ///     handled by the GitLabCookieAuthenticationHandler instead.
 /// </summary>
-public class GitlabUserFactory
+public class GitLabUserFactory
 {
     private readonly string _apiBaseUrl;
 
     private readonly string? _serviceToken;
 
-    public GitlabUserFactory(string apiBaseUrl, string? serviceToken)
+    public GitLabUserFactory(string apiBaseUrl, string? serviceToken)
     {
         _apiBaseUrl = apiBaseUrl;
         _serviceToken = serviceToken;

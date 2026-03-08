@@ -2,7 +2,7 @@ using Mergician.Services.Authentication;
 using Mergician.Services.Database;
 using System.Collections.Concurrent;
 
-namespace Mergician.Services.Gitlab;
+namespace Mergician.Services.GitLab;
 
 /// <summary>
 ///     Manages per-user background sync threads that keep the database up-to-date
@@ -19,11 +19,11 @@ public class UserActivitySyncService : IHostedService, IDisposable
 
     private static readonly TimeSpan _maxActivityLookback = TimeSpan.FromDays(14);
 
-    private readonly GitlabActivityService _activityService;
+    private readonly GitLabActivityService _activityService;
 
     private readonly BranchesService _branchesService;
 
-    private readonly GitlabService _gitlabService;
+    private readonly GitLabService _gitLabService;
 
     private readonly ILogger<UserActivitySyncService> _logger;
 
@@ -36,14 +36,14 @@ public class UserActivitySyncService : IHostedService, IDisposable
     private CancellationTokenSource? _globalCts;
 
     public UserActivitySyncService(
-        GitlabService gitlabService,
-        GitlabActivityService activityService,
+        GitLabService gitLabService,
+        GitLabActivityService activityService,
         BranchesService branchesService,
         IMergeGroupRepository mergeGroupRepository,
         StartupStateService startupStateService,
         ILogger<UserActivitySyncService> logger)
     {
-        _gitlabService = gitlabService;
+        _gitLabService = gitLabService;
         _activityService = activityService;
         _branchesService = branchesService;
         _mergeGroupRepository = mergeGroupRepository;
@@ -108,14 +108,14 @@ public class UserActivitySyncService : IHostedService, IDisposable
     ///     Updates the stored access token and records poll activity.
     ///     If a thread is already running, this is a no-op (apart from updating the token).
     /// </summary>
-    public void EnsureSyncRunning(int gitlabUserId, AccessDetailsBase accessDetails)
+    public void EnsureSyncRunning(int gitLabUserId, AccessDetailsBase accessDetails)
     {
-        var context = _userContexts.GetOrAdd(gitlabUserId, _ => new UserSyncContext());
+        var context = _userContexts.GetOrAdd(gitLabUserId, _ => new UserSyncContext());
         context.UpdateActivity(accessDetails);
 
         if (context.IsRunning)
         {
-            _logger.LogDebug("Sync thread already running for user {UserId}", gitlabUserId);
+            _logger.LogDebug("Sync thread already running for user {UserId}", gitLabUserId);
             return;
         }
 
@@ -126,22 +126,22 @@ public class UserActivitySyncService : IHostedService, IDisposable
                 return;
             }
 
-            _logger.LogInformation("Starting background sync thread for user {UserId}", gitlabUserId);
+            _logger.LogInformation("Starting background sync thread for user {UserId}", gitLabUserId);
 
             context.Cts?.Dispose();
             var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
                 _globalCts?.Token ?? CancellationToken.None);
 
             context.Cts = linkedCts;
-            context.SyncTask = Task.Run(() => RunUserSync(gitlabUserId, context, linkedCts.Token));
+            context.SyncTask = Task.Run(() => RunUserSync(gitLabUserId, context, linkedCts.Token));
         }
     }
 
-    private async Task RunUserSync(int gitlabUserId, UserSyncContext context, CancellationToken ct)
+    private async Task RunUserSync(int gitLabUserId, UserSyncContext context, CancellationToken ct)
     {
         try
         {
-            _logger.LogInformation("Background sync thread started for user {UserId}", gitlabUserId);
+            _logger.LogInformation("Background sync thread started for user {UserId}", gitLabUserId);
             var lastPollTime = DateTimeOffset.UtcNow;
 
             // Phase 1: Backfill from the user's last known activity or 14 days
@@ -149,11 +149,11 @@ public class UserActivitySyncService : IHostedService, IDisposable
             {
                 _logger.LogInformation(
                     "Skipping sync for user {UserId}: GitLab recovery mode is active",
-                    gitlabUserId);
+                    gitLabUserId);
                 return;
             }
 
-            await BackfillUserActivity(gitlabUserId, context, ct);
+            await BackfillUserActivity(gitLabUserId, context, ct);
 
             var firstPoll = true;
             // Phase 2: Continuous polling loop
@@ -163,7 +163,7 @@ public class UserActivitySyncService : IHostedService, IDisposable
                 {
                     _logger.LogInformation(
                         "Stopping sync thread for user {UserId}: GitLab recovery mode is active",
-                        gitlabUserId);
+                        gitLabUserId);
                     break;
                 }
 
@@ -172,7 +172,7 @@ public class UserActivitySyncService : IHostedService, IDisposable
                 {
                     _logger.LogError(
                         "No access token available for user {UserId}, skipping poll cycle",
-                        gitlabUserId);
+                        gitLabUserId);
 
                     await Task.Delay(_pollInterval, ct);
                     continue;
@@ -182,7 +182,7 @@ public class UserActivitySyncService : IHostedService, IDisposable
                 {
                     firstPoll = false;
                     // Refresh branch details immediately on first poll for responsive UI
-                    await _activityService.RefreshAllBranchDetails(accessUser, gitlabUserId, ct);
+                    await _activityService.RefreshAllBranchDetails(accessUser, gitLabUserId, ct);
                 }
                 else
                 {
@@ -194,7 +194,7 @@ public class UserActivitySyncService : IHostedService, IDisposable
                 {
                     _logger.LogInformation(
                         "User {UserId} inactive for {Inactive}, stopping sync thread",
-                        gitlabUserId,
+                        gitLabUserId,
                         inactiveFor);
 
                     break;
@@ -204,15 +204,15 @@ public class UserActivitySyncService : IHostedService, IDisposable
                 {
                     var now = DateTimeOffset.UtcNow;
                     // Poll for new push events since the last successful poll
-                    await FetchNewUserActivityFromGitLab(accessUser, gitlabUserId, lastPollTime, ct);
+                    await FetchNewUserActivityFromGitLab(accessUser, gitLabUserId, lastPollTime, ct);
 
                     lastPollTime = now;
 
                     // Check for deleted branches and clean up DB records
-                    await CleanupDeletedBranches(accessUser, gitlabUserId, ct);
+                    await CleanupDeletedBranches(accessUser, gitLabUserId, ct);
 
                     // Refresh MR, approval, and build status for all tracked branches
-                    await _activityService.RefreshAllBranchDetails(accessUser, gitlabUserId, ct);
+                    await _activityService.RefreshAllBranchDetails(accessUser, gitLabUserId, ct);
                 }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested)
                 {
@@ -223,14 +223,14 @@ public class UserActivitySyncService : IHostedService, IDisposable
                     _logger.LogError(
                         ex,
                         "GitLab became unavailable during the sync poll for user {UserId}; ending this poll cycle",
-                        gitlabUserId);
+                        gitLabUserId);
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(
                         ex,
                         "Error during sync poll for user {UserId}, will retry next cycle",
-                        gitlabUserId);
+                        gitLabUserId);
                 }
             }
         }
@@ -238,20 +238,20 @@ public class UserActivitySyncService : IHostedService, IDisposable
         {
             _logger.LogInformation(
                 "Background sync thread cancelled for user {UserId}",
-                gitlabUserId);
+                gitLabUserId);
         }
         catch (Exception ex)
         {
             _logger.LogError(
                 ex,
                 "Background sync thread failed unexpectedly for user {UserId}",
-                gitlabUserId);
+                gitLabUserId);
         }
         finally
         {
             _logger.LogInformation(
                 "Background sync thread stopped for user {UserId}",
-                gitlabUserId);
+                gitLabUserId);
         }
     }
 
@@ -261,21 +261,21 @@ public class UserActivitySyncService : IHostedService, IDisposable
     /// </summary>
     private async Task CleanupDeletedBranches(
         AccessDetailsBase accessDetails,
-        int gitlabUserId,
+        int gitLabUserId,
         CancellationToken cancellationToken)
     {
-        var userGroups = _mergeGroupRepository.GetMergeGroupsForUser(gitlabUserId);
+        var userGroups = _mergeGroupRepository.GetMergeGroupsForUser(gitLabUserId);
         var userBranches = userGroups.SelectMany(g => g.Branches).ToList();
         _logger.LogDebug(
             "Checking {Count} tracked branches for user {UserId} for deletion",
             userBranches.Count,
-            gitlabUserId);
+            gitLabUserId);
 
         foreach (var branch in userBranches)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var lookup = await _gitlabService.GetBranchLookupResult(
+            var lookup = await _gitLabService.GetBranchLookupResult(
                 accessDetails,
                 branch.ProjectId,
                 branch.BranchName);
@@ -300,23 +300,23 @@ public class UserActivitySyncService : IHostedService, IDisposable
     /// </summary>
     private async Task FetchNewUserActivityFromGitLab(
         AccessDetailsBase accessDetails,
-        int gitlabUserId,
+        int gitLabUserId,
         DateTimeOffset since,
         CancellationToken cancellationToken)
     {
         _logger.LogDebug(
             "Syncing GitLab activity for user {UserId} since {Since}",
-            gitlabUserId,
+            gitLabUserId,
             since);
 
-        var pushEvents = _gitlabService.GetPushEventsForUserSince(accessDetails, since, cancellationToken);
+        var pushEvents = _gitLabService.GetPushEventsForUserSince(accessDetails, since, cancellationToken);
         var processedKeys = new HashSet<string>();
 
         await foreach (var pushEvent in pushEvents)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (GitlabService.IsPossibleDefaultBranch(pushEvent.BranchName))
+            if (GitLabService.IsPossibleDefaultBranch(pushEvent.BranchName))
             {
                 _logger.LogDebug(
                     "Skipping default branch '{BranchName}' in project {ProjectId}",
@@ -348,7 +348,7 @@ public class UserActivitySyncService : IHostedService, IDisposable
                 continue;
             }
 
-            var project = await _gitlabService.GetProject(accessDetails, pushEvent.ProjectId);
+            var project = await _gitLabService.GetProject(accessDetails, pushEvent.ProjectId);
             if (project == null)
             {
                 _logger.LogInformation(
@@ -401,18 +401,18 @@ public class UserActivitySyncService : IHostedService, IDisposable
                     mergeGroup.Id);
             }
 
-            _mergeGroupRepository.EnsureUserInMergeGroup(gitlabUserId, mergeGroup.Id);
+            _mergeGroupRepository.EnsureUserInMergeGroup(gitLabUserId, mergeGroup.Id);
 
             _logger.LogDebug(
                 "Stored branch '{BranchName}' in project {ProjectId} for user {UserId}",
                 pushEvent.BranchName,
                 pushEvent.ProjectId,
-                gitlabUserId);
+                gitLabUserId);
         }
     }
 
     private async Task BackfillUserActivity(
-        int gitlabUserId,
+        int gitLabUserId,
         UserSyncContext context,
         CancellationToken ct)
     {
@@ -421,7 +421,7 @@ public class UserActivitySyncService : IHostedService, IDisposable
         {
             _logger.LogWarning(
                 "No access token available for backfill for user {UserId}",
-                gitlabUserId);
+                gitLabUserId);
 
             return;
         }
@@ -429,14 +429,14 @@ public class UserActivitySyncService : IHostedService, IDisposable
         var since = DateTimeOffset.UtcNow.Subtract(_maxActivityLookback);
         _logger.LogInformation(
             "Backfilling activity for user {UserId} since {Since}",
-            gitlabUserId,
+            gitLabUserId,
             since);
 
         try
         {
-            await FetchNewUserActivityFromGitLab(accessUser, gitlabUserId, since, ct);
+            await FetchNewUserActivityFromGitLab(accessUser, gitLabUserId, since, ct);
 
-            _logger.LogInformation("Backfill completed for user {UserId}", gitlabUserId);
+            _logger.LogInformation("Backfill completed for user {UserId}", gitLabUserId);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -447,14 +447,14 @@ public class UserActivitySyncService : IHostedService, IDisposable
             _logger.LogError(
                 ex,
                 "GitLab became unavailable during backfill for user {UserId}; continuing with the normal polling loop",
-                gitlabUserId);
+                gitLabUserId);
         }
         catch (Exception ex)
         {
             _logger.LogError(
                 ex,
                 "Backfill failed for user {UserId}, will continue with polling",
-                gitlabUserId);
+                gitLabUserId);
         }
     }
 }

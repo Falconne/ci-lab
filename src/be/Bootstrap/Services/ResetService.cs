@@ -1,4 +1,4 @@
-using Bootstrap.Services.Gitlab;
+using Bootstrap.Services.GitLab;
 using Bootstrap.Services.TeamCity;
 using Serilog;
 
@@ -9,16 +9,16 @@ public class ResetService
     private const string TestGroupName = "Test Group";
     private const string CILabTeamCityProjectId = "CILab";
 
-    private readonly GitlabService _gitlabService;
+    private readonly GitLabService _gitlabService;
     private readonly TeamCityService _teamCityService;
     private readonly TeamCityVersionedSettingsService _teamCityVersionedSettingsService;
 
     public ResetService(
-        GitlabService gitlabService,
+        GitLabService gitLabService,
         TeamCityService teamCityService,
         TeamCityVersionedSettingsService teamCityVersionedSettingsService)
     {
-        _gitlabService = gitlabService;
+        _gitlabService = gitLabService;
         _teamCityService = teamCityService;
         _teamCityVersionedSettingsService = teamCityVersionedSettingsService;
     }

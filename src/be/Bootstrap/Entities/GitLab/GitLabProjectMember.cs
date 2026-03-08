@@ -1,8 +1,8 @@
 using System.Text.Json.Serialization;
 
-namespace Bootstrap.Entities.Gitlab;
+namespace Bootstrap.Entities.GitLab;
 
-public sealed class GitlabProjectMember
+public sealed class GitLabProjectMember
 {
     [JsonPropertyName("id")]
     public required int Id { get; set; }

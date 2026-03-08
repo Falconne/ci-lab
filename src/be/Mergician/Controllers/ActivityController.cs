@@ -1,7 +1,7 @@
 using Mergician.Entities;
 using Mergician.Services.Authentication;
 using Mergician.Services.Database;
-using Mergician.Services.Gitlab;
+using Mergician.Services.GitLab;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -36,7 +36,7 @@ public class ActivityController : ControllerBase
     [HttpPost("refresh")]
     public ActionResult<List<MergeGroup>> Refresh()
     {
-        var currentUser = HttpContext.GetGitlabUser();
+        var currentUser = HttpContext.GetGitLabUser();
 
         var userId = currentUser.UserId;
 

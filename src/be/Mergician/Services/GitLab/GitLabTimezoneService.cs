@@ -3,11 +3,11 @@ using Mergician.Services.Authentication;
 using Mergician.Utilities;
 using System.Text.Json;
 
-namespace Mergician.Services.Gitlab;
+namespace Mergician.Services.GitLab;
 
 /// <summary>
 ///     Detects and stores the GitLab server's timezone offset from UTC.
-///     Called by <see cref="Services.StartupService" /> during startup to determine the server's
+///     Called by <see cref="Services.StartupAndRecoveryService" /> during startup to determine the server's
 ///     timezone by inspecting the offset of returned timestamps.
 ///     This offset is used to adjust date-only parameters sent to the GitLab API
 ///     (e.g. the 'after' parameter in the events endpoint).
@@ -20,10 +20,10 @@ public class GitLabTimezoneService
 
     private readonly ILogger<GitLabTimezoneService> _logger;
 
-    private readonly GitlabUserFactory _userFactory;
+    private readonly GitLabUserFactory _userFactory;
 
     public GitLabTimezoneService(
-        GitlabUserFactory userFactory,
+        GitLabUserFactory userFactory,
         GitLabApiClient gitLabApiClient,
         ILogger<GitLabTimezoneService> logger)
     {

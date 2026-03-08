@@ -1,5 +1,5 @@
 using Bootstrap.Services;
-using Bootstrap.Services.Gitlab;
+using Bootstrap.Services.GitLab;
 using Bootstrap.Services.TeamCity;
 using Bootstrap.Utilities;
 using RestSharp;
@@ -30,12 +30,12 @@ try
     // Load environment variables from .env file if it exists
     envService.Load();
 
-    var gitlabURL = envService.GetValue("GITLAB_URL") ?? "http://localhost:8081";
+    var gitLabURL = envService.GetValue("GITLAB_URL") ?? "http://localhost:8081";
     var teamcityURL = envService.GetValue("TEAMCITY_URL") ?? "http://localhost:8111";
-    Log.Information($"Gitlab URL:   {gitlabURL}");
+    Log.Information($"GitLab URL:   {gitLabURL}");
     Log.Information($"TeamCity URL: {teamcityURL}");
 
-    var gitlabRootPassword = envService.GetValue("GITLAB_ROOT_PASSWORD") ?? "changeme123";
+    var gitLabRootPassword = envService.GetValue("GITLAB_ROOT_PASSWORD") ?? "changeme123";
 
     // Always run initial service configuration and token setup.
     // These steps are idempotent and safe to execute on every bootstrap run.
@@ -45,20 +45,20 @@ try
         envService,
         teamcityURL,
         "root",
-        gitlabRootPassword);
+        gitLabRootPassword);
 
     Logging.LogSection("TeamCity Automated Setup");
     await teamCityBootstrapService.Execute();
     Log.Information("TeamCity initial setup completed");
 
-    Logging.LogSection("Gitlab Automated Setup");
-    using var gitlabBootstrapService = new GitlabBootstrapService(gitlabURL, envService);
-    await gitlabBootstrapService.Execute();
+    Logging.LogSection("GitLab Automated Setup");
+    using var gitLabBootstrapService = new GitLabBootstrapService(gitLabURL, envService);
+    await gitLabBootstrapService.Execute();
 
     Logging.LogSection("Running Initial Project Setup");
-    var gitlabToken = envService.GetValue("GITLAB_TOKEN");
-    using var gitlabService = new GitlabService(gitlabURL, gitlabToken!);
-    using var teamCityService = new TeamCityService(teamcityURL, "root", gitlabRootPassword);
+    var gitLabToken = envService.GetValue("GITLAB_TOKEN");
+    using var gitLabService = new GitLabService(gitLabURL, gitLabToken!);
+    using var teamCityService = new TeamCityService(teamcityURL, "root", gitLabRootPassword);
 
     // Create TeamCity service components
     var teamCityRestClientOptions = new RestClientOptions($"{teamcityURL.TrimEnd('/')}/app/rest")
@@ -66,7 +66,7 @@ try
         ThrowOnAnyError = false,
         RemoteCertificateValidationCallback = (_, _, _, _) => true,
         Timeout = TimeSpan.FromSeconds(30),
-        Authenticator = new HttpBasicAuthenticator("root", gitlabRootPassword)
+        Authenticator = new HttpBasicAuthenticator("root", gitLabRootPassword)
     };
     var teamCityRestClient = new RestClient(teamCityRestClientOptions);
     teamCityRestClient.AddDefaultHeader("Accept", "application/json");
@@ -75,22 +75,22 @@ try
     var teamCityVCSRootService = new TeamCityVCSRootService(teamCityRestClient, teamCityVersionedSettingsService);
 
     Logging.LogSection("Resetting CI Lab Projects");
-    var resetService = new ResetService(gitlabService, teamCityService, teamCityVersionedSettingsService);
+    var resetService = new ResetService(gitLabService, teamCityService, teamCityVersionedSettingsService);
     await resetService.Execute();
 
     var projectSetupService = new ProjectSetupService(
-        gitlabService,
+        gitLabService,
         teamCityService,
         teamCityVCSRootService,
         teamCityVersionedSettingsService,
         envService,
-        gitlabURL,
-        gitlabToken!);
+        gitLabURL,
+        gitLabToken!);
     await projectSetupService.Execute();
 
     Logging.LogSection("Bootstrap complete!");
     Log.Information("Services available at:");
-    Log.Information($"  GitLab:   {gitlabURL}");
+    Log.Information($"  GitLab:   {gitLabURL}");
     Log.Information($"  TeamCity: {teamcityURL}");
     Logging.LogSeparator();
 

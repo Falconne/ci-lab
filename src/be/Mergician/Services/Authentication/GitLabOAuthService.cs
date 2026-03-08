@@ -1,6 +1,6 @@
 using System.Text.Json;
 using Mergician.Entities;
-using Mergician.Services.Gitlab;
+using Mergician.Services.GitLab;
 using Mergician.Utilities;
 
 namespace Mergician.Services.Authentication;

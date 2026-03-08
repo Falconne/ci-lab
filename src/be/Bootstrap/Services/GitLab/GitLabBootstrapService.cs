@@ -1,26 +1,26 @@
-using Bootstrap.Entities.Gitlab;
+using Bootstrap.Entities.GitLab;
 using Bootstrap.Utilities;
 using RestSharp;
 using Serilog;
 using System.Net;
 
-namespace Bootstrap.Services.Gitlab;
+namespace Bootstrap.Services.GitLab;
 
 // This service handles initial configuration and setup of a freshly installed GitLab server.
-// For project creation and management operations, use GitlabService instead.
-public class GitlabBootstrapService : IDisposable
+// For project creation and management operations, use GitLabService instead.
+public class GitLabBootstrapService : IDisposable
 {
     private readonly RestClient _client;
     private readonly EnvFileService _envFileService;
-    private readonly string _gitlabURL;
+    private readonly string _gitLabURL;
     private string? _token;
 
-    public GitlabBootstrapService(string gitlabURL, EnvFileService envFileService)
+    public GitLabBootstrapService(string gitLabURL, EnvFileService envFileService)
     {
-        _gitlabURL = gitlabURL.TrimEnd('/');
+        _gitLabURL = gitLabURL.TrimEnd('/');
         _envFileService = envFileService;
         _client = new RestClient(
-            new RestClientOptions($"{_gitlabURL}/api/v4")
+            new RestClientOptions($"{_gitLabURL}/api/v4")
             {
                 ThrowOnAnyError = false,
                 RemoteCertificateValidationCallback = (_, _, _, _) => true,
@@ -40,7 +40,7 @@ public class GitlabBootstrapService : IDisposable
 
         // Ensure GitLab is available before attempting token operations
         Log.Information("Waiting for Gitlab to become available...");
-        await ReliabilityHelpers.WaitForService(_gitlabURL, TimeSpan.FromMinutes(5));
+        await ReliabilityHelpers.WaitForService(_gitLabURL, TimeSpan.FromMinutes(5));
 
         // Get and validate GitLab token
         _token = await GetAndValidateGitlabToken();
@@ -132,7 +132,7 @@ public class GitlabBootstrapService : IDisposable
         Log.Debug($"Validating token at URL: {fullURL}");
         Log.Debug($"Using token: [{token}] (length: {token.Length})");
 
-        var response = await _client.ExecuteGetAsync<GitlabUser>(request);
+        var response = await _client.ExecuteGetAsync<GitLabUser>(request);
 
         if (response is { IsSuccessful: true, Data: not null })
         {
@@ -166,7 +166,7 @@ public class GitlabBootstrapService : IDisposable
             var searchRequest = new RestRequest("users")
                 .AddQueryParameter("username", username);
 
-            var searchResponse = await _client.ExecuteGetAsync<GitlabUser[]>(searchRequest);
+            var searchResponse = await _client.ExecuteGetAsync<GitLabUser[]>(searchRequest);
 
             if (searchResponse is { IsSuccessful: true, Data: not null } && searchResponse.Data.Length > 0)
             {
@@ -185,7 +185,7 @@ public class GitlabBootstrapService : IDisposable
                     skip_confirmation = true
                 });
 
-            var createResponse = await _client.ExecutePostAsync<GitlabUser>(createRequest);
+            var createResponse = await _client.ExecutePostAsync<GitLabUser>(createRequest);
 
             if (createResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created
                 && createResponse.Data is not null)

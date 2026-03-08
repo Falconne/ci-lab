@@ -2,7 +2,7 @@ using Mergician.Entities;
 using Mergician.Services;
 using Mergician.Services.Authentication;
 using Mergician.Services.Database;
-using Mergician.Services.Gitlab;
+using Mergician.Services.GitLab;
 using Microsoft.AspNetCore.Authentication;
 using Serilog;
 
@@ -57,10 +57,10 @@ try
     builder.Services.AddSingleton<GitLabApiClient>();
     builder.Services.AddSingleton<CacheService<int, GitLabProject>>();
     builder.Services.AddSingleton<GitLabTimezoneService>();
-    builder.Services.AddSingleton<GitlabService>();
-    builder.Services.AddSingleton<GitlabPipelineService>();
+    builder.Services.AddSingleton<GitLabService>();
+    builder.Services.AddSingleton<GitLabPipelineService>();
     builder.Services.AddSingleton<BranchesService>();
-    builder.Services.AddSingleton<GitlabActivityService>();
+    builder.Services.AddSingleton<GitLabActivityService>();
     builder.Services.AddSingleton<VersionService>();
 
     // Register background user activity sync service
@@ -76,9 +76,9 @@ try
 
     builder.Services.AddAuthorization();
 
-    // GitlabUserFactory is needed for service user access (background tasks)
+    // GitLabUserFactory is needed for service user access (background tasks)
     builder.Services.AddSingleton(
-        new GitlabUserFactory(
+        new GitLabUserFactory(
             gitlabApiBaseUrl,
             mergicianSettings.GitLab.ServiceToken));
 

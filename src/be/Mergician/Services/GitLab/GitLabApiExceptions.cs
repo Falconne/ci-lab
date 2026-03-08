@@ -1,6 +1,6 @@
 using System.Net;
 
-namespace Mergician.Services.Gitlab;
+namespace Mergician.Services.GitLab;
 
 public enum GitLabApiFailureBehavior
 {

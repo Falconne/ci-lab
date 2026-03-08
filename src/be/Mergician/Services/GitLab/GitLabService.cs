@@ -5,25 +5,25 @@ using System.Net;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 
-namespace Mergician.Services.Gitlab;
+namespace Mergician.Services.GitLab;
 
-public class GitlabService
+public class GitLabService
 {
     private static readonly JsonSerializerOptions _jsonOptions = JsonOptions.CaseInsensitive;
 
     private readonly GitLabApiClient _gitLabApiClient;
 
-    private readonly ILogger<GitlabService> _logger;
+    private readonly ILogger<GitLabService> _logger;
 
     private readonly CacheService<int, GitLabProject> _projectCache;
 
     private readonly GitLabTimezoneService _timezoneService;
 
-    public GitlabService(
+    public GitLabService(
         GitLabApiClient gitLabApiClient,
         CacheService<int, GitLabProject> projectCache,
         GitLabTimezoneService timezoneService,
-        ILogger<GitlabService> logger)
+        ILogger<GitLabService> logger)
     {
         _gitLabApiClient = gitLabApiClient;
         _projectCache = projectCache;

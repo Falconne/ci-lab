@@ -1,6 +1,6 @@
 using Mergician.Entities;
 using Mergician.Services.Authentication;
-using Mergician.Services.Gitlab;
+using Mergician.Services.GitLab;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -11,18 +11,18 @@ namespace Mergician.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly GitLabOAuthService _oauthService;
-    private readonly GitlabService _gitlabService;
+    private readonly GitLabService _gitLabService;
     private readonly GitLabAuthSettings _authSettings;
     private readonly ILogger<AuthController> _logger;
 
     public AuthController(
         GitLabOAuthService oauthService,
-        GitlabService gitlabService,
+        GitLabService gitLabService,
         GitLabAuthSettings authSettings,
         ILogger<AuthController> logger)
     {
         _oauthService = oauthService;
-        _gitlabService = gitlabService;
+        _gitLabService = gitLabService;
         _authSettings = authSettings;
         _logger = logger;
     }
@@ -107,7 +107,7 @@ public class AuthController : ControllerBase
         // Fetch and persist the user ID so the authentication handler can include it
         // in the AccessDetailsForUser on subsequent requests without an additional API call
         var tempUser = new AccessDetailsBase(tokenResponse.AccessToken, _authSettings.ApiBaseUrl);
-        var userInfo = await _gitlabService.GetCurrentUser(tempUser);
+        var userInfo = await _gitLabService.GetCurrentUser(tempUser);
         if (userInfo != null)
         {
             _logger.LogDebug("Storing user ID {UserId} in cookie after login", userInfo.Id);
@@ -127,9 +127,9 @@ public class AuthController : ControllerBase
     [HttpGet("me")]
     public async Task<ActionResult<GitLabUserInfo>> Me()
     {
-        var accessUser = HttpContext.GetGitlabUser();
+        var accessUser = HttpContext.GetGitLabUser();
 
-        var user = await _gitlabService.GetCurrentUser(accessUser);
+        var user = await _gitLabService.GetCurrentUser(accessUser);
         if (user == null)
             return Unauthorized();
 

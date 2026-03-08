@@ -1,6 +1,6 @@
 using Mergician.Services.Authentication;
 using Mergician.Services.Database;
-using Mergician.Services.Gitlab;
+using Mergician.Services.GitLab;
 
 namespace Mergician.Services;
 
@@ -95,8 +95,8 @@ public class CleanupService : IHostedService, IDisposable
 
         using var scope = _serviceProvider.CreateScope();
         var mergeGroupRepository = scope.ServiceProvider.GetRequiredService<IMergeGroupRepository>();
-        var gitlabService = scope.ServiceProvider.GetRequiredService<GitlabService>();
-        var userFactory = scope.ServiceProvider.GetRequiredService<GitlabUserFactory>();
+        var gitLabService = scope.ServiceProvider.GetRequiredService<GitLabService>();
+        var userFactory = scope.ServiceProvider.GetRequiredService<GitLabUserFactory>();
 
         var serviceUser = userFactory.GetServiceUser();
         var allBranches = mergeGroupRepository.GetAllBranches();
@@ -111,7 +111,7 @@ public class CleanupService : IHostedService, IDisposable
                 break;
             }
 
-            var branchLookup = await gitlabService.GetBranchLookupResult(
+            var branchLookup = await gitLabService.GetBranchLookupResult(
                 serviceUser,
                 branch.ProjectId,
                 branch.BranchName);

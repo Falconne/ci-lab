@@ -1,8 +1,8 @@
 using System.Text.Json.Serialization;
 
-namespace Bootstrap.Entities.Gitlab;
+namespace Bootstrap.Entities.GitLab;
 
-public sealed class GitlabProject
+public sealed class GitLabProject
 {
     [JsonPropertyName("id")]
     public required int Id { get; set; }
@@ -14,10 +14,10 @@ public sealed class GitlabProject
     public required string HttpURLToRepo { get; set; }
 
     [JsonPropertyName("namespace")]
-    public GitlabProjectNamespace? Namespace { get; set; }
+    public GitLabProjectNamespace? Namespace { get; set; }
 }
 
-public sealed class GitlabProjectNamespace
+public sealed class GitLabProjectNamespace
 {
     [JsonPropertyName("id")]
     public int Id { get; set; }

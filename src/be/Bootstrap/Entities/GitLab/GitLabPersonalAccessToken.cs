@@ -1,4 +1,4 @@
-namespace Bootstrap.Entities.Gitlab;
+namespace Bootstrap.Entities.GitLab;
 
 public sealed class GitLabPersonalAccessToken
 {
