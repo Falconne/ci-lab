@@ -16,10 +16,10 @@ namespace Mergician.Services.GitLab;
 ///     - <c>_gitLabRecoveryPending</c> (managed via <c>Interlocked.Exchange</c>) prevents multiple
 ///       releases when many threads detect the same outage simultaneously.
 ///     - <see cref="EnterGitLabRecoveryMode" /> sets <see cref="IsInGitLabRecoveryMode" />, updates
-///       the public status via <see cref="StartupStateService" />, and releases the semaphore once.
+///       the public status via <see cref="HealthService" />, and releases the semaphore once.
 ///     - <see cref="WaitForGitLabRecoveryRequest" /> blocks until the semaphore is released and then
 ///       clears the pending flag so subsequent recovery cycles can be signalled.
-///     - Calling <see cref="StartupStateService.SetStatus" /> with <c>isReady = true</c> clears
+///     - Calling <see cref="HealthService.SetStatus" /> with <c>isReady = true</c> clears
 ///       recovery mode so normal operations resume.
 /// </remarks>
 public class GitLabHealthService
@@ -32,7 +32,7 @@ public class GitLabHealthService
 
     private readonly ILogger<GitLabHealthService> _logger;
 
-    private readonly StartupStateService _startupStateService;
+    private readonly HealthService _healthService;
 
     private readonly GitLabTimezoneService _timezoneService;
 
@@ -41,11 +41,11 @@ public class GitLabHealthService
     private volatile bool _isInGitLabRecoveryMode;
 
     public GitLabHealthService(
-        StartupStateService startupStateService,
+        HealthService healthService,
         GitLabTimezoneService timezoneService,
         ILogger<GitLabHealthService> logger)
     {
-        _startupStateService = startupStateService;
+        _healthService = healthService;
         _timezoneService = timezoneService;
         _logger = logger;
     }
@@ -66,7 +66,7 @@ public class GitLabHealthService
     {
         _isInGitLabRecoveryMode = true;
 
-        _startupStateService.SetStatus(
+        _healthService.SetStatus(
             false,
             "Checking GitLab...",
             "Error connecting to GitLab, please contact administrator.",
@@ -101,7 +101,7 @@ public class GitLabHealthService
 
         while (!cancellationToken.IsCancellationRequested)
         {
-            _startupStateService.SetStatus(false, "Checking GitLab...");
+            _healthService.SetStatus(false, "Checking GitLab...");
 
             try
             {
@@ -121,7 +121,7 @@ public class GitLabHealthService
                     "GitLabHealthService: GitLab check failed, will retry in {Delay}",
                     retryDelay);
 
-                _startupStateService.SetStatus(
+                _healthService.SetStatus(
                     false,
                     "Checking GitLab...",
                     "Error connecting to GitLab, please contact administrator.");
@@ -136,7 +136,7 @@ public class GitLabHealthService
                     (int)ex.StatusCode,
                     retryDelay);
 
-                _startupStateService.SetStatus(
+                _healthService.SetStatus(
                     false,
                     "Checking GitLab...",
                     "Error connecting to GitLab, please contact administrator.");

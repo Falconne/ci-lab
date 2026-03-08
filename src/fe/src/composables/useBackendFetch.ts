@@ -1,7 +1,7 @@
 import {
   enterStartupMode,
   isStartupReady,
-  type StartupStatus,
+  type HealthStatus,
 } from '@/composables/useStartupCheck'
 
 export class StartupRequiredError extends Error {
@@ -30,9 +30,9 @@ export async function fetchBackend(input: RequestInfo | URL, init?: RequestInit)
     const response = await fetch(input, init)
 
     if (response.status === 503) {
-      const startupStatus = await tryReadStartupStatus(response.clone())
-      if (startupStatus && !startupStatus.isReady) {
-        enterStartupMode(startupStatus, { restartDetected: true })
+      const healthStatus = await tryReadHealthStatus(response.clone())
+      if (healthStatus && !healthStatus.isReady) {
+        enterStartupMode(healthStatus, { restartDetected: true })
         throw new StartupRequiredError()
       }
     }
@@ -54,9 +54,9 @@ export async function fetchBackend(input: RequestInfo | URL, init?: RequestInit)
  * caller that the backend did not provide startup metadata, so it should fall back to a generic
  * restart message instead.
  */
-async function tryReadStartupStatus(response: Response): Promise<StartupStatus | null> {
+async function tryReadHealthStatus(response: Response): Promise<HealthStatus | null> {
   try {
-    const data = await response.json() as Partial<StartupStatus>
+    const data = await response.json() as Partial<HealthStatus>
     if (typeof data.isReady !== 'boolean' || typeof data.message !== 'string') {
       return null
     }

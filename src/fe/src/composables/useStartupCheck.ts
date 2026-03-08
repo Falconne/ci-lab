@@ -1,7 +1,7 @@
 import { readonly, ref } from 'vue'
 import router from '@/router'
 
-export interface StartupStatus {
+export interface HealthStatus {
   isReady: boolean
   message: string
   error: string | null
@@ -34,7 +34,7 @@ function stopPolling() {
 }
 
 /**
- * Ensures exactly one background poller is watching /api/startup/status. This keeps all
+ * Ensures exactly one background poller is watching /api/health. This keeps all
  * views in sync with backend startup and GitLab recovery without each screen creating its own loop.
  */
 function ensurePolling() {
@@ -52,7 +52,7 @@ function ensurePolling() {
  * after the app was already running, this also redirects back to the dashboard so the overlay
  * is visible regardless of which route triggered the failure.
  */
-function applyStatus(status: StartupStatus, options: EnterStartupOptions = {}) {
+function applyStatus(status: HealthStatus, options: EnterStartupOptions = {}) {
   const wasReady = isReady.value
 
   isReady.value = status.isReady
@@ -88,7 +88,7 @@ function applyStatus(status: StartupStatus, options: EnterStartupOptions = {}) {
  * from a normal cold start.
  */
 export function enterStartupMode(
-  status: Partial<StartupStatus> = {},
+  status: Partial<HealthStatus> = {},
   options: EnterStartupOptions = {}
 ) {
   applyStatus(
@@ -103,9 +103,10 @@ export function enterStartupMode(
 }
 
 /**
- * Polls the backend startup endpoint and updates the shared startup state. If the status poll
- * itself fails while recovery is already active, the existing recovery message is kept instead
- * of downgrading the user back to a generic "starting up" overlay.
+ * Polls the backend health endpoint and updates the shared startup state. The endpoint returns
+ * 503 when not ready, but always includes a JSON body — so we parse the response body regardless
+ * of HTTP status. If the poll itself fails, the existing recovery message is kept instead of
+ * downgrading the user back to a generic "starting up" overlay.
  */
 export async function refreshStartupStatus() {
   if (checkPromise) {
@@ -114,12 +115,11 @@ export async function refreshStartupStatus() {
 
   checkPromise = (async () => {
     try {
-      const response = await fetch('/api/startup/status', { cache: 'no-store' })
-      if (!response.ok) {
-        throw new Error(`Startup status request failed with status ${response.status}`)
-      }
+      const response = await fetch('/api/health', { cache: 'no-store' })
 
-      const data: StartupStatus = await response.json()
+      // The health endpoint returns 503 when not ready, but always includes the full
+      // status body. Parse it regardless of HTTP status code.
+      const data: HealthStatus = await response.json()
       applyStatus(data)
     } catch (startupError) {
       console.warn('[Mergician] Startup check failed, assuming the app is still starting', startupError)

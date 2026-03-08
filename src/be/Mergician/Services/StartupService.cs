@@ -21,12 +21,12 @@ public class StartupService : BackgroundService
 
     private readonly MergicianSettings _settings;
 
-    private readonly StartupStateService _startupStateService;
+    private readonly HealthService _startupStateService;
 
     public StartupService(
         MergicianSettings settings,
         DatabaseMigrationService databaseMigrationService,
-        StartupStateService startupStateService,
+        HealthService startupStateService,
         GitLabHealthService gitLabHealthService,
         ILogger<StartupService> logger)
     {
@@ -52,7 +52,7 @@ public class StartupService : BackgroundService
     /// <summary>
     ///     Exposes the current startup or recovery status to the controller layer.
     /// </summary>
-    public StartupStatus GetStatus()
+    public HealthStatus GetStatus()
     {
         return _startupStateService.GetStatus();
     }

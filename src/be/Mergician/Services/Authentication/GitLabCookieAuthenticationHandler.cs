@@ -1,4 +1,5 @@
 using Mergician.Entities;
+using Mergician.Services;
 using Mergician.Services.GitLab;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Options;
@@ -26,7 +27,7 @@ public class GitLabCookieAuthenticationHandler : AuthenticationHandler<Authentic
 
     private readonly GitLabOAuthService _oauthService;
 
-    private readonly StartupStateService _startupStateService;
+    private readonly HealthService _healthService;
 
     public GitLabCookieAuthenticationHandler(
         IOptionsMonitor<AuthenticationSchemeOptions> options,
@@ -35,13 +36,13 @@ public class GitLabCookieAuthenticationHandler : AuthenticationHandler<Authentic
         GitLabOAuthService oauthService,
         GitLabService gitLabService,
         GitLabAuthSettings authSettings,
-        StartupStateService startupStateService)
+        HealthService healthService)
         : base(options, logger, encoder)
     {
         _oauthService = oauthService;
         _gitLabService = gitLabService;
         _apiBaseUrl = authSettings.ApiBaseUrl;
-        _startupStateService = startupStateService;
+        _healthService = healthService;
     }
 
     /// <summary>
@@ -55,7 +56,7 @@ public class GitLabCookieAuthenticationHandler : AuthenticationHandler<Authentic
         // skip token validation entirely. GitLab is unreachable so any validation
         // attempt will exhaust retries and throw. Endpoints that don't require
         // [Authorize] (like /api/startup/status) will proceed unauthenticated.
-        if (!_startupStateService.GetStatus().IsReady)
+        if (!_healthService.GetStatus().IsReady)
         {
             Logger.LogDebug("Skipping authentication: application is not ready");
             return AuthenticateResult.NoResult();

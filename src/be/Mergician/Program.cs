@@ -34,7 +34,7 @@ try
     builder.Services.AddSingleton(mergicianSettings);
     builder.Services.AddSingleton(mergicianSettings.Database);
     builder.Services.AddSingleton<DatabaseMigrationService>();
-    builder.Services.AddSingleton<StartupStateService>();
+    builder.Services.AddSingleton<HealthService>();
 
     // Register database services
     builder.Services.AddSingleton<IDbConnectionFactory>(
@@ -124,15 +124,15 @@ try
     // the frontend to detect a restart and display the startup overlay, and
     // avoids spamming the backend with failing requests while it's booting.
     //
-    // The endpoint /api/startup/status itself is excluded so the status can be
+    // The endpoint /api/health itself is excluded so the status can be
     // polled unconditionally.
     // ---------------------------------------------------------------------
     app.Use(async (context, next) =>
     {
-        var startupStateService = context.RequestServices.GetRequiredService<StartupStateService>();
+        var startupStateService = context.RequestServices.GetRequiredService<HealthService>();
 
         if (!context.Request.Path.StartsWithSegments("/api")
-            || context.Request.Path.StartsWithSegments("/api/startup"))
+            || context.Request.Path.StartsWithSegments("/api/health"))
         {
             try
             {
