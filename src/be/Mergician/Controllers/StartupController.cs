@@ -16,8 +16,9 @@ public class StartupController : ControllerBase
     }
 
     /// <summary>
-    ///     Returns the current startup status. Used by the frontend to poll during startup
-    ///     and display a loading box until the application is ready.
+    ///     Returns the current startup status. Existing tabs poll this endpoint to detect a
+    ///     restart or GitLab outage, and new tabs use the same response to land directly in
+    ///     the correct startup or recovery overlay.
     /// </summary>
     [HttpGet("status")]
     public ActionResult<StartupStatus> GetStatus()

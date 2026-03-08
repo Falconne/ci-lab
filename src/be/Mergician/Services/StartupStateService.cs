@@ -19,6 +19,12 @@ public class StartupStateService
     /// </summary>
     public bool IsInGitLabRecoveryMode => _isInGitLabRecoveryMode;
 
+    /// <summary>
+    ///     Switches the application into GitLab recovery mode and signals the background
+    ///     startup service to re-run the GitLab checks. This is the single transition point
+    ///     used after runtime GitLab failures, so new requests and new browser tabs all see
+    ///     the same recovery status.
+    /// </summary>
     public void EnterGitLabRecoveryMode()
     {
         _isInGitLabRecoveryMode = true;
@@ -37,8 +43,16 @@ public class StartupStateService
         }
     }
 
+    /// <summary>
+    ///     Returns the current startup or recovery status snapshot for middleware,
+    ///     controllers, and frontend polling.
+    /// </summary>
     public StartupStatus GetStatus() => _status;
 
+    /// <summary>
+    ///     Updates the published startup status. Marking the app ready also clears the
+    ///     recovery flag so subsequent requests leave the recovery flow completely.
+    /// </summary>
     public void SetStatus(bool isReady, string message, string? error = null)
     {
         if (isReady)
@@ -55,6 +69,10 @@ public class StartupStateService
         };
     }
 
+    /// <summary>
+    ///     Waits until some runtime GitLab failure requests a recovery pass. The pending flag
+    ///     coalesces repeated failures into a single wake-up so the recovery loop does not spin.
+    /// </summary>
     public async Task WaitForGitLabRecovery(CancellationToken cancellationToken)
     {
         await _gitLabRecoverySignal.WaitAsync(cancellationToken);

@@ -33,6 +33,10 @@ function stopPolling() {
   }
 }
 
+/**
+ * Ensures exactly one background poller is watching /api/startup/status. This keeps all
+ * views in sync with backend startup and GitLab recovery without each screen creating its own loop.
+ */
 function ensurePolling() {
   if (timer) {
     return
@@ -43,6 +47,11 @@ function ensurePolling() {
   }, STARTUP_POLL_INTERVAL_MS)
 }
 
+/**
+ * Applies the latest backend startup snapshot to the shared SPA state. When startup resumes
+ * after the app was already running, this also redirects back to the dashboard so the overlay
+ * is visible regardless of which route triggered the failure.
+ */
 function applyStatus(status: StartupStatus, options: EnterStartupOptions = {}) {
   const wasReady = isReady.value
 
@@ -73,6 +82,11 @@ function applyStatus(status: StartupStatus, options: EnterStartupOptions = {}) {
   }
 }
 
+/**
+ * Forces the SPA into startup mode using either a backend-provided status payload or a local
+ * fallback message. The GitLab recovery flag is preserved so the UI can distinguish recovery
+ * from a normal cold start.
+ */
 export function enterStartupMode(
   status: Partial<StartupStatus> = {},
   options: EnterStartupOptions = {}
@@ -88,6 +102,11 @@ export function enterStartupMode(
   )
 }
 
+/**
+ * Polls the backend startup endpoint and updates the shared startup state. If the status poll
+ * itself fails while recovery is already active, the existing recovery message is kept instead
+ * of downgrading the user back to a generic "starting up" overlay.
+ */
 export async function refreshStartupStatus() {
   if (checkPromise) {
     return checkPromise
@@ -122,6 +141,10 @@ export async function refreshStartupStatus() {
 }
 
 export function useStartupCheck() {
+  /**
+   * Starts startup monitoring for the SPA shell. App.vue calls this once on mount so the rest
+   * of the app can react to startup and recovery transitions via the shared refs.
+   */
   async function startMonitoring() {
     ensurePolling()
     await refreshStartupStatus()
@@ -136,6 +159,10 @@ export function useStartupCheck() {
   }
 }
 
+/**
+ * Lightweight synchronous check used before issuing backend requests. It prevents components
+ * from continuing to call the API after the app has already entered startup or recovery mode.
+ */
 export function isStartupReady() {
   return isReady.value
 }

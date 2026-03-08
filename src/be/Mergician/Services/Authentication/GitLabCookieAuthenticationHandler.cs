@@ -44,6 +44,11 @@ public class GitLabCookieAuthenticationHandler : AuthenticationHandler<Authentic
         _startupStateService = startupStateService;
     }
 
+    /// <summary>
+    ///     Authenticates the request from GitLab OAuth cookies, but deliberately skips live
+    ///     token validation while the app is in startup or recovery mode. That prevents the
+    ///     status endpoint from causing more GitLab traffic while recovery is already active.
+    /// </summary>
     protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         // When the application is not ready (initial startup or GitLab recovery),
@@ -59,6 +64,10 @@ public class GitLabCookieAuthenticationHandler : AuthenticationHandler<Authentic
         return await AuthenticateCore();
     }
 
+    /// <summary>
+    ///     Normal authentication flow: validate the access token first, fall back to refresh,
+    ///     then persist refreshed cookies and rebuild the in-request user context.
+    /// </summary>
     private async Task<AuthenticateResult> AuthenticateCore()
     {
         var accessToken = Request.Cookies["gl_access_token"];
@@ -121,6 +130,10 @@ public class GitLabCookieAuthenticationHandler : AuthenticationHandler<Authentic
         return CreateSuccessResult(tokenResponse.AccessToken, userId);
     }
 
+    /// <summary>
+    ///     Stores the authenticated GitLab user context for the remainder of the request and
+    ///     returns the ASP.NET Core ticket that marks the request as authenticated.
+    /// </summary>
     private AuthenticateResult CreateSuccessResult(string accessToken, int userId)
     {
         var user = new AccessDetailsForUser(accessToken, _apiBaseUrl, userId);
@@ -134,6 +147,11 @@ public class GitLabCookieAuthenticationHandler : AuthenticationHandler<Authentic
         return AuthenticateResult.Success(ticket);
     }
 
+    /// <summary>
+    ///     Validates an access token by asking GitLab for the current user. A runtime failure
+    ///     here is intentionally allowed to bubble up so the startup middleware can convert it
+    ///     into a recovery response for the frontend.
+    /// </summary>
     private async Task<GitLabUserInfo?> ValidateToken(string accessToken)
     {
         var accessDetails = new AccessDetailsBase(accessToken, _apiBaseUrl);

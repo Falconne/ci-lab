@@ -39,27 +39,47 @@ public class StartupService : IHostedService
         _logger = logger;
     }
 
+    /// <summary>
+    ///     Starts the long-running startup workflow without blocking host startup. The hosted
+    ///     service then owns both the cold-start checks and any later GitLab recovery cycles.
+    /// </summary>
     public Task StartAsync(CancellationToken cancellationToken)
     {
         _ = Task.Run(() => RunStartupChecks(cancellationToken), cancellationToken);
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    ///     No explicit shutdown work is required because the running tasks observe the host's
+    ///     cancellation token.
+    /// </summary>
     public Task StopAsync(CancellationToken cancellationToken)
     {
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    ///     Exposes the current startup or recovery status to the controller layer.
+    /// </summary>
     public StartupStatus GetStatus()
     {
         return _startupStateService.GetStatus();
     }
 
+    /// <summary>
+    ///     Centralizes status updates so this service remains the owner of the user-visible
+    ///     startup messages while the shared state service handles publication and signalling.
+    /// </summary>
     private void SetStatus(bool isReady, string message, string? error = null)
     {
         _startupStateService.SetStatus(isReady, message, error);
     }
 
+    /// <summary>
+    ///     Runs the initial startup sequence once, then waits for runtime GitLab failures to
+    ///     request another GitLab-only recovery pass. Database setup is not repeated during
+    ///     recovery because the runtime failures we care about are isolated to GitLab.
+    /// </summary>
     private async Task RunStartupChecks(CancellationToken cancellationToken)
     {
         try
@@ -90,6 +110,10 @@ public class StartupService : IHostedService
         }
     }
 
+    /// <summary>
+    ///     Performs the cold-start validation path: configuration sanity checks, database
+    ///     migration, then the first GitLab health check before the app is marked ready.
+    /// </summary>
     private async Task<bool> RunInitialStartupChecks(CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(_settings.GitLab.ServiceToken))
@@ -140,6 +164,11 @@ public class StartupService : IHostedService
         return !cancellationToken.IsCancellationRequested;
     }
 
+    /// <summary>
+    ///     Keeps probing GitLab until it becomes usable again. Recovery runs use a slower poll
+    ///     interval than cold start so the app stays informative without hammering GitLab while
+    ///     it is down.
+    /// </summary>
     private async Task<bool> RunGitLabChecksUntilReady(
         bool isInRecoveryMode,
         CancellationToken cancellationToken)

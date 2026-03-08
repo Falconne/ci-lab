@@ -66,6 +66,11 @@ public class GitLabApiClient
         return (result!, nextPage);
     }
 
+    /// <summary>
+    ///     Shared retry loop for all GitLab calls. Once a runtime failure proves GitLab is down,
+    ///     this method flips the app into recovery mode so middleware can surface the recovery
+    ///     overlay and sibling requests can stop retrying immediately.
+    /// </summary>
     private async Task<(T? Data, string? NextPage)> ExecuteCoreAsync<T>(
         Func<HttpRequestMessage> requestFactory,
         JsonSerializerOptions jsonOptions,
@@ -182,6 +187,10 @@ public class GitLabApiClient
         throw failureException;
     }
 
+    /// <summary>
+    ///     Deserializes a successful GitLab response and treats null payloads as contract
+    ///     violations so callers do not continue with partially valid state.
+    /// </summary>
     private static T DeserializeOrThrow<T>(string json, JsonSerializerOptions jsonOptions, string operationName)
     {
         var result = JsonSerializer.Deserialize<T>(json, jsonOptions);
@@ -194,6 +203,10 @@ public class GitLabApiClient
         return result;
     }
 
+    /// <summary>
+    ///     Only server-side failures are retried. Client-side failures are surfaced immediately
+    ///     because they usually represent a bad request or bad credentials rather than recovery.
+    /// </summary>
     private static bool IsRetriableStatusCode(HttpStatusCode statusCode)
     {
         return (int)statusCode >= 500;

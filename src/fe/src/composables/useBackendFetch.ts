@@ -15,6 +15,11 @@ export function isStartupRequiredError(error: unknown): error is StartupRequired
   return error instanceof StartupRequiredError
 }
 
+/**
+ * Wraps backend fetch calls so any restart or GitLab recovery response is translated into the
+ * shared startup state before view code sees the failure. Components can then stop their local
+ * polling and let the global overlay take over.
+ */
 export async function fetchBackend(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   if (!isStartupReady()) {
     console.info('[Mergician] Skipping backend request because startup is still in progress', input)
@@ -44,6 +49,11 @@ export async function fetchBackend(input: RequestInfo | URL, init?: RequestInit)
   }
 }
 
+/**
+ * Extracts a structured startup payload from a 503 response. Returning null here tells the
+ * caller that the backend did not provide startup metadata, so it should fall back to a generic
+ * restart message instead.
+ */
 async function tryReadStartupStatus(response: Response): Promise<StartupStatus | null> {
   try {
     const data = await response.json() as Partial<StartupStatus>
