@@ -84,8 +84,8 @@ try
 
     // Register startup service (runs health checks before marking app as ready)
     builder.Services.AddSingleton<GitLabHealthService>();
-    builder.Services.AddSingleton<StartupService>();
-    builder.Services.AddHostedService(sp => sp.GetRequiredService<StartupService>());
+    builder.Services.AddSingleton<StartupAndRecoveryService>();
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<StartupAndRecoveryService>());
 
     // Register background cleanup service
     builder.Services.AddHostedService<CleanupService>();
@@ -116,7 +116,7 @@ try
     // Startup gating middleware
     //
     // When the application is still performing its initial health checks and
-    // migrations, we mark it as "not ready" via StartupService.  Any client
+    // migrations, we mark it as "not ready" via StartupAndRecoveryService.  Any client
     // requests during that period should not be forwarded to the normal
     // controllers because many services (database, GitLab) may be unavailable
     // and would return errors. Instead we intercept API calls here and return

@@ -9,7 +9,7 @@ namespace Mergician.Services;
 ///     application as ready. Checks are retried until they succeed or a permanent error
 ///     is detected. Exposes the current startup state for the frontend to poll.
 /// </summary>
-public class StartupService : BackgroundService
+public class StartupAndRecoveryService : BackgroundService
 {
     private static readonly TimeSpan _retryDelay = TimeSpan.FromSeconds(5);
 
@@ -17,18 +17,18 @@ public class StartupService : BackgroundService
 
     private readonly GitLabHealthService _gitLabHealthService;
 
-    private readonly ILogger<StartupService> _logger;
+    private readonly ILogger<StartupAndRecoveryService> _logger;
 
     private readonly MergicianSettings _settings;
 
     private readonly HealthService _startupStateService;
 
-    public StartupService(
+    public StartupAndRecoveryService(
         MergicianSettings settings,
         DatabaseMigrationService databaseMigrationService,
         HealthService startupStateService,
         GitLabHealthService gitLabHealthService,
-        ILogger<StartupService> logger)
+        ILogger<StartupAndRecoveryService> logger)
     {
         _settings = settings;
         _databaseMigrationService = databaseMigrationService;
@@ -75,7 +75,7 @@ public class StartupService : BackgroundService
     {
         try
         {
-            _logger.LogInformation("StartupService: beginning startup checks");
+            _logger.LogInformation("StartupAndRecoveryService: beginning startup checks");
 
             if (!await RunInitialStartupChecks(cancellationToken))
             {
@@ -84,9 +84,9 @@ public class StartupService : BackgroundService
 
             while (!cancellationToken.IsCancellationRequested)
             {
-                _logger.LogInformation("StartupService: monitoring for a GitLab recovery request");
+                _logger.LogInformation("StartupAndRecoveryService: monitoring for a GitLab recovery request");
                 await _gitLabHealthService.WaitForGitLabRecoveryRequest(cancellationToken);
-                _logger.LogInformation("StartupService: GitLab recovery requested, re-running GitLab checks");
+                _logger.LogInformation("StartupAndRecoveryService: GitLab recovery requested, re-running GitLab checks");
                 if (await _gitLabHealthService.WaitForGitLabHealthy(true, cancellationToken))
                 {
                     SetStatus(true, "Ready");
@@ -95,11 +95,11 @@ public class StartupService : BackgroundService
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            _logger.LogInformation("StartupService: stopping due to cancellation");
+            _logger.LogInformation("StartupAndRecoveryService: stopping due to cancellation");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "StartupService failed unexpectedly");
+            _logger.LogError(ex, "StartupAndRecoveryService failed unexpectedly");
             SetStatus(false, "Startup failed", "Unexpected startup error, please contact administrator.");
         }
     }
@@ -117,23 +117,23 @@ public class StartupService : BackgroundService
             return false;
         }
 
-        _logger.LogInformation("StartupService: service token is configured");
+        _logger.LogInformation("StartupAndRecoveryService: service token is configured");
 
         while (!cancellationToken.IsCancellationRequested)
         {
             SetStatus(false, "Checking database...");
             try
             {
-                _logger.LogInformation("StartupService: running database migration");
+                _logger.LogInformation("StartupAndRecoveryService: running database migration");
                 _databaseMigrationService.MigrateDatabase();
-                _logger.LogInformation("StartupService: database migration completed successfully");
+                _logger.LogInformation("StartupAndRecoveryService: database migration completed successfully");
                 break;
             }
             catch (Exception ex)
             {
                 _logger.LogError(
                     ex,
-                    "StartupService: database check failed, will retry in {Delay}",
+                    "StartupAndRecoveryService: database check failed, will retry in {Delay}",
                     _retryDelay);
 
                 SetStatus(
