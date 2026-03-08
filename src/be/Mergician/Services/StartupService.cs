@@ -86,10 +86,10 @@ public class StartupService : BackgroundService
 
             while (!cancellationToken.IsCancellationRequested)
             {
-                _logger.LogInformation("StartupService: waiting for a GitLab recovery request");
+                _logger.LogInformation("StartupService: monitoring for a GitLab recovery request");
                 await _startupStateService.WaitForGitLabRecovery(cancellationToken);
                 _logger.LogInformation("StartupService: GitLab recovery requested, re-running GitLab checks");
-                await RunGitLabChecksUntilReady(true, cancellationToken);
+                await WaitForGitlabHealthy(true, cancellationToken);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -149,7 +149,7 @@ public class StartupService : BackgroundService
             return false;
         }
 
-        if (await RunGitLabChecksUntilReady(false, cancellationToken))
+        if (await WaitForGitlabHealthy(false, cancellationToken))
         {
             SetStatus(true, "Ready");
         }
@@ -162,7 +162,7 @@ public class StartupService : BackgroundService
     ///     interval than cold start so the app stays informative without hammering GitLab while
     ///     it is down.
     /// </summary>
-    private async Task<bool> RunGitLabChecksUntilReady(
+    private async Task<bool> WaitForGitlabHealthy(
         bool isInRecoveryMode,
         CancellationToken cancellationToken)
     {
