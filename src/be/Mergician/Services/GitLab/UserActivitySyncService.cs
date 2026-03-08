@@ -25,11 +25,11 @@ public class UserActivitySyncService : IHostedService, IDisposable
 
     private readonly GitLabService _gitLabService;
 
+    private readonly GitLabHealthService _gitLabHealthService;
+
     private readonly ILogger<UserActivitySyncService> _logger;
 
     private readonly IMergeGroupRepository _mergeGroupRepository;
-
-    private readonly StartupStateService _startupStateService;
 
     private readonly ConcurrentDictionary<int, UserSyncContext> _userContexts = new();
 
@@ -40,14 +40,14 @@ public class UserActivitySyncService : IHostedService, IDisposable
         GitLabActivityService activityService,
         BranchesService branchesService,
         IMergeGroupRepository mergeGroupRepository,
-        StartupStateService startupStateService,
+        GitLabHealthService gitLabHealthService,
         ILogger<UserActivitySyncService> logger)
     {
         _gitLabService = gitLabService;
         _activityService = activityService;
         _branchesService = branchesService;
         _mergeGroupRepository = mergeGroupRepository;
-        _startupStateService = startupStateService;
+        _gitLabHealthService = gitLabHealthService;
         _logger = logger;
     }
 
@@ -145,7 +145,7 @@ public class UserActivitySyncService : IHostedService, IDisposable
             var lastPollTime = DateTimeOffset.UtcNow;
 
             // Phase 1: Backfill from the user's last known activity or 14 days
-            if (_startupStateService.IsInGitLabRecoveryMode)
+            if (_gitLabHealthService.IsInGitLabRecoveryMode)
             {
                 _logger.LogInformation(
                     "Skipping sync for user {UserId}: GitLab recovery mode is active",
@@ -159,7 +159,7 @@ public class UserActivitySyncService : IHostedService, IDisposable
             // Phase 2: Continuous polling loop
             while (!ct.IsCancellationRequested)
             {
-                if (_startupStateService.IsInGitLabRecoveryMode)
+                if (_gitLabHealthService.IsInGitLabRecoveryMode)
                 {
                     _logger.LogInformation(
                         "Stopping sync thread for user {UserId}: GitLab recovery mode is active",

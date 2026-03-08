@@ -13,9 +13,9 @@ public class StartupService : BackgroundService
 {
     private static readonly TimeSpan _retryDelay = TimeSpan.FromSeconds(5);
 
-    private static readonly TimeSpan _gitLabRecoveryDelay = TimeSpan.FromSeconds(15);
-
     private readonly DatabaseMigrationService _databaseMigrationService;
+
+    private readonly GitLabHealthService _gitLabHealthService;
 
     private readonly ILogger<StartupService> _logger;
 
@@ -23,19 +23,17 @@ public class StartupService : BackgroundService
 
     private readonly StartupStateService _startupStateService;
 
-    private readonly GitLabTimezoneService _timezoneService;
-
     public StartupService(
         MergicianSettings settings,
         DatabaseMigrationService databaseMigrationService,
         StartupStateService startupStateService,
-        GitLabTimezoneService timezoneService,
+        GitLabHealthService gitLabHealthService,
         ILogger<StartupService> logger)
     {
         _settings = settings;
         _databaseMigrationService = databaseMigrationService;
         _startupStateService = startupStateService;
-        _timezoneService = timezoneService;
+        _gitLabHealthService = gitLabHealthService;
         _logger = logger;
     }
 
@@ -61,7 +59,7 @@ public class StartupService : BackgroundService
 
     /// <summary>
     ///     Centralizes status updates so this service remains the owner of the user-visible
-    ///     startup messages while the shared state service handles publication and signalling.
+    ///     startup messages while the shared state service handles publication.
     /// </summary>
     private void SetStatus(bool isReady, string message, string? error = null)
     {
@@ -87,9 +85,9 @@ public class StartupService : BackgroundService
             while (!cancellationToken.IsCancellationRequested)
             {
                 _logger.LogInformation("StartupService: monitoring for a GitLab recovery request");
-                await _startupStateService.WaitForGitLabRecoveryRequest(cancellationToken);
+                await _gitLabHealthService.WaitForGitLabRecoveryRequest(cancellationToken);
                 _logger.LogInformation("StartupService: GitLab recovery requested, re-running GitLab checks");
-                if (await WaitForGitlabHealthy(true, cancellationToken))
+                if (await _gitLabHealthService.WaitForGitLabHealthy(true, cancellationToken))
                 {
                     SetStatus(true, "Ready");
                 }
@@ -152,70 +150,11 @@ public class StartupService : BackgroundService
             return false;
         }
 
-        if (await WaitForGitlabHealthy(false, cancellationToken))
+        if (await _gitLabHealthService.WaitForGitLabHealthy(false, cancellationToken))
         {
             SetStatus(true, "Ready");
         }
 
         return !cancellationToken.IsCancellationRequested;
-    }
-
-    /// <summary>
-    ///     Keeps probing GitLab until it becomes usable again. Recovery runs use a slower poll
-    ///     interval than cold start so the app stays informative without hammering GitLab while
-    ///     it is down.
-    /// </summary>
-    private async Task<bool> WaitForGitlabHealthy(
-        bool isInRecoveryMode,
-        CancellationToken cancellationToken)
-    {
-        var retryDelay = isInRecoveryMode ? _gitLabRecoveryDelay : _retryDelay;
-
-        while (!cancellationToken.IsCancellationRequested)
-        {
-            SetStatus(false, "Checking GitLab...");
-
-            try
-            {
-                _logger.LogInformation(
-                    "StartupService: checking GitLab connectivity and detecting timezone{Suffix}",
-                    isInRecoveryMode ? " during recovery" : string.Empty);
-
-                await _timezoneService.DetectTimezone(cancellationToken);
-                _logger.LogInformation("StartupService: GitLab check passed");
-                return true;
-            }
-            catch (GitLabApiFailureException ex)
-            {
-                _logger.LogError(
-                    ex,
-                    "StartupService: GitLab check failed, will retry in {Delay}",
-                    retryDelay);
-
-                SetStatus(
-                    false,
-                    "Checking GitLab...",
-                    "Error connecting to GitLab, please contact administrator.");
-
-                await Task.Delay(retryDelay, cancellationToken);
-            }
-            catch (GitLabUnexpectedResponseException ex)
-            {
-                _logger.LogError(
-                    ex,
-                    "StartupService: GitLab returned unexpected status {StatusCode}, will retry in {Delay}",
-                    (int)ex.StatusCode,
-                    retryDelay);
-
-                SetStatus(
-                    false,
-                    "Checking GitLab...",
-                    "Error connecting to GitLab, please contact administrator.");
-
-                await Task.Delay(retryDelay, cancellationToken);
-            }
-        }
-
-        return false;
     }
 }

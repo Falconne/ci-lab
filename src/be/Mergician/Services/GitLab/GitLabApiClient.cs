@@ -1,4 +1,3 @@
-using Mergician.Services;
 using System.Net;
 using System.Text.Json;
 
@@ -13,19 +12,19 @@ public class GitLabApiClient
         TimeSpan.FromSeconds(10)
     ];
 
+    private readonly GitLabHealthService _gitLabHealthService;
+
     private readonly IHttpClientFactory _httpClientFactory;
 
     private readonly ILogger<GitLabApiClient> _logger;
 
-    private readonly StartupStateService _startupStateService;
-
     public GitLabApiClient(
         IHttpClientFactory httpClientFactory,
-        StartupStateService startupStateService,
+        GitLabHealthService gitLabHealthService,
         ILogger<GitLabApiClient> logger)
     {
         _httpClientFactory = httpClientFactory;
-        _startupStateService = startupStateService;
+        _gitLabHealthService = gitLabHealthService;
         _logger = logger;
     }
 
@@ -142,7 +141,7 @@ public class GitLabApiClient
 
             // If another thread already triggered GitLab recovery mode, stop retrying
             // immediately so we don't waste time hitting an unreachable GitLab instance.
-            if (_startupStateService.IsInGitLabRecoveryMode)
+            if (_gitLabHealthService.IsInGitLabRecoveryMode)
             {
                 _logger.LogInformation(
                     "GitLab call {OperationName} aborting retries: GitLab recovery mode is active",
@@ -177,7 +176,7 @@ public class GitLabApiClient
         // caller's failure behavior. This ensures the frontend shows the GitLab error
         // overlay and other threads stop wasting time retrying against an unreachable
         // GitLab instance.
-        _startupStateService.EnterGitLabRecoveryMode();
+        _gitLabHealthService.EnterGitLabRecoveryMode();
 
         if (failureBehavior == GitLabApiFailureBehavior.EnterStartupMode)
         {

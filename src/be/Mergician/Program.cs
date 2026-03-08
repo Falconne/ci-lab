@@ -83,6 +83,7 @@ try
             mergicianSettings.GitLab.ServiceToken));
 
     // Register startup service (runs health checks before marking app as ready)
+    builder.Services.AddSingleton<GitLabHealthService>();
     builder.Services.AddSingleton<StartupService>();
     builder.Services.AddHostedService(sp => sp.GetRequiredService<StartupService>());
 
