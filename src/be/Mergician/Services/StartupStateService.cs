@@ -6,11 +6,11 @@ public class StartupStateService
 {
     private readonly SemaphoreSlim _gitLabRecoverySignal = new(0, 1);
 
-    private volatile StartupStatus _status = new() { IsReady = false, Message = "Starting up..." };
-
     private int _gitLabRecoveryPending;
 
     private volatile bool _isInGitLabRecoveryMode;
+
+    private volatile StartupStatus _status = new() { IsReady = false, Message = "Starting up..." };
 
     /// <summary>
     ///     True when the application has entered GitLab recovery mode.
@@ -19,12 +19,6 @@ public class StartupStateService
     /// </summary>
     public bool IsInGitLabRecoveryMode => _isInGitLabRecoveryMode;
 
-    /// <summary>
-    ///     Switches the application into GitLab recovery mode and signals the background
-    ///     startup service to re-run the GitLab checks. This is the single transition point
-    ///     used after runtime GitLab failures, so new requests and new browser tabs all see
-    ///     the same recovery status.
-    /// </summary>
     public void EnterGitLabRecoveryMode()
     {
         _isInGitLabRecoveryMode = true;
@@ -33,7 +27,7 @@ public class StartupStateService
         {
             IsReady = false,
             Message = "Checking GitLab...",
-            Error = "Error contacting GitLab, please contact administrator.",
+            Error = "Error connecting to GitLab, please contact administrator.",
             IsGitLabRecovery = true
         };
 
@@ -43,16 +37,11 @@ public class StartupStateService
         }
     }
 
-    /// <summary>
-    ///     Returns the current startup or recovery status snapshot for middleware,
-    ///     controllers, and frontend polling.
-    /// </summary>
-    public StartupStatus GetStatus() => _status;
+    public StartupStatus GetStatus()
+    {
+        return _status;
+    }
 
-    /// <summary>
-    ///     Updates the published startup status. Marking the app ready also clears the
-    ///     recovery flag so subsequent requests leave the recovery flow completely.
-    /// </summary>
     public void SetStatus(bool isReady, string message, string? error = null)
     {
         if (isReady)
@@ -69,10 +58,6 @@ public class StartupStateService
         };
     }
 
-    /// <summary>
-    ///     Waits until some runtime GitLab failure requests a recovery pass. The pending flag
-    ///     coalesces repeated failures into a single wake-up so the recovery loop does not spin.
-    /// </summary>
     public async Task WaitForGitLabRecovery(CancellationToken cancellationToken)
     {
         await _gitLabRecoverySignal.WaitAsync(cancellationToken);
