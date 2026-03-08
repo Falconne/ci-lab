@@ -29,6 +29,8 @@ public class UserActivitySyncService : IHostedService, IDisposable
 
     private readonly IMergeGroupRepository _mergeGroupRepository;
 
+    private readonly StartupStateService _startupStateService;
+
     private readonly ConcurrentDictionary<int, UserSyncContext> _userContexts = new();
 
     private CancellationTokenSource? _globalCts;
@@ -38,12 +40,14 @@ public class UserActivitySyncService : IHostedService, IDisposable
         GitlabActivityService activityService,
         BranchesService branchesService,
         IMergeGroupRepository mergeGroupRepository,
+        StartupStateService startupStateService,
         ILogger<UserActivitySyncService> logger)
     {
         _gitlabService = gitlabService;
         _activityService = activityService;
         _branchesService = branchesService;
         _mergeGroupRepository = mergeGroupRepository;
+        _startupStateService = startupStateService;
         _logger = logger;
     }
 
@@ -141,12 +145,28 @@ public class UserActivitySyncService : IHostedService, IDisposable
             var lastPollTime = DateTimeOffset.UtcNow;
 
             // Phase 1: Backfill from the user's last known activity or 14 days
+            if (_startupStateService.IsInGitLabRecoveryMode)
+            {
+                _logger.LogInformation(
+                    "Skipping sync for user {UserId}: GitLab recovery mode is active",
+                    gitlabUserId);
+                return;
+            }
+
             await BackfillUserActivity(gitlabUserId, context, ct);
 
-            var firstRefresh = true;
+            var firstPoll = true;
             // Phase 2: Continuous polling loop
             while (!ct.IsCancellationRequested)
             {
+                if (_startupStateService.IsInGitLabRecoveryMode)
+                {
+                    _logger.LogInformation(
+                        "Stopping sync thread for user {UserId}: GitLab recovery mode is active",
+                        gitlabUserId);
+                    break;
+                }
+
                 var accessUser = context.AccessUser;
                 if (accessUser == null)
                 {
@@ -158,14 +178,15 @@ public class UserActivitySyncService : IHostedService, IDisposable
                     continue;
                 }
 
-                if (!firstRefresh)
+                if (firstPoll)
                 {
-                    firstRefresh = false;
-                    await Task.Delay(_pollInterval, ct);
+                    firstPoll = false;
+                    // Refresh branch details immediately on first poll for responsive UI
+                    await _activityService.RefreshAllBranchDetails(accessUser, gitlabUserId, ct);
                 }
                 else
                 {
-                    await _activityService.RefreshAllBranchDetails(accessUser, gitlabUserId, ct);
+                    await Task.Delay(_pollInterval, ct);
                 }
 
                 var inactiveFor = DateTimeOffset.UtcNow - context.LastPollActivity;
