@@ -87,9 +87,12 @@ public class StartupService : BackgroundService
             while (!cancellationToken.IsCancellationRequested)
             {
                 _logger.LogInformation("StartupService: monitoring for a GitLab recovery request");
-                await _startupStateService.WaitForGitLabRecovery(cancellationToken);
+                await _startupStateService.WaitForGitLabRecoveryRequest(cancellationToken);
                 _logger.LogInformation("StartupService: GitLab recovery requested, re-running GitLab checks");
-                await WaitForGitlabHealthy(true, cancellationToken);
+                if (await WaitForGitlabHealthy(true, cancellationToken))
+                {
+                    SetStatus(true, "Ready");
+                }
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

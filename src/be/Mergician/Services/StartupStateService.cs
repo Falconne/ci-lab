@@ -4,7 +4,7 @@ namespace Mergician.Services;
 
 public class StartupStateService
 {
-    private readonly SemaphoreSlim _gitLabRecoverySignal = new(0, 1);
+    private readonly SemaphoreSlim _gitLabRecoveryRequiredSignal = new(0, 1);
 
     private int _gitLabRecoveryPending;
 
@@ -33,7 +33,7 @@ public class StartupStateService
 
         if (Interlocked.Exchange(ref _gitLabRecoveryPending, 1) == 0)
         {
-            _gitLabRecoverySignal.Release();
+            _gitLabRecoveryRequiredSignal.Release();
         }
     }
 
@@ -58,9 +58,9 @@ public class StartupStateService
         };
     }
 
-    public async Task WaitForGitLabRecovery(CancellationToken cancellationToken)
+    public async Task WaitForGitLabRecoveryRequest(CancellationToken cancellationToken)
     {
-        await _gitLabRecoverySignal.WaitAsync(cancellationToken);
+        await _gitLabRecoveryRequiredSignal.WaitAsync(cancellationToken);
         Interlocked.Exchange(ref _gitLabRecoveryPending, 0);
     }
 }

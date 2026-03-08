@@ -1,0 +1,5 @@
+Task 1)
+Make the casing of GitLab consistent in variable, class and method names in the codebase. `gitlab` should be `gitLab` and `Gitlab` should be `GitLab`.
+
+Task 2)
+Check if Authentication.md and StartupAndRecovery.md are still accurate based on the current code and if not update them. Check for any symbols like class or method names that may have been renamed. You can look through recent git history if it's not obvious what has changed.
