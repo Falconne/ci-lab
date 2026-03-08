@@ -9,7 +9,7 @@ namespace Mergician.Services;
 ///     application as ready. Checks are retried until they succeed or a permanent error
 ///     is detected. Exposes the current startup state for the frontend to poll.
 /// </summary>
-public class StartupService : IHostedService
+public class StartupService : BackgroundService
 {
     private static readonly TimeSpan _retryDelay = TimeSpan.FromSeconds(5);
 
@@ -40,22 +40,15 @@ public class StartupService : IHostedService
     }
 
     /// <summary>
-    ///     Starts the long-running startup workflow without blocking host startup. The hosted
-    ///     service then owns both the cold-start checks and any later GitLab recovery cycles.
+    ///     Runs the long-running startup workflow. <see cref="BackgroundService" /> calls this
+    ///     asynchronously so <c>StartAsync</c> returns immediately without blocking host startup.
+    ///     The service owns both the cold-start checks and any later GitLab recovery cycles.
+    ///     An unhandled exception here propagates to the framework, which stops the host rather
+    ///     than allowing the app to run silently in a broken state.
     /// </summary>
-    public Task StartAsync(CancellationToken cancellationToken)
+    protected override Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _ = Task.Run(() => RunStartupChecks(cancellationToken), cancellationToken);
-        return Task.CompletedTask;
-    }
-
-    /// <summary>
-    ///     No explicit shutdown work is required because the running tasks observe the host's
-    ///     cancellation token.
-    /// </summary>
-    public Task StopAsync(CancellationToken cancellationToken)
-    {
-        return Task.CompletedTask;
+        return RunStartupChecks(stoppingToken);
     }
 
     /// <summary>
