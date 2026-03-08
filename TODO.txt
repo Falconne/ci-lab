@@ -2,4 +2,10 @@ Task 1)
 Make the casing of GitLab consistent in variable, class and method names in the codebase. `gitlab` should be `gitLab` and `Gitlab` should be `GitLab`.
 
 Task 2)
+Rename `StartupStateService` to `HealthService` to better reflect its purpose. Make `HealthController` use this service (if IsReady is false, Mergician is not healthy). This should return a full `StartupStatus` object. This should make `StartupController` redundant. Remove it and make the frontend use `HealthController` for what it was doing with `StartupController`. While doing this, rename `StartupStatus` to `HealthStatus` and udpate any references in the frontend.
+
+Task 3)
+Rename `StartupService` to `StartupAndRecoveryService` and update relevant references.
+
+Task 4)
 Check if Authentication.md and StartupAndRecovery.md are still accurate based on the current code and if not update them. Check for any symbols like class or method names that may have been renamed. You can look through recent git history if it's not obvious what has changed.
