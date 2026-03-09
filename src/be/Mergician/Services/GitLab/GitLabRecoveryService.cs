@@ -6,10 +6,8 @@ namespace Mergician.Services.GitLab;
 ///     Owns the GitLab recovery state machine: tracks whether the application is in
 ///     GitLab recovery mode, signals recovery requests, and clears the flag when GitLab
 ///     becomes healthy again.
-///     Intentionally separate from <see cref="GitLabHealthService" /> to avoid a
-///     circular DI dependency: <c>GitLabApiClient</c> depends on this class and
-///     <see cref="GitLabHealthService" /> depends on <c>GitLabTimezoneService</c>,
-///     which in turn depends on <c>GitLabApiClient</c>.
+///     Intentionally separate from <see cref="GitLabApiClient" /> to avoid a
+///     circular DI dependency: <c>GitLabApiClient</c> depends on this class.
 /// </summary>
 public class GitLabRecoveryService
 {
@@ -56,7 +54,7 @@ public class GitLabRecoveryService
 
     /// <summary>
     ///     Clears recovery mode after GitLab becomes healthy again.
-    ///     Called by <see cref="GitLabHealthService" /> once a health check passes.
+    ///     Called by <see cref="GitLabApiClient" /> once a health check passes.
     /// </summary>
     public void ClearGitLabRecoveryMode()
     {

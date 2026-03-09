@@ -1,8 +1,18 @@
+using Mergician.Entities;
+using Mergician.Services.Authentication;
+using Mergician.Utilities;
 using System.Net;
 using System.Text.Json;
 
 namespace Mergician.Services.GitLab;
 
+/// <summary>
+///     Central HTTP client for the GitLab API. Handles retry logic, JSON deserialization,
+///     timezone detection, and health checks.
+///     Timezone detection adjusts date-only API parameters to the GitLab server's local date.
+///     Health checks probe GitLab until it becomes reachable, and are called by
+///     <see cref="Services.StartupAndRecoveryService" /> during cold start and after recovery requests.
+/// </summary>
 public class GitLabApiClient
 {
     private static readonly TimeSpan[] _retryDelays =
@@ -12,21 +22,42 @@ public class GitLabApiClient
         TimeSpan.FromSeconds(10)
     ];
 
+    private static readonly TimeSpan _retryDelay = TimeSpan.FromSeconds(5);
+
+    private static readonly TimeSpan _recoveryRetryDelay = TimeSpan.FromSeconds(15);
+
+    private static readonly JsonSerializerOptions _jsonOptions = JsonOptions.CaseInsensitive;
+
     private readonly GitLabRecoveryService _gitLabRecoveryService;
+
+    private readonly HealthService _healthService;
 
     private readonly IHttpClientFactory _httpClientFactory;
 
     private readonly ILogger<GitLabApiClient> _logger;
 
+    private readonly GitLabUserFactory _userFactory;
+
     public GitLabApiClient(
         IHttpClientFactory httpClientFactory,
         GitLabRecoveryService gitLabRecoveryService,
+        HealthService healthService,
+        GitLabUserFactory userFactory,
         ILogger<GitLabApiClient> logger)
     {
         _httpClientFactory = httpClientFactory;
         _gitLabRecoveryService = gitLabRecoveryService;
+        _healthService = healthService;
+        _userFactory = userFactory;
         _logger = logger;
     }
+
+    /// <summary>
+    ///     The detected offset of the GitLab server from UTC.
+    ///     Positive values mean ahead of UTC (e.g. UTC+5 = 5 hours).
+    ///     Zero if detection has not run or the server uses UTC.
+    /// </summary>
+    public TimeSpan GitLabUtcOffset { get; private set; } = TimeSpan.Zero;
 
     /// <summary>
     ///     Executes a GitLab API call with retry logic and JSON deserialization.
@@ -63,6 +94,109 @@ public class GitLabApiClient
             requestFactory, jsonOptions, operationName, failureBehavior,
             captureNextPage: true, cancellationToken);
         return (result!, nextPage);
+    }
+
+    /// <summary>
+    ///     Adjusts a UTC date to the GitLab server's local date, for use in date-only
+    ///     API parameters (e.g. the 'after' filter in the events endpoint).
+    ///     Returns the date as it would appear on the GitLab server.
+    /// </summary>
+    public DateTimeOffset AdjustToGitLabLocal(DateTimeOffset utcTimestamp)
+    {
+        return utcTimestamp.ToOffset(GitLabUtcOffset);
+    }
+
+    /// <summary>
+    ///     Detects the GitLab server's timezone by calling GET /api/v4/personal_access_tokens/self.
+    ///     Also acts as a GitLab connectivity health check. Throws on failure so the caller
+    ///     can implement retry logic.
+    /// </summary>
+    public async Task DetectTimezone(CancellationToken cancellationToken = default)
+    {
+        var serviceUser = _userFactory.GetServiceUser();
+        var tokenInfo = await ExecuteAsync<GitLabTokenSelfInfo>(
+            () => serviceUser.CreateRequest(HttpMethod.Get, "personal_access_tokens/self"),
+            _jsonOptions,
+            "DetectTimezone",
+            GitLabApiFailureBehavior.Throw,
+            cancellationToken);
+
+        var createdAt = tokenInfo.CreatedAt
+            ?? throw new JsonException(
+                "GitLab timezone detection failed: created_at was null after successful parsing");
+
+        GitLabUtcOffset = createdAt.Offset;
+
+        if (GitLabUtcOffset == TimeSpan.Zero)
+        {
+            _logger.LogInformation("GitLab server timezone detected: UTC");
+        }
+        else
+        {
+            _logger.LogInformation(
+                "GitLab server timezone detected: UTC{Offset:+hh\\:mm;-hh\\:mm}",
+                GitLabUtcOffset);
+        }
+    }
+
+    /// <summary>
+    ///     Keeps probing GitLab until it becomes usable again. Recovery runs use a slower poll
+    ///     interval than cold start so the app stays informative without hammering GitLab while
+    ///     it is down.
+    /// </summary>
+    public async Task<bool> WaitForGitLabHealthy(
+        bool isInRecoveryMode,
+        CancellationToken cancellationToken)
+    {
+        var retryDelay = isInRecoveryMode ? _recoveryRetryDelay : _retryDelay;
+
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            _healthService.SetStatus(false, "Checking GitLab...");
+
+            try
+            {
+                _logger.LogInformation(
+                    "GitLabApiClient: checking GitLab connectivity and detecting timezone{Suffix}",
+                    isInRecoveryMode ? " during recovery" : string.Empty);
+
+                await DetectTimezone(cancellationToken);
+                _gitLabRecoveryService.ClearGitLabRecoveryMode();
+                _logger.LogInformation("GitLabApiClient: GitLab check passed");
+                return true;
+            }
+            catch (GitLabApiFailureException ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "GitLabApiClient: GitLab check failed, will retry in {Delay}",
+                    retryDelay);
+
+                _healthService.SetStatus(
+                    false,
+                    "Checking GitLab...",
+                    "Error connecting to GitLab, please contact administrator.");
+
+                await Task.Delay(retryDelay, cancellationToken);
+            }
+            catch (GitLabUnexpectedResponseException ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "GitLabApiClient: GitLab returned unexpected status {StatusCode}, will retry in {Delay}",
+                    (int)ex.StatusCode,
+                    retryDelay);
+
+                _healthService.SetStatus(
+                    false,
+                    "Checking GitLab...",
+                    "Error connecting to GitLab, please contact administrator.");
+
+                await Task.Delay(retryDelay, cancellationToken);
+            }
+        }
+
+        return false;
     }
 
     /// <summary>

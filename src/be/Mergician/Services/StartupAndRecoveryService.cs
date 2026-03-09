@@ -15,7 +15,7 @@ public class StartupAndRecoveryService : BackgroundService
 
     private readonly DatabaseMigrationService _databaseMigrationService;
 
-    private readonly GitLabHealthService _gitLabHealthService;
+    private readonly GitLabApiClient _gitLabApiClient;
 
     private readonly GitLabRecoveryService _gitLabRecoveryService;
 
@@ -29,14 +29,14 @@ public class StartupAndRecoveryService : BackgroundService
         MergicianSettings settings,
         DatabaseMigrationService databaseMigrationService,
         HealthService startupStateService,
-        GitLabHealthService gitLabHealthService,
+        GitLabApiClient gitLabApiClient,
         GitLabRecoveryService gitLabRecoveryService,
         ILogger<StartupAndRecoveryService> logger)
     {
         _settings = settings;
         _databaseMigrationService = databaseMigrationService;
         _startupStateService = startupStateService;
-        _gitLabHealthService = gitLabHealthService;
+        _gitLabApiClient = gitLabApiClient;
         _gitLabRecoveryService = gitLabRecoveryService;
         _logger = logger;
     }
@@ -91,7 +91,7 @@ public class StartupAndRecoveryService : BackgroundService
                 _logger.LogInformation("StartupAndRecoveryService: monitoring for a GitLab recovery request");
                 await _gitLabRecoveryService.WaitForGitLabRecoveryRequest(cancellationToken);
                 _logger.LogInformation("StartupAndRecoveryService: GitLab recovery requested, re-running GitLab checks");
-                if (await _gitLabHealthService.WaitForGitLabHealthy(true, cancellationToken))
+                if (await _gitLabApiClient.WaitForGitLabHealthy(true, cancellationToken))
                 {
                     SetStatus(true, "Ready");
                 }
@@ -154,7 +154,7 @@ public class StartupAndRecoveryService : BackgroundService
             return false;
         }
 
-        if (await _gitLabHealthService.WaitForGitLabHealthy(false, cancellationToken))
+        if (await _gitLabApiClient.WaitForGitLabHealthy(false, cancellationToken))
         {
             SetStatus(true, "Ready");
         }

@@ -17,17 +17,13 @@ public class GitLabService
 
     private readonly CacheService<int, GitLabProject> _projectCache;
 
-    private readonly GitLabTimezoneService _timezoneService;
-
     public GitLabService(
         GitLabApiClient gitLabApiClient,
         CacheService<int, GitLabProject> projectCache,
-        GitLabTimezoneService timezoneService,
         ILogger<GitLabService> logger)
     {
         _gitLabApiClient = gitLabApiClient;
         _projectCache = projectCache;
-        _timezoneService = timezoneService;
         _logger = logger;
     }
 
@@ -82,7 +78,7 @@ public class GitLabService
         // GitLab events API 'after' is date-only and interprets the date in the server's
         // configured timezone. Convert our UTC timestamp to GitLab's local time, then
         // query from the previous day to avoid missing events near the date boundary.
-        var sinceInGitLabLocal = _timezoneService.AdjustToGitLabLocal(sinceUtc);
+        var sinceInGitLabLocal = _gitLabApiClient.AdjustToGitLabLocal(sinceUtc);
         var afterDate = sinceInGitLabLocal.AddDays(-1).ToString("yyyy-MM-dd");
 
         _logger.LogDebug(
@@ -90,7 +86,7 @@ public class GitLabService
             sinceUtc,
             sinceInGitLabLocal,
             afterDate,
-            _timezoneService.GitLabUtcOffset);
+            _gitLabApiClient.GitLabUtcOffset);
 
         var page = 1;
         var yieldedCount = 0;

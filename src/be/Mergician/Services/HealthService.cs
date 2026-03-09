@@ -6,7 +6,7 @@ namespace Mergician.Services;
 ///     Coordinates and publishes the application's health state.
 ///     Background workers call into this service to update the current health status.
 ///     The service exposes a snapshot <see cref="HealthStatus" /> for the frontend to poll.
-///     GitLab recovery signalling is handled by <see cref="GitLab.GitLabHealthService" />.
+///     GitLab recovery signalling is handled by <see cref="GitLab.GitLabApiClient" />.
 /// </summary>
 public class HealthService
 {
