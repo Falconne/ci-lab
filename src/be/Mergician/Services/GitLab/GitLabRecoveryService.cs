@@ -17,7 +17,7 @@ public class GitLabRecoveryService
 
     private int _gitLabRecoveryPending;
 
-    private volatile bool _isInGitLabRecoveryMode;
+    private int _isInGitLabRecoveryMode;
 
     public GitLabRecoveryService(HealthService healthService)
     {
@@ -29,7 +29,7 @@ public class GitLabRecoveryService
     ///     Used by <see cref="GitLabApiClient" /> to abort remaining retries
     ///     so that all threads stop hitting an unreachable GitLab instance.
     /// </summary>
-    public bool IsInGitLabRecoveryMode => _isInGitLabRecoveryMode;
+    public bool IsInGitLabRecoveryMode => Volatile.Read(ref _isInGitLabRecoveryMode) != 0;
 
     /// <summary>
     ///     Signals that GitLab is unreachable and the application should enter recovery mode.
@@ -38,7 +38,7 @@ public class GitLabRecoveryService
     /// </summary>
     public void EnterGitLabRecoveryMode()
     {
-        _isInGitLabRecoveryMode = true;
+        Interlocked.Exchange(ref _isInGitLabRecoveryMode, 1);
 
         _healthService.SetStatus(
             false,
@@ -58,7 +58,7 @@ public class GitLabRecoveryService
     /// </summary>
     public void ClearGitLabRecoveryMode()
     {
-        _isInGitLabRecoveryMode = false;
+        Interlocked.Exchange(ref _isInGitLabRecoveryMode, 0);
     }
 
     /// <summary>
