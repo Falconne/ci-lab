@@ -74,8 +74,13 @@ public class GitLabApiClient
         CancellationToken cancellationToken = default)
     {
         var (result, _) = await ExecuteCoreAsync<T>(
-            requestFactory, jsonOptions, operationName, failureBehavior,
-            captureNextPage: false, cancellationToken);
+            requestFactory,
+            jsonOptions,
+            operationName,
+            failureBehavior,
+            false,
+            cancellationToken);
+
         return result!;
     }
 
@@ -91,8 +96,13 @@ public class GitLabApiClient
         CancellationToken cancellationToken = default)
     {
         var (result, nextPage) = await ExecuteCoreAsync<T>(
-            requestFactory, jsonOptions, operationName, failureBehavior,
-            captureNextPage: true, cancellationToken);
+            requestFactory,
+            jsonOptions,
+            operationName,
+            failureBehavior,
+            true,
+            cancellationToken);
+
         return (result!, nextPage);
     }
 
@@ -122,8 +132,8 @@ public class GitLabApiClient
             cancellationToken);
 
         var createdAt = tokenInfo.CreatedAt
-            ?? throw new JsonException(
-                "GitLab timezone detection failed: created_at was null after successful parsing");
+                        ?? throw new JsonException(
+                            "GitLab timezone detection failed: created_at was null after successful parsing");
 
         GitLabUtcOffset = createdAt.Offset;
 
@@ -229,7 +239,9 @@ public class GitLabApiClient
                 {
                     var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
                     var responseException = new GitLabUnexpectedResponseException(
-                        operationName, response.StatusCode, responseBody);
+                        operationName,
+                        response.StatusCode,
+                        responseBody);
 
                     if (!IsRetriableStatusCode(response.StatusCode))
                     {
@@ -280,6 +292,7 @@ public class GitLabApiClient
                 _logger.LogInformation(
                     "GitLab call {OperationName} aborting retries: GitLab recovery mode is active",
                     operationName);
+
                 break;
             }
 
@@ -324,7 +337,10 @@ public class GitLabApiClient
     ///     Deserializes a successful GitLab response and treats null payloads as contract
     ///     violations so callers do not continue with partially valid state.
     /// </summary>
-    private static T DeserializeOrThrow<T>(string json, JsonSerializerOptions jsonOptions, string operationName)
+    private static T DeserializeOrThrow<T>(
+        string json,
+        JsonSerializerOptions jsonOptions,
+        string operationName)
     {
         var result = JsonSerializer.Deserialize<T>(json, jsonOptions);
         if (result == null)
