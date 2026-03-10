@@ -12,6 +12,8 @@ namespace Mergician.Entities;
 /// </summary>
 public record BranchWithActivity : BranchInProject
 {
+    // Populated via Dapper and serialized to the Vue frontend.
+    // ReSharper disable UnusedMember.Global
     public bool? HasMergeRequest { get; init; }
 
     public int? ApprovalsRequired { get; init; }
@@ -27,4 +29,5 @@ public record BranchWithActivity : BranchInProject
     public string? ProjectUrl { get; init; }
 
     public List<BranchBuildJob>? BuildJobs { get; init; }
+    // ReSharper restore UnusedMember.Global
 }

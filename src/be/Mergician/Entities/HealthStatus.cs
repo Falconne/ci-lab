@@ -6,6 +6,8 @@ public record HealthStatus
 
     public string Message { get; init; } = "Starting up...";
 
+    // Returned to the frontend in /api/health responses.
+    // ReSharper disable UnusedMember.Global
     public string? Error { get; init; }
 
     /// <summary>
@@ -14,4 +16,5 @@ public record HealthStatus
     ///     distinguish "waiting for GitLab to recover" from a normal cold start.
     /// </summary>
     public bool IsGitLabRecovery { get; init; }
+    // ReSharper restore UnusedMember.Global
 }
