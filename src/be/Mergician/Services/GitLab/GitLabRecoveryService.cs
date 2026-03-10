@@ -1,3 +1,5 @@
+using System.Threading;
+
 namespace Mergician.Services.GitLab;
 
 /// <summary>
@@ -13,7 +15,7 @@ public class GitLabRecoveryService
 
     private readonly HealthService _healthService;
 
-    private readonly Lock _recoveryModeLock = new();
+    private readonly ReaderWriterLockSlim _recoveryModeLock = new(LockRecursionPolicy.NoRecursion);
 
     private int _gitLabRecoveryPending;
 
@@ -33,9 +35,14 @@ public class GitLabRecoveryService
     {
         get
         {
-            lock (_recoveryModeLock)
+            _recoveryModeLock.EnterReadLock();
+            try
             {
                 return _isInGitLabRecoveryMode;
+            }
+            finally
+            {
+                _recoveryModeLock.ExitReadLock();
             }
         }
     }
@@ -47,9 +54,14 @@ public class GitLabRecoveryService
     /// </summary>
     public void EnterGitLabRecoveryMode()
     {
-        lock (_recoveryModeLock)
+        _recoveryModeLock.EnterWriteLock();
+        try
         {
             _isInGitLabRecoveryMode = true;
+        }
+        finally
+        {
+            _recoveryModeLock.ExitWriteLock();
         }
 
         _healthService.SetStatus(
@@ -70,9 +82,14 @@ public class GitLabRecoveryService
     /// </summary>
     public void ClearGitLabRecoveryMode()
     {
-        lock (_recoveryModeLock)
+        _recoveryModeLock.EnterWriteLock();
+        try
         {
             _isInGitLabRecoveryMode = false;
+        }
+        finally
+        {
+            _recoveryModeLock.ExitWriteLock();
         }
     }
 

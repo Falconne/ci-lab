@@ -1,4 +1,5 @@
 using Mergician.Services.Authentication;
+using System.Threading;
 
 namespace Mergician.Services.GitLab;
 
@@ -11,7 +12,7 @@ public class UserSyncContext
 {
     public readonly object StartLock = new();
 
-    private readonly object _accessUserLock = new();
+    private readonly ReaderWriterLockSlim _accessUserLock = new(LockRecursionPolicy.NoRecursion);
 
     private AccessDetailsBase? _accessUser;
 
@@ -29,9 +30,14 @@ public class UserSyncContext
     {
         get
         {
-            lock (_accessUserLock)
+            _accessUserLock.EnterReadLock();
+            try
             {
                 return _accessUser;
+            }
+            finally
+            {
+                _accessUserLock.ExitReadLock();
             }
         }
     }
@@ -53,10 +59,16 @@ public class UserSyncContext
     /// </summary>
     public void UpdateActivity(AccessDetailsBase accessDetails)
     {
-        lock (_accessUserLock)
+        _accessUserLock.EnterWriteLock();
+        try
         {
             _accessUser = accessDetails;
         }
+        finally
+        {
+            _accessUserLock.ExitWriteLock();
+        }
+
         RecordPollTime();
     }
 

@@ -1,4 +1,5 @@
 using Mergician.Entities;
+using System.Threading;
 
 namespace Mergician.Services;
 
@@ -10,26 +11,39 @@ namespace Mergician.Services;
 /// </summary>
 public class HealthService
 {
-    private readonly object _statusLock = new();
+    private readonly ReaderWriterLockSlim _statusLock = new(LockRecursionPolicy.NoRecursion);
 
     private HealthStatus _status = new() { IsReady = false, Message = "Starting up..." };
 
     public HealthStatus GetStatus()
     {
-        lock (_statusLock)
+        _statusLock.EnterReadLock();
+        try
         {
             return _status;
+        }
+        finally
+        {
+            _statusLock.ExitReadLock();
         }
     }
 
     public void SetStatus(bool isReady, string message, string? error = null, bool isGitLabRecovery = false)
     {
-        lock (_statusLock)
+        _statusLock.EnterWriteLock();
+        try
         {
             _status = new HealthStatus
             {
-                IsReady = isReady, Message = message, Error = error, IsGitLabRecovery = isGitLabRecovery
+                IsReady = isReady,
+                Message = message,
+                Error = error,
+                IsGitLabRecovery = isGitLabRecovery
             };
+        }
+        finally
+        {
+            _statusLock.ExitWriteLock();
         }
     }
 }
