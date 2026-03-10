@@ -11,13 +11,15 @@ namespace Mergician.Services.GitLab;
 /// </summary>
 public class GitLabRecoveryService
 {
+    private readonly object _recoveryModeLock = new();
+
     private readonly SemaphoreSlim _gitLabRecoverySignal = new(0, 1);
 
     private readonly HealthService _healthService;
 
     private int _gitLabRecoveryPending;
 
-    private int _isInGitLabRecoveryMode;
+    private bool _isInGitLabRecoveryMode;
 
     public GitLabRecoveryService(HealthService healthService)
     {
@@ -29,7 +31,16 @@ public class GitLabRecoveryService
     ///     Used by <see cref="GitLabApiClient" /> to abort remaining retries
     ///     so that all threads stop hitting an unreachable GitLab instance.
     /// </summary>
-    public bool IsInGitLabRecoveryMode => Volatile.Read(ref _isInGitLabRecoveryMode) != 0;
+    public bool IsInGitLabRecoveryMode
+    {
+        get
+        {
+            lock (_recoveryModeLock)
+            {
+                return _isInGitLabRecoveryMode;
+            }
+        }
+    }
 
     /// <summary>
     ///     Signals that GitLab is unreachable and the application should enter recovery mode.
@@ -38,7 +49,10 @@ public class GitLabRecoveryService
     /// </summary>
     public void EnterGitLabRecoveryMode()
     {
-        Interlocked.Exchange(ref _isInGitLabRecoveryMode, 1);
+        lock (_recoveryModeLock)
+        {
+            _isInGitLabRecoveryMode = true;
+        }
 
         _healthService.SetStatus(
             false,
@@ -58,7 +72,10 @@ public class GitLabRecoveryService
     /// </summary>
     public void ClearGitLabRecoveryMode()
     {
-        Interlocked.Exchange(ref _isInGitLabRecoveryMode, 0);
+        lock (_recoveryModeLock)
+        {
+            _isInGitLabRecoveryMode = false;
+        }
     }
 
     /// <summary>

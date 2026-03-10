@@ -10,21 +10,29 @@ namespace Mergician.Services;
 /// </summary>
 public class HealthService
 {
+    private readonly object _statusLock = new();
+
     private HealthStatus _status = new() { IsReady = false, Message = "Starting up..." };
 
     public HealthStatus GetStatus()
     {
-        return Volatile.Read(ref _status);
+        lock (_statusLock)
+        {
+            return _status;
+        }
     }
 
     public void SetStatus(bool isReady, string message, string? error = null, bool isGitLabRecovery = false)
     {
-        Volatile.Write(ref _status, new HealthStatus
+        lock (_statusLock)
         {
-            IsReady = isReady,
-            Message = message,
-            Error = error,
-            IsGitLabRecovery = isGitLabRecovery
-        });
+            _status = new HealthStatus
+            {
+                IsReady = isReady,
+                Message = message,
+                Error = error,
+                IsGitLabRecovery = isGitLabRecovery
+            };
+        }
     }
 }

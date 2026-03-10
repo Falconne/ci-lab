@@ -11,6 +11,8 @@ public class UserSyncContext
 {
     public readonly object StartLock = new();
 
+    private readonly object _accessUserLock = new();
+
     private AccessDetailsBase? _accessUser;
 
     private long _lastPollTicks = DateTimeOffset.UtcNow.UtcTicks;
@@ -23,7 +25,16 @@ public class UserSyncContext
     ///     The user's latest access token for GitLab API calls.
     ///     Updated on each incoming request so the background thread always uses a fresh token.
     /// </summary>
-    public AccessDetailsBase? AccessUser => Volatile.Read(ref _accessUser);
+    public AccessDetailsBase? AccessUser
+    {
+        get
+        {
+            lock (_accessUserLock)
+            {
+                return _accessUser;
+            }
+        }
+    }
 
     /// <summary>
     ///     Last time the user made a dashboard poll request.
@@ -42,7 +53,10 @@ public class UserSyncContext
     /// </summary>
     public void UpdateActivity(AccessDetailsBase accessDetails)
     {
-        Volatile.Write(ref _accessUser, accessDetails);
+        lock (_accessUserLock)
+        {
+            _accessUser = accessDetails;
+        }
         RecordPollTime();
     }
 
