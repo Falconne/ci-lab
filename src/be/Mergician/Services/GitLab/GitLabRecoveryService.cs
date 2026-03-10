@@ -13,7 +13,7 @@ public class GitLabRecoveryService
 
     private readonly HealthService _healthService;
 
-    private readonly object _recoveryModeLock = new();
+    private readonly Lock _recoveryModeLock = new();
 
     private int _gitLabRecoveryPending;
 
