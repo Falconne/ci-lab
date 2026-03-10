@@ -1,5 +1,3 @@
-using Mergician.Entities;
-
 namespace Mergician.Services.GitLab;
 
 /// <summary>
@@ -11,11 +9,11 @@ namespace Mergician.Services.GitLab;
 /// </summary>
 public class GitLabRecoveryService
 {
-    private readonly object _recoveryModeLock = new();
-
     private readonly SemaphoreSlim _gitLabRecoverySignal = new(0, 1);
 
     private readonly HealthService _healthService;
+
+    private readonly object _recoveryModeLock = new();
 
     private int _gitLabRecoveryPending;
 
@@ -58,7 +56,7 @@ public class GitLabRecoveryService
             false,
             "Checking GitLab...",
             "Error connecting to GitLab, please contact administrator.",
-            isGitLabRecovery: true);
+            true);
 
         if (Interlocked.Exchange(ref _gitLabRecoveryPending, 1) == 0)
         {

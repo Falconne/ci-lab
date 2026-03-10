@@ -5,8 +5,8 @@ using Serilog;
 namespace IntegrationTest.Tests;
 
 /// <summary>
-/// Tests that logging out of Mergician actually clears the session and
-/// returns the user to the welcome page rather than re-authenticating via GitLab.
+///     Tests that logging out of Mergician actually clears the session and
+///     returns the user to the welcome page rather than re-authenticating via GitLab.
 /// </summary>
 public class LogoutTest : IDisposable
 {
@@ -21,15 +21,14 @@ public class LogoutTest : IDisposable
     public async Task Run()
     {
         await _browser.Initialize(
-            Path.Combine(TestConfig.ScreenshotDir, "logout"),
-            headless: true);
+            Path.Combine(TestConfig.ScreenshotDir, "logout"));
 
         // Step 1: Log in first
         Log.Information("Logging in before testing logout...");
         await LoginViaGitLab();
 
         // Verify we're authenticated by checking the rendered UI
-        await _browser.Navigate(TestConfig.MergicianUrl, WaitUntilState.NetworkIdle);
+        await _browser.Navigate(TestConfig.MergicianUrl);
         await Task.Delay(3000); // Wait for Vue to render
         await _browser.TakeScreenshot("01_logged_in_home");
 
@@ -51,7 +50,7 @@ public class LogoutTest : IDisposable
 
         // Step 3: Navigate to the home page — should show welcome page, NOT activity
         Log.Information("Navigating to home page after logout...");
-        await _browser.Navigate(TestConfig.MergicianUrl, WaitUntilState.NetworkIdle);
+        await _browser.Navigate(TestConfig.MergicianUrl);
         await Task.Delay(2000);
         await _browser.TakeScreenshot("03_home_after_logout");
 
@@ -69,7 +68,9 @@ public class LogoutTest : IDisposable
         // Step 4: Verify the Logout button is no longer visible (session cleared)
         var logoutButtonAfter = _browser.Page.Locator("button:has-text('Logout')");
         var logoutStillVisible = await BrowserService.WaitForElement(
-            logoutButtonAfter, WaitForSelectorState.Hidden, timeoutMs: 5000);
+            logoutButtonAfter,
+            WaitForSelectorState.Hidden);
+
         if (!logoutStillVisible)
         {
             throw new InvalidOperationException(
@@ -82,7 +83,7 @@ public class LogoutTest : IDisposable
 
     private async Task LoginViaGitLab()
     {
-        await _browser.Navigate($"{TestConfig.MergicianUrl}/api/auth/login", WaitUntilState.NetworkIdle);
+        await _browser.Navigate($"{TestConfig.MergicianUrl}/api/auth/login");
 
         var currentUrl = _browser.Page.Url;
 
@@ -90,7 +91,8 @@ public class LogoutTest : IDisposable
         {
             var usernameField = _browser.Page.Locator("#user_login");
             var passwordField = _browser.Page.Locator("#user_password");
-            var signInButton = _browser.Page.Locator("input[type='submit'][name='commit'], button[type='submit']");
+            var signInButton =
+                _browser.Page.Locator("input[type='submit'][name='commit'], button[type='submit']");
 
             await BrowserService.FillFormField(usernameField, TestConfig.TestUsername, "username");
             await BrowserService.FillFormField(passwordField, TestConfig.TestPassword, "password");
@@ -105,7 +107,8 @@ public class LogoutTest : IDisposable
 
         if (currentUrl.Contains("/oauth/authorize"))
         {
-            await _browser.Page.EvaluateAsync("""
+            await _browser.Page.EvaluateAsync(
+                """
                 (() => {
                     const btn = document.querySelector('[data-testid="authorization-button"]');
                     if (btn) { btn.click(); return; }
@@ -114,9 +117,11 @@ public class LogoutTest : IDisposable
                     document.querySelector('form')?.submit();
                 })()
                 """);
+
             try
             {
-                await _browser.Page.WaitForURLAsync(url => !url.Contains("/oauth/authorize"),
+                await _browser.Page.WaitForURLAsync(
+                    url => !url.Contains("/oauth/authorize"),
                     new PageWaitForURLOptions { Timeout = 15000 });
             }
             catch

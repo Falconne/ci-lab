@@ -4,8 +4,8 @@ using System.Net.Http.Json;
 namespace IntegrationTest.Tests;
 
 /// <summary>
-/// Verifies that version endpoints are accessible and the UI includes required elements.
-/// This is a lightweight test that doesn't require full browser authentication.
+///     Verifies that version endpoints are accessible and the UI includes required elements.
+///     This is a lightweight test that doesn't require full browser authentication.
 /// </summary>
 public class VersionAndLastUpdatedTest : IDisposable
 {
@@ -24,7 +24,8 @@ public class VersionAndLastUpdatedTest : IDisposable
 
         if (!backendVersionResponse.IsSuccessStatusCode)
         {
-            throw new Exception($"Backend version endpoint returned status: {backendVersionResponse.StatusCode}");
+            throw new Exception(
+                $"Backend version endpoint returned status: {backendVersionResponse.StatusCode}");
         }
 
         var backendVersionData = await backendVersionResponse.Content.ReadFromJsonAsync<VersionResponse>();
@@ -40,7 +41,8 @@ public class VersionAndLastUpdatedTest : IDisposable
 
         if (!frontendVersionResponse.IsSuccessStatusCode)
         {
-            throw new Exception($"Frontend version.json returned status: {frontendVersionResponse.StatusCode}");
+            throw new Exception(
+                $"Frontend version.json returned status: {frontendVersionResponse.StatusCode}");
         }
 
         var frontendVersionData = await frontendVersionResponse.Content.ReadFromJsonAsync<VersionResponse>();
@@ -53,7 +55,14 @@ public class VersionAndLastUpdatedTest : IDisposable
 
         // Verify the HomeView.vue source includes Last Updated column
         // (This is a code verification rather than runtime since the column is conditionally rendered based on data)
-        var homeViewPath = Path.Combine(TestConfig.RepositoryRoot, "src", "fe", "src", "views", "HomeView.vue");
+        var homeViewPath = Path.Combine(
+            TestConfig.RepositoryRoot,
+            "src",
+            "fe",
+            "src",
+            "views",
+            "HomeView.vue");
+
         if (!File.Exists(homeViewPath))
         {
             throw new Exception($"HomeView.vue not found at: {homeViewPath}");
@@ -62,13 +71,21 @@ public class VersionAndLastUpdatedTest : IDisposable
         var homeViewContent = await File.ReadAllTextAsync(homeViewPath);
         if (!homeViewContent.Contains("lastUpdated") || !homeViewContent.Contains("formatTimeAgo"))
         {
-            throw new Exception("HomeView.vue does not contain lastUpdated field and formatTimeAgo rendering");
+            throw new Exception(
+                "HomeView.vue does not contain lastUpdated field and formatTimeAgo rendering");
         }
 
         Log.Information("HomeView.vue confirmed to include last-updated time display");
 
         // Verify AppBar.vue includes version display
-        var appBarPath = Path.Combine(TestConfig.RepositoryRoot, "src", "fe", "src", "components", "AppBar.vue");
+        var appBarPath = Path.Combine(
+            TestConfig.RepositoryRoot,
+            "src",
+            "fe",
+            "src",
+            "components",
+            "AppBar.vue");
+
         if (!File.Exists(appBarPath))
         {
             throw new Exception($"AppBar.vue not found at: {appBarPath}");
@@ -92,4 +109,3 @@ public class VersionAndLastUpdatedTest : IDisposable
 
     private record VersionResponse(string Version);
 }
-

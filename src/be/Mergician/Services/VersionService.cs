@@ -3,8 +3,8 @@ using System.Reflection;
 namespace Mergician.Services;
 
 /// <summary>
-/// Provides version information for the backend.
-/// The version is set from the git hash during build time via the InformationalVersion property.
+///     Provides version information for the backend.
+///     The version is set from the git hash during build time via the InformationalVersion property.
 /// </summary>
 public class VersionService
 {
@@ -17,5 +17,8 @@ public class VersionService
         _version = versionAttribute?.InformationalVersion ?? "unknown";
     }
 
-    public string GetVersion() => _version;
+    public string GetVersion()
+    {
+        return _version;
+    }
 }

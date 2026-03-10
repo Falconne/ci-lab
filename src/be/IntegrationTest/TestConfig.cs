@@ -15,15 +15,18 @@ public static class TestConfig
     public const string MergicianUrl = "http://localhost:5000";
 
     // Paths
-    private static readonly string RepoRoot = FindRepoRoot();
 
-    public static string RepositoryRoot => RepoRoot;
+    public static readonly string ScreenshotDir = Path.Combine(
+        RepositoryRoot,
+        "data",
+        "screenshots",
+        "integration-test");
 
-    public static readonly string ScreenshotDir = Path.Combine(RepoRoot, "data", "screenshots", "integration-test");
+    public static readonly string LogDir = Path.Combine(RepositoryRoot, "data", "logs");
 
-    public static readonly string LogDir = Path.Combine(RepoRoot, "data", "logs");
+    private static readonly string EnvFilePath = Path.Combine(RepositoryRoot, ".env");
 
-    private static readonly string EnvFilePath = Path.Combine(RepoRoot, ".env");
+    public static string RepositoryRoot { get; } = FindRepoRoot();
 
     /// <summary>
     ///     Reads a value from the .env file. Returns null if the key is not found.
@@ -101,7 +104,7 @@ public static class TestConfig
         }
 
         throw new InvalidOperationException(
-            "Could not find the repository root. Expected a 'data' directory containing '.placeholder' " +
-            $"in an ancestor of '{AppContext.BaseDirectory}'.");
+            "Could not find the repository root. Expected a 'data' directory containing '.placeholder' "
+            + $"in an ancestor of '{AppContext.BaseDirectory}'.");
     }
 }

@@ -5,6 +5,7 @@ namespace Mergician.Services.GitLab;
 public enum GitLabApiFailureBehavior
 {
     Throw,
+
     EnterStartupMode
 }
 

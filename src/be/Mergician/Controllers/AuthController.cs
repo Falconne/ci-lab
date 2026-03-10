@@ -10,10 +10,13 @@ namespace Mergician.Controllers;
 [Route("api/[controller]")]
 public class AuthController : ControllerBase
 {
-    private readonly GitLabOAuthService _oauthService;
-    private readonly GitLabService _gitLabService;
     private readonly GitLabAuthSettings _authSettings;
+
+    private readonly GitLabService _gitLabService;
+
     private readonly ILogger<AuthController> _logger;
+
+    private readonly GitLabOAuthService _oauthService;
 
     public AuthController(
         GitLabOAuthService oauthService,
@@ -34,13 +37,16 @@ public class AuthController : ControllerBase
         var state = Guid.NewGuid().ToString("N");
         var useSecureCookies = CookieSecurity.ShouldUseSecureCookies(Request);
 
-        Response.Cookies.Append("oauth_state", state, new CookieOptions
-        {
-            HttpOnly = true,
-            SameSite = SameSiteMode.Lax,
-            MaxAge = TimeSpan.FromMinutes(10),
-            Secure = useSecureCookies
-        });
+        Response.Cookies.Append(
+            "oauth_state",
+            state,
+            new CookieOptions
+            {
+                HttpOnly = true,
+                SameSite = SameSiteMode.Lax,
+                MaxAge = TimeSpan.FromMinutes(10),
+                Secure = useSecureCookies
+            });
 
         var authUrl = _oauthService.GetAuthorizationUrl(redirectUri, state);
         return Redirect(authUrl);
@@ -57,11 +63,12 @@ public class AuthController : ControllerBase
             return BadRequest("Invalid OAuth state");
         }
 
-        Response.Cookies.Delete("oauth_state", new CookieOptions
-        {
-            SameSite = SameSiteMode.Lax,
-            Secure = CookieSecurity.ShouldUseSecureCookies(Request)
-        });
+        Response.Cookies.Delete(
+            "oauth_state",
+            new CookieOptions
+            {
+                SameSite = SameSiteMode.Lax, Secure = CookieSecurity.ShouldUseSecureCookies(Request)
+            });
 
         var redirectUri = GetRedirectUri();
 
@@ -76,18 +83,25 @@ public class AuthController : ControllerBase
                 ex,
                 "GitLab became unavailable during OAuth callback (redirect_uri={RedirectUri}); returning to startup mode",
                 redirectUri);
+
             return Redirect("/");
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogError(ex, "Unexpected error during token exchange (redirect_uri={RedirectUri})", redirectUri);
-            return Redirect($"/?error=server&message={Uri.EscapeDataString("An unexpected error occurred during authentication")}");
+            _logger.LogError(
+                ex,
+                "Unexpected error during token exchange (redirect_uri={RedirectUri})",
+                redirectUri);
+
+            return Redirect(
+                $"/?error=server&message={Uri.EscapeDataString("An unexpected error occurred during authentication")}");
         }
 
         if (tokenResponse == null)
         {
             _logger.LogError("Failed to exchange code for token - GitLab returned an error response");
-            return Redirect($"/?error=auth&message={Uri.EscapeDataString("Authentication with GitLab failed. Please try again.")}");
+            return Redirect(
+                $"/?error=auth&message={Uri.EscapeDataString("Authentication with GitLab failed. Please try again.")}");
         }
 
         // Store tokens in secure cookies
@@ -116,7 +130,9 @@ public class AuthController : ControllerBase
         else
         {
             _logger.LogError("Could not retrieve user info after token exchange; login cannot complete");
-            return StatusCode(StatusCodes.Status502BadGateway, "Could not retrieve user information from GitLab after authentication");
+            return StatusCode(
+                StatusCodes.Status502BadGateway,
+                "Could not retrieve user information from GitLab after authentication");
         }
 
         // Redirect to frontend home
@@ -131,7 +147,9 @@ public class AuthController : ControllerBase
 
         var user = await _gitLabService.GetCurrentUser(accessUser);
         if (user == null)
+        {
             return Unauthorized();
+        }
 
         return Ok(user);
     }
@@ -141,26 +159,17 @@ public class AuthController : ControllerBase
     {
         var useSecureCookies = CookieSecurity.ShouldUseSecureCookies(Request);
 
-        Response.Cookies.Delete("gl_access_token", new CookieOptions
-        {
-            Path = "/",
-            Secure = useSecureCookies,
-            SameSite = SameSiteMode.Lax
-        });
+        Response.Cookies.Delete(
+            "gl_access_token",
+            new CookieOptions { Path = "/", Secure = useSecureCookies, SameSite = SameSiteMode.Lax });
 
-        Response.Cookies.Delete("gl_refresh_token", new CookieOptions
-        {
-            Path = "/",
-            Secure = useSecureCookies,
-            SameSite = SameSiteMode.Lax
-        });
+        Response.Cookies.Delete(
+            "gl_refresh_token",
+            new CookieOptions { Path = "/", Secure = useSecureCookies, SameSite = SameSiteMode.Lax });
 
-        Response.Cookies.Delete("gl_user_id", new CookieOptions
-        {
-            Path = "/",
-            Secure = useSecureCookies,
-            SameSite = SameSiteMode.Lax
-        });
+        Response.Cookies.Delete(
+            "gl_user_id",
+            new CookieOptions { Path = "/", Secure = useSecureCookies, SameSite = SameSiteMode.Lax });
 
         return Ok();
     }

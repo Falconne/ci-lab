@@ -7,9 +7,9 @@ ALTER TABLE branch_in_project
 
 UPDATE branch_in_project
 SET project_display_name = TRIM(
-    CASE
-        WHEN project_name LIKE '%/%'
-            THEN SUBSTRING(project_name FROM '([^/]+)\s*$')
-        ELSE project_name
-    END
-);
+        CASE
+            WHEN project_name LIKE '%/%'
+                THEN SUBSTRING(project_name FROM '([^/]+)\s*$')
+            ELSE project_name
+            END
+                           );

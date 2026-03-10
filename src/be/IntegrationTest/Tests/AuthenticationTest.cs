@@ -5,8 +5,8 @@ using Serilog;
 namespace IntegrationTest.Tests;
 
 /// <summary>
-/// Tests that a user can authenticate to Mergician via GitLab OAuth.
-/// Logs in as test1 (created by Bootstrap's ProjectSetupService).
+///     Tests that a user can authenticate to Mergician via GitLab OAuth.
+///     Logs in as test1 (created by Bootstrap's ProjectSetupService).
 /// </summary>
 public class AuthenticationTest : IDisposable
 {
@@ -21,12 +21,11 @@ public class AuthenticationTest : IDisposable
     public async Task Run()
     {
         await _browser.Initialize(
-            Path.Combine(TestConfig.ScreenshotDir, "auth"),
-            headless: true);
+            Path.Combine(TestConfig.ScreenshotDir, "auth"));
 
         // Step 1: Navigate to Mergician home — should show welcome page (not logged in)
         Log.Information("Navigating to Mergician home page...");
-        await _browser.Navigate(TestConfig.MergicianUrl, WaitUntilState.NetworkIdle);
+        await _browser.Navigate(TestConfig.MergicianUrl);
         await Task.Delay(2000); // Wait for Vue to render
         await _browser.TakeScreenshot("01_welcome_page");
 
@@ -43,8 +42,10 @@ public class AuthenticationTest : IDisposable
         Log.Information("Clicking Sign in with GitLab...");
         var signInLink = _browser.Page.Locator("a:has-text('Sign in with GitLab')");
         await signInLink.ClickAsync();
-        await _browser.Page.WaitForURLAsync(url => url.Contains("localhost:8081"),
+        await _browser.Page.WaitForURLAsync(
+            url => url.Contains("localhost:8081"),
             new PageWaitForURLOptions { Timeout = 30000 });
+
         await _browser.TakeScreenshot("02_after_sign_in_click");
 
         // After the redirect chain, we should be on the GitLab login page
@@ -58,7 +59,8 @@ public class AuthenticationTest : IDisposable
 
             var usernameField = _browser.Page.Locator("#user_login");
             var passwordField = _browser.Page.Locator("#user_password");
-            var gitlabSignInButton = _browser.Page.Locator("input[type='submit'][name='commit'], button[type='submit']");
+            var gitlabSignInButton =
+                _browser.Page.Locator("input[type='submit'][name='commit'], button[type='submit']");
 
             await BrowserService.FillFormField(usernameField, TestConfig.TestUsername, "username");
             await BrowserService.FillFormField(passwordField, TestConfig.TestPassword, "password");
@@ -68,6 +70,7 @@ public class AuthenticationTest : IDisposable
             await _browser.Page.WaitForURLAsync(
                 url => url.Contains("/oauth/authorize") || url.Contains("localhost:5000"),
                 new PageWaitForURLOptions { Timeout = 30000 });
+
             await _browser.TakeScreenshot("05_after_sign_in");
 
             currentUrl = _browser.Page.Url;
@@ -87,7 +90,7 @@ public class AuthenticationTest : IDisposable
         Log.Information($"Final URL: {currentUrl}");
 
         // Step 4: Verify we're logged in — navigate to the home page and check the UI
-        await _browser.Navigate(TestConfig.MergicianUrl, WaitUntilState.NetworkIdle);
+        await _browser.Navigate(TestConfig.MergicianUrl);
         await Task.Delay(3000); // Wait for Vue to render and /api/auth/me to resolve
         await _browser.TakeScreenshot("07_logged_in_home");
 
@@ -122,7 +125,8 @@ public class AuthenticationTest : IDisposable
     private async Task HandleOAuthAuthorize()
     {
         // Try JS click on the authorize button
-        var clicked = await _browser.Page.EvaluateAsync<bool>("""
+        var clicked = await _browser.Page.EvaluateAsync<bool>(
+            """
             (() => {
                 const btn = document.querySelector('[data-testid="authorization-button"]');
                 if (btn) { btn.click(); return true; }
@@ -131,14 +135,17 @@ public class AuthenticationTest : IDisposable
                 return false;
             })()
             """);
+
         Log.Information($"JS authorize click: {clicked}");
 
         if (clicked)
         {
             try
             {
-                await _browser.Page.WaitForURLAsync(url => !url.Contains("/oauth/authorize"),
+                await _browser.Page.WaitForURLAsync(
+                    url => !url.Contains("/oauth/authorize"),
                     new PageWaitForURLOptions { Timeout = 15000 });
+
                 return;
             }
             catch
@@ -151,7 +158,8 @@ public class AuthenticationTest : IDisposable
         await _browser.Page.EvaluateAsync("document.querySelector('form')?.submit()");
         try
         {
-            await _browser.Page.WaitForURLAsync(url => !url.Contains("/oauth/authorize"),
+            await _browser.Page.WaitForURLAsync(
+                url => !url.Contains("/oauth/authorize"),
                 new PageWaitForURLOptions { Timeout = 15000 });
         }
         catch

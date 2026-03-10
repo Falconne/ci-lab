@@ -13,11 +13,18 @@ namespace Mergician.Entities;
 public record BranchWithActivity : BranchInProject
 {
     public bool? HasMergeRequest { get; init; }
+
     public int? ApprovalsRequired { get; init; }
+
     public int? ApprovalsGiven { get; init; }
+
     public DateTimeOffset? LastUpdated { get; init; }
+
     public string? MergeRequestTitle { get; init; }
+
     public string? MergeRequestUrl { get; init; }
+
     public string? ProjectUrl { get; init; }
+
     public List<BranchBuildJob>? BuildJobs { get; init; }
 }

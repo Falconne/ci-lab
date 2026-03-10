@@ -9,6 +9,7 @@ namespace Bootstrap.Services.TeamCity;
 public class TeamCityService : IDisposable
 {
     private readonly RestClient _client;
+
     private readonly string _teamcityURL;
 
     public TeamCityService(string teamcityURL, string username, string password)
@@ -238,13 +239,7 @@ public class TeamCityService : IDisposable
 
         // Create the user
         var createRequest = new RestRequest("users", Method.Post)
-            .AddJsonBody(new
-            {
-                username = username,
-                name = name,
-                email = email,
-                password = password
-            });
+            .AddJsonBody(new { username, name, email, password });
 
         var createResponse = await _client.ExecuteAsync(createRequest);
 
@@ -254,7 +249,9 @@ public class TeamCityService : IDisposable
             return true;
         }
 
-        Log.Error($"Failed to create TeamCity user '{username}': {(int)createResponse.StatusCode} - {createResponse.Content}");
+        Log.Error(
+            $"Failed to create TeamCity user '{username}': {(int)createResponse.StatusCode} - {createResponse.Content}");
+
         throw new InvalidOperationException(
             $"Failed to create TeamCity user '{username}': {(int)createResponse.StatusCode} - {createResponse.Content}");
     }
@@ -282,9 +279,10 @@ public class TeamCityService : IDisposable
             return;
         }
 
-        Log.Error($"Failed to delete TeamCity project '{projectId}': {(int)response.StatusCode} - {response.Content}");
+        Log.Error(
+            $"Failed to delete TeamCity project '{projectId}': {(int)response.StatusCode} - {response.Content}");
+
         throw new InvalidOperationException(
             $"Failed to delete TeamCity project '{projectId}': {(int)response.StatusCode} - {response.Content}");
     }
-
 }

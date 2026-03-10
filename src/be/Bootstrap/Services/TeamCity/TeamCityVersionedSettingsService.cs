@@ -284,7 +284,8 @@ public class TeamCityVersionedSettingsService
 
         if (!response.IsSuccessful)
         {
-            throw new InvalidOperationException($"Could not check versioned settings status: {(int)response.StatusCode}");
+            throw new InvalidOperationException(
+                $"Could not check versioned settings status: {(int)response.StatusCode}");
         }
 
         if (response.Content == null)

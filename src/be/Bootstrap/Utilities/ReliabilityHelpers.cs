@@ -33,7 +33,7 @@ public static class ReliabilityHelpers
     }
 
     /// <summary>
-    /// Waits for a service to be ready by polling its status.
+    ///     Waits for a service to be ready by polling its status.
     /// </summary>
     public static async Task WaitForService(
         string url,
@@ -48,10 +48,8 @@ public static class ReliabilityHelpers
         {
             ServerCertificateCustomValidationCallback = (_, _, _, _) => true
         };
-        using var client = new HttpClient(handler)
-        {
-            Timeout = TimeSpan.FromSeconds(10)
-        };
+
+        using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(10) };
 
         while (true)
         {
@@ -69,6 +67,7 @@ public static class ReliabilityHelpers
                 {
                     Log.Information(
                         $"{url} responded with {(int)response.StatusCode} which is allowed during startup; continuing");
+
                     return;
                 }
 
@@ -84,7 +83,8 @@ public static class ReliabilityHelpers
             if (elapsed > timeout)
             {
                 Log.Error($"Timeout waiting for {url} after {(int)elapsed.TotalSeconds}s");
-                throw new InvalidOperationException($"Timeout waiting for {url} after {(int)elapsed.TotalSeconds}s");
+                throw new InvalidOperationException(
+                    $"Timeout waiting for {url} after {(int)elapsed.TotalSeconds}s");
             }
 
             if ((int)elapsed.TotalSeconds % 30 == 0)

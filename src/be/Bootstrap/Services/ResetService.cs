@@ -7,10 +7,13 @@ namespace Bootstrap.Services;
 public class ResetService
 {
     private const string TestGroupName = "Test Group";
+
     private const string CILabTeamCityProjectId = "CILab";
 
     private readonly GitLabService _gitlabService;
+
     private readonly TeamCityService _teamCityService;
+
     private readonly TeamCityVersionedSettingsService _teamCityVersionedSettingsService;
 
     public ResetService(
@@ -24,8 +27,8 @@ public class ResetService
     }
 
     /// <summary>
-    /// Deletes all CI Lab projects from GitLab and TeamCity, leaving the services
-    /// themselves configured and ready for a fresh project setup run.
+    ///     Deletes all CI Lab projects from GitLab and TeamCity, leaving the services
+    ///     themselves configured and ready for a fresh project setup run.
     /// </summary>
     public async Task Execute()
     {

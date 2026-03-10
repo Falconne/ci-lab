@@ -22,7 +22,9 @@ public static class DashboardWaitHelper
             if (cardCount == 0)
             {
                 if (s % 10 == 0)
+                {
                     Log.Information("Waiting for dashboard cards to appear... {Seconds}s", s);
+                }
 
                 await Task.Delay(1000);
                 continue;
@@ -56,7 +58,10 @@ public static class DashboardWaitHelper
             {
                 Log.Information(
                     "Dashboard fully loaded after ~{Seconds}s ({Cards} cards, {Items} items resolved)",
-                    s, cardCount, itemCount);
+                    s,
+                    cardCount,
+                    itemCount);
+
                 return true;
             }
 
@@ -64,7 +69,8 @@ public static class DashboardWaitHelper
             {
                 Log.Information(
                     "Waiting for MR data to resolve... {Cards} cards visible, {Seconds}s elapsed",
-                    cardCount, s);
+                    cardCount,
+                    s);
             }
 
             await Task.Delay(1000);

@@ -21,7 +21,9 @@ public static class CookieSecurity
                 continue;
             }
 
-            foreach (var segment in value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+            foreach (var segment in value.Split(
+                         ',',
+                         StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
             {
                 if (string.Equals(segment, "https", StringComparison.OrdinalIgnoreCase))
                 {

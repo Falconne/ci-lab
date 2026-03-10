@@ -14,7 +14,6 @@ namespace IntegrationTest.Tests;
 ///     feature/beta (primary-2 with MR, no approval)
 ///     test2: feature/gamma (primary-1 with MR, secondary-1 with MR+approval, secondary-2 with MR)
 ///     test3: feature/delta (secondary-3, no MR)
-///
 ///     The UI should display the MR title next to the corresponding project entry
 ///     within the branch card when an MR exists.
 ///     When no MR exists, the UI shows 'No Merge Request' in the MR title area.
@@ -48,9 +47,33 @@ public class DashboardTest : IDisposable
             {
                 // On free-tier GitLab, approvalsRequired is always 0, so
                 // any branch with an MR is "Ready" (0 >= 0 = all approvals met)
-                AssertCardItem("feature/alpha", "primary-1", "1/0", "No approval needed", "green", "Alpha changes in primary-1", "Test Group / primary-1");
-                AssertCardItem("feature/alpha", "secondary-1", "0/0", "No approval needed", "green", "Alpha changes in secondary-1", "Test Group / secondary-1");
-                AssertCardItem("feature/beta", "primary-2", "0/0", "No approval needed", "green", "Beta changes in primary-2", "Test Group / primary-2");
+                AssertCardItem(
+                    "feature/alpha",
+                    "primary-1",
+                    "1/0",
+                    "No approval needed",
+                    "green",
+                    "Alpha changes in primary-1",
+                    "Test Group / primary-1");
+
+                AssertCardItem(
+                    "feature/alpha",
+                    "secondary-1",
+                    "0/0",
+                    "No approval needed",
+                    "green",
+                    "Alpha changes in secondary-1",
+                    "Test Group / secondary-1");
+
+                AssertCardItem(
+                    "feature/beta",
+                    "primary-2",
+                    "0/0",
+                    "No approval needed",
+                    "green",
+                    "Beta changes in primary-2",
+                    "Test Group / primary-2");
+
                 AssertCardGroupStatus("feature/alpha", "Ready");
                 AssertCardGroupStatus("feature/beta", "Ready");
                 Log.Information("test1 dashboard data verified");
@@ -66,9 +89,33 @@ public class DashboardTest : IDisposable
             "test2",
             () =>
             {
-                AssertCardItem("feature/gamma", "primary-1", "0/0", "No approval needed", "green", "Gamma changes in primary-1", "Test Group / primary-1");
-                AssertCardItem("feature/gamma", "secondary-1", "1/0", "No approval needed", "green", "Gamma changes in secondary-1", "Test Group / secondary-1");
-                AssertCardItem("feature/gamma", "secondary-2", "0/0", "No approval needed", "green", "Gamma changes in secondary-2", "Test Group / secondary-2");
+                AssertCardItem(
+                    "feature/gamma",
+                    "primary-1",
+                    "0/0",
+                    "No approval needed",
+                    "green",
+                    "Gamma changes in primary-1",
+                    "Test Group / primary-1");
+
+                AssertCardItem(
+                    "feature/gamma",
+                    "secondary-1",
+                    "1/0",
+                    "No approval needed",
+                    "green",
+                    "Gamma changes in secondary-1",
+                    "Test Group / secondary-1");
+
+                AssertCardItem(
+                    "feature/gamma",
+                    "secondary-2",
+                    "0/0",
+                    "No approval needed",
+                    "green",
+                    "Gamma changes in secondary-2",
+                    "Test Group / secondary-2");
+
                 AssertCardGroupStatus("feature/gamma", "Ready");
                 Log.Information("test2 dashboard data verified");
             });
@@ -78,7 +125,16 @@ public class DashboardTest : IDisposable
             "test3",
             () =>
             {
-                AssertCardItem("feature/delta", "secondary-3", "", null, null, null, "Test Group / secondary-3", "No Merge Request");
+                AssertCardItem(
+                    "feature/delta",
+                    "secondary-3",
+                    "",
+                    null,
+                    null,
+                    null,
+                    "Test Group / secondary-3",
+                    "No Merge Request");
+
                 AssertCardGroupStatus("feature/delta", "Waiting");
                 Log.Information("test3 dashboard data verified");
             });
@@ -198,8 +254,11 @@ public class DashboardTest : IDisposable
             Log.Information("  Card: {Branch} — Status={Status}", card.BranchName, card.GroupStatus);
             foreach (var item in card.Items)
             {
-                Log.Information("    {Repo} — Approvals={Approvals} Tooltip={Tooltip}",
-                    item.Repo, item.Approvals, item.Tooltip);
+                Log.Information(
+                    "    {Repo} — Approvals={Approvals} Tooltip={Tooltip}",
+                    item.Repo,
+                    item.Approvals,
+                    item.Tooltip);
             }
         }
     }
@@ -239,7 +298,8 @@ public class DashboardTest : IDisposable
             {
                 var item = itemElements.Nth(j);
                 var repo = (await item.Locator(".item-project").InnerTextAsync()).Trim();
-                var projectTooltip = (await item.Locator(".item-project").GetAttributeAsync("title"))?.Trim() ?? "";
+                var projectTooltip = (await item.Locator(".item-project").GetAttributeAsync("title"))?.Trim()
+                                     ?? "";
 
                 // MR title (if any)
                 var mrTitle = "";
@@ -268,11 +328,19 @@ public class DashboardTest : IDisposable
                     var iconEl = approvalEl.Locator(".approval-icon");
                     if (await iconEl.CountAsync() > 0)
                     {
-                        iconColor = (await iconEl.GetAttributeAsync("data-approval-color")) ?? "";
+                        iconColor = await iconEl.GetAttributeAsync("data-approval-color") ?? "";
                     }
                 }
 
-                items.Add(new ParsedCardItem(repo, projectTooltip, approvals, tooltip, iconColor, mrTitle, noMrText));
+                items.Add(
+                    new ParsedCardItem(
+                        repo,
+                        projectTooltip,
+                        approvals,
+                        tooltip,
+                        iconColor,
+                        mrTitle,
+                        noMrText));
             }
 
             cards.Add(new ParsedCard(branchName, groupStatus, items));
@@ -368,7 +436,12 @@ public class DashboardTest : IDisposable
 
         Log.Information(
             "  Verified: {Branch} / {Repo} — ProjectTooltip={ProjectTooltip} Approvals={Approvals} Tooltip={Tooltip} MRTitle={MrTitle}",
-            branchName, repoContains, item.ProjectTooltip, item.Approvals, item.Tooltip, item.MrTitle);
+            branchName,
+            repoContains,
+            item.ProjectTooltip,
+            item.Approvals,
+            item.Tooltip,
+            item.MrTitle);
     }
 
     /// <summary>
@@ -390,9 +463,9 @@ public class DashboardTest : IDisposable
             throw new InvalidOperationException(
                 $"Branch '{branchName}': expected group status '{expectedStatus}', got '{card.GroupStatus}'");
         }
+
         Log.Information("  Verified group status: {Branch} = {Status}", branchName, card.GroupStatus);
     }
-
 
     /// <summary>
     ///     Tests that the dashboard card layout is responsive at mobile viewport width.
@@ -416,15 +489,23 @@ public class DashboardTest : IDisposable
 
         var cardCount = await _browser.Page.Locator(".merge-group-card").CountAsync();
         if (cardCount == 0)
+        {
             throw new InvalidOperationException("No cards visible at mobile viewport");
+        }
 
         // Verify cards are visible and branch names are not clipped to zero width
         var firstCard = _browser.Page.Locator(".merge-group-card").First;
         var box = await firstCard.BoundingBoxAsync();
         if (box == null || box.Width < 200)
-            throw new InvalidOperationException($"Card unexpectedly narrow at mobile viewport: {box?.Width}px");
+        {
+            throw new InvalidOperationException(
+                $"Card unexpectedly narrow at mobile viewport: {box?.Width}px");
+        }
 
-        Log.Information("Mobile viewport: {Count} cards visible, first card width={Width}px", cardCount, box.Width);
+        Log.Information(
+            "Mobile viewport: {Count} cards visible, first card width={Width}px",
+            cardCount,
+            box.Width);
 
         // Set a tablet-sized viewport
         await _browser.Page.SetViewportSizeAsync(768, 1024);
@@ -433,7 +514,9 @@ public class DashboardTest : IDisposable
 
         cardCount = await _browser.Page.Locator(".merge-group-card").CountAsync();
         if (cardCount == 0)
+        {
             throw new InvalidOperationException("No cards visible at tablet viewport");
+        }
 
         Log.Information("Tablet viewport: {Count} cards visible", cardCount);
 
@@ -451,7 +534,10 @@ public class DashboardTest : IDisposable
     {
         Log.Information("Testing merge-group details navigation and links for '{BranchName}'", branchName);
 
-        var card = _browser.Page.Locator(".merge-group-card").Filter(new() { HasTextString = branchName }).First;
+        var card = _browser.Page.Locator(".merge-group-card")
+            .Filter(new LocatorFilterOptions { HasTextString = branchName })
+            .First;
+
         await card.ClickAsync();
 
         await _browser.Page.WaitForURLAsync(
@@ -483,20 +569,26 @@ public class DashboardTest : IDisposable
         // populated by the background sync thread
         await WaitForDetailsPageReady(repoContains, 60);
 
-        var repoCard = _browser.Page.Locator(".repo-card-list .branch-card").Filter(new() { HasTextString = repoContains }).First;
+        var repoCard = _browser.Page.Locator(".repo-card-list .branch-card")
+            .Filter(new LocatorFilterOptions { HasTextString = repoContains })
+            .First;
+
         if (!await BrowserService.WaitForElement(repoCard, timeoutMs: 10000))
         {
             throw new InvalidOperationException($"Could not find details card for repo '{repoContains}'");
         }
 
         var repoLink = repoCard.Locator(".branch-title-link").First;
-        var repoHref = (await repoLink.GetAttributeAsync("href")) ?? "";
+        var repoHref = await repoLink.GetAttributeAsync("href") ?? "";
         if (string.IsNullOrWhiteSpace(repoHref))
         {
             throw new InvalidOperationException($"Repo link href was empty for repo '{repoContains}'");
         }
 
-        var mrRow = repoCard.Locator(".detail-row").Filter(new() { HasTextString = "Merge Request:" }).First;
+        var mrRow = repoCard.Locator(".detail-row")
+            .Filter(new LocatorFilterOptions { HasTextString = "Merge Request:" })
+            .First;
+
         var mrLink = mrRow.Locator(".detail-link").First;
         var mrText = (await mrLink.InnerTextAsync()).Trim();
         if (!mrText.Contains(expectedMrTitle, StringComparison.OrdinalIgnoreCase))
@@ -537,7 +629,8 @@ public class DashboardTest : IDisposable
         var cardsAfterReturn = await _browser.Page.Locator(".merge-group-card").CountAsync();
         if (cardsAfterReturn == 0)
         {
-            throw new InvalidOperationException("No dashboard cards visible after returning home via app bar title");
+            throw new InvalidOperationException(
+                "No dashboard cards visible after returning home via app bar title");
         }
 
         Log.Information("Merge-group details navigation and links verified for '{BranchName}'", branchName);
@@ -558,26 +651,32 @@ public class DashboardTest : IDisposable
             if (cardCount == 0)
             {
                 if (s % 10 == 0)
+                {
                     Log.Information("Waiting for details page branch cards... {Seconds}s", s);
+                }
 
                 await Task.Delay(1000);
                 continue;
             }
 
             // Check if the repo we care about has resolved MR data
-            var repoCard = cards.Filter(new() { HasTextString = repoContains }).First;
+            var repoCard = cards.Filter(new LocatorFilterOptions { HasTextString = repoContains }).First;
             if (await repoCard.CountAsync() == 0)
             {
                 await Task.Delay(1000);
                 continue;
             }
 
-            var mrRow = repoCard.Locator(".detail-row").Filter(new() { HasTextString = "Merge Request:" }).First;
+            var mrRow = repoCard.Locator(".detail-row")
+                .Filter(new LocatorFilterOptions { HasTextString = "Merge Request:" })
+                .First;
+
             var hasMrLink = await mrRow.Locator(".detail-link").CountAsync() > 0;
             var hasNoMrText = await mrRow.Locator(".text-medium-emphasis").CountAsync() > 0;
             var noMrText = hasNoMrText
                 ? (await mrRow.Locator(".text-medium-emphasis").InnerTextAsync()).Trim()
                 : "";
+
             var isResolved = hasMrLink
                              || noMrText.Contains("No Merge Request", StringComparison.OrdinalIgnoreCase);
 
@@ -588,7 +687,10 @@ public class DashboardTest : IDisposable
                 for (var i = 0; i < cardCount; i++)
                 {
                     var card = cards.Nth(i);
-                    var cardMrRow = card.Locator(".detail-row").Filter(new() { HasTextString = "Merge Request:" }).First;
+                    var cardMrRow = card.Locator(".detail-row")
+                        .Filter(new LocatorFilterOptions { HasTextString = "Merge Request:" })
+                        .First;
+
                     var text = (await cardMrRow.InnerTextAsync()).Trim();
                     if (text.Contains("Resolving...", StringComparison.OrdinalIgnoreCase))
                     {
@@ -602,7 +704,9 @@ public class DashboardTest : IDisposable
             {
                 Log.Information(
                     "Details page fully loaded after ~{Seconds}s ({Cards} branch cards)",
-                    s, cardCount);
+                    s,
+                    cardCount);
+
                 return;
             }
 
@@ -610,7 +714,8 @@ public class DashboardTest : IDisposable
             {
                 Log.Information(
                     "Waiting for details page MR data to resolve... {Cards} cards visible, {Seconds}s elapsed",
-                    cardCount, s);
+                    cardCount,
+                    s);
             }
 
             await Task.Delay(1000);

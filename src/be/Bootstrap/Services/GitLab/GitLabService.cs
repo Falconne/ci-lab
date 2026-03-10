@@ -75,9 +75,7 @@ public class GitLabService : IDisposable
             .AddJsonBody(
                 new
                 {
-                    name = groupName,
-                    path = groupName.ToLower().Replace(" ", "-"),
-                    visibility = "public"
+                    name = groupName, path = groupName.ToLower().Replace(" ", "-"), visibility = "public"
                 });
 
         var createResponse = await _client.ExecutePostAsync<GitLabGroup>(createRequest);
@@ -495,8 +493,7 @@ public class GitLabService : IDisposable
         {
             CredentialsProvider = (_, _, _) => new UsernamePasswordCredentials
             {
-                Username = "root",
-                Password = _token
+                Username = "root", Password = _token
             }
         };
 
@@ -588,8 +585,8 @@ public class GitLabService : IDisposable
         // Find existing apps by name or callback URL match
         var existingApps = applications
             .Where(app =>
-                app.Name == name ||
-                expectedRedirectUris.Any(expected =>
+                app.Name == name
+                || expectedRedirectUris.Any(expected =>
                     app.CallbackUrl.Contains(expected, StringComparison.OrdinalIgnoreCase)))
             .ToList();
 
@@ -599,6 +596,7 @@ public class GitLabService : IDisposable
         {
             Log.Information(
                 $"Deleting existing OAuth application (id={app.Id}, name='{app.Name}') to obtain a fresh secret.");
+
             var deleteRequest = new RestRequest($"applications/{app.Id}", Method.Delete);
             await _client.ExecuteAsync(deleteRequest);
         }

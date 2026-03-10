@@ -16,6 +16,7 @@ namespace IntegrationTest.Tests;
 public class DashboardLiveUpdateTest : IDisposable
 {
     private readonly BrowserService _browser = new();
+
     private readonly GitLabTestHelper _gitLab = new();
 
     public void Dispose()
@@ -64,8 +65,10 @@ public class DashboardLiveUpdateTest : IDisposable
         await _browser.TakeScreenshot("live_02_after_new_branch");
 
         if (!appeared)
+        {
             throw new InvalidOperationException(
                 $"Branch '{branchName}' did not appear on dashboard within timeout");
+        }
 
         Log.Information("New branch '{BranchName}' appeared on dashboard successfully", branchName);
     }
@@ -90,8 +93,10 @@ public class DashboardLiveUpdateTest : IDisposable
         // Wait for the branch to appear
         var appeared = await WaitForBranchOnDashboard(branchName, 60);
         if (!appeared)
+        {
             throw new InvalidOperationException(
                 $"Branch '{branchName}' did not appear on dashboard within timeout");
+        }
 
         await _browser.TakeScreenshot("live_04_branch_without_mr");
 
@@ -110,57 +115,82 @@ public class DashboardLiveUpdateTest : IDisposable
 
             var becameWaiting = await WaitForBranchToReachStatus(branchName, "Waiting", 30);
             if (!becameWaiting)
+            {
                 throw new InvalidOperationException(
                     $"Branch '{branchName}' did not reach 'Waiting' status within timeout");
+            }
 
             Log.Information("Branch '{BranchName}' reached 'Waiting' status after loading", branchName);
         }
 
         // verify explicit no-MR text is shown before an MR exists
-        var card = _browser.Page.Locator(".merge-group-card").Filter(new() { HasTextString = branchName }).First;
+        var card = _browser.Page.Locator(".merge-group-card")
+            .Filter(new LocatorFilterOptions { HasTextString = branchName })
+            .First;
+
         var noMrText = (await card.Locator(".item-no-mr").InnerTextAsync()).Trim();
         if (!noMrText.Contains("No Merge Request", StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException($"Expected 'No Merge Request' text before MR creation, got '{noMrText}'");
+        {
+            throw new InvalidOperationException(
+                $"Expected 'No Merge Request' text before MR creation, got '{noMrText}'");
+        }
 
         // there should be no MR title element yet
         var titleCount = await card.Locator(".item-mr-title").CountAsync();
         if (titleCount > 0)
+        {
             throw new InvalidOperationException("Unexpected MR title shown before any MR exists");
+        }
 
         // Create an MR on the branch with an intentionally long title,
         // so we can verify truncation logic in the UI.
         var longTitle = new string('X', 230);
         _gitLab.CreateMergeRequest(projectId, branchName, "test1", longTitle);
-        Log.Information("Created MR for branch '{BranchName}' with long title, waiting for dashboard update...", branchName);
+        Log.Information(
+            "Created MR for branch '{BranchName}' with long title, waiting for dashboard update...",
+            branchName);
 
         // Wait for the status to change from "Waiting" to "Open" or "Ready"
         var mrUpdated = await WaitForBranchStatusChange(branchName, "Waiting", 60);
         await _browser.TakeScreenshot("live_05_branch_with_mr");
 
         if (!mrUpdated)
+        {
             throw new InvalidOperationException(
                 $"Status did not change from 'Waiting' for branch '{branchName}' within timeout");
+        }
 
         Log.Information("MR status updated on dashboard for '{BranchName}'", branchName);
 
         var noMrAfterMrCount = await card.Locator(".item-no-mr").CountAsync();
         if (noMrAfterMrCount > 0)
+        {
             throw new InvalidOperationException("No-MR text should disappear after MR creation");
+        }
 
         // now check the MR title element is present and has been truncated within the item
         var titleEl = card.Locator(".item-mr-title");
         if (await titleEl.CountAsync() == 0)
-            throw new InvalidOperationException("Expected MR title element in item after MR creation, but none found");
+        {
+            throw new InvalidOperationException(
+                "Expected MR title element in item after MR creation, but none found");
+        }
+
         var titleText = (await titleEl.InnerTextAsync()).Trim();
         // titleText includes the leading vertical separator and space we render in the template.
         if (!titleText.StartsWith("| ") || !titleText.EndsWith("...") || titleText.Length != 227)
+        {
             throw new InvalidOperationException(
                 $"MR title was not truncated correctly, got '{titleText}' (len={titleText.Length})");
+        }
+
         // ensure the core content corresponds to truncated string of longTitle
         var core = titleText.Substring(2); // strip dash+space
         if (core.Length != 225 || !core.EndsWith("..."))
+        {
             throw new InvalidOperationException(
                 $"Unexpected core MR title after stripping prefix: '{core}'");
+        }
     }
 
     private async Task LoginAndWaitForDashboard(string username)
@@ -241,8 +271,10 @@ public class DashboardLiveUpdateTest : IDisposable
 
         var appeared = await WaitForBranchOnDashboard(branchName, 60);
         if (!appeared)
+        {
             throw new InvalidOperationException(
                 $"Branch '{branchName}' did not appear on dashboard before delete test");
+        }
 
         _gitLab.DeleteBranch(projectId, branchName);
         Log.Information("Deleted branch '{BranchName}', waiting for dashboard removal", branchName);
@@ -251,8 +283,10 @@ public class DashboardLiveUpdateTest : IDisposable
         await _browser.TakeScreenshot("live_07_after_delete_branch_live_update");
 
         if (!disappeared)
+        {
             throw new InvalidOperationException(
                 $"Deleted branch '{branchName}' did not disappear from dashboard within timeout");
+        }
 
         // Fresh reload: branch should not come back from server cache.
         await _browser.Navigate(TestConfig.MergicianUrl);
@@ -297,15 +331,20 @@ public class DashboardLiveUpdateTest : IDisposable
         {
             if (await IsBranchOnDashboard(branchName))
             {
-                Log.Information("Branch '{BranchName}' found on dashboard after ~{Seconds}s",
-                    branchName, s);
+                Log.Information(
+                    "Branch '{BranchName}' found on dashboard after ~{Seconds}s",
+                    branchName,
+                    s);
+
                 return true;
             }
 
             if (s % 10 == 0)
             {
-                Log.Information("Waiting for branch '{BranchName}' to appear... {Seconds}s",
-                    branchName, s);
+                Log.Information(
+                    "Waiting for branch '{BranchName}' to appear... {Seconds}s",
+                    branchName,
+                    s);
             }
 
             await Task.Delay(1000);
@@ -320,13 +359,20 @@ public class DashboardLiveUpdateTest : IDisposable
         {
             if (!await IsBranchOnDashboard(branchName))
             {
-                Log.Information("Branch '{BranchName}' disappeared from dashboard after ~{Seconds}s", branchName, s);
+                Log.Information(
+                    "Branch '{BranchName}' disappeared from dashboard after ~{Seconds}s",
+                    branchName,
+                    s);
+
                 return true;
             }
 
             if (s % 10 == 0)
             {
-                Log.Information("Waiting for branch '{BranchName}' to disappear... {Seconds}s", branchName, s);
+                Log.Information(
+                    "Waiting for branch '{BranchName}' to disappear... {Seconds}s",
+                    branchName,
+                    s);
             }
 
             await Task.Delay(1000);
@@ -344,7 +390,9 @@ public class DashboardLiveUpdateTest : IDisposable
         {
             var text = (await branchElements.Nth(i).InnerTextAsync()).Trim();
             if (text.Contains(branchName))
+            {
                 return true;
+            }
         }
 
         return false;
@@ -362,14 +410,19 @@ public class DashboardLiveUpdateTest : IDisposable
         {
             var card = cards.Nth(i);
             var name = (await card.Locator(".branch-name").InnerTextAsync()).Trim();
-            if (!name.Contains(branchName)) continue;
+            if (!name.Contains(branchName))
+            {
+                continue;
+            }
 
             var badge = card.Locator(".card-status-badge");
             if (await badge.CountAsync() > 0)
             {
                 var statusText = (await badge.InnerTextAsync()).Trim();
                 if (statusText.Equals(expectedStatus, StringComparison.OrdinalIgnoreCase))
+                {
                     return true;
+                }
             }
         }
 
@@ -379,7 +432,10 @@ public class DashboardLiveUpdateTest : IDisposable
     /// <summary>
     ///     Waits until a branch card shows the specified status badge.
     /// </summary>
-    private async Task<bool> WaitForBranchToReachStatus(string branchName, string expectedStatus, int timeoutSeconds)
+    private async Task<bool> WaitForBranchToReachStatus(
+        string branchName,
+        string expectedStatus,
+        int timeoutSeconds)
     {
         for (var s = 0; s < timeoutSeconds; s++)
         {
@@ -387,7 +443,10 @@ public class DashboardLiveUpdateTest : IDisposable
             {
                 Log.Information(
                     "Branch '{BranchName}' reached status '{Status}' after ~{Seconds}s",
-                    branchName, expectedStatus, s);
+                    branchName,
+                    expectedStatus,
+                    s);
+
                 return true;
             }
 
@@ -395,7 +454,9 @@ public class DashboardLiveUpdateTest : IDisposable
             {
                 Log.Information(
                     "Waiting for branch '{BranchName}' to reach status '{Status}'... {Seconds}s",
-                    branchName, expectedStatus, s);
+                    branchName,
+                    expectedStatus,
+                    s);
             }
 
             await Task.Delay(1000);
@@ -407,22 +468,32 @@ public class DashboardLiveUpdateTest : IDisposable
     /// <summary>
     ///     Waits for a branch card's item status to change from the given status.
     /// </summary>
-    private async Task<bool> WaitForBranchStatusChange(string branchName, string fromStatus, int timeoutSeconds)
+    private async Task<bool> WaitForBranchStatusChange(
+        string branchName,
+        string fromStatus,
+        int timeoutSeconds)
     {
         for (var s = 0; s < timeoutSeconds; s++)
         {
             var stillHasOldStatus = await BranchCardHasStatus(branchName, fromStatus);
             if (!stillHasOldStatus && await IsBranchOnDashboard(branchName))
             {
-                Log.Information("Status changed from '{FromStatus}' for '{BranchName}' after ~{Seconds}s",
-                    fromStatus, branchName, s);
+                Log.Information(
+                    "Status changed from '{FromStatus}' for '{BranchName}' after ~{Seconds}s",
+                    fromStatus,
+                    branchName,
+                    s);
+
                 return true;
             }
 
             if (s % 10 == 0)
             {
-                Log.Information("Waiting for status change from '{FromStatus}' on '{BranchName}'... {Seconds}s",
-                    fromStatus, branchName, s);
+                Log.Information(
+                    "Waiting for status change from '{FromStatus}' on '{BranchName}'... {Seconds}s",
+                    fromStatus,
+                    branchName,
+                    s);
             }
 
             await Task.Delay(1000);

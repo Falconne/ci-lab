@@ -5,8 +5,8 @@ using Npgsql;
 namespace Mergician.Services.Database;
 
 /// <summary>
-/// Handles database creation and schema migrations on application startup.
-/// Uses DbUp to run embedded SQL migration scripts in order.
+///     Handles database creation and schema migrations on application startup.
+///     Uses DbUp to run embedded SQL migration scripts in order.
 /// </summary>
 public class DatabaseMigrationService
 {
@@ -21,8 +21,8 @@ public class DatabaseMigrationService
     }
 
     /// <summary>
-    /// Ensures the target database exists and runs all pending migrations.
-    /// Throws on failure so the application does not start with an inconsistent schema.
+    ///     Ensures the target database exists and runs all pending migrations.
+    ///     Throws on failure so the application does not start with an inconsistent schema.
     /// </summary>
     public void MigrateDatabase()
     {
@@ -76,10 +76,12 @@ public class DatabaseMigrationService
         {
             _logger.LogError(result.Error, "Database migration failed");
             throw new InvalidOperationException(
-                $"Database migration failed: {result.Error.Message}", result.Error);
+                $"Database migration failed: {result.Error.Message}",
+                result.Error);
         }
 
-        _logger.LogInformation("Database migrations completed successfully. Scripts executed: {Count}",
+        _logger.LogInformation(
+            "Database migrations completed successfully. Scripts executed: {Count}",
             result.Scripts.Count());
     }
 }

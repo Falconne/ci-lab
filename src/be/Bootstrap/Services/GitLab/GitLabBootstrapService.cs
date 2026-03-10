@@ -11,8 +11,11 @@ namespace Bootstrap.Services.GitLab;
 public class GitLabBootstrapService : IDisposable
 {
     private readonly RestClient _client;
+
     private readonly EnvFileService _envFileService;
+
     private readonly string _gitLabURL;
+
     private string? _token;
 
     public GitLabBootstrapService(string gitLabURL, EnvFileService envFileService)
@@ -121,7 +124,8 @@ public class GitLabBootstrapService : IDisposable
         }
 
         Log.Error($"Timed out waiting for a valid GITLAB_TOKEN after {timeout.TotalMinutes} minutes");
-        throw new InvalidOperationException($"Timed out waiting for a valid GITLAB_TOKEN after {timeout.TotalMinutes} minutes");
+        throw new InvalidOperationException(
+            $"Timed out waiting for a valid GITLAB_TOKEN after {timeout.TotalMinutes} minutes");
     }
 
     private async Task<bool> ValidateGitlabToken(string token)
@@ -176,14 +180,15 @@ public class GitLabBootstrapService : IDisposable
 
             // Create the user
             var createRequest = new RestRequest("users", Method.Post)
-                .AddJsonBody(new
-                {
-                    username = username,
-                    name = name,
-                    email = email,
-                    password = password,
-                    skip_confirmation = true
-                });
+                .AddJsonBody(
+                    new
+                    {
+                        username,
+                        name,
+                        email,
+                        password,
+                        skip_confirmation = true
+                    });
 
             var createResponse = await _client.ExecutePostAsync<GitLabUser>(createRequest);
 
@@ -194,7 +199,9 @@ public class GitLabBootstrapService : IDisposable
             }
             else
             {
-                Log.Error($"Failed to create user '{username}': {(int)createResponse.StatusCode} - {createResponse.Content}");
+                Log.Error(
+                    $"Failed to create user '{username}': {(int)createResponse.StatusCode} - {createResponse.Content}");
+
                 throw new InvalidOperationException(
                     $"Failed to create GitLab user '{username}': {(int)createResponse.StatusCode} {createResponse.StatusCode} - {createResponse.Content}");
             }

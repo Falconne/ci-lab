@@ -44,11 +44,12 @@ public class BrowserService : IDisposable
             Directory.CreateDirectory(_screenshotDir);
             Log.Information($"Screenshot directory created: {_screenshotDir}");
 
-            var exitCode = Microsoft.Playwright.Program.Main(["install", "chromium"]);
+            var exitCode = Program.Main(["install", "chromium"]);
             if (exitCode != 0)
             {
                 Log.Error("Playwright browser installation returned non-zero exit code");
-                throw new InvalidOperationException("Playwright browser installation failed (non-zero exit code)");
+                throw new InvalidOperationException(
+                    "Playwright browser installation failed (non-zero exit code)");
             }
 
             _playwright = await Playwright.CreateAsync();
@@ -71,8 +72,6 @@ public class BrowserService : IDisposable
 
             _page = await _context.NewPageAsync();
             _page.SetDefaultTimeout(60000);
-
-            return;
         }
         catch (Exception ex)
         {

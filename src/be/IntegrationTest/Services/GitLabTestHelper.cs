@@ -21,10 +21,12 @@ public class GitLabTestHelper
     public GitLabTestHelper()
     {
         var adminToken = TestConfig.GetGitLabAdminToken();
-        _adminClient = new RestClient(new RestClientOptions(TestConfig.GitLabUrl)
-        {
-            RemoteCertificateValidationCallback = (_, _, _, _) => true
-        });
+        _adminClient = new RestClient(
+            new RestClientOptions(TestConfig.GitLabUrl)
+            {
+                RemoteCertificateValidationCallback = (_, _, _, _) => true
+            });
+
         _adminClient.AddDefaultHeader("PRIVATE-TOKEN", adminToken);
     }
 
@@ -33,24 +35,29 @@ public class GitLabTestHelper
     /// </summary>
     public int GetProjectId(string projectName)
     {
-        var request = new RestRequest("/api/v4/projects", Method.Get);
+        var request = new RestRequest("/api/v4/projects");
         request.AddQueryParameter("search", projectName);
         request.AddQueryParameter("per_page", "100");
 
         var response = _adminClient.Execute(request);
         if (!response.IsSuccessful)
+        {
             throw new InvalidOperationException(
                 $"Failed to search for project '{projectName}': {response.StatusCode} {response.Content}");
+        }
 
         var projects = JsonSerializer.Deserialize<List<GitLabProjectInfo>>(response.Content!, JsonOptions)
-            ?? throw new InvalidOperationException($"Failed to deserialize projects for '{projectName}'");
+                       ?? throw new InvalidOperationException(
+                           $"Failed to deserialize projects for '{projectName}'");
 
         var match = projects.FirstOrDefault(p =>
             p.Name.Equals(projectName, StringComparison.OrdinalIgnoreCase));
 
         if (match == null)
+        {
             throw new InvalidOperationException(
                 $"Project '{projectName}' not found. Available: {string.Join(", ", projects.Select(p => p.Name))}");
+        }
 
         Log.Information("Found project '{ProjectName}' with ID {ProjectId}", projectName, match.Id);
         return match.Id;
@@ -68,28 +75,35 @@ public class GitLabTestHelper
 
         var branchResponse = _adminClient.Execute(branchRequest);
         if (!branchResponse.IsSuccessful && !branchResponse.Content!.Contains("already exists"))
+        {
             throw new InvalidOperationException(
                 $"Failed to create branch '{branchName}': {branchResponse.StatusCode} {branchResponse.Content}");
+        }
 
         Log.Information("Created branch '{BranchName}' in project {ProjectId}", branchName, projectId);
 
         // Create a commit as the test user so the push event is attributed to them
         var userToken = TestConfig.GetTestUserToken(username);
-        var userClient = new RestClient(new RestClientOptions(TestConfig.GitLabUrl)
-        {
-            RemoteCertificateValidationCallback = (_, _, _, _) => true
-        });
+        var userClient = new RestClient(
+            new RestClientOptions(TestConfig.GitLabUrl)
+            {
+                RemoteCertificateValidationCallback = (_, _, _, _) => true
+            });
+
         userClient.AddDefaultHeader("PRIVATE-TOKEN", userToken);
 
         var filePath = $"changes/{branchName.Replace("/", "-")}-live-test.txt";
         var commitRequest = new RestRequest(
-            $"/api/v4/projects/{projectId}/repository/files/{Uri.EscapeDataString(filePath)}", Method.Post);
-        commitRequest.AddJsonBody(new
-        {
-            branch = branchName,
-            content = $"Live test change by {username} at {DateTime.UtcNow:O}",
-            commit_message = $"Live test commit for {branchName}"
-        });
+            $"/api/v4/projects/{projectId}/repository/files/{Uri.EscapeDataString(filePath)}",
+            Method.Post);
+
+        commitRequest.AddJsonBody(
+            new
+            {
+                branch = branchName,
+                content = $"Live test change by {username} at {DateTime.UtcNow:O}",
+                commit_message = $"Live test commit for {branchName}"
+            });
 
         var commitResponse = userClient.Execute(commitRequest);
         if (!commitResponse.IsSuccessful)
@@ -100,8 +114,10 @@ public class GitLabTestHelper
         }
 
         if (!commitResponse.IsSuccessful)
+        {
             throw new InvalidOperationException(
                 $"Failed to create commit on '{branchName}': {commitResponse.StatusCode} {commitResponse.Content}");
+        }
 
         Log.Information(
             "Created commit on branch '{BranchName}' as user '{Username}'",
@@ -115,27 +131,32 @@ public class GitLabTestHelper
     public int CreateMergeRequest(int projectId, string sourceBranch, string username, string? title = null)
     {
         var userToken = TestConfig.GetTestUserToken(username);
-        var userClient = new RestClient(new RestClientOptions(TestConfig.GitLabUrl)
-        {
-            RemoteCertificateValidationCallback = (_, _, _, _) => true
-        });
+        var userClient = new RestClient(
+            new RestClientOptions(TestConfig.GitLabUrl)
+            {
+                RemoteCertificateValidationCallback = (_, _, _, _) => true
+            });
+
         userClient.AddDefaultHeader("PRIVATE-TOKEN", userToken);
 
         var request = new RestRequest($"/api/v4/projects/{projectId}/merge_requests", Method.Post);
-        request.AddJsonBody(new
-        {
-            source_branch = sourceBranch,
-            target_branch = "main",
-            title = title ?? $"MR for {sourceBranch} (integration test)"
-        });
+        request.AddJsonBody(
+            new
+            {
+                source_branch = sourceBranch,
+                target_branch = "main",
+                title = title ?? $"MR for {sourceBranch} (integration test)"
+            });
 
         var response = userClient.Execute(request);
         if (!response.IsSuccessful)
+        {
             throw new InvalidOperationException(
                 $"Failed to create MR for '{sourceBranch}': {response.StatusCode} {response.Content}");
+        }
 
         var mr = JsonSerializer.Deserialize<GitLabMrInfo>(response.Content!, JsonOptions)
-            ?? throw new InvalidOperationException("Failed to deserialize MR response");
+                 ?? throw new InvalidOperationException("Failed to deserialize MR response");
 
         Log.Information(
             "Created MR !{MrIid} for branch '{BranchName}' as '{Username}'",
@@ -152,19 +173,24 @@ public class GitLabTestHelper
     public void ApproveMergeRequest(int projectId, int mrIid, string approverUsername)
     {
         var userToken = TestConfig.GetTestUserToken(approverUsername);
-        var userClient = new RestClient(new RestClientOptions(TestConfig.GitLabUrl)
-        {
-            RemoteCertificateValidationCallback = (_, _, _, _) => true
-        });
+        var userClient = new RestClient(
+            new RestClientOptions(TestConfig.GitLabUrl)
+            {
+                RemoteCertificateValidationCallback = (_, _, _, _) => true
+            });
+
         userClient.AddDefaultHeader("PRIVATE-TOKEN", userToken);
 
         var request = new RestRequest(
-            $"/api/v4/projects/{projectId}/merge_requests/{mrIid}/approve", Method.Post);
+            $"/api/v4/projects/{projectId}/merge_requests/{mrIid}/approve",
+            Method.Post);
 
         var response = userClient.Execute(request);
         if (!response.IsSuccessful)
+        {
             throw new InvalidOperationException(
                 $"Failed to approve MR !{mrIid}: {response.StatusCode} {response.Content}");
+        }
 
         Log.Information(
             "Approved MR !{MrIid} in project {ProjectId} as '{Username}'",
@@ -179,16 +205,25 @@ public class GitLabTestHelper
     public void DeleteBranch(int projectId, string branchName)
     {
         var encodedBranch = Uri.EscapeDataString(branchName);
-        var request = new RestRequest($"/api/v4/projects/{projectId}/repository/branches/{encodedBranch}", Method.Delete);
+        var request = new RestRequest(
+            $"/api/v4/projects/{projectId}/repository/branches/{encodedBranch}",
+            Method.Delete);
+
         var response = _adminClient.Execute(request);
 
         if (!response.IsSuccessful && response.StatusCode != HttpStatusCode.NotFound)
+        {
             throw new InvalidOperationException(
                 $"Failed to delete branch '{branchName}': {response.StatusCode} {response.Content}");
+        }
 
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
-            Log.Information("Branch '{BranchName}' in project {ProjectId} was already deleted", branchName, projectId);
+            Log.Information(
+                "Branch '{BranchName}' in project {ProjectId} was already deleted",
+                branchName,
+                projectId);
+
             return;
         }
 

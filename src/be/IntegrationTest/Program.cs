@@ -59,6 +59,7 @@ try
                 var message = doc.RootElement.TryGetProperty("message", out var msgProp)
                     ? msgProp.GetString()
                     : "unknown";
+
                 Log.Debug("Mergician not yet ready (message: {Message}), retrying...", message);
             }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)

@@ -1,5 +1,4 @@
 using Mergician.Entities;
-using Mergician.Services;
 using Mergician.Services.GitLab;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Options;
@@ -25,9 +24,9 @@ public class GitLabCookieAuthenticationHandler : AuthenticationHandler<Authentic
 
     private readonly GitLabService _gitLabService;
 
-    private readonly GitLabOAuthService _oauthService;
-
     private readonly HealthService _healthService;
+
+    private readonly GitLabOAuthService _oauthService;
 
     public GitLabCookieAuthenticationHandler(
         IOptionsMonitor<AuthenticationSchemeOptions> options,

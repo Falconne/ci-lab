@@ -90,7 +90,9 @@ public class StartupAndRecoveryService : BackgroundService
             {
                 _logger.LogInformation("StartupAndRecoveryService: monitoring for a GitLab recovery request");
                 await _gitLabRecoveryService.WaitForGitLabRecoveryRequest(cancellationToken);
-                _logger.LogInformation("StartupAndRecoveryService: GitLab recovery requested, re-running GitLab checks");
+                _logger.LogInformation(
+                    "StartupAndRecoveryService: GitLab recovery requested, re-running GitLab checks");
+
                 if (await _gitLabApiClient.WaitForGitLabHealthy(true, cancellationToken))
                 {
                     SetStatus(true, "Ready");
@@ -130,7 +132,9 @@ public class StartupAndRecoveryService : BackgroundService
             {
                 _logger.LogInformation("StartupAndRecoveryService: running database migration");
                 _databaseMigrationService.MigrateDatabase();
-                _logger.LogInformation("StartupAndRecoveryService: database migration completed successfully");
+                _logger.LogInformation(
+                    "StartupAndRecoveryService: database migration completed successfully");
+
                 break;
             }
             catch (Exception ex)

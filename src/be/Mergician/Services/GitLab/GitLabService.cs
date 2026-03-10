@@ -117,9 +117,9 @@ public class GitLabService
                     "GetPushEventsForUserSince failed on page {Page} with status {StatusCode}",
                     page,
                     (int)ex.StatusCode);
+
                 yield break;
             }
-
 
             _logger.LogDebug(
                 "Fetched {Count} GitLab push events from page {Page} (after={AfterDate})",
@@ -199,6 +199,7 @@ public class GitLabService
                 "GetProject({ProjectId}) failed with status {StatusCode}",
                 projectId,
                 (int)ex.StatusCode);
+
             return null;
         }
 
@@ -355,7 +356,8 @@ public class GitLabService
         int projectId,
         int mergeRequestIid)
     {
-        var operationName = $"GetMergeRequestApprovals(projectId={projectId}, mergeRequestIid={mergeRequestIid})";
+        var operationName =
+            $"GetMergeRequestApprovals(projectId={projectId}, mergeRequestIid={mergeRequestIid})";
 
         try
         {

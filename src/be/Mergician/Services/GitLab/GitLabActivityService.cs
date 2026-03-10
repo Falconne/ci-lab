@@ -1,4 +1,3 @@
-using Mergician.Entities;
 using Mergician.Entities.Database;
 using Mergician.Services.Authentication;
 using Mergician.Services.Database;
@@ -66,6 +65,7 @@ public class GitLabActivityService
                     ex,
                     "GitLab became unavailable while refreshing branch details for user {UserId}; ending the current refresh cycle",
                     gitLabUserId);
+
                 break;
             }
             catch (Exception ex)

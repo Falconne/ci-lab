@@ -23,9 +23,9 @@ public class UserActivitySyncService : IHostedService, IDisposable
 
     private readonly BranchesService _branchesService;
 
-    private readonly GitLabService _gitLabService;
-
     private readonly GitLabRecoveryService _gitLabRecoveryService;
+
+    private readonly GitLabService _gitLabService;
 
     private readonly ILogger<UserActivitySyncService> _logger;
 
@@ -150,6 +150,7 @@ public class UserActivitySyncService : IHostedService, IDisposable
                 _logger.LogInformation(
                     "Skipping sync for user {UserId}: GitLab recovery mode is active",
                     gitLabUserId);
+
                 return;
             }
 
@@ -164,6 +165,7 @@ public class UserActivitySyncService : IHostedService, IDisposable
                     _logger.LogInformation(
                         "Stopping sync thread for user {UserId}: GitLab recovery mode is active",
                         gitLabUserId);
+
                     break;
                 }
 

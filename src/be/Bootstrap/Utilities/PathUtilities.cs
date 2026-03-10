@@ -26,7 +26,7 @@ public static class PathUtilities
         }
 
         throw new InvalidOperationException(
-            "Could not find the repository root. Expected a 'data' directory containing '.placeholder' " +
-            $"in an ancestor of '{AppContext.BaseDirectory}'.");
+            "Could not find the repository root. Expected a 'data' directory containing '.placeholder' "
+            + $"in an ancestor of '{AppContext.BaseDirectory}'.");
     }
 }

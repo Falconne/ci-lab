@@ -68,11 +68,13 @@ try
         Timeout = TimeSpan.FromSeconds(30),
         Authenticator = new HttpBasicAuthenticator("root", gitLabRootPassword)
     };
+
     var teamCityRestClient = new RestClient(teamCityRestClientOptions);
     teamCityRestClient.AddDefaultHeader("Accept", "application/json");
 
     var teamCityVersionedSettingsService = new TeamCityVersionedSettingsService(teamCityRestClient);
-    var teamCityVCSRootService = new TeamCityVCSRootService(teamCityRestClient, teamCityVersionedSettingsService);
+    var teamCityVCSRootService =
+        new TeamCityVCSRootService(teamCityRestClient, teamCityVersionedSettingsService);
 
     Logging.LogSection("Resetting CI Lab Projects");
     var resetService = new ResetService(gitLabService, teamCityService, teamCityVersionedSettingsService);
@@ -86,6 +88,7 @@ try
         envService,
         gitLabURL,
         gitLabToken!);
+
     await projectSetupService.Execute();
 
     Logging.LogSection("Bootstrap complete!");

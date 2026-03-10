@@ -8,9 +8,12 @@ namespace Bootstrap.Services.TeamCity;
 public class TeamCityVCSRootService
 {
     private readonly RestClient _client;
+
     private readonly TeamCityVersionedSettingsService _versionedSettingsService;
 
-    public TeamCityVCSRootService(RestClient client, TeamCityVersionedSettingsService versionedSettingsService)
+    public TeamCityVCSRootService(
+        RestClient client,
+        TeamCityVersionedSettingsService versionedSettingsService)
     {
         _client = client;
         _versionedSettingsService = versionedSettingsService;
@@ -29,7 +32,7 @@ public class TeamCityVCSRootService
     {
         var currentSettings = await _versionedSettingsService.GetVersionedSettings("_Root");
         var versionedSettingsEnabled = currentSettings != null
-                                          && currentSettings.Contains("\"synchronizationMode\":\"enabled\"");
+                                       && currentSettings.Contains("\"synchronizationMode\":\"enabled\"");
 
         if (versionedSettingsEnabled)
         {

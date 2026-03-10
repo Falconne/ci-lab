@@ -1,7 +1,7 @@
-using System.Text.Json;
 using Mergician.Entities;
 using Mergician.Services.GitLab;
 using Mergician.Utilities;
+using System.Text.Json;
 
 namespace Mergician.Services.Authentication;
 
@@ -28,12 +28,12 @@ public class GitLabOAuthService
     public string GetAuthorizationUrl(string redirectUri, string state)
     {
         var gitlabUrl = _settings.GitLab.Url.TrimEnd('/');
-        return $"{gitlabUrl}/oauth/authorize" +
-               $"?client_id={Uri.EscapeDataString(_settings.GitLab.OAuth.ClientId)}" +
-               $"&redirect_uri={Uri.EscapeDataString(redirectUri)}" +
-               $"&response_type=code" +
-               $"&state={Uri.EscapeDataString(state)}" +
-               $"&scope=read_user+read_api";
+        return $"{gitlabUrl}/oauth/authorize"
+               + $"?client_id={Uri.EscapeDataString(_settings.GitLab.OAuth.ClientId)}"
+               + $"&redirect_uri={Uri.EscapeDataString(redirectUri)}"
+               + $"&response_type=code"
+               + $"&state={Uri.EscapeDataString(state)}"
+               + $"&scope=read_user+read_api";
     }
 
     public async Task<GitLabOAuthTokenResponse?> ExchangeCodeForToken(string code, string redirectUri)
@@ -45,14 +45,15 @@ public class GitLabOAuthService
             return await _gitLabApiClient.ExecuteAsync<GitLabOAuthTokenResponse>(
                 () => new HttpRequestMessage(HttpMethod.Post, $"{gitlabUrl}/oauth/token")
                 {
-                    Content = new FormUrlEncodedContent(new Dictionary<string, string>
-                    {
-                        ["client_id"] = _settings.GitLab.OAuth.ClientId,
-                        ["client_secret"] = _settings.GitLab.OAuth.ClientSecret,
-                        ["code"] = code,
-                        ["grant_type"] = "authorization_code",
-                        ["redirect_uri"] = redirectUri
-                    })
+                    Content = new FormUrlEncodedContent(
+                        new Dictionary<string, string>
+                        {
+                            ["client_id"] = _settings.GitLab.OAuth.ClientId,
+                            ["client_secret"] = _settings.GitLab.OAuth.ClientSecret,
+                            ["code"] = code,
+                            ["grant_type"] = "authorization_code",
+                            ["redirect_uri"] = redirectUri
+                        })
                 },
                 _jsonOptions,
                 "ExchangeCodeForToken",
@@ -65,6 +66,7 @@ public class GitLabOAuthService
                 (int)ex.StatusCode,
                 ex.ResponseBody,
                 redirectUri);
+
             return null;
         }
     }
@@ -78,13 +80,14 @@ public class GitLabOAuthService
             return await _gitLabApiClient.ExecuteAsync<GitLabOAuthTokenResponse>(
                 () => new HttpRequestMessage(HttpMethod.Post, $"{gitlabUrl}/oauth/token")
                 {
-                    Content = new FormUrlEncodedContent(new Dictionary<string, string>
-                    {
-                        ["client_id"] = _settings.GitLab.OAuth.ClientId,
-                        ["client_secret"] = _settings.GitLab.OAuth.ClientSecret,
-                        ["refresh_token"] = refreshToken,
-                        ["grant_type"] = "refresh_token"
-                    })
+                    Content = new FormUrlEncodedContent(
+                        new Dictionary<string, string>
+                        {
+                            ["client_id"] = _settings.GitLab.OAuth.ClientId,
+                            ["client_secret"] = _settings.GitLab.OAuth.ClientSecret,
+                            ["refresh_token"] = refreshToken,
+                            ["grant_type"] = "refresh_token"
+                        })
                 },
                 _jsonOptions,
                 "RefreshToken",
@@ -96,6 +99,7 @@ public class GitLabOAuthService
                 "GitLab token refresh failed: {StatusCode} {Body}",
                 (int)ex.StatusCode,
                 ex.ResponseBody);
+
             return null;
         }
     }
