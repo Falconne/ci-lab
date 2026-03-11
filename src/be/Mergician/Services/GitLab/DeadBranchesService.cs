@@ -7,18 +7,18 @@ namespace Mergician.Services.GitLab;
 ///     Provides helper methods for deciding whether a branch should be skipped
 ///     during sync or processing, and for removing stale branch records from the database.
 /// </summary>
-public class BranchesService
+public class DeadBranchesService
 {
     private readonly GitLabService _gitLabService;
 
-    private readonly ILogger<BranchesService> _logger;
+    private readonly ILogger<DeadBranchesService> _logger;
 
     private readonly IMergeGroupRepository _mergeGroupRepository;
 
-    public BranchesService(
+    public DeadBranchesService(
         GitLabService gitLabService,
         IMergeGroupRepository mergeGroupRepository,
-        ILogger<BranchesService> logger)
+        ILogger<DeadBranchesService> logger)
     {
         _gitLabService = gitLabService;
         _mergeGroupRepository = mergeGroupRepository;

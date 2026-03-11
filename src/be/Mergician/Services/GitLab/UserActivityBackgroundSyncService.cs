@@ -21,7 +21,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
 
     private readonly UserActivityPollService _activityPollService;
 
-    private readonly BranchesService _branchesService;
+    private readonly DeadBranchesService _deadBranchesService;
 
     private readonly GitLabRecoveryService _gitLabRecoveryService;
 
@@ -38,14 +38,14 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
     public UserActivityBackgroundSyncService(
         GitLabService gitLabService,
         UserActivityPollService activityPollService,
-        BranchesService branchesService,
+        DeadBranchesService deadBranchesService,
         IMergeGroupRepository mergeGroupRepository,
         GitLabRecoveryService gitLabRecoveryService,
         ILogger<UserActivityBackgroundSyncService> logger)
     {
         _gitLabService = gitLabService;
         _activityPollService = activityPollService;
-        _branchesService = branchesService;
+        _deadBranchesService = deadBranchesService;
         _mergeGroupRepository = mergeGroupRepository;
         _gitLabRecoveryService = gitLabRecoveryService;
         _logger = logger;
@@ -293,7 +293,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                 branch.BranchName,
                 branch.ProjectId);
 
-            _branchesService.RemoveBranchAndCleanup(branch.Id);
+            _deadBranchesService.RemoveBranchAndCleanup(branch.Id);
         }
     }
 
@@ -340,7 +340,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                 continue;
             }
 
-            if (await _branchesService.ShouldSkipByLookup(
+            if (await _deadBranchesService.ShouldSkipByLookup(
                     accessDetails,
                     pushEvent.BranchName,
                     pushEvent.ProjectId,
@@ -362,7 +362,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                 continue;
             }
 
-            if (_branchesService.ShouldSkipScheduledForDeletion(
+            if (_deadBranchesService.ShouldSkipScheduledForDeletion(
                     pushEvent.BranchName,
                     pushEvent.ProjectId,
                     project.NameWithNamespace,

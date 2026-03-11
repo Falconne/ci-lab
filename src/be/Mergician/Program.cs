@@ -58,7 +58,7 @@ try
     builder.Services.AddSingleton<CacheService<int, GitLabProject>>();
     builder.Services.AddSingleton<GitLabService>();
     builder.Services.AddSingleton<GitLabPipelineService>();
-    builder.Services.AddSingleton<BranchesService>();
+    builder.Services.AddSingleton<DeadBranchesService>();
     builder.Services.AddSingleton<UserActivityPollService>();
     builder.Services.AddSingleton<VersionService>();
 

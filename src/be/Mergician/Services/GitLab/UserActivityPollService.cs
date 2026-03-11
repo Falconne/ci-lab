@@ -4,6 +4,8 @@ using Mergician.Services.Database;
 
 namespace Mergician.Services.GitLab;
 
+// TODO: Move the methods in this class into UserActivityBackgroundSyncService and delete this.
+
 /// <summary>
 ///     Provides methods for refreshing branch details against the GitLab API.
 ///     Used by the background sync threads managed by <see cref="UserActivityBackgroundSyncService" />.
