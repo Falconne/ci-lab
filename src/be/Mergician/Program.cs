@@ -59,12 +59,12 @@ try
     builder.Services.AddSingleton<GitLabService>();
     builder.Services.AddSingleton<GitLabPipelineService>();
     builder.Services.AddSingleton<BranchesService>();
-    builder.Services.AddSingleton<GitLabActivityService>();
+    builder.Services.AddSingleton<UserActivityPollService>();
     builder.Services.AddSingleton<VersionService>();
 
     // Register background user activity sync service
-    builder.Services.AddSingleton<UserActivitySyncService>();
-    builder.Services.AddHostedService(sp => sp.GetRequiredService<UserActivitySyncService>());
+    builder.Services.AddSingleton<UserActivityBackgroundSyncService>();
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<UserActivityBackgroundSyncService>());
 
     // Register GitLab authentication handler
     builder.Services.AddSingleton(new GitLabAuthSettings { ApiBaseUrl = gitlabApiBaseUrl });

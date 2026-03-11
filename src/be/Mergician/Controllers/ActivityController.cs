@@ -12,19 +12,19 @@ namespace Mergician.Controllers;
 [Route("api/[controller]")]
 public class ActivityController : ControllerBase
 {
+    private readonly UserActivityBackgroundSyncService _backgroundSyncService;
+
     private readonly ILogger<ActivityController> _logger;
 
     private readonly IMergeGroupRepository _mergeGroupRepository;
 
-    private readonly UserActivitySyncService _syncService;
-
     public ActivityController(
         IMergeGroupRepository mergeGroupRepository,
-        UserActivitySyncService syncService,
+        UserActivityBackgroundSyncService backgroundSyncService,
         ILogger<ActivityController> logger)
     {
         _mergeGroupRepository = mergeGroupRepository;
-        _syncService = syncService;
+        _backgroundSyncService = backgroundSyncService;
         _logger = logger;
     }
 
@@ -41,7 +41,7 @@ public class ActivityController : ControllerBase
         var userId = currentUser.UserId;
 
         // Ensure the background sync thread is running (also records that user is still active)
-        _syncService.EnsureSyncRunning(userId, currentUser);
+        _backgroundSyncService.EnsureSyncRunning(userId, currentUser);
 
         _logger.LogDebug("Dashboard refresh for user {UserId}", userId);
 

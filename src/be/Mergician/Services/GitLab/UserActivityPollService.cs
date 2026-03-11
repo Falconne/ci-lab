@@ -6,23 +6,23 @@ namespace Mergician.Services.GitLab;
 
 /// <summary>
 ///     Provides methods for refreshing branch details against the GitLab API.
-///     Used by the background sync threads managed by <see cref="UserActivitySyncService" />.
+///     Used by the background sync threads managed by <see cref="UserActivityBackgroundSyncService" />.
 /// </summary>
-public class GitLabActivityService
+public class UserActivityPollService
 {
     private readonly GitLabPipelineService _gitLabPipelineService;
 
     private readonly GitLabService _gitLabService;
 
-    private readonly ILogger<GitLabActivityService> _logger;
+    private readonly ILogger<UserActivityPollService> _logger;
 
     private readonly IMergeGroupRepository _mergeGroupRepository;
 
-    public GitLabActivityService(
+    public UserActivityPollService(
         GitLabService gitLabService,
         GitLabPipelineService gitLabPipelineService,
         IMergeGroupRepository mergeGroupRepository,
-        ILogger<GitLabActivityService> logger)
+        ILogger<UserActivityPollService> logger)
     {
         _gitLabService = gitLabService;
         _gitLabPipelineService = gitLabPipelineService;

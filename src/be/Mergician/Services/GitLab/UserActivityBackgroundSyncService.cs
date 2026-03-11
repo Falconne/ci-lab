@@ -11,7 +11,7 @@ namespace Mergician.Services.GitLab;
 ///     then polls every 10 seconds for new activity and checks for deleted branches.
 ///     The thread stops 5 minutes after the user's last dashboard poll activity.
 /// </summary>
-public class UserActivitySyncService : IHostedService, IDisposable
+public class UserActivityBackgroundSyncService : IHostedService, IDisposable
 {
     private static readonly TimeSpan _inactivityTimeout = TimeSpan.FromMinutes(5);
 
@@ -19,7 +19,7 @@ public class UserActivitySyncService : IHostedService, IDisposable
 
     private static readonly TimeSpan _maxActivityLookback = TimeSpan.FromDays(14);
 
-    private readonly GitLabActivityService _activityService;
+    private readonly UserActivityPollService _activityPollService;
 
     private readonly BranchesService _branchesService;
 
@@ -27,7 +27,7 @@ public class UserActivitySyncService : IHostedService, IDisposable
 
     private readonly GitLabService _gitLabService;
 
-    private readonly ILogger<UserActivitySyncService> _logger;
+    private readonly ILogger<UserActivityBackgroundSyncService> _logger;
 
     private readonly IMergeGroupRepository _mergeGroupRepository;
 
@@ -35,16 +35,16 @@ public class UserActivitySyncService : IHostedService, IDisposable
 
     private CancellationTokenSource? _globalCts;
 
-    public UserActivitySyncService(
+    public UserActivityBackgroundSyncService(
         GitLabService gitLabService,
-        GitLabActivityService activityService,
+        UserActivityPollService activityPollService,
         BranchesService branchesService,
         IMergeGroupRepository mergeGroupRepository,
         GitLabRecoveryService gitLabRecoveryService,
-        ILogger<UserActivitySyncService> logger)
+        ILogger<UserActivityBackgroundSyncService> logger)
     {
         _gitLabService = gitLabService;
-        _activityService = activityService;
+        _activityPollService = activityPollService;
         _branchesService = branchesService;
         _mergeGroupRepository = mergeGroupRepository;
         _gitLabRecoveryService = gitLabRecoveryService;
@@ -63,14 +63,15 @@ public class UserActivitySyncService : IHostedService, IDisposable
     public Task StartAsync(CancellationToken cancellationToken)
     {
         _globalCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        _logger.LogInformation("UserActivitySyncService started");
+        _logger.LogInformation("UserActivityBackgroundSyncService started");
         return Task.CompletedTask;
     }
 
     // Stop background sync threads when server is shutting down
     public async Task StopAsync(CancellationToken cancellationToken)
     {
-        _logger.LogInformation("UserActivitySyncService stopping, cancelling all user sync threads");
+        _logger.LogInformation(
+            "UserActivityBackgroundSyncService stopping, cancelling all user sync threads");
 
         if (_globalCts != null)
         {
@@ -100,7 +101,7 @@ public class UserActivitySyncService : IHostedService, IDisposable
             }
         }
 
-        _logger.LogInformation("UserActivitySyncService stopped");
+        _logger.LogInformation("UserActivityBackgroundSyncService stopped");
     }
 
     /// <summary>
@@ -184,7 +185,7 @@ public class UserActivitySyncService : IHostedService, IDisposable
                 {
                     firstPoll = false;
                     // Refresh branch details immediately on first poll for responsive UI
-                    await _activityService.RefreshAllBranchDetails(accessUser, gitLabUserId, ct);
+                    await _activityPollService.RefreshAllBranchDetails(accessUser, gitLabUserId, ct);
                 }
                 else
                 {
@@ -214,7 +215,7 @@ public class UserActivitySyncService : IHostedService, IDisposable
                     await CleanupDeletedBranches(accessUser, gitLabUserId, ct);
 
                     // Refresh MR, approval, and build status for all tracked branches
-                    await _activityService.RefreshAllBranchDetails(accessUser, gitLabUserId, ct);
+                    await _activityPollService.RefreshAllBranchDetails(accessUser, gitLabUserId, ct);
                 }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested)
                 {

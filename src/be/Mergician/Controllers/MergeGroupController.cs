@@ -12,19 +12,19 @@ namespace Mergician.Controllers;
 [Route("api/merge-groups")]
 public class MergeGroupController : ControllerBase
 {
+    private readonly UserActivityBackgroundSyncService _backgroundSyncService;
+
     private readonly ILogger<MergeGroupController> _logger;
 
     private readonly IMergeGroupRepository _mergeGroupRepository;
 
-    private readonly UserActivitySyncService _syncService;
-
     public MergeGroupController(
         IMergeGroupRepository mergeGroupRepository,
-        UserActivitySyncService syncService,
+        UserActivityBackgroundSyncService backgroundSyncService,
         ILogger<MergeGroupController> logger)
     {
         _mergeGroupRepository = mergeGroupRepository;
-        _syncService = syncService;
+        _backgroundSyncService = backgroundSyncService;
         _logger = logger;
     }
 
@@ -42,7 +42,7 @@ public class MergeGroupController : ControllerBase
         var userId = currentUser.UserId;
 
         // Keep the background sync thread alive during polling
-        _syncService.EnsureSyncRunning(userId, currentUser);
+        _backgroundSyncService.EnsureSyncRunning(userId, currentUser);
 
         _logger.LogDebug(
             "Merge group refresh for user {UserId}, merge group {MergeGroupId}",
