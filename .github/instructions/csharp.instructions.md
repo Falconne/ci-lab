@@ -8,7 +8,6 @@ applyTo: '**/*.cs'
   - Within the Services folder, create subfolders based on feature, purpose or domain, to group related service classes together. Divide functionlaity into sensible service classes, ensuring that any one service class does not contain unrelated functionality.
   - Similarly, within the Entities folder, create subfolders to group related models together.
 - Use dependency injection for services.
-- Use nullable reference types and top-level statements.
 - Use var, new() and pattern matching where appropriate.
 - Do not use inner classes. Organise code into Services and Models (in appropriate folder structure).
 - Do not suffix async method names with "Async" unless there is also a sync version of the method.
@@ -17,7 +16,6 @@ applyTo: '**/*.cs'
 - Do not use JsonElement or dynamic types for JSON parsing unless it is not possible to deserialize in a typesafe way or it will make the code much more complex to do it statically.
 - Do not use unicode characters for decorating Log messages.
 - Organise private methods after public ones and private fields after public fields. All fields should come before all methods.
-- Do not use anonymous types when returning from Controllers. Always define a record or POCO in the Entities folder tree.
 - When inlining methods, review the resulting code to see if it should be tidied up now that the code is inlined.
 - Controllers should return strong types where possible. For example, prefer returning `ActionResult<T>` over just `IActionResult`.
 - Avoid the `volatile` keyword. Performance is not critical so locks are fine.
