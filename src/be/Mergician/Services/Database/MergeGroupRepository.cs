@@ -74,7 +74,7 @@ public class MergeGroupRepository : IMergeGroupRepository
             VALUES (@Name)
             ON CONFLICT ON CONSTRAINT uq_merge_group_name
             DO UPDATE SET name = EXCLUDED.name
-            RETURNING id AS Id, name AS Name
+            RETURNING id AS Id, name AS Name, auto_merge AS AutoMerge, auto_rebase AS AutoRebase, auto_merge_warning AS AutoMergeWarning
             """,
             new { Name = name });
 
@@ -133,12 +133,15 @@ public class MergeGroupRepository : IMergeGroupRepository
 
         // query branches along with their merge group info; map using Dapper multi-mapping
         var rows = connection
-            .Query<int, string, BranchWithActivity, (int MergeGroupId, string MergeGroupName,
-                BranchWithActivity Branch)>(
+            .Query<int, string, bool, bool, string?, BranchWithActivity, (int MergeGroupId, string MergeGroupName,
+                bool AutoMerge, bool AutoRebase, string? AutoMergeWarning, BranchWithActivity Branch)>(
                 """
                 SELECT
                     mg.id AS MergeGroupId,
                     mg.name AS MergeGroupName,
+                    mg.auto_merge AS AutoMerge,
+                    mg.auto_rebase AS AutoRebase,
+                    mg.auto_merge_warning AS AutoMergeWarning,
                     bp.id AS Id,
                     bp.branch_name AS BranchName,
                     bp.project_id AS ProjectId,
@@ -158,9 +161,10 @@ public class MergeGroupRepository : IMergeGroupRepository
                 WHERE umg.gitlab_user_id = @GitlabUserId
                 ORDER BY bp.project_name, bp.branch_name
                 """,
-                (mgId, mgName, branch) => (mgId, mgName, branch),
+                (mgId, mgName, autoMerge, autoRebase, autoMergeWarning, branch) =>
+                    (mgId, mgName, autoMerge, autoRebase, autoMergeWarning, branch),
                 new { GitlabUserId = gitlabUserId },
-                splitOn: "MergeGroupName,Id")
+                splitOn: "MergeGroupName,AutoMerge,AutoRebase,AutoMergeWarning,Id")
             .ToList();
 
         // Attach build jobs to all branch records
@@ -169,6 +173,9 @@ public class MergeGroupRepository : IMergeGroupRepository
         // Group flat rows into MergeGroup objects
         var groupOrder = new List<int>();
         var groupNames = new Dictionary<int, string>();
+        var groupAutoMerge = new Dictionary<int, bool>();
+        var groupAutoRebase = new Dictionary<int, bool>();
+        var groupAutoMergeWarning = new Dictionary<int, string?>();
         var groupBranches = new Dictionary<int, List<BranchWithActivity>>();
 
         foreach (var tuple in rows)
@@ -177,6 +184,9 @@ public class MergeGroupRepository : IMergeGroupRepository
             {
                 groupOrder.Add(tuple.MergeGroupId);
                 groupNames[tuple.MergeGroupId] = tuple.MergeGroupName;
+                groupAutoMerge[tuple.MergeGroupId] = tuple.AutoMerge;
+                groupAutoRebase[tuple.MergeGroupId] = tuple.AutoRebase;
+                groupAutoMergeWarning[tuple.MergeGroupId] = tuple.AutoMergeWarning;
                 groupBranches[tuple.MergeGroupId] = new List<BranchWithActivity>();
             }
 
@@ -184,7 +194,12 @@ public class MergeGroupRepository : IMergeGroupRepository
         }
 
         var result = groupOrder
-            .Select(id => new MergeGroup(id, groupNames[id], groupBranches[id]))
+            .Select(id => new MergeGroup(id, groupNames[id], groupBranches[id])
+            {
+                AutoMerge = groupAutoMerge[id],
+                AutoRebase = groupAutoRebase[id],
+                AutoMergeWarning = groupAutoMergeWarning[id]
+            })
             .ToList();
 
         _logger.LogDebug(
@@ -203,7 +218,7 @@ public class MergeGroupRepository : IMergeGroupRepository
 
         var record = connection.QueryFirstOrDefault<MergeGroupBase>(
             """
-            SELECT id AS Id, name AS Name
+            SELECT id AS Id, name AS Name, auto_merge AS AutoMerge, auto_rebase AS AutoRebase, auto_merge_warning AS AutoMergeWarning
             FROM merge_group
             WHERE id = @MergeGroupId
             """,
@@ -261,7 +276,7 @@ public class MergeGroupRepository : IMergeGroupRepository
 
         return connection.Query<MergeGroupBase>(
                 """
-                SELECT mg.id AS Id, mg.name AS Name
+                SELECT mg.id AS Id, mg.name AS Name, mg.auto_merge AS AutoMerge, mg.auto_rebase AS AutoRebase, mg.auto_merge_warning AS AutoMergeWarning
                 FROM merge_group mg
                 LEFT JOIN branches_in_merge_group bmg ON bmg.merge_group_id = mg.id
                 WHERE bmg.id IS NULL
@@ -370,6 +385,79 @@ public class MergeGroupRepository : IMergeGroupRepository
             utcCommitTime);
     }
 
+    public void UpdateAutoMergeSettings(int mergeGroupId, bool autoMerge, bool autoRebase)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        connection.Open();
+
+        connection.Execute(
+            """
+            UPDATE merge_group
+            SET auto_merge = @AutoMerge,
+                auto_rebase = @AutoRebase
+            WHERE id = @MergeGroupId
+            """,
+            new { MergeGroupId = mergeGroupId, AutoMerge = autoMerge, AutoRebase = autoRebase });
+
+        _logger.LogInformation(
+            "Updated auto merge settings for merge group {MergeGroupId}: autoMerge={AutoMerge}, autoRebase={AutoRebase}",
+            mergeGroupId,
+            autoMerge,
+            autoRebase);
+    }
+
+    public List<MergeGroup> GetMergeGroupsWithAutoSettings()
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        connection.Open();
+
+        var records = connection.Query<MergeGroupBase>(
+                """
+                SELECT id AS Id, name AS Name, auto_merge AS AutoMerge, auto_rebase AS AutoRebase, auto_merge_warning AS AutoMergeWarning
+                FROM merge_group
+                WHERE auto_merge = TRUE OR auto_rebase = TRUE
+                """)
+            .ToList();
+
+        var result = new List<MergeGroup>();
+        foreach (var record in records)
+        {
+            result.Add(GetBranchesFor(connection, record));
+        }
+
+        _logger.LogDebug(
+            "Retrieved {Count} merge groups with auto settings enabled",
+            result.Count);
+
+        return result;
+    }
+
+    public void UpdateAutoMergeWarning(int mergeGroupId, string? warning)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        connection.Open();
+
+        connection.Execute(
+            """
+            UPDATE merge_group
+            SET auto_merge_warning = @Warning
+            WHERE id = @MergeGroupId
+            """,
+            new { MergeGroupId = mergeGroupId, Warning = warning });
+
+        if (warning != null)
+        {
+            _logger.LogInformation(
+                "Set auto merge warning for merge group {MergeGroupId}: {Warning}",
+                mergeGroupId,
+                warning);
+        }
+        else
+        {
+            _logger.LogDebug("Cleared auto merge warning for merge group {MergeGroupId}", mergeGroupId);
+        }
+    }
+
     private MergeGroup GetBranchesFor(IDbConnection connection, MergeGroupBase record)
     {
         // query only branch details; merge group id/name already known
@@ -401,7 +489,12 @@ public class MergeGroupRepository : IMergeGroupRepository
         return new MergeGroup(
             record.Id,
             record.Name,
-            branches);
+            branches)
+        {
+            AutoMerge = record.AutoMerge,
+            AutoRebase = record.AutoRebase,
+            AutoMergeWarning = record.AutoMergeWarning
+        };
     }
 
     private static void AttachBuildJobs(IDbConnection connection, List<BranchWithActivity> branches)

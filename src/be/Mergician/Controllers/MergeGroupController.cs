@@ -64,4 +64,47 @@ public class MergeGroupController : ControllerBase
 
         return Ok(result);
     }
+
+    /// <summary>
+    ///     Updates auto merge and auto rebase settings for a merge group.
+    ///     Returns 404 if the merge group does not exist.
+    /// </summary>
+    [HttpPut("{mergeGroupId:int}/settings")]
+    public ActionResult<MergeGroup> UpdateSettings(int mergeGroupId, [FromBody] UpdateAutoMergeSettingsRequest request)
+    {
+        var currentUser = HttpContext.GetGitLabUser();
+
+        _logger.LogInformation(
+            "User {UserId} updating auto merge settings for merge group {MergeGroupId}: autoMerge={AutoMerge}, autoRebase={AutoRebase}",
+            currentUser.UserId,
+            mergeGroupId,
+            request.AutoMerge,
+            request.AutoRebase);
+
+        var existing = _mergeGroupRepository.GetMergeGroup(mergeGroupId);
+        if (existing == null)
+        {
+            return NotFound(new ErrorResponse("Merge group not found"));
+        }
+
+        _mergeGroupRepository.UpdateAutoMergeSettings(mergeGroupId, request.AutoMerge, request.AutoRebase);
+
+        // Clear any existing warning when settings change
+        _mergeGroupRepository.UpdateAutoMergeWarning(mergeGroupId, null);
+
+        var updated = _mergeGroupRepository.GetMergeGroup(mergeGroupId);
+
+        return Ok(updated);
+    }
+
+    /// <summary>
+    ///     Clears the auto merge warning for a merge group.
+    /// </summary>
+    [HttpPost("{mergeGroupId:int}/settings/clear-warning")]
+    public IActionResult ClearWarning(int mergeGroupId)
+    {
+        _logger.LogInformation("Clearing auto merge warning for merge group {MergeGroupId}", mergeGroupId);
+        _mergeGroupRepository.UpdateAutoMergeWarning(mergeGroupId, null);
+        return NoContent();
+    }
 }

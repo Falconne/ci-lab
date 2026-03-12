@@ -59,6 +59,7 @@ try
     builder.Services.AddSingleton<GitLabService>();
     builder.Services.AddSingleton<GitLabPipelineService>();
     builder.Services.AddSingleton<DeadBranchesService>();
+    builder.Services.AddSingleton<GitLabAutoMergeApiService>();
     builder.Services.AddSingleton<VersionService>();
 
     // Register background user activity sync service
@@ -87,6 +88,9 @@ try
 
     // Register background cleanup service
     builder.Services.AddHostedService<CleanupService>();
+
+    // Register auto merge background service
+    builder.Services.AddHostedService<AutoMergeService>();
 
     // Add services
     builder.Services.AddControllers();

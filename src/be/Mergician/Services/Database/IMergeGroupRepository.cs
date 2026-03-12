@@ -85,4 +85,20 @@ public interface IMergeGroupRepository
         int? approvalsGiven,
         List<BranchBuildJob> buildJobs,
         DateTimeOffset? lastCommitTime = null);
+
+    /// <summary>
+    ///     Updates the auto merge and auto rebase settings for a merge group.
+    /// </summary>
+    void UpdateAutoMergeSettings(int mergeGroupId, bool autoMerge, bool autoRebase);
+
+    /// <summary>
+    ///     Returns all merge groups that have auto_merge or auto_rebase enabled,
+    ///     each containing its branches. Used by the AutoMergeService.
+    /// </summary>
+    List<MergeGroup> GetMergeGroupsWithAutoSettings();
+
+    /// <summary>
+    ///     Sets or clears the auto merge warning text for a merge group.
+    /// </summary>
+    void UpdateAutoMergeWarning(int mergeGroupId, string? warning);
 }

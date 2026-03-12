@@ -44,7 +44,41 @@
               </span>
               <span v-else class="skeleton-badge"><span class="skeleton-shimmer" /></span>
             </div>
+
+            <!-- Auto Merge / Auto Rebase toggles -->
+            <div class="auto-merge-controls mt-3">
+              <v-switch
+                v-model="autoMerge"
+                label="Auto Merge"
+                color="primary"
+                density="compact"
+                hide-details
+                :disabled="settingsUpdating"
+                @update:model-value="onAutoMergeToggle"
+              />
+              <v-switch
+                v-model="autoRebase"
+                label="Auto Rebase"
+                color="primary"
+                density="compact"
+                hide-details
+                :disabled="settingsUpdating"
+                @update:model-value="onAutoRebaseToggle"
+              />
+            </div>
           </div>
+
+          <!-- Auto merge warning -->
+          <v-alert
+            v-if="autoMergeWarning"
+            type="warning"
+            variant="tonal"
+            closable
+            class="mb-4"
+            @click:close="dismissWarning"
+          >
+            {{ autoMergeWarning }}
+          </v-alert>
 
           <div v-if="activities.length === 0 && !initialPhase" class="text-center pa-8">
             <v-icon icon="mdi-source-branch" size="64" color="grey" class="mb-4" />
@@ -188,6 +222,9 @@ interface MergeGroup {
   id: number
   name: string
   branches: BranchWithActivity[]
+  autoMerge: boolean
+  autoRebase: boolean
+  autoMergeWarning: string | null
 }
 
 const FAST_POLL_INTERVAL_MS = 1000
@@ -203,6 +240,10 @@ const mergeGroupName = ref('')
 const initialLoading = ref(true)
 const initialPhase = ref(false)
 const errorMessage = ref('')
+const autoMerge = ref(false)
+const autoRebase = ref(false)
+const autoMergeWarning = ref<string | null>(null)
+const settingsUpdating = ref(false)
 
 let pollIntervalId: ReturnType<typeof setInterval> | null = null
 let fastPollTimeoutId: ReturnType<typeof setTimeout> | null = null
@@ -297,6 +338,78 @@ function goBack() {
   router.push('/')
 }
 
+// --- Auto merge settings ---
+
+async function updateSettings(newAutoMerge: boolean, newAutoRebase: boolean) {
+  const mergeGroupId = getMergeGroupId()
+  if (!mergeGroupId) return
+
+  settingsUpdating.value = true
+  try {
+    const response = await fetchBackend(`/api/merge-groups/${mergeGroupId}/settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ autoMerge: newAutoMerge, autoRebase: newAutoRebase })
+    })
+
+    if (!response.ok) {
+      console.error('Failed to update settings, status', response.status)
+      errorMessage.value = 'Failed to update auto merge settings.'
+      autoMerge.value = !newAutoMerge
+      autoRebase.value = !newAutoRebase
+      return
+    }
+
+    const data: MergeGroup = await response.json()
+    autoMerge.value = data.autoMerge
+    autoRebase.value = data.autoRebase
+    autoMergeWarning.value = data.autoMergeWarning
+  } catch (err) {
+    if (isStartupRequiredError(err)) return
+    console.error('Failed to update settings:', err)
+    errorMessage.value = 'Failed to update auto merge settings.'
+  } finally {
+    settingsUpdating.value = false
+  }
+}
+
+function onAutoMergeToggle(value: boolean | null) {
+  const enabled = value === true
+  if (enabled) {
+    // Enabling auto merge also enables auto rebase
+    updateSettings(true, true)
+  } else {
+    updateSettings(false, autoRebase.value)
+  }
+}
+
+function onAutoRebaseToggle(value: boolean | null) {
+  const enabled = value === true
+  if (!enabled && autoMerge.value) {
+    // Cannot disable auto rebase while auto merge is on; auto merge requires auto rebase
+    // Disable auto merge too
+    updateSettings(false, false)
+  } else {
+    updateSettings(autoMerge.value, enabled)
+  }
+}
+
+async function dismissWarning() {
+  const mergeGroupId = getMergeGroupId()
+  if (!mergeGroupId) return
+
+  autoMergeWarning.value = null
+
+  try {
+    await fetchBackend(`/api/merge-groups/${mergeGroupId}/settings/clear-warning`, {
+      method: 'POST'
+    })
+  } catch (err) {
+    if (isStartupRequiredError(err)) return
+    console.error('Failed to clear warning:', err)
+  }
+}
+
 // --- Incremental data management ---
 
 function handleActivityEvent(data: BranchWithActivity) {
@@ -357,6 +470,13 @@ async function pollMergeGroup() {
     if (data.name && data.name !== mergeGroupName.value) {
       mergeGroupName.value = data.name
       updateRouteTitle(data.name)
+    }
+
+    // Sync auto merge settings from backend (only if not currently updating)
+    if (!settingsUpdating.value) {
+      autoMerge.value = data.autoMerge
+      autoRebase.value = data.autoRebase
+      autoMergeWarning.value = data.autoMergeWarning
     }
 
     // Remove items no longer present in the response
@@ -452,6 +572,12 @@ onUnmounted(() => {
 /* ---- Merge group header ---- */
 .merge-group-header {
   padding: 2px 0 6px;
+}
+
+.auto-merge-controls {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
 }
 
 /* ---- Status badges (shared with home page style) ---- */

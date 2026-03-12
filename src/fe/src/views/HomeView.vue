@@ -62,6 +62,10 @@
                       <span class="branch-name">{{ group.name }}</span>
                     </div>
                   <div class="card-header-right">
+                    <span v-if="group.autoMerge" class="auto-merge-badge">
+                      <v-icon icon="mdi-merge" size="x-small" />
+                      Auto Merge
+                    </span>
                     <span v-if="isGroupFullyLoaded(group)" class="card-status-badge" :class="groupStatusClass(group)">
                       <span class="status-dot" />
                       {{ groupStatusLabel(group) }}
@@ -190,6 +194,9 @@ interface MergeGroup {
   id: number
   name: string
   branches: BranchWithActivity[]
+  autoMerge: boolean
+  autoRebase: boolean
+  autoMergeWarning: string | null
 }
 
 type GroupStatus = 'ready' | 'open' | 'waiting'
@@ -629,6 +636,18 @@ onUnmounted(() => {
 
 .status-waiting { background: #fff3e0; color: #e65100; }
 .status-waiting .status-dot { background: #fb8c00; }
+
+.auto-merge-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: #e8eaf6;
+  color: #3949ab;
+}
 
 /* ---- Card items (repo rows) ---- */
 .card-items {
