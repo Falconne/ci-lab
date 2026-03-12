@@ -1,0 +1,6 @@
+In the Merge Group Details page, add 2 new toggle buttons at the top, one called "Auto Merge" and one called "Auto Rebase". Enabling "Auto Merge" should enable "Auto Rebase" automatically. These two settings should be backed by entries in the database in the Merge Group table.
+
+Add a new persisted background service to the Mergician backend called `AutoMergeService`.  This should be created such that it will always be active and not be killed by asp.net. This service should call the Gitlab API using the Gitlab service user token that the backend is configureed with. It should run a loop every 5 seconds to check all merge groups that have either of these settings enabled. For each such merge group:
+* Check if the auto merge setting is enabled:
+    * If so, for any branches in the merge group that have a Merge Request created:
+        * If so, and the branch is behind the target merge branch in the MR, use the Gitlab API to rebase the branch.

@@ -78,7 +78,7 @@
                       title="Open in new tab"
                       @click.stop
                     >
-                      <v-icon icon="mdi-open-in-new" size="16" />
+                      <v-icon icon="mdi-open-in-new" size="24" />
                     </v-btn>
                   </div>
                 </div>
