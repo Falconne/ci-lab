@@ -67,7 +67,19 @@
                       {{ groupStatusLabel(group) }}
                     </span>
                     <span v-else class="skeleton-badge"><span class="skeleton-shimmer" /></span>
-                    <span class="card-time">{{ groupTimeAgo(group) }}</span>
+                    <v-btn
+                      icon
+                      size="x-small"
+                      variant="text"
+                      color="grey"
+                      :href="mergeGroupHref(group)"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Open in new tab"
+                      @click.stop
+                    >
+                      <v-icon icon="mdi-open-in-new" size="16" />
+                    </v-btn>
                   </div>
                 </div>
                 <div class="card-items">
@@ -434,6 +446,15 @@ function openMergeGroupDetails(group: MergeGroup) {
   })
 }
 
+function mergeGroupHref(group: MergeGroup): string {
+  const resolved = router.resolve({
+    name: 'merge-group-details',
+    params: { mergeGroupId: group.id.toString() },
+    query: { title: group.name }
+  })
+  return resolved.href
+}
+
 onMounted(async () => {
   timeIntervalId = setInterval(() => { now.value = Date.now() }, 60000)
 
@@ -608,12 +629,6 @@ onUnmounted(() => {
 
 .status-waiting { background: #fff3e0; color: #e65100; }
 .status-waiting .status-dot { background: #fb8c00; }
-
-.card-time {
-  font-size: 0.78rem;
-  color: #9e9e9e;
-  white-space: nowrap;
-}
 
 /* ---- Card items (repo rows) ---- */
 .card-items {
