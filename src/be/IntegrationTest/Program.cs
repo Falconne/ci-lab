@@ -204,6 +204,31 @@ try
     {
         versionTest.Dispose();
     }
+
+    // Test 6: Auto merge toggle and dashboard badge
+    var autoMergeTest = new AutoMergeToggleTest();
+    try
+    {
+        Log.Information("");
+        Log.Information("--- Test: Auto Merge Toggle ---");
+        await autoMergeTest.Run();
+        results.Add(("Auto Merge Toggle", true, null));
+        Log.Information("PASS: Auto Merge Toggle");
+    }
+    catch (Exception ex)
+    {
+        results.Add(("Auto Merge Toggle", false, ex.Message));
+        Log.Error($"FAIL: Auto Merge Toggle - {ex.Message}");
+        allPassed = false;
+        if (abortOnFirstFailure)
+        {
+            throw;
+        }
+    }
+    finally
+    {
+        autoMergeTest.Dispose();
+    }
 }
 catch (Exception ex)
 {
