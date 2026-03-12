@@ -229,4 +229,122 @@ public class GitLabTestHelper
 
         Log.Information("Deleted branch '{BranchName}' in project {ProjectId}", branchName, projectId);
     }
+
+    /// <summary>
+    ///     Gets the HEAD commit SHA for a branch.
+    /// </summary>
+    public string GetBranchHeadSha(int projectId, string branchName)
+    {
+        var encodedBranch = Uri.EscapeDataString(branchName);
+        var request = new RestRequest($"/api/v4/projects/{projectId}/repository/branches/{encodedBranch}");
+
+        var response = _adminClient.Execute(request);
+        if (!response.IsSuccessful)
+        {
+            throw new InvalidOperationException(
+                $"Failed to get branch '{branchName}': {response.StatusCode} {response.Content}");
+        }
+
+        var branch = JsonSerializer.Deserialize<GitLabBranchInfo>(response.Content!, JsonOptions)
+                     ?? throw new InvalidOperationException(
+                         $"Failed to deserialize branch info for '{branchName}'");
+
+        Log.Information("Branch '{BranchName}' HEAD SHA: {Sha}", branchName, branch.Commit.Id);
+        return branch.Commit.Id;
+    }
+
+    /// <summary>
+    ///     Sets an external pipeline status on a commit via the GitLab Commit Statuses API.
+    ///     This creates or updates a pipeline status that affects merge readiness.
+    /// </summary>
+    public void SetCommitStatus(int projectId, string sha, string state, string pipelineName = "integration-test")
+    {
+        var request = new RestRequest($"/api/v4/projects/{projectId}/statuses/{sha}", Method.Post);
+        request.AddJsonBody(new
+        {
+            state,
+            name = pipelineName,
+            description = $"Integration test pipeline: {state}"
+        });
+
+        var response = _adminClient.Execute(request);
+        if (!response.IsSuccessful)
+        {
+            throw new InvalidOperationException(
+                $"Failed to set commit status '{state}' on {sha}: {response.StatusCode} {response.Content}");
+        }
+
+        Log.Information(
+            "Set commit status '{State}' on SHA {Sha} in project {ProjectId}",
+            state,
+            sha[..8],
+            projectId);
+    }
+
+    /// <summary>
+    ///     Gets merge request details including merge status.
+    /// </summary>
+    public GitLabMrDetail GetMergeRequestDetail(int projectId, int mrIid)
+    {
+        var request = new RestRequest($"/api/v4/projects/{projectId}/merge_requests/{mrIid}");
+        var response = _adminClient.Execute(request);
+        if (!response.IsSuccessful)
+        {
+            throw new InvalidOperationException(
+                $"Failed to get MR !{mrIid}: {response.StatusCode} {response.Content}");
+        }
+
+        return JsonSerializer.Deserialize<GitLabMrDetail>(response.Content!, JsonOptions)
+               ?? throw new InvalidOperationException($"Failed to deserialize MR !{mrIid}");
+    }
+
+    /// <summary>
+    ///     Pushes a commit to the default branch (main) of a project to make
+    ///     other branches diverge from it. Returns the new commit SHA.
+    /// </summary>
+    public string PushCommitToMain(int projectId, string message = "Push to main for divergence test")
+    {
+        var filePath = $"divergence-test-{DateTime.UtcNow:yyyyMMddHHmmss}.txt";
+        var request = new RestRequest(
+            $"/api/v4/projects/{projectId}/repository/files/{Uri.EscapeDataString(filePath)}",
+            Method.Post);
+
+        request.AddJsonBody(new
+        {
+            branch = "main",
+            content = $"Divergence test at {DateTime.UtcNow:O}",
+            commit_message = message
+        });
+
+        var response = _adminClient.Execute(request);
+        if (!response.IsSuccessful)
+        {
+            throw new InvalidOperationException(
+                $"Failed to push commit to main: {response.StatusCode} {response.Content}");
+        }
+
+        // Get the new main branch SHA
+        var sha = GetBranchHeadSha(projectId, "main");
+        Log.Information("Pushed commit to main in project {ProjectId}, new HEAD: {Sha}", projectId, sha[..8]);
+        return sha;
+    }
+
+    /// <summary>
+    ///     Closes an open merge request.
+    /// </summary>
+    public void CloseMergeRequest(int projectId, int mrIid)
+    {
+        var request = new RestRequest($"/api/v4/projects/{projectId}/merge_requests/{mrIid}", Method.Put);
+        request.AddJsonBody(new { state_event = "close" });
+
+        var response = _adminClient.Execute(request);
+        if (!response.IsSuccessful)
+        {
+            Log.Warning("Failed to close MR !{MrIid}: {Status}", mrIid, response.StatusCode);
+        }
+        else
+        {
+            Log.Information("Closed MR !{MrIid} in project {ProjectId}", mrIid, projectId);
+        }
+    }
 }

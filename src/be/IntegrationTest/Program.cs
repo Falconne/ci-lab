@@ -229,6 +229,31 @@ try
     {
         autoMergeTest.Dispose();
     }
+
+    // Test 7: Auto merge behavior (pipeline blocking, partial readiness, rebase, merge)
+    var autoMergeBehaviorTest = new AutoMergeBehaviorTest();
+    try
+    {
+        Log.Information("");
+        Log.Information("--- Test: Auto Merge Behavior ---");
+        await autoMergeBehaviorTest.Run();
+        results.Add(("Auto Merge Behavior", true, null));
+        Log.Information("PASS: Auto Merge Behavior");
+    }
+    catch (Exception ex)
+    {
+        results.Add(("Auto Merge Behavior", false, ex.Message));
+        Log.Error($"FAIL: Auto Merge Behavior - {ex.Message}");
+        allPassed = false;
+        if (abortOnFirstFailure)
+        {
+            throw;
+        }
+    }
+    finally
+    {
+        autoMergeBehaviorTest.Dispose();
+    }
 }
 catch (Exception ex)
 {
