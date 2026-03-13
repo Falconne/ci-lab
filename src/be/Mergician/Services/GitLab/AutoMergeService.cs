@@ -4,6 +4,8 @@ using Mergician.Services.Database;
 
 namespace Mergician.Services.GitLab;
 
+// TODO: move this class up one level into the Services namespace and update references.
+
 /// <summary>
 ///     Background service that monitors merge groups with auto merge or auto rebase enabled.
 ///     Runs a loop every 5 seconds to check and act on eligible merge groups:
