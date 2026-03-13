@@ -349,6 +349,114 @@ public class GitLabService
     }
 
     /// <summary>
+    ///     Returns true if the given branch has at least one file difference compared to the
+    ///     default branch. Returns true (assume diffs exist) on API errors to avoid
+    ///     incorrectly removing branches whose state cannot be determined.
+    /// </summary>
+    public async Task<bool> HasBranchDifferencesFromDefault(
+        AccessDetailsBase accessDetails,
+        int projectId,
+        string branchName,
+        string defaultBranch)
+    {
+        var encodedFrom = Uri.EscapeDataString(defaultBranch);
+        var encodedTo = Uri.EscapeDataString(branchName);
+        var operationName = $"HasBranchDifferencesFromDefault(projectId={projectId}, branch={branchName}, default={defaultBranch})";
+
+        try
+        {
+            var result = await _gitLabApiClient.ExecuteAsync<GitLabCompareResult>(
+                () => accessDetails.CreateRequest(
+                    HttpMethod.Get,
+                    $"projects/{projectId}/repository/compare?from={encodedFrom}&to={encodedTo}&straight=true"),
+                _jsonOptions,
+                operationName,
+                GitLabApiFailureBehavior.Throw);
+
+            if (result.CompareTimeout)
+            {
+                _logger.LogWarning(
+                    "Compare timed out for '{BranchName}' in project {ProjectId}; assuming diffs exist",
+                    branchName,
+                    projectId);
+
+                return true;
+            }
+
+            if (result.CompareSameRef)
+            {
+                _logger.LogDebug(
+                    "Branch '{BranchName}' in project {ProjectId} is the same ref as '{DefaultBranch}'",
+                    branchName,
+                    projectId,
+                    defaultBranch);
+
+                return false;
+            }
+
+            _logger.LogDebug(
+                "Branch '{BranchName}' in project {ProjectId} has {DiffCount} file diffs vs '{DefaultBranch}'",
+                branchName,
+                projectId,
+                result.Diffs.Count,
+                defaultBranch);
+
+            return result.Diffs.Count > 0;
+        }
+        catch (GitLabUnexpectedResponseException ex)
+        {
+            _logger.LogError(
+                "HasBranchDifferencesFromDefault failed for '{BranchName}' in project {ProjectId} (status {StatusCode}); assuming diffs exist",
+                branchName,
+                projectId,
+                (int)ex.StatusCode);
+
+            return true;
+        }
+    }
+
+    /// <summary>
+    ///     Returns true if the given branch has at least one merge request in the "merged" state
+    ///     targeting <paramref name="targetBranch" />. Used to detect branches that were merged
+    ///     without a prior rebase (where <see cref="HasBranchDifferencesFromDefault" /> would
+    ///     still return true despite the work being done).
+    /// </summary>
+    public async Task<bool> HasMergedMergeRequest(
+        AccessDetailsBase accessDetails,
+        int projectId,
+        string sourceBranch,
+        string targetBranch)
+    {
+        var encodedSource = Uri.EscapeDataString(sourceBranch);
+        var encodedTarget = Uri.EscapeDataString(targetBranch);
+        var operationName =
+            $"HasMergedMergeRequest(projectId={projectId}, sourceBranch={sourceBranch}, targetBranch={targetBranch})";
+
+        try
+        {
+            var results = await _gitLabApiClient.ExecuteAsync<List<GitLabMergeRequest>>(
+                () => accessDetails.CreateRequest(
+                    HttpMethod.Get,
+                    $"projects/{projectId}/merge_requests?source_branch={encodedSource}&target_branch={encodedTarget}&state=merged&per_page=1"),
+                _jsonOptions,
+                operationName,
+                GitLabApiFailureBehavior.Throw);
+
+            return results.Count > 0;
+        }
+        catch (GitLabUnexpectedResponseException ex)
+        {
+            _logger.LogError(
+                "HasMergedMergeRequest failed with status {StatusCode} for project {ProjectId}, branch '{BranchName}'",
+                (int)ex.StatusCode,
+                projectId,
+                sourceBranch);
+
+            return false;
+        }
+    }
+
+    /// <summary>
     ///     Gets the approval state for a merge request.
     /// </summary>
     public async Task<GitLabApprovalState?> GetMergeRequestApprovals(

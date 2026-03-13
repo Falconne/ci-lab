@@ -260,7 +260,8 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
     }
 
     /// <summary>
-    ///     Checks all tracked branches for a user and removes any that have been deleted from GitLab.
+    ///     Checks all tracked branches for a user and removes any that have been deleted from GitLab
+    ///     or have no remaining file differences from the project's default branch.
     ///     Called by the background sync thread during each poll cycle.
     /// </summary>
     private async Task CleanupDeletedBranches(
@@ -271,30 +272,18 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
         var userGroups = _mergeGroupRepository.GetMergeGroupsForUser(gitLabUserId);
         var userBranches = userGroups.SelectMany(g => g.Branches).ToList();
         _logger.LogDebug(
-            "Checking {Count} tracked branches for user {UserId} for deletion",
+            "Checking {Count} tracked branches for user {UserId} for deletion or no-diff status",
             userBranches.Count,
             gitLabUserId);
 
         foreach (var branch in userBranches)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            var lookup = await _gitLabService.GetBranchLookupResult(
+            await _deadBranchesService.ShouldRemoveAsInactiveOrMissing(
                 accessDetails,
-                branch.ProjectId,
-                branch.BranchName);
-
-            if (lookup.Exists)
-            {
-                continue;
-            }
-
-            _logger.LogInformation(
-                "Background sync: branch '{BranchName}' in project {ProjectId} no longer exists or is in error state, removing",
                 branch.BranchName,
-                branch.ProjectId);
-
-            _deadBranchesService.RemoveBranchAndCleanup(branch.Id);
+                branch.ProjectId,
+                branch.Id,
+                cancellationToken);
         }
     }
 

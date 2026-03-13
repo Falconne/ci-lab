@@ -28,11 +28,20 @@
           {{ errorMessage }}
         </v-alert>
 
+        <v-alert
+          v-if="mergeGroupGone"
+          type="success"
+          variant="tonal"
+          class="mb-4"
+        >
+          Merge group has been merged or removed.
+        </v-alert>
+
         <div v-if="initialLoading" class="text-center pa-8">
           <p class="text-body-1 text-grey">Loading merge group details...</p>
         </div>
 
-        <template v-else>
+        <template v-else-if="!mergeGroupGone">
           <!-- Summary: merge group name + overall status -->
           <div class="merge-group-header mb-5">
             <div class="d-flex align-center flex-wrap ga-3">
@@ -240,6 +249,7 @@ const mergeGroupName = ref('')
 const initialLoading = ref(true)
 const initialPhase = ref(false)
 const errorMessage = ref('')
+const mergeGroupGone = ref(false)
 const autoMerge = ref(false)
 const autoRebase = ref(false)
 const autoMergeWarning = ref<string | null>(null)
@@ -448,7 +458,8 @@ async function pollMergeGroup() {
     }
 
     if (response.status === 404) {
-      errorMessage.value = 'Merge group not found.'
+      mergeGroupGone.value = true
+      initialLoading.value = false
       stopPolling()
       return
     }

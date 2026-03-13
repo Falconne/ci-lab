@@ -16,6 +16,8 @@ public class CleanupService : IHostedService, IDisposable
     private static readonly TimeZoneInfo _nzTimeZone =
         TimeZoneInfo.FindSystemTimeZoneById("Pacific/Auckland");
 
+    private readonly DeadBranchesService _deadBranchesService;
+
     private readonly ILogger<CleanupService> _logger;
 
     private readonly IServiceProvider _serviceProvider;
@@ -24,9 +26,13 @@ public class CleanupService : IHostedService, IDisposable
 
     private Timer? _timer;
 
-    public CleanupService(IServiceProvider serviceProvider, ILogger<CleanupService> logger)
+    public CleanupService(
+        IServiceProvider serviceProvider,
+        DeadBranchesService deadBranchesService,
+        ILogger<CleanupService> logger)
     {
         _serviceProvider = serviceProvider;
+        _deadBranchesService = deadBranchesService;
         _logger = logger;
     }
 
@@ -95,14 +101,13 @@ public class CleanupService : IHostedService, IDisposable
 
         using var scope = _serviceProvider.CreateScope();
         var mergeGroupRepository = scope.ServiceProvider.GetRequiredService<IMergeGroupRepository>();
-        var gitLabService = scope.ServiceProvider.GetRequiredService<GitLabService>();
         var userFactory = scope.ServiceProvider.GetRequiredService<GitLabUserFactory>();
 
         var serviceUser = userFactory.GetServiceUser();
         var allBranches = mergeGroupRepository.GetAllBranches();
         _logger.LogInformation("CleanupService checking {Count} tracked branches", allBranches.Count);
 
-        var deletedCount = 0;
+        var removedCount = 0;
 
         foreach (var branch in allBranches)
         {
@@ -111,46 +116,20 @@ public class CleanupService : IHostedService, IDisposable
                 break;
             }
 
-            var branchLookup = await gitLabService.GetBranchLookupResult(
+            var removed = await _deadBranchesService.ShouldRemoveAsInactiveOrMissing(
                 serviceUser,
+                branch.BranchName,
                 branch.ProjectId,
-                branch.BranchName);
+                branch.Id,
+                stoppingToken);
 
-            if (branchLookup.IsMissing)
+            if (removed)
             {
-                _logger.LogInformation(
-                    "CleanupService: branch '{BranchName}' in project {ProjectId} no longer exists, removing",
-                    branch.BranchName,
-                    branch.ProjectId);
-
-                mergeGroupRepository.RemoveBranch(branch.Id);
-                deletedCount++;
-            }
-            else if (branchLookup.IsUnavailable)
-            {
-                _logger.LogError(
-                    "CleanupService: branch lookup unavailable for '{BranchName}' in project {ProjectId}; skipping deletion this cycle",
-                    branch.BranchName,
-                    branch.ProjectId);
+                removedCount++;
             }
         }
 
-        // Clean up any empty merge groups
-        var emptyGroups = mergeGroupRepository.GetEmptyMergeGroups();
-        foreach (var group in emptyGroups)
-        {
-            _logger.LogInformation(
-                "CleanupService: removing empty merge group {MergeGroupId} '{Name}'",
-                group.Id,
-                group.Name);
-
-            mergeGroupRepository.RemoveMergeGroup(group.Id);
-        }
-
-        _logger.LogInformation(
-            "CleanupService completed: removed {DeletedBranches} branches, {EmptyGroups} empty merge groups",
-            deletedCount,
-            emptyGroups.Count);
+        _logger.LogInformation("CleanupService completed: removed {RemovedBranches} branches", removedCount);
     }
 
     // ReSharper disable once InconsistentNaming

@@ -388,7 +388,7 @@ public class AutoMergeService : BackgroundService
 
         // Check merge status from GitLab
         if (mr.DetailedMergeStatus is "not_open" or "blocked_status" or "ci_must_pass"
-            or "discussions_not_resolved" or "draft_status" or "conflict")
+            or "ci_still_running" or "discussions_not_resolved" or "draft_status" or "conflict")
         {
             reasons.Add($"{branchLabel}: merge status is '{mr.DetailedMergeStatus}'");
             ready = false;

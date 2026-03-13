@@ -26,6 +26,113 @@ public class DeadBranchesService
     }
 
     /// <summary>
+    ///     Checks if a branch should be removed because it is missing from GitLab, has no file
+    ///     differences from the project's default branch (squash-merged or no work), or has a
+    ///     merged MR with no corresponding open MR (standard merge where branch is behind default).
+    ///     If the branch should be removed, removes it from the database and cleans up empty merge groups.
+    ///     Returns true if the branch was removed or should be skipped; false if it has changes and should be kept.
+    /// </summary>
+    public async Task<bool> ShouldRemoveAsInactiveOrMissing(
+        AccessDetailsBase accessDetails,
+        string branchName,
+        int projectId,
+        int trackedBranchInProjectId,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var lookup = await _gitLabService.GetBranchLookupResult(accessDetails, projectId, branchName);
+
+        if (lookup.IsMissing)
+        {
+            _logger.LogInformation(
+                "Branch '{BranchName}' in project {ProjectId} no longer exists, removing",
+                branchName,
+                projectId);
+
+            RemoveBranchAndCleanup(trackedBranchInProjectId);
+            return true;
+        }
+
+        if (lookup.IsUnavailable)
+        {
+            _logger.LogError(
+                "Branch lookup unavailable for '{BranchName}' in project {ProjectId}; skipping this cycle",
+                branchName,
+                projectId);
+
+            return true;
+        }
+
+        var project = await _gitLabService.GetProject(accessDetails, projectId);
+        if (project == null)
+        {
+            _logger.LogWarning(
+                "Cannot check diffs for branch '{BranchName}' in project {ProjectId}: project not found; skipping",
+                branchName,
+                projectId);
+
+            return true;
+        }
+
+        if (string.IsNullOrEmpty(project.DefaultBranch))
+        {
+            _logger.LogWarning(
+                "Cannot check diffs for branch '{BranchName}' in project {ProjectId}: project has no default branch; skipping",
+                branchName,
+                projectId);
+
+            return true;
+        }
+
+        var hasDiffs = await _gitLabService.HasBranchDifferencesFromDefault(
+            accessDetails,
+            projectId,
+            branchName,
+            project.DefaultBranch);
+
+        if (!hasDiffs)
+        {
+            _logger.LogInformation(
+                "Branch '{BranchName}' in project {ProjectId} has no differences from '{DefaultBranch}'; treating as merged and removing",
+                branchName,
+                projectId,
+                project.DefaultBranch);
+
+            RemoveBranchAndCleanup(trackedBranchInProjectId);
+            return true;
+        }
+
+        // Diffs exist but the branch may have been merged without a prior rebase (i.e. the branch
+        // was behind the default branch at merge time so the default branch still has commits the
+        // branch tip doesn't include). Only remove if there is no open MR — an open MR means the
+        // branch is still being actively worked on.
+        var openMrs = await _gitLabService.GetMergeRequests(accessDetails, projectId, branchName);
+        if (openMrs.Count == 0)
+        {
+            var hasMergedMr = await _gitLabService.HasMergedMergeRequest(
+                accessDetails,
+                projectId,
+                branchName,
+                project.DefaultBranch);
+
+            if (hasMergedMr)
+            {
+                _logger.LogInformation(
+                    "Branch '{BranchName}' in project {ProjectId} has diffs from '{DefaultBranch}' but its MR has been merged and there are no open MRs; removing",
+                    branchName,
+                    projectId,
+                    project.DefaultBranch);
+
+                RemoveBranchAndCleanup(trackedBranchInProjectId);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
     ///     Checks if a branch should be skipped by looking it up in GitLab.
     ///     If the branch no longer exists and a tracked record ID is provided, removes it from the DB.
     ///     Returns true if the branch should be skipped.

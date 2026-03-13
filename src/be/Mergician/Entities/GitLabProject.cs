@@ -13,4 +13,7 @@ public class GitLabProject
 
     [JsonPropertyName("web_url")]
     public string WebUrl { get; set; } = "";
+
+    [JsonPropertyName("default_branch")]
+    public string DefaultBranch { get; set; } = "main";
 }

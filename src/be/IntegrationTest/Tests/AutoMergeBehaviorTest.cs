@@ -72,9 +72,11 @@ public class AutoMergeBehaviorTest : IDisposable
             _gitLab.CreateBranchWithCommit(projectId2, branchName, "test1");
 
             mrIid1 = _gitLab.CreateMergeRequest(projectId1, branchName, "test1",
-                $"Auto merge test - primary-1 ({timestamp})");
+                $"Auto merge test - primary-1 ({timestamp})",
+                shouldDeleteSourceBranch: false);
             mrIid2 = _gitLab.CreateMergeRequest(projectId2, branchName, "test1",
-                $"Auto merge test - secondary-1 ({timestamp})");
+                $"Auto merge test - secondary-1 ({timestamp})",
+                shouldDeleteSourceBranch: false);
 
             Log.Information(
                 "Created MRs: project {P1} MR !{Mr1}, project {P2} MR !{Mr2}",
@@ -341,7 +343,15 @@ public class AutoMergeBehaviorTest : IDisposable
     {
         Log.Information("--- Scenario 4: All conditions met - merge should happen ---");
 
-        // Ensure both branches have successful pipeline statuses on their current HEAD
+        // Wait for TeamCity to finish any builds triggered by the rebase in Scenario 3.
+        // The rebase creates new commit SHAs, which trigger new ~2-minute TeamCity builds.
+        // AutoMergeService won't merge while ci_still_running, so we must wait here.
+        Log.Information("Waiting for CI to stabilize on both MRs after rebase before setting success...");
+        await WaitForCiStabilization(projectId1, mrIid1, "primary-1");
+        await WaitForCiStabilization(projectId2, mrIid2, "secondary-1");
+
+        // Ensure both branches have successful pipeline statuses on their current HEAD.
+        // Read SHAs after the rebase to post status on the correct commit.
         var sha1 = _gitLab.GetBranchHeadSha(projectId1, branchName);
         var sha2 = _gitLab.GetBranchHeadSha(projectId2, branchName);
 
@@ -354,9 +364,8 @@ public class AutoMergeBehaviorTest : IDisposable
             sha2[..8]);
 
         // Wait for AutoMergeService to detect readiness and merge.
-        // Allow up to 180s because TeamCity may need to finish building new commits
-        // (e.g. after a rebase in scenario 3 created new SHAs).
-        const int maxChecks = 36;
+        // CI has already stabilized so 60s should be plenty.
+        const int maxChecks = 18;
         Log.Information("Waiting for AutoMergeService to merge both MRs (up to {Timeout}s)...", maxChecks * 5);
 
         var merged = false;
@@ -408,9 +417,32 @@ public class AutoMergeBehaviorTest : IDisposable
 
         Log.Information("Scenario 4 PASSED: Both MRs were successfully merged by AutoMergeService");
 
+        // Navigate back to dashboard and wait for the merge group to disappear.
+        // shouldDeleteSourceBranch=false so the branches remain in GitLab after merge.
+        // The background sync detects they have no diffs from the default branch (via the
+        // Compare API) and removes them from the database, causing the card to vanish.
+        // This path is faster and more deterministic than waiting for GitLab's async branch deletion.
         await _browser.Navigate(TestConfig.MergicianUrl);
         await Task.Delay(3000);
         await _browser.TakeScreenshot("behavior_07_dashboard_after_merge");
+
+        Log.Information(
+            "Waiting for merge group '{BranchName}' to disappear from dashboard (no-diff detection)...",
+            branchName);
+
+        var disappeared = await WaitForBranchToDisappearFromDashboard(branchName, 90);
+
+        await _browser.TakeScreenshot("behavior_08_dashboard_merge_group_gone");
+
+        if (!disappeared)
+        {
+            throw new InvalidOperationException(
+                $"Scenario 4: Merge group for '{branchName}' did not disappear from dashboard within timeout " +
+                "after successful merge (no-diff detection path)");
+        }
+
+        Log.Information(
+            "Scenario 4 PASSED: Merge group disappeared from dashboard after successful merge");
     }
 
     /// <summary>
@@ -596,6 +628,48 @@ public class AutoMergeBehaviorTest : IDisposable
             if (i % 10 == 0)
             {
                 Log.Information("Waiting for branch '{BranchName}' to appear on dashboard... {Seconds}s", branchName, i);
+            }
+
+            await Task.Delay(1000);
+        }
+
+        return false;
+    }
+
+    private async Task<bool> WaitForBranchToDisappearFromDashboard(string branchName, int timeoutSeconds)
+    {
+        for (var i = 0; i < timeoutSeconds; i++)
+        {
+            var cards = _browser.Page.Locator(".merge-group-card");
+            var count = await cards.CountAsync();
+            var found = false;
+
+            for (var j = 0; j < count; j++)
+            {
+                var name = (await cards.Nth(j).Locator(".branch-name").InnerTextAsync()).Trim();
+                if (name.Contains(branchName, StringComparison.OrdinalIgnoreCase))
+                {
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found)
+            {
+                Log.Information(
+                    "Branch '{BranchName}' disappeared from dashboard after ~{Seconds}s",
+                    branchName,
+                    i);
+
+                return true;
+            }
+
+            if (i % 10 == 0 && i > 0)
+            {
+                Log.Information(
+                    "Waiting for branch '{BranchName}' to disappear from dashboard... {Seconds}s",
+                    branchName,
+                    i);
             }
 
             await Task.Delay(1000);
