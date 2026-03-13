@@ -3,6 +3,9 @@ using Mergician.Services.Database;
 
 namespace Mergician.Services.GitLab;
 
+// TODO: move this class up one level into the Services dir and update namespace references.
+
+
 /// <summary>
 ///     Provides helper methods for deciding whether a branch should be skipped
 ///     during sync or processing, and for removing stale branch records from the database.

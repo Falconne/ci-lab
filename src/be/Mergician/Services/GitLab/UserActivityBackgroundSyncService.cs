@@ -5,6 +5,8 @@ using System.Collections.Concurrent;
 
 namespace Mergician.Services.GitLab;
 
+// TODO: move this class up one level into the Services dir and update namespace references.
+
 /// <summary>
 ///     Manages per-user background sync threads that keep the database up-to-date
 ///     with each user's GitLab push activity. A sync thread is started the first time

@@ -2,6 +2,8 @@ using Mergician.Services.Authentication;
 
 namespace Mergician.Services.GitLab;
 
+// TODO: move this class up one level into the Services dir and update namespace references.
+
 /// <summary>
 ///     Thread-safe context tracking a single user's background activity sync state.
 ///     Stores the user's latest access token (updated on each request) and the timestamp

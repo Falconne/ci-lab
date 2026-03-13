@@ -4,7 +4,7 @@ using Mergician.Services.Database;
 
 namespace Mergician.Services.GitLab;
 
-// TODO: move this class up one level into the Services namespace and update references.
+// TODO: move this class up one level into the Services dir and update namespace references.
 
 /// <summary>
 ///     Background service that monitors merge groups with auto merge or auto rebase enabled.
