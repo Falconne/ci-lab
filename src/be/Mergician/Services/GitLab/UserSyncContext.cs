@@ -1,5 +1,4 @@
 using Mergician.Services.Authentication;
-using System.Threading;
 
 namespace Mergician.Services.GitLab;
 

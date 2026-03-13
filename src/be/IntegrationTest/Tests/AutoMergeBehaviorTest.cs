@@ -752,8 +752,10 @@ public class AutoMergeBehaviorTest : IDisposable
         Log.Information("Cleaning up test data for branch '{BranchName}'...", branchName);
         try
         {
-            if (mrIid1 > 0) _gitLab.CloseMergeRequest(projectId1, mrIid1);
-            if (mrIid2 > 0) _gitLab.CloseMergeRequest(projectId2, mrIid2);
+            if (mrIid1 > 0)
+                _gitLab.CloseMergeRequest(projectId1, mrIid1);
+            if (mrIid2 > 0)
+                _gitLab.CloseMergeRequest(projectId2, mrIid2);
             _gitLab.DeleteBranch(projectId1, branchName);
             _gitLab.DeleteBranch(projectId2, branchName);
         }

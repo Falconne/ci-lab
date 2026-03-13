@@ -70,7 +70,9 @@ public class MergeGroupController : ControllerBase
     ///     Returns 404 if the merge group does not exist.
     /// </summary>
     [HttpPut("{mergeGroupId:int}/settings")]
-    public ActionResult<MergeGroup> UpdateSettings(int mergeGroupId, [FromBody] UpdateAutoMergeSettingsRequest request)
+    public ActionResult<MergeGroup> UpdateSettings(
+        int mergeGroupId,
+        [FromBody] UpdateAutoMergeSettingsRequest request)
     {
         var currentUser = HttpContext.GetGitLabUser();
 

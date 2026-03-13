@@ -1,5 +1,3 @@
-using System.Threading;
-
 namespace Mergician.Services.GitLab;
 
 /// <summary>
