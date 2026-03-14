@@ -1,7 +1,7 @@
 namespace Mergician.Entities;
 
 /// <summary>
-///     Represents one build/external job status for a branch.
+///     Represents one build job status for a branch.
 /// </summary>
 public record BranchBuildJob(
     string Name,

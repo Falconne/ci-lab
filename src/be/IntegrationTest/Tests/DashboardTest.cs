@@ -603,10 +603,10 @@ public class DashboardTest : IDisposable
                 $"Details page MR title should not be truncated, but got '{mrText}'");
         }
 
-        var externalJobsSection = repoCard.Locator("text=External Jobs:");
+        var externalJobsSection = repoCard.Locator("text=Build Jobs:");
         if (!await BrowserService.WaitForElement(externalJobsSection, timeoutMs: 10000))
         {
-            throw new InvalidOperationException("External Jobs section was not visible on details page");
+            throw new InvalidOperationException("Build Jobs section was not visible on details page");
         }
 
         await _browser.TakeScreenshot("dashboard_details_01b_data_loaded");

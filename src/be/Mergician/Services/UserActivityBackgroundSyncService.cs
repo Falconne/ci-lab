@@ -569,7 +569,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             }
         }
 
-        var buildJobs = await _gitLabPipelineService.GetLatestExternalJobsForBranch(
+        var buildJobs = await _gitLabPipelineService.GetLatestBuildJobsForBranch(
             accessDetails,
             branch.ProjectId,
             branch.BranchName,

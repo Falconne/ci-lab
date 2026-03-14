@@ -163,7 +163,7 @@
                 </div>
 
                 <div class="detail-row align-start">
-                  <span class="detail-label">External Jobs:</span>
+                  <span class="detail-label">Build Jobs:</span>
                   <span class="detail-value">
                     <div v-if="item.buildJobs && item.buildJobs.length > 0" class="jobs-list">
                       <v-chip
@@ -186,7 +186,7 @@
                         <span v-else>{{ job.name }}</span>
                       </v-chip>
                     </div>
-                    <span v-else-if="item.hasMergeRequest != null" class="text-medium-emphasis">No external jobs on latest pipeline</span>
+                    <span v-else-if="item.hasMergeRequest != null" class="text-medium-emphasis">No jobs on latest pipeline</span>
                     <span v-else class="skeleton-detail"><span class="skeleton-shimmer" /></span>
                   </span>
                 </div>
