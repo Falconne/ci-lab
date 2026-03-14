@@ -320,69 +320,6 @@ public class GitLabService
     }
 
     /// <summary>
-    ///     Returns true if the given branch has at least one file difference compared to the
-    ///     default branch. Returns true (assume diffs exist) on API errors to avoid
-    ///     incorrectly removing branches whose state cannot be determined.
-    /// </summary>
-    public async Task<bool> HasBranchDifferencesFromDefault(
-        AccessDetailsBase accessDetails,
-        int projectId,
-        string branchName,
-        string defaultBranch)
-    {
-        var encodedFrom = Uri.EscapeDataString(defaultBranch);
-        var encodedTo = Uri.EscapeDataString(branchName);
-
-        try
-        {
-            var result = await _gitLabApiClient.ExecuteAsync<GitLabCompareResult>(() =>
-                accessDetails.CreateRequest(
-                    HttpMethod.Get,
-                    $"projects/{projectId}/repository/compare?from={encodedFrom}&to={encodedTo}&straight=true"));
-
-            if (result.CompareTimeout)
-            {
-                _logger.LogWarning(
-                    "Compare timed out for '{BranchName}' in project {ProjectId}; assuming diffs exist",
-                    branchName,
-                    projectId);
-
-                return true;
-            }
-
-            if (result.CompareSameRef)
-            {
-                _logger.LogDebug(
-                    "Branch '{BranchName}' in project {ProjectId} is the same ref as '{DefaultBranch}'",
-                    branchName,
-                    projectId,
-                    defaultBranch);
-
-                return false;
-            }
-
-            _logger.LogDebug(
-                "Branch '{BranchName}' in project {ProjectId} has {DiffCount} file diffs vs '{DefaultBranch}'",
-                branchName,
-                projectId,
-                result.Diffs.Count,
-                defaultBranch);
-
-            return result.Diffs.Count > 0;
-        }
-        catch (GitLabUnexpectedResponseException ex)
-        {
-            _logger.LogError(
-                "HasBranchDifferencesFromDefault failed for '{BranchName}' in project {ProjectId} (status {StatusCode}); assuming diffs exist",
-                branchName,
-                projectId,
-                (int)ex.StatusCode);
-
-            return true;
-        }
-    }
-
-    /// <summary>
     ///     Gets the approval state for a merge request.
     /// </summary>
     public async Task<GitLabApprovalState?> GetMergeRequestApprovals(

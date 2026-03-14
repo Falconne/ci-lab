@@ -92,24 +92,6 @@ public class DeadBranchesService
             return true;
         }
 
-        var hasDiffs = await _gitLabService.HasBranchDifferencesFromDefault(
-            accessDetails,
-            projectId,
-            branchName,
-            project.DefaultBranch);
-
-        if (!hasDiffs)
-        {
-            _logger.LogInformation(
-                "Branch '{BranchName}' in project {ProjectId} has no differences from '{DefaultBranch}'; treating as merged and removing",
-                branchName,
-                projectId,
-                project.DefaultBranch);
-
-            RemoveBranchAndCleanup(trackedBranchInProjectId);
-            return true;
-        }
-
         return false;
     }
 
