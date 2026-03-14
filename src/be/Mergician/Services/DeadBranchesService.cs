@@ -8,10 +8,13 @@ namespace Mergician.Services;
 /// <summary>
 ///     Provides helper methods for deciding whether a branch should be skipped
 ///     during sync or processing, and for removing stale branch records from the database.
+///     Always uses the GitLab service user for API access.
 /// </summary>
 public class DeadBranchesService
 {
     private readonly GitLabService _gitLabService;
+
+    private readonly GitLabUserFactory _userFactory;
 
     private readonly ILogger<DeadBranchesService> _logger;
 
@@ -19,10 +22,12 @@ public class DeadBranchesService
 
     public DeadBranchesService(
         GitLabService gitLabService,
+        GitLabUserFactory userFactory,
         IMergeGroupRepository mergeGroupRepository,
         ILogger<DeadBranchesService> logger)
     {
         _gitLabService = gitLabService;
+        _userFactory = userFactory;
         _mergeGroupRepository = mergeGroupRepository;
         _logger = logger;
     }
@@ -35,14 +40,12 @@ public class DeadBranchesService
     ///     Returns true if the branch was removed or should be skipped; false if it has changes and should be kept.
     /// </summary>
     public async Task<bool> ShouldRemoveAsInactiveOrMissing(
-        AccessDetailsBase accessDetails,
         string branchName,
         int projectId,
         int trackedBranchInProjectId,
         CancellationToken cancellationToken)
     {
-        // TODO: No need to take in a AccessDetailsBase here. Just make this service always use the Gitlab
-        // service user.
+        var accessDetails = _userFactory.GetServiceUser();
 
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -143,13 +146,14 @@ public class DeadBranchesService
     ///     Returns true if the branch should be skipped.
     /// </summary>
     public async Task<bool> ShouldSkipByLookup(
-        AccessDetailsBase accessDetails,
         string branchName,
         int projectId,
         int? trackedBranchInProjectId,
         string operationName,
         CancellationToken cancellationToken)
     {
+        var accessDetails = _userFactory.GetServiceUser();
+
         cancellationToken.ThrowIfCancellationRequested();
 
         var branchLookup = await _gitLabService.GetBranchLookupResult(

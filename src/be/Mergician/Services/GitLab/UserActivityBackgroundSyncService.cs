@@ -281,7 +281,6 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
         foreach (var branch in userBranches)
         {
             await _deadBranchesService.ShouldRemoveAsInactiveOrMissing(
-                accessDetails,
                 branch.BranchName,
                 branch.ProjectId,
                 branch.Id,
@@ -333,7 +332,6 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             }
 
             if (await _deadBranchesService.ShouldSkipByLookup(
-                    accessDetails,
                     pushEvent.BranchName,
                     pushEvent.ProjectId,
                     null,

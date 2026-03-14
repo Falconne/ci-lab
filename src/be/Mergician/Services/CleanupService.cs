@@ -1,4 +1,3 @@
-using Mergician.Services.Authentication;
 using Mergician.Services.Database;
 using Mergician.Services.GitLab;
 
@@ -101,9 +100,7 @@ public class CleanupService : IHostedService, IDisposable
 
         using var scope = _serviceProvider.CreateScope();
         var mergeGroupRepository = scope.ServiceProvider.GetRequiredService<IMergeGroupRepository>();
-        var userFactory = scope.ServiceProvider.GetRequiredService<GitLabUserFactory>();
 
-        var serviceUser = userFactory.GetServiceUser();
         var allBranches = mergeGroupRepository.GetAllBranches();
         _logger.LogInformation("CleanupService checking {Count} tracked branches", allBranches.Count);
 
@@ -117,7 +114,6 @@ public class CleanupService : IHostedService, IDisposable
             }
 
             var removed = await _deadBranchesService.ShouldRemoveAsInactiveOrMissing(
-                serviceUser,
                 branch.BranchName,
                 branch.ProjectId,
                 branch.Id,
