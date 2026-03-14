@@ -54,6 +54,7 @@ try
         });
 
     builder.Services.AddHttpContextAccessor();
+    builder.Services.AddSingleton<ExternalServiceRateLimiter>();
     builder.Services.AddSingleton<GitLabOAuthService>();
     builder.Services.AddSingleton<GitLabApiClient>();
     builder.Services.AddSingleton<CacheService<int, GitLabProject>>();

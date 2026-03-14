@@ -36,6 +36,8 @@ public class GitLabApiClient
 
     private readonly ILogger<GitLabApiClient> _logger;
 
+    private readonly ExternalServiceRateLimiter _rateLimiter;
+
     private readonly GitLabUserFactory _userFactory;
 
     public GitLabApiClient(
@@ -43,12 +45,14 @@ public class GitLabApiClient
         GitLabRecoveryService gitLabRecoveryService,
         HealthService healthService,
         GitLabUserFactory userFactory,
+        ExternalServiceRateLimiter rateLimiter,
         ILogger<GitLabApiClient> logger)
     {
         _httpClientFactory = httpClientFactory;
         _gitLabRecoveryService = gitLabRecoveryService;
         _healthService = healthService;
         _userFactory = userFactory;
+        _rateLimiter = rateLimiter;
         _logger = logger;
     }
 
@@ -218,6 +222,7 @@ public class GitLabApiClient
                 using var request = requestFactory();
                 operationName ??= GenerateOperationName(request);
 
+                await _rateLimiter.WaitAsync(cancellationToken);
                 using var response = await client.SendAsync(request, cancellationToken);
 
                 if (!response.IsSuccessStatusCode)
