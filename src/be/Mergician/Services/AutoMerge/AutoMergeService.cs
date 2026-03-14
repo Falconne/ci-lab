@@ -344,14 +344,13 @@ public class AutoMergeService : BackgroundService
         }
 
         // Check pipelines
-        var pipelines = await _apiService.GetMergeRequestPipelines(
+        var latestPipeline = await _apiService.GetLatestMergeRequestPipeline(
             serviceUser,
             branch.ProjectId,
             mr.Iid);
 
-        if (pipelines.Count > 0)
+        if (latestPipeline != null)
         {
-            var latestPipeline = pipelines[0];
             if (latestPipeline.Status != "success")
             {
                 reasons.Add($"{branchLabel}: latest pipeline status is '{latestPipeline.Status}'");

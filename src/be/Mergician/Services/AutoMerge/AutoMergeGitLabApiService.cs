@@ -61,35 +61,36 @@ public class AutoMergeGitLabApiService
     }
 
     /// <summary>
-    ///     Fetches the latest pipelines for a merge request.
+    ///     Fetches the latest pipeline for a merge request, or null if none exists.
     /// </summary>
-    public async Task<List<GitLabPipelineDetail>> GetMergeRequestPipelines(
+    public async Task<GitLabPipelineDetail?> GetLatestMergeRequestPipeline(
         AccessDetailsBase accessDetails,
         int projectId,
         int mergeRequestIid)
     {
-        // TODO: This method should only return the latest pipeline, change it to do so and rename accordingly.
-        var operationName = $"GetMergeRequestPipelines(projectId={projectId}, mrIid={mergeRequestIid})";
+        var operationName = $"GetLatestMergeRequestPipeline(projectId={projectId}, mrIid={mergeRequestIid})";
 
         try
         {
-            return await _gitLabApiClient.ExecuteAsync<List<GitLabPipelineDetail>>(
+            var pipelines = await _gitLabApiClient.ExecuteAsync<List<GitLabPipelineDetail>>(
                 () => accessDetails.CreateRequest(
                     HttpMethod.Get,
                     $"projects/{projectId}/merge_requests/{mergeRequestIid}/pipelines?per_page=1&sort=desc"),
                 _jsonOptions,
                 operationName,
                 GitLabApiFailureBehavior.Throw);
+
+            return pipelines.FirstOrDefault();
         }
         catch (GitLabUnexpectedResponseException ex)
         {
             _logger.LogError(
-                "GetMergeRequestPipelines failed with status {StatusCode} for project {ProjectId}, MR {MrIid}",
+                "GetLatestMergeRequestPipeline failed with status {StatusCode} for project {ProjectId}, MR {MrIid}",
                 (int)ex.StatusCode,
                 projectId,
                 mergeRequestIid);
 
-            return [];
+            return null;
         }
     }
 
