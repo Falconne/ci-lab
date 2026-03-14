@@ -265,15 +265,15 @@ public class GitLabTestHelper
     ///     Sets an external pipeline status on a commit via the GitLab Commit Statuses API.
     ///     This creates or updates a pipeline status that affects merge readiness.
     /// </summary>
-    public void SetCommitStatus(int projectId, string sha, string state, string pipelineName = "integration-test")
+    public void SetCommitStatus(
+        int projectId,
+        string sha,
+        string state,
+        string pipelineName = "integration-test")
     {
         var request = new RestRequest($"/api/v4/projects/{projectId}/statuses/{sha}", Method.Post);
-        request.AddJsonBody(new
-        {
-            state,
-            name = pipelineName,
-            description = $"Integration test pipeline: {state}"
-        });
+        request.AddJsonBody(
+            new { state, name = pipelineName, description = $"Integration test pipeline: {state}" });
 
         var response = _adminClient.Execute(request);
         if (!response.IsSuccessful)
@@ -317,12 +317,13 @@ public class GitLabTestHelper
             $"/api/v4/projects/{projectId}/repository/files/{Uri.EscapeDataString(filePath)}",
             Method.Post);
 
-        request.AddJsonBody(new
-        {
-            branch = "main",
-            content = $"Divergence test at {DateTime.UtcNow:O}",
-            commit_message = message
-        });
+        request.AddJsonBody(
+            new
+            {
+                branch = "main",
+                content = $"Divergence test at {DateTime.UtcNow:O}",
+                commit_message = message
+            });
 
         var response = _adminClient.Execute(request);
         if (!response.IsSuccessful)

@@ -9,9 +9,9 @@ namespace Mergician.Services;
 /// </summary>
 public class UserSyncContext
 {
-    public readonly object StartLock = new();
-
     private readonly ReaderWriterLockSlim _accessUserLock = new(LockRecursionPolicy.NoRecursion);
+
+    public readonly object StartLock = new();
 
     private AccessDetailsBase? _accessUser;
 

@@ -14,15 +14,14 @@ namespace Mergician.Services.AutoMerge;
 public class AutoMergeService : BackgroundService
 {
     private static readonly TimeSpan _pollInterval = TimeSpan.FromSeconds(5);
+
     private static readonly TimeSpan _rebaseCheckDelay = TimeSpan.FromSeconds(5);
 
     private readonly AutoMergeGitLabApiService _apiService;
 
-    private readonly GitLabService _gitLabService;
-
     private readonly GitLabRecoveryService _gitLabRecoveryService;
 
-    private readonly GitLabUserFactory _userFactory;
+    private readonly GitLabService _gitLabService;
 
     private readonly HealthService _healthService;
 
@@ -31,6 +30,8 @@ public class AutoMergeService : BackgroundService
     private readonly IMergeGroupRepository _mergeGroupRepository;
 
     private readonly MergicianSettings _settings;
+
+    private readonly GitLabUserFactory _userFactory;
 
     public AutoMergeService(
         AutoMergeGitLabApiService apiService,
@@ -96,7 +97,9 @@ public class AutoMergeService : BackgroundService
             return;
         }
 
-        _logger.LogDebug("AutoMergeService: processing {Count} merge groups with auto settings", mergeGroups.Count);
+        _logger.LogDebug(
+            "AutoMergeService: processing {Count} merge groups with auto settings",
+            mergeGroups.Count);
 
         var serviceUser = _userFactory.GetServiceUser();
 
@@ -132,7 +135,8 @@ public class AutoMergeService : BackgroundService
             group.AutoRebase);
 
         // Get detailed MR info for all branches that have MRs
-        var branchMrDetails = new List<(BranchWithActivity Branch, GitLabDetailedMergeRequest MergeRequest)>();
+        var branchMrDetails =
+            new List<(BranchWithActivity Branch, GitLabDetailedMergeRequest MergeRequest)>();
 
         foreach (var branch in group.Branches)
         {
@@ -150,6 +154,7 @@ public class AutoMergeService : BackgroundService
                     "AutoMergeService: branch '{BranchName}' in project {ProjectId} has no open MR, skipping",
                     branch.BranchName,
                     branch.ProjectId);
+
                 continue;
             }
 
@@ -197,6 +202,7 @@ public class AutoMergeService : BackgroundService
                     "AutoMergeService: branch '{BranchName}' in project {ProjectId} is up to date with target",
                     branch.BranchName,
                     branch.ProjectId);
+
                 continue;
             }
 
@@ -215,6 +221,7 @@ public class AutoMergeService : BackgroundService
                     "AutoMergeService: rebase could not be initiated for branch '{BranchName}' in project {ProjectId}",
                     branch.BranchName,
                     branch.ProjectId);
+
                 continue;
             }
 
@@ -223,7 +230,9 @@ public class AutoMergeService : BackgroundService
 
             var updatedMr = await _apiService.GetDetailedMergeRequest(serviceUser, branch.ProjectId, mr.Iid);
             if (updatedMr is not { HasConflicts: true })
+            {
                 continue;
+            }
 
             _logger.LogWarning(
                 "AutoMergeService: rebase conflict detected for branch '{BranchName}' in project {ProjectId}, disabling auto settings for merge group '{MergeGroupName}'",
@@ -231,7 +240,7 @@ public class AutoMergeService : BackgroundService
                 branch.ProjectId,
                 group.Name);
 
-            _mergeGroupRepository.UpdateAutoMergeSettings(group.Id, autoMerge: false, autoRebase: false);
+            _mergeGroupRepository.UpdateAutoMergeSettings(group.Id, false, false);
 
             var warning =
                 $"Rebase conflict on {branch.ProjectName}/{branch.BranchName} (MR !{mr.Iid}). Auto merge and auto rebase have been disabled.";
@@ -252,14 +261,14 @@ public class AutoMergeService : BackgroundService
         if (string.IsNullOrWhiteSpace(baseUrl))
         {
             return
-                $"Mergician can no longer rebase this branch due to conflicts. " +
-                $"Auto merge and auto rebase have been disabled for merge group \"{mergeGroupName}\".";
+                $"Mergician can no longer rebase this branch due to conflicts. "
+                + $"Auto merge and auto rebase have been disabled for merge group \"{mergeGroupName}\".";
         }
 
         var mergeGroupUrl = $"{baseUrl}/merge-group/{mergeGroupId}";
         return
-            $"Mergician can no longer rebase this branch due to conflicts. " +
-            $"Auto merge and auto rebase have been disabled for merge group [{mergeGroupName}]({mergeGroupUrl}).";
+            $"Mergician can no longer rebase this branch due to conflicts. "
+            + $"Auto merge and auto rebase have been disabled for merge group [{mergeGroupName}]({mergeGroupUrl}).";
     }
 
     private async Task ProcessAutoMerge(
@@ -276,6 +285,7 @@ public class AutoMergeService : BackgroundService
                 "AutoMergeService: merge group '{MergeGroupName}' has {Count} branches without MRs, not ready to merge",
                 group.Name,
                 branchesWithoutMr);
+
             return;
         }
 
@@ -307,6 +317,7 @@ public class AutoMergeService : BackgroundService
                 "AutoMergeService: merge group '{MergeGroupName}' is not ready to merge: {Reasons}",
                 group.Name,
                 string.Join("; ", reasons));
+
             return;
         }
 
@@ -317,15 +328,16 @@ public class AutoMergeService : BackgroundService
 
         // Merge all branches in parallel
         var mergeTasks = branchMrDetails.Select(async item =>
-        {
-            var (branch, mr) = item;
-            var result = await _apiService.AcceptMergeRequest(
-                serviceUser,
-                branch.ProjectId,
-                mr.Iid);
+            {
+                var (branch, mr) = item;
+                var result = await _apiService.AcceptMergeRequest(
+                    serviceUser,
+                    branch.ProjectId,
+                    mr.Iid);
 
-            return (branch, mr, result);
-        }).ToList();
+                return (branch, mr, result);
+            })
+            .ToList();
 
         var results = await Task.WhenAll(mergeTasks);
 
@@ -335,12 +347,13 @@ public class AutoMergeService : BackgroundService
         if (failed.Count > 0 && succeeded.Count > 0)
         {
             // Some merged but some failed - this is the partial merge warning case
-            var failedBranches = string.Join(", ",
+            var failedBranches = string.Join(
+                ", ",
                 failed.Select(f => $"{f.branch.ProjectName}/{f.branch.BranchName}"));
 
             var warning =
-                $"Partial merge: {succeeded.Count} branches merged but {failed.Count} failed ({failedBranches}). " +
-                "Some branches may have merged ahead of others.";
+                $"Partial merge: {succeeded.Count} branches merged but {failed.Count} failed ({failedBranches}). "
+                + "Some branches may have merged ahead of others.";
 
             _logger.LogWarning(
                 "AutoMergeService: {Warning} in merge group '{MergeGroupName}'",
@@ -389,7 +402,9 @@ public class AutoMergeService : BackgroundService
         {
             if (approvals.ApprovedBy.Count < approvals.ApprovalsRequired.GetValueOrDefault())
             {
-                reasons.Add($"{branchLabel}: needs {approvals.ApprovalsRequired - approvals.ApprovedBy.Count} more approvals");
+                reasons.Add(
+                    $"{branchLabel}: needs {approvals.ApprovalsRequired - approvals.ApprovedBy.Count} more approvals");
+
                 ready = false;
             }
         }
@@ -418,7 +433,9 @@ public class AutoMergeService : BackgroundService
 
             if (needsRebase)
             {
-                reasons.Add($"{branchLabel}: needs rebase (diverged={mr.DivergedCommitsCount}, conflicts={mr.HasConflicts})");
+                reasons.Add(
+                    $"{branchLabel}: needs rebase (diverged={mr.DivergedCommitsCount}, conflicts={mr.HasConflicts})");
+
                 ready = false;
             }
         }

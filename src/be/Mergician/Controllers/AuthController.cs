@@ -67,8 +67,7 @@ public class AuthController : ControllerBase
             "oauth_state",
             new CookieOptions
             {
-                SameSite = SameSiteMode.Lax,
-                Secure = CookieSecurity.ShouldUseSecureCookies(Request)
+                SameSite = SameSiteMode.Lax, Secure = CookieSecurity.ShouldUseSecureCookies(Request)
             });
 
         var redirectUri = GetRedirectUri();

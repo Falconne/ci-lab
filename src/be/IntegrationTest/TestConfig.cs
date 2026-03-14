@@ -14,10 +14,6 @@ public static class TestConfig
 
     public const string MergicianUrl = "http://localhost:5000";
 
-    // Paths
-
-    public static string RepositoryRoot { get; } = FindRepoRoot();
-
     public static readonly string ScreenshotDir = Path.Combine(
         RepositoryRoot,
         "data",
@@ -27,6 +23,10 @@ public static class TestConfig
     public static readonly string LogDir = Path.Combine(RepositoryRoot, "data", "logs");
 
     private static readonly string EnvFilePath = Path.Combine(RepositoryRoot, ".env");
+
+    // Paths
+
+    public static string RepositoryRoot { get; } = FindRepoRoot();
 
     /// <summary>
     ///     Reads a value from the .env file. Returns null if the key is not found.

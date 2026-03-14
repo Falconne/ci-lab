@@ -133,7 +133,8 @@ public class MergeGroupRepository : IMergeGroupRepository
 
         // query branches along with their merge group info; map using Dapper multi-mapping
         var rows = connection
-            .Query<int, string, bool, bool, string?, BranchWithActivity, (int MergeGroupId, string MergeGroupName,
+            .Query<int, string, bool, bool, string?, BranchWithActivity, (int MergeGroupId, string
+                MergeGroupName,
                 bool AutoMerge, bool AutoRebase, string? AutoMergeWarning, BranchWithActivity Branch)>(
                 """
                 SELECT

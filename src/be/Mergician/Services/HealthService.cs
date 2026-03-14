@@ -34,10 +34,7 @@ public class HealthService
         {
             _status = new HealthStatus
             {
-                IsReady = isReady,
-                Message = message,
-                Error = error,
-                IsGitLabRecovery = isGitLabRecovery
+                IsReady = isReady, Message = message, Error = error, IsGitLabRecovery = isGitLabRecovery
             };
         }
         finally

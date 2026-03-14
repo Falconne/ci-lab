@@ -58,6 +58,7 @@ public class AutoMergeToggleTest : IDisposable
         await _browser.Page.WaitForURLAsync(
             url => url.Contains("/merge-group/"),
             new PageWaitForURLOptions { Timeout = 15000 });
+
         await Task.Delay(2000);
         await _browser.TakeScreenshot("auto_merge_02_details_page");
 
@@ -123,6 +124,7 @@ public class AutoMergeToggleTest : IDisposable
         await _browser.Page.WaitForURLAsync(
             url => url.Contains("/merge-group/"),
             new PageWaitForURLOptions { Timeout = 15000 });
+
         await Task.Delay(2000);
 
         autoMergeSwitch = _browser.Page.Locator(".auto-merge-controls .v-switch").First;
@@ -224,6 +226,6 @@ public class AutoMergeToggleTest : IDisposable
 
         await _browser.Navigate(TestConfig.MergicianUrl);
         await Task.Delay(2000);
-        await DashboardWaitHelper.WaitForDashboardReady(_browser.Page, 120);
+        await DashboardWaitHelper.WaitForDashboardReady(_browser.Page);
     }
 }

@@ -12,10 +12,14 @@ public record GitLabMrInfo(
 public record GitLabMrDetail(
     [property: JsonPropertyName("iid")] int Iid,
     [property: JsonPropertyName("state")] string State,
-    [property: JsonPropertyName("source_branch")] string SourceBranch,
-    [property: JsonPropertyName("detailed_merge_status")] string DetailedMergeStatus,
-    [property: JsonPropertyName("has_conflicts")] bool HasConflicts,
-    [property: JsonPropertyName("diverged_commits_count")] int DivergedCommitsCount);
+    [property: JsonPropertyName("source_branch")]
+    string SourceBranch,
+    [property: JsonPropertyName("detailed_merge_status")]
+    string DetailedMergeStatus,
+    [property: JsonPropertyName("has_conflicts")]
+    bool HasConflicts,
+    [property: JsonPropertyName("diverged_commits_count")]
+    int DivergedCommitsCount);
 
 public record GitLabBranchCommit(
     [property: JsonPropertyName("id")] string Id);

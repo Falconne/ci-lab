@@ -225,9 +225,12 @@ public class DashboardLiveUpdateTest : IDisposable
         await _browser.TakeScreenshot("live_10_branch_appeared_before_merge");
 
         // Create MR without source branch deletion to verify the Compare API no-diff detection
-        var mrIid = _gitLab.CreateMergeRequest(projectId, branchName, "test1",
-            title: $"No-delete merge test ({branchName})",
-            shouldDeleteSourceBranch: false);
+        var mrIid = _gitLab.CreateMergeRequest(
+            projectId,
+            branchName,
+            "test1",
+            $"No-delete merge test ({branchName})",
+            false);
 
         Log.Information(
             "Created MR !{MrIid} without source branch deletion, waiting to be mergeable...",
@@ -272,8 +275,8 @@ public class DashboardLiveUpdateTest : IDisposable
         }
 
         Log.Information(
-            "Merged MR !{MrIid} (source branch '{BranchName}' kept in GitLab). " +
-            "Waiting for Mergician to detect no diffs and remove the merge group...",
+            "Merged MR !{MrIid} (source branch '{BranchName}' kept in GitLab). "
+            + "Waiting for Mergician to detect no diffs and remove the merge group...",
             mrIid,
             branchName);
 
@@ -310,9 +313,9 @@ public class DashboardLiveUpdateTest : IDisposable
             }
 
             throw new InvalidOperationException(
-                $"Merge group for '{branchName}' did not disappear from dashboard within timeout " +
-                "after merging MR without source branch deletion. " +
-                "Expected the Compare API no-diff detection to remove it.");
+                $"Merge group for '{branchName}' did not disappear from dashboard within timeout "
+                + "after merging MR without source branch deletion. "
+                + "Expected the Compare API no-diff detection to remove it.");
         }
 
         // Verify the branch still exists in GitLab (it was not deleted by GitLab)
@@ -336,8 +339,8 @@ public class DashboardLiveUpdateTest : IDisposable
         _gitLab.DeleteBranch(projectId, branchName);
 
         Log.Information(
-            "PASSED: Merge group for '{BranchName}' disappeared from dashboard after merge without source branch deletion " +
-            "(detected via Compare API no-diff check)",
+            "PASSED: Merge group for '{BranchName}' disappeared from dashboard after merge without source branch deletion "
+            + "(detected via Compare API no-diff check)",
             branchName);
     }
 
