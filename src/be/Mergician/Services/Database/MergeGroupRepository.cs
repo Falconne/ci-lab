@@ -29,6 +29,10 @@ public class MergeGroupRepository : IMergeGroupRepository
         string projectName,
         string projectDisplayName)
     {
+        // TODO: Change this method to take in a `GitLabProject` so we don't need to pass in projectId, projectName and projectDisplayName (which is projectNameWithNamespace).
+        // Change the database schema to rename the column `project_display_name` to `project_name_with_namespace` and ensure
+        // the returned BranchInProject record has the ProjectNameWithNamespace properly populated with this column.
+
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();
 

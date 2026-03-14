@@ -32,9 +32,7 @@ public class DeadBranchesService
     }
 
     /// <summary>
-    ///     Checks if a branch should be removed because it is missing from GitLab, has no file
-    ///     differences from the project's default branch (squash-merged or no work), or has a
-    ///     merged MR with no corresponding open MR (standard merge where branch is behind default).
+    ///     Checks if a branch should be removed because it is missing from GitLab.
     ///     If the branch should be removed, removes it from the database and cleans up empty merge groups.
     ///     Returns true if the branch was removed or should be skipped; false if it has changes and should be kept.
     /// </summary>
@@ -75,22 +73,15 @@ public class DeadBranchesService
         if (project == null)
         {
             _logger.LogError(
-                "Cannot check diffs for branch '{BranchName}' in project {ProjectId}: project not found; skipping",
+                "Cannot check status for branch '{BranchName}' in project {ProjectId}: project not found; skipping",
                 branchName,
                 projectId);
 
             return true;
         }
 
-        if (string.IsNullOrEmpty(project.DefaultBranch))
-        {
-            _logger.LogError(
-                "Cannot check diffs for branch '{BranchName}' in project {ProjectId}: project has no default branch; skipping",
-                branchName,
-                projectId);
-
-            return true;
-        }
+        // TODO: If the project NameWithNamespace indicates that it is scheduled for deletion, we should also `RemoveBranchAndCleanup`
+        // on this branch. Consolidate the above code so we only have to call `RemoveBranchAndCleanup` in one place.
 
         return false;
     }
@@ -167,6 +158,7 @@ public class DeadBranchesService
         int? trackedBranchInMergeGroupId,
         string operationName)
     {
+        // TODO: Change this method to take in a `GitLabProject` so we don't need to pass in projectId and projectNameWithNamespace.
         if (!GitLabService.IsScheduledForDeletion(projectNameWithNamespace))
         {
             return false;

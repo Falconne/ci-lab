@@ -330,6 +330,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                 continue;
             }
 
+            // TODO: Only make this call here if the push event is more than 10 minutes old.
             if (await _deadBranchesService.ShouldSkipByLookup(
                     pushEvent.BranchName,
                     pushEvent.ProjectId,
