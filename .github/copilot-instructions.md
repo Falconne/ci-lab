@@ -13,6 +13,7 @@ Mergician is a tool to help developers in environments where any one product is 
 - When refactoring, never leave compatiblity shims behind. Always update references to changed code. All the usages of the code in this repo is within this repo so there is no reason to leave compatibility shims.
 - If there is a likely typo in the user's instructions for symbol names that will be written to code (e.g. in new class names specified in the prompt), ask for clarification early with a suggested correction.
 - At the end of editing, validate that changes work by running the Mergician integration tests (or the CI Lab or Botstrapper is that is what was changed). See the testing section below for instructions.
+- Do not add redundant comments if a nearby log line suitably explains what is happening.
 
 ## CI Lab Specific Guidelines
 - The bootstrap process should run without the need for user interaction.

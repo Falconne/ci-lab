@@ -113,7 +113,6 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
     /// </summary>
     public void EnsureSyncRunning(int gitLabUserId, AccessDetailsBase accessDetails)
     {
-        // TODO: Remove need to have gitLabUserId passed in, it can be obtained from the accessDetails
         var context = _userContexts.GetOrAdd(gitLabUserId, _ => new UserSyncContext());
         context.UpdateActivity(accessDetails);
 
@@ -208,11 +207,11 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
 
                 try
                 {
-                    var now = DateTimeOffset.UtcNow;
+                    var nextPollTimeFrom = DateTimeOffset.UtcNow;
                     // Poll for new push events since the last successful poll
                     await FetchNewUserActivityFromGitLab(accessUser, gitLabUserId, lastPollTime, ct);
 
-                    lastPollTime = now;
+                    lastPollTime = nextPollTimeFrom;
 
                     // Check for deleted branches and clean up DB records
                     await CleanupDeletedBranches(accessUser, gitLabUserId, ct);
