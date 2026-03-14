@@ -113,6 +113,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
     /// </summary>
     public void EnsureSyncRunning(int gitLabUserId, AccessDetailsBase accessDetails)
     {
+        // TODO: Remove need to have gitLabUserId passed in, it can be obtained from the accessDetails
         var context = _userContexts.GetOrAdd(gitLabUserId, _ => new UserSyncContext());
         context.UpdateActivity(accessDetails);
 
