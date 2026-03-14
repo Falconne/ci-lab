@@ -148,7 +148,6 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             _logger.LogInformation("Background sync thread started for user {UserId}", gitLabUserId);
             var lastPollTime = DateTimeOffset.UtcNow;
 
-            // Phase 1: Backfill from the user's last known activity or 14 days
             if (_gitLabRecoveryService.IsInGitLabRecoveryMode)
             {
                 _logger.LogInformation(
@@ -158,6 +157,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                 return;
             }
 
+            // Phase 1: Backfill from the user's last known activity or 14 days
             await BackfillUserActivity(gitLabUserId, context, ct);
 
             var firstPoll = true;
