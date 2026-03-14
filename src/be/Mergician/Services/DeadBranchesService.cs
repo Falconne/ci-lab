@@ -1,9 +1,8 @@
 using Mergician.Services.Authentication;
 using Mergician.Services.Database;
+using Mergician.Services.GitLab;
 
-namespace Mergician.Services.GitLab;
-
-// TODO: move this class up one level into the Services dir and update namespace references.
+namespace Mergician.Services;
 
 
 /// <summary>
