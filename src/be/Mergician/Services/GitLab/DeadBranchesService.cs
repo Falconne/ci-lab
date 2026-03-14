@@ -42,6 +42,9 @@ public class DeadBranchesService
         int trackedBranchInProjectId,
         CancellationToken cancellationToken)
     {
+        // TODO: No need to take in a AccessDetailsBase here. Just make this service always use the Gitlab
+        // service user.
+
         cancellationToken.ThrowIfCancellationRequested();
 
         var lookup = await _gitLabService.GetBranchLookupResult(accessDetails, projectId, branchName);
@@ -70,7 +73,7 @@ public class DeadBranchesService
         var project = await _gitLabService.GetProject(accessDetails, projectId);
         if (project == null)
         {
-            _logger.LogWarning(
+            _logger.LogError(
                 "Cannot check diffs for branch '{BranchName}' in project {ProjectId}: project not found; skipping",
                 branchName,
                 projectId);
@@ -80,7 +83,7 @@ public class DeadBranchesService
 
         if (string.IsNullOrEmpty(project.DefaultBranch))
         {
-            _logger.LogWarning(
+            _logger.LogError(
                 "Cannot check diffs for branch '{BranchName}' in project {ProjectId}: project has no default branch; skipping",
                 branchName,
                 projectId);

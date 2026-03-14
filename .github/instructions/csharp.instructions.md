@@ -19,3 +19,4 @@ applyTo: '**/*.cs'
 - When inlining methods, review the resulting code to see if it should be tidied up now that the code is inlined.
 - Controllers should return strong types where possible. For example, prefer returning `ActionResult<T>` over just `IActionResult`.
 - Avoid the `volatile` keyword. Performance is not critical so locks are fine.
+- When an unexpected condition happens, log an error rather than just a warning. Warnings should only be used for conceivable events which don't need to be investigated, such as an external service being temporarily unavailable, but we are retrying anyway.

@@ -73,7 +73,6 @@ public class GitLabApiClient
         GitLabApiFailureBehavior failureBehavior,
         CancellationToken cancellationToken = default)
     {
-       
         var (result, _) = await ExecuteCoreAsync<T>(
             requestFactory,
             jsonOptions,
