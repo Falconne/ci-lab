@@ -188,22 +188,8 @@ public class GitLabService
             return null;
         }
 
-        if (project != null)
-        {
-            if (IsScheduledForDeletion(project.NameWithNamespace))
-            {
-                _logger.LogDebug(
-                    "Not caching project {ProjectId} ('{NameWithNamespace}'): scheduled for deletion",
-                    projectId,
-                    project.NameWithNamespace);
-            }
-            else
-            {
-                _projectCache.Set(projectId, project);
-                _logger.LogDebug("Cached project info for project {ProjectId}", projectId);
-            }
-        }
-
+        _projectCache.Set(projectId, project);
+        _logger.LogDebug("Cached project info for project {ProjectId}", projectId);
         return project;
     }
 

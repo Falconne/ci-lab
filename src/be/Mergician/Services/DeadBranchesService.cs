@@ -42,13 +42,7 @@ public class DeadBranchesService
         int trackedBranchInProjectId,
         CancellationToken cancellationToken)
     {
-        var accessDetails = _userFactory.GetServiceUser();
-
-        cancellationToken.ThrowIfCancellationRequested();
-
-        var lookup = await _gitLabService.GetBranchLookupResult(accessDetails, projectId, branchName);
-
-        if (lookup.IsMissing)
+        if (await IsBranchGone(branchName, projectId, cancellationToken))
         {
             _logger.LogInformation(
                 "Branch '{BranchName}' in project {ProjectId} no longer exists, removing",
@@ -59,15 +53,9 @@ public class DeadBranchesService
             return true;
         }
 
-        if (lookup.IsUnavailable)
-        {
-            _logger.LogError(
-                "Branch lookup unavailable for '{BranchName}' in project {ProjectId}; skipping this cycle",
-                branchName,
-                projectId);
+        var accessDetails = _userFactory.GetServiceUser();
 
-            return true;
-        }
+        cancellationToken.ThrowIfCancellationRequested();
 
         var project = await _gitLabService.GetProject(accessDetails, projectId);
         if (project == null)
@@ -87,15 +75,11 @@ public class DeadBranchesService
     }
 
     /// <summary>
-    ///     Checks if a branch should be skipped by looking it up in GitLab.
-    ///     If the branch no longer exists and a tracked record ID is provided, removes it from the DB.
-    ///     Returns true if the branch should be skipped.
+    ///     Checks if a branch is deleted/gone by looking it up in GitLab.
     /// </summary>
-    public async Task<bool> ShouldSkipByLookup(
+    public async Task<bool> IsBranchGone(
         string branchName,
         int projectId,
-        int? trackedBranchInProjectId,
-        string operationName,
         CancellationToken cancellationToken)
     {
         var accessDetails = _userFactory.GetServiceUser();
@@ -109,34 +93,15 @@ public class DeadBranchesService
 
         if (branchLookup.IsMissing)
         {
-            _logger.LogInformation(
-                "Skipping branch '{BranchName}' in project {ProjectId} during {OperationName}: branch no longer exists",
-                branchName,
-                projectId,
-                operationName);
-
-            if (trackedBranchInProjectId.HasValue)
-            {
-                _logger.LogInformation(
-                    "Removing tracked branch record {BranchRecordId} for '{BranchName}' in project {ProjectId} during {OperationName}",
-                    trackedBranchInProjectId.Value,
-                    branchName,
-                    projectId,
-                    operationName);
-
-                RemoveBranchAndCleanup(trackedBranchInProjectId.Value);
-            }
-
             return true;
         }
 
         if (branchLookup.IsUnavailable)
         {
             _logger.LogError(
-                "Skipping branch '{BranchName}' in project {ProjectId} during {OperationName}: branch lookup unavailable",
+                "'{BranchName}' in project {ProjectId} is unavailable in Gitlab API",
                 branchName,
-                projectId,
-                operationName);
+                projectId);
 
             return true;
         }

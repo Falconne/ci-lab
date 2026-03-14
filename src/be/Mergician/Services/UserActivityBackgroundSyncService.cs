@@ -331,13 +331,16 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             }
 
             // TODO: Only make this call here if the push event is more than 10 minutes old.
-            if (await _deadBranchesService.ShouldSkipByLookup(
+            if (await _deadBranchesService.IsBranchGone(
                     pushEvent.BranchName,
                     pushEvent.ProjectId,
-                    null,
-                    "push-event processing",
                     cancellationToken))
             {
+                _logger.LogInformation(
+                    "Skipping branch '{BranchName}' in project {ProjectId} during push-event processing: branch no longer exists",
+                    pushEvent.BranchName,
+                    pushEvent.ProjectId);
+
                 continue;
             }
 
