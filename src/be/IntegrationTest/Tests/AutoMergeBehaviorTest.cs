@@ -13,7 +13,6 @@ namespace IntegrationTest.Tests;
 ///     - Auto-rebases branches that are behind the target
 ///     - Merges all branches when ALL conditions are met
 ///     Scenarios are run sequentially in a single test to keep execution time manageable.
-///
 ///     IMPORTANT: TeamCity runs in the CI Lab and publishes external pipeline statuses
 ///     to GitLab. These affect the MR's detailed_merge_status and the pipeline list.
 ///     This test waits for TeamCity to finish building before running scenarios so that
@@ -21,15 +20,15 @@ namespace IntegrationTest.Tests;
 /// </summary>
 public class AutoMergeBehaviorTest : IDisposable
 {
-    private readonly BrowserService _browser = new();
-
-    private readonly GitLabTestHelper _gitLab = new();
-
     /// <summary>
     ///     Pipeline name used for external commit statuses. Using a unique name
     ///     so we can distinguish our test-controlled statuses from TeamCity's.
     /// </summary>
     private const string PipelineName = "automerge-integration-test";
+
+    private readonly BrowserService _browser = new();
+
+    private readonly GitLabTestHelper _gitLab = new();
 
     public void Dispose()
     {
@@ -71,12 +70,19 @@ public class AutoMergeBehaviorTest : IDisposable
             _gitLab.CreateBranchWithCommit(projectId1, branchName, "test1");
             _gitLab.CreateBranchWithCommit(projectId2, branchName, "test1");
 
-            mrIid1 = _gitLab.CreateMergeRequest(projectId1, branchName, "test1",
+            mrIid1 = _gitLab.CreateMergeRequest(
+                projectId1,
+                branchName,
+                "test1",
                 $"Auto merge test - primary-1 ({timestamp})",
-                shouldDeleteSourceBranch: false);
-            mrIid2 = _gitLab.CreateMergeRequest(projectId2, branchName, "test1",
+                false);
+
+            mrIid2 = _gitLab.CreateMergeRequest(
+                projectId2,
+                branchName,
+                "test1",
                 $"Auto merge test - secondary-1 ({timestamp})",
-                shouldDeleteSourceBranch: false);
+                false);
 
             Log.Information(
                 "Created MRs: project {P1} MR !{Mr1}, project {P2} MR !{Mr2}",
@@ -276,8 +282,11 @@ public class AutoMergeBehaviorTest : IDisposable
                 mrCheck.DivergedCommitsCount);
 
             // Even if not detected, the MR should be open
-            AssertMrOpen(mrCheck, "primary-1",
+            AssertMrOpen(
+                mrCheck,
+                "primary-1",
                 "Scenario 3: MR should remain open while branch may be behind target");
+
             Log.Information("Scenario 3 PASSED (partial): MR correctly remains open");
             await _browser.TakeScreenshot("behavior_05_after_rebase");
             return;
@@ -302,10 +311,13 @@ public class AutoMergeBehaviorTest : IDisposable
                 mr1AfterRebase.State,
                 mr1AfterRebase.DetailedMergeStatus);
 
-            AssertMrOpen(mr1AfterRebase, "primary-1",
+            AssertMrOpen(
+                mr1AfterRebase,
+                "primary-1",
                 "Scenario 3: MR should not merge immediately after rebase (needs new pipeline)");
 
-            Log.Information("Scenario 3 PASSED: Auto-rebase happened and merge correctly blocked pending new pipeline");
+            Log.Information(
+                "Scenario 3 PASSED: Auto-rebase happened and merge correctly blocked pending new pipeline");
         }
         else
         {
@@ -319,7 +331,9 @@ public class AutoMergeBehaviorTest : IDisposable
                 mr1.DetailedMergeStatus,
                 mr1.DivergedCommitsCount);
 
-            AssertMrOpen(mr1, "primary-1",
+            AssertMrOpen(
+                mr1,
+                "primary-1",
                 "Scenario 3: MR should remain open when branch is behind target");
 
             Log.Information("Scenario 3 PASSED (partial): MR correctly blocked while behind target");
@@ -366,7 +380,9 @@ public class AutoMergeBehaviorTest : IDisposable
         // Wait for AutoMergeService to detect readiness and merge.
         // CI has already stabilized so 60s should be plenty.
         const int maxChecks = 18;
-        Log.Information("Waiting for AutoMergeService to merge both MRs (up to {Timeout}s)...", maxChecks * 5);
+        Log.Information(
+            "Waiting for AutoMergeService to merge both MRs (up to {Timeout}s)...",
+            maxChecks * 5);
 
         var merged = false;
         for (var i = 0; i < maxChecks; i++)
@@ -410,9 +426,9 @@ public class AutoMergeBehaviorTest : IDisposable
             var finalMr1 = _gitLab.GetMergeRequestDetail(projectId1, mrIid1);
             var finalMr2 = _gitLab.GetMergeRequestDetail(projectId2, mrIid2);
             throw new InvalidOperationException(
-                $"Scenario 4 FAILED: MRs were not merged within timeout. " +
-                $"MR1: state={finalMr1.State}, dms={finalMr1.DetailedMergeStatus}. " +
-                $"MR2: state={finalMr2.State}, dms={finalMr2.DetailedMergeStatus}.");
+                $"Scenario 4 FAILED: MRs were not merged within timeout. "
+                + $"MR1: state={finalMr1.State}, dms={finalMr1.DetailedMergeStatus}. "
+                + $"MR2: state={finalMr2.State}, dms={finalMr2.DetailedMergeStatus}.");
         }
 
         Log.Information("Scenario 4 PASSED: Both MRs were successfully merged by AutoMergeService");
@@ -422,6 +438,12 @@ public class AutoMergeBehaviorTest : IDisposable
         // The background sync detects they have no diffs from the default branch (via the
         // Compare API) and removes them from the database, causing the card to vanish.
         // This path is faster and more deterministic than waiting for GitLab's async branch deletion.
+
+        //TODO: The statement about "The background sync detects they have no diffs" is no longer accurate
+        // as that functionality as been removed as we don't need to check that anymore. Remove the tests
+        // that leave the branches around after they are merged, and just test with the "Delete on merge"
+        // checkbox always turned on.
+
         await _browser.Navigate(TestConfig.MergicianUrl);
         await Task.Delay(3000);
         await _browser.TakeScreenshot("behavior_07_dashboard_after_merge");
@@ -437,8 +459,8 @@ public class AutoMergeBehaviorTest : IDisposable
         if (!disappeared)
         {
             throw new InvalidOperationException(
-                $"Scenario 4: Merge group for '{branchName}' did not disappear from dashboard within timeout " +
-                "after successful merge (no-diff detection path)");
+                $"Scenario 4: Merge group for '{branchName}' did not disappear from dashboard within timeout "
+                + "after successful merge (no-diff detection path)");
         }
 
         Log.Information(
@@ -457,7 +479,9 @@ public class AutoMergeBehaviorTest : IDisposable
     {
         // Only update if the MR is still open and the pipeline status indicates CI issues
         if (mr.State != "opened")
+        {
             return;
+        }
 
         try
         {
@@ -469,14 +493,17 @@ public class AutoMergeBehaviorTest : IDisposable
                     projectId,
                     trackedSha[..8],
                     currentSha[..8]);
+
                 trackedSha = currentSha;
                 _gitLab.SetCommitStatus(projectId, currentSha, "success", PipelineName);
             }
         }
         catch (Exception ex)
         {
-            Log.Warning("Failed to update pipeline status for project {ProjectId}: {Message}",
-                projectId, ex.Message);
+            Log.Warning(
+                "Failed to update pipeline status for project {ProjectId}: {Message}",
+                projectId,
+                ex.Message);
         }
     }
 
@@ -495,6 +522,7 @@ public class AutoMergeBehaviorTest : IDisposable
                     mrIid,
                     projectId,
                     mr.DetailedMergeStatus);
+
                 return;
             }
 
@@ -515,7 +543,9 @@ public class AutoMergeBehaviorTest : IDisposable
         const int timeoutSeconds = 240;
         Log.Information(
             "Waiting for CI to stabilize on MR !{MrIid} in {Project} (up to {Timeout}s)...",
-            mrIid, projectLabel, timeoutSeconds);
+            mrIid,
+            projectLabel,
+            timeoutSeconds);
 
         for (var i = 0; i < timeoutSeconds; i++)
         {
@@ -524,7 +554,11 @@ public class AutoMergeBehaviorTest : IDisposable
             {
                 Log.Information(
                     "CI stabilized on {Project} MR !{MrIid} after ~{Seconds}s: dms={Dms}",
-                    projectLabel, mrIid, i, mr.DetailedMergeStatus);
+                    projectLabel,
+                    mrIid,
+                    i,
+                    mr.DetailedMergeStatus);
+
                 return;
             }
 
@@ -532,7 +566,10 @@ public class AutoMergeBehaviorTest : IDisposable
             {
                 Log.Information(
                     "Still waiting for CI on {Project} MR !{MrIid}... {Seconds}s (dms={Dms})",
-                    projectLabel, mrIid, i, mr.DetailedMergeStatus);
+                    projectLabel,
+                    mrIid,
+                    i,
+                    mr.DetailedMergeStatus);
             }
 
             await Task.Delay(1000);
@@ -541,7 +578,10 @@ public class AutoMergeBehaviorTest : IDisposable
         var finalMr = _gitLab.GetMergeRequestDetail(projectId, mrIid);
         Log.Warning(
             "CI did not stabilize on {Project} MR !{MrIid} within {Timeout}s (dms={Dms}). Proceeding anyway.",
-            projectLabel, mrIid, timeoutSeconds, finalMr.DetailedMergeStatus);
+            projectLabel,
+            mrIid,
+            timeoutSeconds,
+            finalMr.DetailedMergeStatus);
     }
 
     /// <summary>
@@ -560,7 +600,11 @@ public class AutoMergeBehaviorTest : IDisposable
             {
                 Log.Information(
                     "Divergence detected on MR !{MrIid} after ~{Seconds}s: diverged={Diverged}, dms={Dms}",
-                    mrIid, i, mr.DivergedCommitsCount, mr.DetailedMergeStatus);
+                    mrIid,
+                    i,
+                    mr.DivergedCommitsCount,
+                    mr.DetailedMergeStatus);
+
                 return true;
             }
 
@@ -568,7 +612,10 @@ public class AutoMergeBehaviorTest : IDisposable
             {
                 Log.Information(
                     "Waiting for divergence on MR !{MrIid}... {Seconds}s (diverged={Diverged}, dms={Dms})",
-                    mrIid, i, mr.DivergedCommitsCount, mr.DetailedMergeStatus);
+                    mrIid,
+                    i,
+                    mr.DivergedCommitsCount,
+                    mr.DetailedMergeStatus);
             }
         }
 
@@ -591,7 +638,11 @@ public class AutoMergeBehaviorTest : IDisposable
                 {
                     Log.Information(
                         "Rebase detected on MR !{MrIid} after ~{Seconds}s: {OldSha} → {NewSha}",
-                        mrIid, i, originalSha[..8], currentSha[..8]);
+                        mrIid,
+                        i,
+                        originalSha[..8],
+                        currentSha[..8]);
+
                     return true;
                 }
             }
@@ -620,14 +671,21 @@ public class AutoMergeBehaviorTest : IDisposable
                 var name = (await cards.Nth(j).Locator(".branch-name").InnerTextAsync()).Trim();
                 if (name.Contains(branchName, StringComparison.OrdinalIgnoreCase))
                 {
-                    Log.Information("Branch '{BranchName}' found on dashboard after ~{Seconds}s", branchName, i);
+                    Log.Information(
+                        "Branch '{BranchName}' found on dashboard after ~{Seconds}s",
+                        branchName,
+                        i);
+
                     return true;
                 }
             }
 
             if (i % 10 == 0)
             {
-                Log.Information("Waiting for branch '{BranchName}' to appear on dashboard... {Seconds}s", branchName, i);
+                Log.Information(
+                    "Waiting for branch '{BranchName}' to appear on dashboard... {Seconds}s",
+                    branchName,
+                    i);
             }
 
             await Task.Delay(1000);
@@ -696,6 +754,7 @@ public class AutoMergeBehaviorTest : IDisposable
                 await _browser.Page.WaitForURLAsync(
                     url => url.Contains("/merge-group/"),
                     new PageWaitForURLOptions { Timeout = 15000 });
+
                 await Task.Delay(2000);
                 Log.Information("Navigated to merge group details for '{BranchName}'", branchName);
                 return;
@@ -753,9 +812,15 @@ public class AutoMergeBehaviorTest : IDisposable
         try
         {
             if (mrIid1 > 0)
+            {
                 _gitLab.CloseMergeRequest(projectId1, mrIid1);
+            }
+
             if (mrIid2 > 0)
+            {
                 _gitLab.CloseMergeRequest(projectId2, mrIid2);
+            }
+
             _gitLab.DeleteBranch(projectId1, branchName);
             _gitLab.DeleteBranch(projectId2, branchName);
         }
@@ -819,6 +884,6 @@ public class AutoMergeBehaviorTest : IDisposable
 
         await _browser.Navigate(TestConfig.MergicianUrl);
         await Task.Delay(2000);
-        await DashboardWaitHelper.WaitForDashboardReady(_browser.Page, 120);
+        await DashboardWaitHelper.WaitForDashboardReady(_browser.Page);
     }
 }
