@@ -2,4 +2,7 @@ Task 1)
 The code in Mergician that deals with Gitlab pipelines is hardcoded to only read external jobs. We don't care if a job is internal to Gitlab CI or external. We only care about the status of build jobs and if they have passed or failed. Change the code to handle both internal and external jobs (or remove any special case filtering for external jobs if that will treat all jobs equally). Update the name of methods and symbols to match this behavior.
 
 Task 2)
-If a merge group is set to auto rebase but one of the branches cannot rebase due to conflicts, disable the auto merge (if set) and auto rebase settings if set, and add a comment to the matching merge request saying "Mergician can no longer rebase this branch". Include a link to the merge group details page in the comment. Use the Gitlab service user when adding comments.
+If a merge group is set to auto rebase but one of the branches cannot rebase due to conflicts, disable the auto merge (if set) and auto rebase settings if set, and add a comment to the matching merge request saying "Mergician can no longer rebase this branch". Include a link to the merge group details page in the comment. Use the Gitlab service user when adding comments. Show in the Merge Group warning message that a conflict was encountered.
+
+Task 3)
+Ensure that merge group warnings are cleared whenever any auto merge or auto rebase setting is changed.
