@@ -24,6 +24,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PlaywrightService", "Playwr
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IntegrationTest", "IntegrationTest\IntegrationTest.csproj", "{3C9BBC82-7DF1-4FCD-A5AC-6F54EA21CA01}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Util", "Util\Util.csproj", "{46B2E428-504B-4B60-BBED-89A94A43E1FD}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -82,6 +84,18 @@ Global
 		{3C9BBC82-7DF1-4FCD-A5AC-6F54EA21CA01}.Release|x64.Build.0 = Release|Any CPU
 		{3C9BBC82-7DF1-4FCD-A5AC-6F54EA21CA01}.Release|x86.ActiveCfg = Release|Any CPU
 		{3C9BBC82-7DF1-4FCD-A5AC-6F54EA21CA01}.Release|x86.Build.0 = Release|Any CPU
+		{46B2E428-504B-4B60-BBED-89A94A43E1FD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{46B2E428-504B-4B60-BBED-89A94A43E1FD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{46B2E428-504B-4B60-BBED-89A94A43E1FD}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{46B2E428-504B-4B60-BBED-89A94A43E1FD}.Debug|x64.Build.0 = Debug|Any CPU
+		{46B2E428-504B-4B60-BBED-89A94A43E1FD}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{46B2E428-504B-4B60-BBED-89A94A43E1FD}.Debug|x86.Build.0 = Debug|Any CPU
+		{46B2E428-504B-4B60-BBED-89A94A43E1FD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{46B2E428-504B-4B60-BBED-89A94A43E1FD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{46B2E428-504B-4B60-BBED-89A94A43E1FD}.Release|x64.ActiveCfg = Release|Any CPU
+		{46B2E428-504B-4B60-BBED-89A94A43E1FD}.Release|x64.Build.0 = Release|Any CPU
+		{46B2E428-504B-4B60-BBED-89A94A43E1FD}.Release|x86.ActiveCfg = Release|Any CPU
+		{46B2E428-504B-4B60-BBED-89A94A43E1FD}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
