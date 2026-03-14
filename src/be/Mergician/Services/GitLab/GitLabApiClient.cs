@@ -333,6 +333,9 @@ public class GitLabApiClient
         // GitLab instance.
         _gitLabRecoveryService.EnterGitLabRecoveryMode();
 
+        // TODO: Remove the need for `GitLabApiFailureBehavior` and just always throw `GitLabStartupRequiredException`.
+        // For the background tasks that are currently using `GitLabApiFailureBehavior.Throw`, make them catch `GitLabStartupRequiredException`,
+        // to continue doing what they do now. Delete the `GitLabApiFailureBehavior` enum.
         if (failureBehavior == GitLabApiFailureBehavior.EnterStartupMode)
         {
             throw new GitLabStartupRequiredException(operationName, failureException);
