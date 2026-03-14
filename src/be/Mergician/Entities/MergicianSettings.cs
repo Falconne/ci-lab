@@ -2,6 +2,8 @@ namespace Mergician.Entities;
 
 public class MergicianSettings
 {
+    public string BaseUrl { get; set; } = "";
+
     public GitLabSettings GitLab { get; set; } = new();
 
     public DatabaseSettings Database { get; set; } = new();

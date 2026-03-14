@@ -30,6 +30,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      Mergician__BaseUrl: "${MERGICIAN_BASE_URL:-http://localhost:5000}"
       Mergician__GitLab__Url: "${GITLAB_URL:-http://localhost:8081}"
       Mergician__GitLab__InternalUrl: "${GITLAB_INTERNAL_URL:-http://host.docker.internal:8081}"
       Mergician__GitLab__ServiceToken: "${GITLAB_SERVICE_TOKEN:-}"

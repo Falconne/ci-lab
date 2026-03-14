@@ -14,6 +14,7 @@ namespace Mergician.Services.AutoMerge;
 public class AutoMergeService : BackgroundService
 {
     private static readonly TimeSpan _pollInterval = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan _rebaseCheckDelay = TimeSpan.FromSeconds(5);
 
     private readonly AutoMergeGitLabApiService _apiService;
 
@@ -29,6 +30,8 @@ public class AutoMergeService : BackgroundService
 
     private readonly IMergeGroupRepository _mergeGroupRepository;
 
+    private readonly MergicianSettings _settings;
+
     public AutoMergeService(
         AutoMergeGitLabApiService apiService,
         GitLabService gitLabService,
@@ -36,6 +39,7 @@ public class AutoMergeService : BackgroundService
         GitLabUserFactory userFactory,
         HealthService healthService,
         IMergeGroupRepository mergeGroupRepository,
+        MergicianSettings settings,
         ILogger<AutoMergeService> logger)
     {
         _apiService = apiService;
@@ -44,6 +48,7 @@ public class AutoMergeService : BackgroundService
         _userFactory = userFactory;
         _healthService = healthService;
         _mergeGroupRepository = mergeGroupRepository;
+        _settings = settings;
         _logger = logger;
     }
 
@@ -203,8 +208,58 @@ public class AutoMergeService : BackgroundService
                 mr.DivergedCommitsCount,
                 mr.HasConflicts);
 
-            await _apiService.RebaseMergeRequest(serviceUser, branch.ProjectId, mr.Iid);
+            var rebaseInitiated = await _apiService.RebaseMergeRequest(serviceUser, branch.ProjectId, mr.Iid);
+            if (!rebaseInitiated)
+            {
+                _logger.LogWarning(
+                    "AutoMergeService: rebase could not be initiated for branch '{BranchName}' in project {ProjectId}",
+                    branch.BranchName,
+                    branch.ProjectId);
+                continue;
+            }
+
+            // Wait briefly for GitLab to process the rebase, then check for conflicts
+            await Task.Delay(_rebaseCheckDelay, cancellationToken);
+
+            var updatedMr = await _apiService.GetDetailedMergeRequest(serviceUser, branch.ProjectId, mr.Iid);
+            if (updatedMr is not { HasConflicts: true })
+                continue;
+
+            _logger.LogWarning(
+                "AutoMergeService: rebase conflict detected for branch '{BranchName}' in project {ProjectId}, disabling auto settings for merge group '{MergeGroupName}'",
+                branch.BranchName,
+                branch.ProjectId,
+                group.Name);
+
+            _mergeGroupRepository.UpdateAutoMergeSettings(group.Id, autoMerge: false, autoRebase: false);
+
+            var warning =
+                $"Rebase conflict on {branch.ProjectName}/{branch.BranchName} (MR !{mr.Iid}). Auto merge and auto rebase have been disabled.";
+
+            _mergeGroupRepository.UpdateAutoMergeWarning(group.Id, warning);
+
+            var comment = BuildRebaseConflictComment(group.Id, group.Name);
+            await _apiService.PostMergeRequestComment(serviceUser, branch.ProjectId, mr.Iid, comment);
+
+            // Stop processing further branches in this group since auto settings are now disabled
+            break;
         }
+    }
+
+    private string BuildRebaseConflictComment(int mergeGroupId, string mergeGroupName)
+    {
+        var baseUrl = _settings.BaseUrl.TrimEnd('/');
+        if (string.IsNullOrWhiteSpace(baseUrl))
+        {
+            return
+                $"Mergician can no longer rebase this branch due to conflicts. " +
+                $"Auto merge and auto rebase have been disabled for merge group \"{mergeGroupName}\".";
+        }
+
+        var mergeGroupUrl = $"{baseUrl}/merge-group/{mergeGroupId}";
+        return
+            $"Mergician can no longer rebase this branch due to conflicts. " +
+            $"Auto merge and auto rebase have been disabled for merge group [{mergeGroupName}]({mergeGroupUrl}).";
     }
 
     private async Task ProcessAutoMerge(

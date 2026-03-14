@@ -174,4 +174,42 @@ public class AutoMergeGitLabApiService
             return null;
         }
     }
+
+    /// <summary>
+    ///     Posts a comment (note) on a merge request.
+    /// </summary>
+    public async Task PostMergeRequestComment(
+        AccessDetailsBase accessDetails,
+        int projectId,
+        int mergeRequestIid,
+        string body)
+    {
+        try
+        {
+            var jsonBody = System.Text.Json.JsonSerializer.Serialize(new { body });
+
+            await _gitLabApiClient.ExecuteAsync<GitLabNote>(
+                () =>
+                {
+                    var request = accessDetails.CreateRequest(
+                        HttpMethod.Post,
+                        $"projects/{projectId}/merge_requests/{mergeRequestIid}/notes");
+                    request.Content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
+                    return request;
+                });
+
+            _logger.LogInformation(
+                "Posted comment on project {ProjectId}, MR {MrIid}",
+                projectId,
+                mergeRequestIid);
+        }
+        catch (GitLabUnexpectedResponseException ex)
+        {
+            _logger.LogWarning(
+                "PostMergeRequestComment failed with status {StatusCode} for project {ProjectId}, MR {MrIid}",
+                (int)ex.StatusCode,
+                projectId,
+                mergeRequestIid);
+        }
+    }
 }
