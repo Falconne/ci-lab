@@ -7,6 +7,8 @@ using System.Text.Json;
 
 namespace Mergician.Services.GitLab;
 
+// TODO: move this class into the Services/AutoMerge dir and update namespace references.
+
 /// <summary>
 ///     GitLab API operations related to auto merge functionality:
 ///     retrieving detailed MR info, rebasing, checking pipelines, and merging.
@@ -67,6 +69,7 @@ public class AutoMergeGitLabApiService
         int projectId,
         int mergeRequestIid)
     {
+        // TODO: This method should only return the latest pipeline, change it to do so and rename accordingly.
         var operationName = $"GetMergeRequestPipelines(projectId={projectId}, mrIid={mergeRequestIid})";
 
         try

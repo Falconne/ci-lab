@@ -73,6 +73,7 @@ public class GitLabApiClient
         GitLabApiFailureBehavior failureBehavior,
         CancellationToken cancellationToken = default)
     {
+       
         var (result, _) = await ExecuteCoreAsync<T>(
             requestFactory,
             jsonOptions,
@@ -222,6 +223,13 @@ public class GitLabApiClient
         bool captureNextPage,
         CancellationToken cancellationToken)
     {
+        // TODO: Instead of requiring an operation name to be passed in, generate it from the request URL string. Remove
+        // the setting of this from up the call chain.
+
+        // TODO: Remove the need to pass in a JsonSerializerOptions. All these calls go to Gitlab, use the correct
+        // options without needing to be told. See what options are currently being passed in and use then, then
+        // get rid of this from the call chain.
+
         Exception? lastException = null;
         var totalAttempts = _retryDelays.Length + 1;
 
