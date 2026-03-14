@@ -50,21 +50,7 @@ public class AutoMergeService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("AutoMergeService started, waiting for application to be ready");
-
-        // Wait for the application to finish startup before processing
-        while (!stoppingToken.IsCancellationRequested)
-        {
-            var status = _healthService.GetStatus();
-            if (status.IsReady)
-            {
-                break;
-            }
-
-            await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken);
-        }
-
-        _logger.LogInformation("AutoMergeService is now active and monitoring merge groups");
+        await WaitForReady(stoppingToken);
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -146,7 +132,7 @@ public class AutoMergeService : BackgroundService
             group.AutoRebase);
 
         // Get detailed MR info for all branches that have MRs
-        var branchMrDetails = new List<(BranchWithActivity Branch, GitLabDetailedMergeRequest Mr)>();
+        var branchMrDetails = new List<(BranchWithActivity Branch, GitLabDetailedMergeRequest MergeRequest)>();
 
         foreach (var branch in group.Branches)
         {
@@ -194,7 +180,7 @@ public class AutoMergeService : BackgroundService
     private async Task ProcessAutoRebase(
         AccessDetailsBase serviceUser,
         MergeGroup group,
-        List<(BranchWithActivity Branch, GitLabDetailedMergeRequest Mr)> branchMrDetails,
+        List<(BranchWithActivity Branch, GitLabDetailedMergeRequest MergeRequest)> branchMrDetails,
         CancellationToken cancellationToken)
     {
         foreach (var (branch, mr) in branchMrDetails)
@@ -229,7 +215,7 @@ public class AutoMergeService : BackgroundService
     private async Task ProcessAutoMerge(
         AccessDetailsBase serviceUser,
         MergeGroup group,
-        List<(BranchWithActivity Branch, GitLabDetailedMergeRequest Mr)> branchMrDetails,
+        List<(BranchWithActivity Branch, GitLabDetailedMergeRequest MergeRequest)> branchMrDetails,
         CancellationToken cancellationToken)
     {
         // Check if ALL branches in the merge group have MRs
@@ -401,12 +387,13 @@ public class AutoMergeService : BackgroundService
 
     private async Task WaitForReady(CancellationToken cancellationToken)
     {
+        _logger.LogInformation("AutoMergeService: waiting for application to be ready");
         while (!cancellationToken.IsCancellationRequested)
         {
             var status = _healthService.GetStatus();
             if (status.IsReady)
             {
-                _logger.LogInformation("AutoMergeService: application is ready again, resuming");
+                _logger.LogInformation("AutoMergeService: application is ready starting merge checks");
                 return;
             }
 
