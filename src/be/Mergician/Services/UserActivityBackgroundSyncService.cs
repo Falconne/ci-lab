@@ -351,7 +351,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                 continue;
             }
 
-            if (_deadBranchesService.ShouldSkipScheduledForDeletion(
+            if (_deadBranchesService.ShouldSkipScheduledForDeletionByName(
                     pushEvent.BranchName,
                     pushEvent.ProjectId,
                     project.NameWithNamespace,
