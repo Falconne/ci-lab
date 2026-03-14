@@ -45,8 +45,8 @@ public class GitLabService
     {
         try
         {
-            return await _gitLabApiClient.ExecuteAsync<GitLabUserInfo>(
-                () => accessDetails.CreateRequest(HttpMethod.Get, "user"));
+            return await _gitLabApiClient.ExecuteAsync<GitLabUserInfo>(() =>
+                accessDetails.CreateRequest(HttpMethod.Get, "user"));
         }
         catch (GitLabUnexpectedResponseException ex)
         {
@@ -175,8 +175,8 @@ public class GitLabService
 
         try
         {
-            project = await _gitLabApiClient.ExecuteAsync<GitLabProject>(
-                () => accessDetails.CreateRequest(HttpMethod.Get, $"projects/{projectId}"));
+            project = await _gitLabApiClient.ExecuteAsync<GitLabProject>(() =>
+                accessDetails.CreateRequest(HttpMethod.Get, $"projects/{projectId}"));
         }
         catch (GitLabUnexpectedResponseException ex)
         {
@@ -220,10 +220,9 @@ public class GitLabService
 
         try
         {
-            return await _gitLabApiClient.ExecuteAsync<GitLabBranchDetails>(
-                () => accessDetails.CreateRequest(
-                    HttpMethod.Get,
-                    $"projects/{projectId}/repository/branches/{encodedBranch}"));
+            return await _gitLabApiClient.ExecuteAsync<GitLabBranchDetails>(() => accessDetails.CreateRequest(
+                HttpMethod.Get,
+                $"projects/{projectId}/repository/branches/{encodedBranch}"));
         }
         catch (GitLabUnexpectedResponseException ex)
         {
@@ -261,10 +260,9 @@ public class GitLabService
 
         try
         {
-            await _gitLabApiClient.ExecuteAsync<GitLabBranchDetails>(
-                () => accessDetails.CreateRequest(
-                    HttpMethod.Get,
-                    $"projects/{projectId}/repository/branches/{encodedBranch}"));
+            await _gitLabApiClient.ExecuteAsync<GitLabBranchDetails>(() => accessDetails.CreateRequest(
+                HttpMethod.Get,
+                $"projects/{projectId}/repository/branches/{encodedBranch}"));
 
             _logger.LogDebug("Branch '{BranchName}' exists in project {ProjectId}", branchName, projectId);
             return new GitLabBranchLookupResult(GitLabBranchLookupStatus.Exists, 200);
@@ -304,8 +302,8 @@ public class GitLabService
 
         try
         {
-            return await _gitLabApiClient.ExecuteAsync<List<GitLabMergeRequest>>(
-                () => accessDetails.CreateRequest(
+            return await _gitLabApiClient.ExecuteAsync<List<GitLabMergeRequest>>(() =>
+                accessDetails.CreateRequest(
                     HttpMethod.Get,
                     $"projects/{projectId}/merge_requests?source_branch={encodedBranch}&state=opened"));
         }
@@ -337,8 +335,8 @@ public class GitLabService
 
         try
         {
-            var result = await _gitLabApiClient.ExecuteAsync<GitLabCompareResult>(
-                () => accessDetails.CreateRequest(
+            var result = await _gitLabApiClient.ExecuteAsync<GitLabCompareResult>(() =>
+                accessDetails.CreateRequest(
                     HttpMethod.Get,
                     $"projects/{projectId}/repository/compare?from={encodedFrom}&to={encodedTo}&straight=true"));
 
@@ -385,42 +383,6 @@ public class GitLabService
     }
 
     /// <summary>
-    ///     Returns true if the given branch has at least one merge request in the "merged" state
-    ///     targeting <paramref name="targetBranch" />. Used to detect branches that were merged
-    ///     without a prior rebase (where <see cref="HasBranchDifferencesFromDefault" /> would
-    ///     still return true despite the work being done).
-    /// </summary>
-    public async Task<bool> HasMergedMergeRequest(
-        AccessDetailsBase accessDetails,
-        int projectId,
-        string sourceBranch,
-        string targetBranch)
-    {
-        var encodedSource = Uri.EscapeDataString(sourceBranch);
-        var encodedTarget = Uri.EscapeDataString(targetBranch);
-
-        try
-        {
-            var results = await _gitLabApiClient.ExecuteAsync<List<GitLabMergeRequest>>(
-                () => accessDetails.CreateRequest(
-                    HttpMethod.Get,
-                    $"projects/{projectId}/merge_requests?source_branch={encodedSource}&target_branch={encodedTarget}&state=merged&per_page=1"));
-
-            return results.Count > 0;
-        }
-        catch (GitLabUnexpectedResponseException ex)
-        {
-            _logger.LogError(
-                "HasMergedMergeRequest failed with status {StatusCode} for project {ProjectId}, branch '{BranchName}'",
-                (int)ex.StatusCode,
-                projectId,
-                sourceBranch);
-
-            return false;
-        }
-    }
-
-    /// <summary>
     ///     Gets the approval state for a merge request.
     /// </summary>
     public async Task<GitLabApprovalState?> GetMergeRequestApprovals(
@@ -430,10 +392,9 @@ public class GitLabService
     {
         try
         {
-            return await _gitLabApiClient.ExecuteAsync<GitLabApprovalState>(
-                () => accessDetails.CreateRequest(
-                    HttpMethod.Get,
-                    $"projects/{projectId}/merge_requests/{mergeRequestIid}/approvals"));
+            return await _gitLabApiClient.ExecuteAsync<GitLabApprovalState>(() => accessDetails.CreateRequest(
+                HttpMethod.Get,
+                $"projects/{projectId}/merge_requests/{mergeRequestIid}/approvals"));
         }
         catch (GitLabUnexpectedResponseException ex)
         {

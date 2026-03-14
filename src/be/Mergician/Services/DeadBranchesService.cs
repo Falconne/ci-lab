@@ -4,7 +4,6 @@ using Mergician.Services.GitLab;
 
 namespace Mergician.Services;
 
-
 /// <summary>
 ///     Provides helper methods for deciding whether a branch should be skipped
 ///     during sync or processing, and for removing stale branch records from the database.
@@ -14,11 +13,11 @@ public class DeadBranchesService
 {
     private readonly GitLabService _gitLabService;
 
-    private readonly GitLabUserFactory _userFactory;
-
     private readonly ILogger<DeadBranchesService> _logger;
 
     private readonly IMergeGroupRepository _mergeGroupRepository;
+
+    private readonly GitLabUserFactory _userFactory;
 
     public DeadBranchesService(
         GitLabService gitLabService,
@@ -109,32 +108,6 @@ public class DeadBranchesService
 
             RemoveBranchAndCleanup(trackedBranchInProjectId);
             return true;
-        }
-
-        // Diffs exist but the branch may have been merged without a prior rebase (i.e. the branch
-        // was behind the default branch at merge time so the default branch still has commits the
-        // branch tip doesn't include). Only remove if there is no open MR — an open MR means the
-        // branch is still being actively worked on.
-        var openMrs = await _gitLabService.GetMergeRequests(accessDetails, projectId, branchName);
-        if (openMrs.Count == 0)
-        {
-            var hasMergedMr = await _gitLabService.HasMergedMergeRequest(
-                accessDetails,
-                projectId,
-                branchName,
-                project.DefaultBranch);
-
-            if (hasMergedMr)
-            {
-                _logger.LogInformation(
-                    "Branch '{BranchName}' in project {ProjectId} has diffs from '{DefaultBranch}' but its MR has been merged and there are no open MRs; removing",
-                    branchName,
-                    projectId,
-                    project.DefaultBranch);
-
-                RemoveBranchAndCleanup(trackedBranchInProjectId);
-                return true;
-            }
         }
 
         return false;
