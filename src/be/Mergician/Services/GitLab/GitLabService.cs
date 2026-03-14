@@ -180,6 +180,10 @@ public class GitLabService
         }
         catch (GitLabUnexpectedResponseException ex)
         {
+            // TODO: If the wrapped exception shows a status of "not found", this is not an error, it means the
+            // project may have been deleted. Just log an informational message and return null in that case. If
+            // the error is something else, then rethrow rather than logging here.
+
             _logger.LogError(
                 "GetProject({ProjectId}) failed with status {StatusCode}",
                 projectId,

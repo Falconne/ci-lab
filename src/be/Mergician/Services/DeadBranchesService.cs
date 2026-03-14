@@ -58,17 +58,8 @@ public class DeadBranchesService
         cancellationToken.ThrowIfCancellationRequested();
 
         var project = await _gitLabService.GetProject(accessDetails, projectId);
-        if (project == null)
-        {
-            _logger.LogError(
-                "Cannot check status for branch '{BranchName}' in project {ProjectId}: project not found; skipping",
-                branchName,
-                projectId);
 
-            return true;
-        }
-
-        // TODO: If the project NameWithNamespace indicates that it is scheduled for deletion, we should also `RemoveBranchAndCleanup`
+        // TODO: If the project is null or its NameWithNamespace indicates that it is scheduled for deletion, we should also `RemoveBranchAndCleanup`
         // on this branch. Consolidate the above code so we only have to call `RemoveBranchAndCleanup` in one place.
 
         return false;
