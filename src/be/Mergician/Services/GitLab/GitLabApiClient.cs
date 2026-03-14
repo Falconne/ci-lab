@@ -88,7 +88,7 @@ public class GitLabApiClient
     /// </summary>
     public async Task<(T Data, string? NextPage)> ExecutePagedAsync<T>(
         Func<HttpRequestMessage> requestFactory,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken)
     {
         var (result, nextPage) = await ExecuteCoreAsync<T>(
             requestFactory,
@@ -113,7 +113,7 @@ public class GitLabApiClient
     ///     Also acts as a GitLab connectivity health check. Throws on failure so the caller
     ///     can implement retry logic.
     /// </summary>
-    public async Task DetectTimezone(CancellationToken cancellationToken = default)
+    public async Task DetectTimezone(CancellationToken cancellationToken)
     {
         var serviceUser = _userFactory.GetServiceUser();
         var tokenInfo = await ExecuteAsync<GitLabTokenSelfInfo>(

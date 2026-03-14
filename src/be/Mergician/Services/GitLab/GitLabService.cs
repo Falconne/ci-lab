@@ -64,7 +64,7 @@ public class GitLabService
         GetPushEventsForUserSince(
             AccessDetailsBase accessDetails,
             DateTimeOffset since,
-            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+            [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var sinceUtc = since.ToUniversalTime();
 

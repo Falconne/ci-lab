@@ -24,7 +24,7 @@ public class GitLabPipelineService
         AccessDetailsBase accessDetails,
         int projectId,
         string branchName,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken)
     {
         var latestPipeline = await GetLatestPipeline(
             accessDetails,
