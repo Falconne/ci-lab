@@ -11,29 +11,39 @@ namespace Mergician.Services;
 /// </summary>
 public sealed class ExternalServiceRateLimiter : IDisposable
 {
-    private const int MaxCallsPerSecond = 100;
+    private const int _maxCallsPerSecond = 100;
+
     private static readonly TimeSpan _logThrottleWindow = TimeSpan.FromSeconds(30);
 
-    private readonly TokenBucketRateLimiter _rateLimiter;
     private readonly ILogger<ExternalServiceRateLimiter> _logger;
 
     // Guards _pendingHitCount and _lastLogTime only; not on the hot path.
     private readonly Lock _logLock = new();
-    private int _pendingHitCount;
+
+    private readonly TokenBucketRateLimiter _rateLimiter;
+
     private DateTime _lastLogTime = DateTime.MinValue;
+
+    private int _pendingHitCount;
 
     public ExternalServiceRateLimiter(ILogger<ExternalServiceRateLimiter> logger)
     {
         _logger = logger;
-        _rateLimiter = new TokenBucketRateLimiter(new TokenBucketRateLimiterOptions
-        {
-            TokenLimit = MaxCallsPerSecond,
-            TokensPerPeriod = MaxCallsPerSecond,
-            ReplenishmentPeriod = TimeSpan.FromSeconds(1),
-            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-            QueueLimit = 10_000,
-            AutoReplenishment = true
-        });
+        _rateLimiter = new TokenBucketRateLimiter(
+            new TokenBucketRateLimiterOptions
+            {
+                TokenLimit = _maxCallsPerSecond,
+                TokensPerPeriod = _maxCallsPerSecond,
+                ReplenishmentPeriod = TimeSpan.FromSeconds(1),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 10_000,
+                AutoReplenishment = true
+            });
+    }
+
+    public void Dispose()
+    {
+        _rateLimiter.Dispose();
     }
 
     /// <summary>
@@ -55,7 +65,7 @@ public sealed class ExternalServiceRateLimiter : IDisposable
         RecordRateLimitHit();
 
         // Queue the call and wait for a token to become available.
-        using var queuedLease = await _rateLimiter.AcquireAsync(permitCount: 1, cancellationToken);
+        using var queuedLease = await _rateLimiter.AcquireAsync(1, cancellationToken);
         if (!queuedLease.IsAcquired)
         {
             // Only reachable if the queue is full or the token was cancelled.
@@ -63,11 +73,6 @@ public sealed class ExternalServiceRateLimiter : IDisposable
             throw new InvalidOperationException(
                 "External service rate limiter queue is full. Too many concurrent requests.");
         }
-    }
-
-    public void Dispose()
-    {
-        _rateLimiter.Dispose();
     }
 
     private void RecordRateLimitHit()
@@ -81,7 +86,7 @@ public sealed class ExternalServiceRateLimiter : IDisposable
                 _logger.LogError(
                     "GitLab API rate limit of {MaxCallsPerSecond} calls/second exceeded. "
                     + "{Count} call(s) were queued waiting for a token in the last {Window} seconds.",
-                    MaxCallsPerSecond,
+                    _maxCallsPerSecond,
                     _pendingHitCount,
                     (int)_logThrottleWindow.TotalSeconds);
 
