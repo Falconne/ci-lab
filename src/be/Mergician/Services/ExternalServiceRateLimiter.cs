@@ -3,11 +3,7 @@ using System.Threading.RateLimiting;
 namespace Mergician.Services;
 
 /// <summary>
-///     Enforces a global rate limit on outbound calls to external services (currently GitLab).
-///     Uses a token-bucket algorithm capped at 100 permits per second. If the limit is active
-///     when a call arrives, the call is queued until a token becomes available and an error is
-///     logged. To avoid log spam, the error is emitted at most once every 30 seconds and
-///     includes a count of how many calls were throttled in that window.
+///     Enforces a global rate limit on outbound calls to external services.
 /// </summary>
 public sealed class ExternalServiceRateLimiter : IDisposable
 {
