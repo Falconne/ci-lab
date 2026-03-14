@@ -68,16 +68,10 @@ public class GitLabApiClient
     /// </summary>
     public async Task<T> ExecuteAsync<T>(
         Func<HttpRequestMessage> requestFactory,
-        JsonSerializerOptions jsonOptions,
-        string operationName,
-        GitLabApiFailureBehavior failureBehavior,
         CancellationToken cancellationToken = default)
     {
         var (result, _) = await ExecuteCoreAsync<T>(
             requestFactory,
-            jsonOptions,
-            operationName,
-            failureBehavior,
             false,
             cancellationToken);
 
@@ -90,16 +84,10 @@ public class GitLabApiClient
     /// </summary>
     public async Task<(T Data, string? NextPage)> ExecutePagedAsync<T>(
         Func<HttpRequestMessage> requestFactory,
-        JsonSerializerOptions jsonOptions,
-        string operationName,
-        GitLabApiFailureBehavior failureBehavior,
         CancellationToken cancellationToken = default)
     {
         var (result, nextPage) = await ExecuteCoreAsync<T>(
             requestFactory,
-            jsonOptions,
-            operationName,
-            failureBehavior,
             true,
             cancellationToken);
 
@@ -126,9 +114,6 @@ public class GitLabApiClient
         var serviceUser = _userFactory.GetServiceUser();
         var tokenInfo = await ExecuteAsync<GitLabTokenSelfInfo>(
             () => serviceUser.CreateRequest(HttpMethod.Get, "personal_access_tokens/self"),
-            _jsonOptions,
-            "DetectTimezone",
-            GitLabApiFailureBehavior.Throw,
             cancellationToken);
 
         var createdAt = tokenInfo.CreatedAt
@@ -175,7 +160,7 @@ public class GitLabApiClient
                 _logger.LogInformation("GitLabApiClient: GitLab check passed");
                 return true;
             }
-            catch (GitLabApiFailureException ex)
+            catch (GitLabStartupRequiredException ex)
             {
                 _logger.LogError(
                     ex,
@@ -216,21 +201,12 @@ public class GitLabApiClient
     /// </summary>
     private async Task<(T? Data, string? NextPage)> ExecuteCoreAsync<T>(
         Func<HttpRequestMessage> requestFactory,
-        JsonSerializerOptions jsonOptions,
-        string operationName,
-        GitLabApiFailureBehavior failureBehavior,
         bool captureNextPage,
         CancellationToken cancellationToken)
     {
-        // TODO: Instead of requiring an operation name to be passed in, generate it from the request URL string. Remove
-        // the setting of this from up the call chain.
-
-        // TODO: Remove the need to pass in a JsonSerializerOptions. All these calls go to Gitlab, use the correct
-        // options without needing to be told. See what options are currently being passed in and use then, then
-        // get rid of this from the call chain.
-
         Exception? lastException = null;
         var totalAttempts = _retryDelays.Length + 1;
+        string? operationName = null;
 
         for (var attempt = 1; attempt <= totalAttempts; attempt++)
         {
@@ -240,6 +216,8 @@ public class GitLabApiClient
             {
                 var client = _httpClientFactory.CreateClient("GitLabOAuth");
                 using var request = requestFactory();
+                operationName ??= GenerateOperationName(request);
+
                 using var response = await client.SendAsync(request, cancellationToken);
 
                 if (!response.IsSuccessStatusCode)
@@ -270,7 +248,7 @@ public class GitLabApiClient
                     }
 
                     var json = await response.Content.ReadAsStringAsync(cancellationToken);
-                    return (DeserializeOrThrow<T>(json, jsonOptions, operationName), nextPage);
+                    return (DeserializeOrThrow<T>(json, operationName), nextPage);
                 }
             }
             catch (GitLabUnexpectedResponseException)
@@ -315,6 +293,8 @@ public class GitLabApiClient
             await Task.Delay(delay, cancellationToken);
         }
 
+        operationName ??= "Unknown";
+
         var failureException = new GitLabApiFailureException(
             operationName,
             totalAttempts,
@@ -332,15 +312,34 @@ public class GitLabApiClient
         // GitLab instance.
         _gitLabRecoveryService.EnterGitLabRecoveryMode();
 
-        // TODO: Remove the need for `GitLabApiFailureBehavior` and just always throw `GitLabStartupRequiredException`.
-        // For the background tasks that are currently using `GitLabApiFailureBehavior.Throw`, make them catch `GitLabStartupRequiredException`,
-        // to continue doing what they do now. Delete the `GitLabApiFailureBehavior` enum.
-        if (failureBehavior == GitLabApiFailureBehavior.EnterStartupMode)
+        throw new GitLabStartupRequiredException(operationName, failureException);
+    }
+
+    /// <summary>
+    ///     Generates a human-readable operation name from an HTTP request for use in logging
+    ///     and exception messages. Format: "GET projects/123/merge_requests/456".
+    /// </summary>
+    private static string GenerateOperationName(HttpRequestMessage request)
+    {
+        var method = request.Method.Method;
+        var path = request.RequestUri?.PathAndQuery ?? "unknown";
+
+        // Strip the /api/v4/ prefix if present
+        var apiPrefix = "/api/v4/";
+        var apiIndex = path.IndexOf(apiPrefix, StringComparison.OrdinalIgnoreCase);
+        if (apiIndex >= 0)
         {
-            throw new GitLabStartupRequiredException(operationName, failureException);
+            path = path[(apiIndex + apiPrefix.Length)..];
         }
 
-        throw failureException;
+        // Strip query string for cleaner names
+        var queryIndex = path.IndexOf('?');
+        if (queryIndex >= 0)
+        {
+            path = path[..queryIndex];
+        }
+
+        return $"{method} {path}";
     }
 
     /// <summary>
@@ -349,10 +348,9 @@ public class GitLabApiClient
     /// </summary>
     private static T DeserializeOrThrow<T>(
         string json,
-        JsonSerializerOptions jsonOptions,
         string operationName)
     {
-        var result = JsonSerializer.Deserialize<T>(json, jsonOptions);
+        var result = JsonSerializer.Deserialize<T>(json, _jsonOptions);
         if (result == null)
         {
             throw new JsonException(

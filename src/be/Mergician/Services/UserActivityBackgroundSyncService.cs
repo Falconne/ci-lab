@@ -223,7 +223,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                 {
                     break;
                 }
-                catch (GitLabApiFailureException ex)
+                catch (GitLabStartupRequiredException ex)
                 {
                     _logger.LogError(
                         ex,
@@ -434,7 +434,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
         {
             throw;
         }
-        catch (GitLabApiFailureException ex)
+        catch (GitLabStartupRequiredException ex)
         {
             _logger.LogError(
                 ex,
@@ -479,7 +479,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             {
                 throw;
             }
-            catch (GitLabApiFailureException ex)
+            catch (GitLabStartupRequiredException ex)
             {
                 _logger.LogError(
                     ex,

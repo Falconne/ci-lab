@@ -2,13 +2,6 @@ using System.Net;
 
 namespace Mergician.Services.GitLab;
 
-public enum GitLabApiFailureBehavior
-{
-    Throw,
-
-    EnterStartupMode
-}
-
 public class GitLabApiFailureException : Exception
 {
     public GitLabApiFailureException(string operationName, int totalAttempts, Exception innerException)

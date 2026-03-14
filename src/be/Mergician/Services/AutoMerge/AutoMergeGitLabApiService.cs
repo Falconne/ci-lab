@@ -1,10 +1,8 @@
 using Mergician.Entities;
 using Mergician.Services.Authentication;
 using Mergician.Services.GitLab;
-using Mergician.Utilities;
 using System.Net;
 using System.Text;
-using System.Text.Json;
 
 namespace Mergician.Services.AutoMerge;
 
@@ -14,8 +12,6 @@ namespace Mergician.Services.AutoMerge;
 /// </summary>
 public class AutoMergeGitLabApiService
 {
-    private static readonly JsonSerializerOptions _jsonOptions = JsonOptions.CaseInsensitive;
-
     private readonly GitLabApiClient _gitLabApiClient;
 
     private readonly ILogger<AutoMergeGitLabApiService> _logger;
@@ -36,17 +32,12 @@ public class AutoMergeGitLabApiService
         int projectId,
         int mergeRequestIid)
     {
-        var operationName = $"GetDetailedMergeRequest(projectId={projectId}, mrIid={mergeRequestIid})";
-
         try
         {
             return await _gitLabApiClient.ExecuteAsync<GitLabDetailedMergeRequest>(
                 () => accessDetails.CreateRequest(
                     HttpMethod.Get,
-                    $"projects/{projectId}/merge_requests/{mergeRequestIid}"),
-                _jsonOptions,
-                operationName,
-                GitLabApiFailureBehavior.Throw);
+                    $"projects/{projectId}/merge_requests/{mergeRequestIid}"));
         }
         catch (GitLabUnexpectedResponseException ex)
         {
@@ -68,17 +59,12 @@ public class AutoMergeGitLabApiService
         int projectId,
         int mergeRequestIid)
     {
-        var operationName = $"GetLatestMergeRequestPipeline(projectId={projectId}, mrIid={mergeRequestIid})";
-
         try
         {
             var pipelines = await _gitLabApiClient.ExecuteAsync<List<GitLabPipelineDetail>>(
                 () => accessDetails.CreateRequest(
                     HttpMethod.Get,
-                    $"projects/{projectId}/merge_requests/{mergeRequestIid}/pipelines?per_page=1&sort=desc"),
-                _jsonOptions,
-                operationName,
-                GitLabApiFailureBehavior.Throw);
+                    $"projects/{projectId}/merge_requests/{mergeRequestIid}/pipelines?per_page=1&sort=desc"));
 
             return pipelines.FirstOrDefault();
         }
@@ -103,8 +89,6 @@ public class AutoMergeGitLabApiService
         int projectId,
         int mergeRequestIid)
     {
-        var operationName = $"RebaseMergeRequest(projectId={projectId}, mrIid={mergeRequestIid})";
-
         try
         {
             await _gitLabApiClient.ExecuteAsync<GitLabRebaseResponse>(
@@ -115,10 +99,7 @@ public class AutoMergeGitLabApiService
                         $"projects/{projectId}/merge_requests/{mergeRequestIid}/rebase");
                     request.Content = new StringContent("{}", Encoding.UTF8, "application/json");
                     return request;
-                },
-                _jsonOptions,
-                operationName,
-                GitLabApiFailureBehavior.Throw);
+                });
 
             _logger.LogInformation(
                 "Initiated rebase for project {ProjectId}, MR {MrIid}",
@@ -148,8 +129,6 @@ public class AutoMergeGitLabApiService
         int projectId,
         int mergeRequestIid)
     {
-        var operationName = $"AcceptMergeRequest(projectId={projectId}, mrIid={mergeRequestIid})";
-
         try
         {
             var result = await _gitLabApiClient.ExecuteAsync<GitLabMergeResponse>(
@@ -160,10 +139,7 @@ public class AutoMergeGitLabApiService
                         $"projects/{projectId}/merge_requests/{mergeRequestIid}/merge");
                     request.Content = new StringContent("{}", Encoding.UTF8, "application/json");
                     return request;
-                },
-                _jsonOptions,
-                operationName,
-                GitLabApiFailureBehavior.Throw);
+                });
 
             _logger.LogInformation(
                 "Accepted merge request for project {ProjectId}, MR {MrIid}, state={State}",

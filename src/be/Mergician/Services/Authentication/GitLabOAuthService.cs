@@ -1,14 +1,10 @@
 using Mergician.Entities;
 using Mergician.Services.GitLab;
-using Mergician.Utilities;
-using System.Text.Json;
 
 namespace Mergician.Services.Authentication;
 
 public class GitLabOAuthService
 {
-    private static readonly JsonSerializerOptions _jsonOptions = JsonOptions.CaseInsensitive;
-
     private readonly GitLabApiClient _gitLabApiClient;
 
     private readonly ILogger<GitLabOAuthService> _logger;
@@ -54,10 +50,7 @@ public class GitLabOAuthService
                             ["grant_type"] = "authorization_code",
                             ["redirect_uri"] = redirectUri
                         })
-                },
-                _jsonOptions,
-                "ExchangeCodeForToken",
-                GitLabApiFailureBehavior.EnterStartupMode);
+                });
         }
         catch (GitLabUnexpectedResponseException ex)
         {
@@ -88,10 +81,7 @@ public class GitLabOAuthService
                             ["refresh_token"] = refreshToken,
                             ["grant_type"] = "refresh_token"
                         })
-                },
-                _jsonOptions,
-                "RefreshToken",
-                GitLabApiFailureBehavior.EnterStartupMode);
+                });
         }
         catch (GitLabUnexpectedResponseException ex)
         {

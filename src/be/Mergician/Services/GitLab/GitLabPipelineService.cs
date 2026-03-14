@@ -1,14 +1,10 @@
 using Mergician.Entities;
 using Mergician.Services.Authentication;
-using Mergician.Utilities;
-using System.Text.Json;
 
 namespace Mergician.Services.GitLab;
 
 public class GitLabPipelineService
 {
-    private static readonly JsonSerializerOptions _jsonOptions = JsonOptions.CaseInsensitive;
-
     private readonly GitLabApiClient _gitLabApiClient;
 
     private readonly ILogger<GitLabPipelineService> _logger;
@@ -109,7 +105,6 @@ public class GitLabPipelineService
         CancellationToken cancellationToken)
     {
         var encodedBranch = Uri.EscapeDataString(branchName);
-        var operationName = $"GetBranchHeadCommitSha(projectId={projectId}, branchName={branchName})";
 
         GitLabBranchDetails details;
 
@@ -119,9 +114,6 @@ public class GitLabPipelineService
                 () => accessDetails.CreateRequest(
                     HttpMethod.Get,
                     $"projects/{projectId}/repository/branches/{encodedBranch}"),
-                _jsonOptions,
-                operationName,
-                GitLabApiFailureBehavior.Throw,
                 cancellationToken);
         }
         catch (GitLabUnexpectedResponseException ex)
@@ -155,7 +147,6 @@ public class GitLabPipelineService
         CancellationToken cancellationToken)
     {
         var encodedBranch = Uri.EscapeDataString(branchName);
-        var operationName = $"GetLatestPipeline(projectId={projectId}, branchName={branchName})";
 
         try
         {
@@ -163,9 +154,6 @@ public class GitLabPipelineService
                 () => accessDetails.CreateRequest(
                     HttpMethod.Get,
                     $"projects/{projectId}/pipelines?ref={encodedBranch}&order_by=updated_at&sort=desc&per_page=1"),
-                _jsonOptions,
-                operationName,
-                GitLabApiFailureBehavior.Throw,
                 cancellationToken);
 
             return pipelines.FirstOrDefault();
@@ -188,8 +176,6 @@ public class GitLabPipelineService
         int pipelineId,
         CancellationToken cancellationToken)
     {
-        var operationName = $"GetExternalJobsFromPipeline(projectId={projectId}, pipelineId={pipelineId})";
-
         List<GitLabPipelineJob> jobs;
 
         try
@@ -198,9 +184,6 @@ public class GitLabPipelineService
                 () => accessDetails.CreateRequest(
                     HttpMethod.Get,
                     $"projects/{projectId}/pipelines/{pipelineId}/jobs?per_page=100"),
-                _jsonOptions,
-                operationName,
-                GitLabApiFailureBehavior.Throw,
                 cancellationToken);
         }
         catch (GitLabUnexpectedResponseException ex)
@@ -231,8 +214,6 @@ public class GitLabPipelineService
         CancellationToken cancellationToken)
     {
         var encodedCommit = Uri.EscapeDataString(commitSha);
-        var operationName =
-            $"GetExternalStatusesFromCommit(projectId={projectId}, commitSha={commitSha}, pipelineId={pipelineId})";
 
         List<GitLabCommitStatus> statuses;
 
@@ -242,9 +223,6 @@ public class GitLabPipelineService
                 () => accessDetails.CreateRequest(
                     HttpMethod.Get,
                     $"projects/{projectId}/repository/commits/{encodedCommit}/statuses?pipeline_id={pipelineId}&per_page=100"),
-                _jsonOptions,
-                operationName,
-                GitLabApiFailureBehavior.Throw,
                 cancellationToken);
         }
         catch (GitLabUnexpectedResponseException ex)

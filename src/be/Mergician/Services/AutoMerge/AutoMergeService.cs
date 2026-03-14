@@ -61,10 +61,6 @@ public class AutoMergeService : BackgroundService
             {
                 break;
             }
-            catch (GitLabApiFailureException ex)
-            {
-                _logger.LogWarning(ex, "AutoMergeService: GitLab API failure, will retry next cycle");
-            }
             catch (GitLabStartupRequiredException)
             {
                 _logger.LogWarning("AutoMergeService: GitLab is in startup mode, pausing until ready");
@@ -107,7 +103,7 @@ public class AutoMergeService : BackgroundService
             {
                 await ProcessMergeGroup(serviceUser, group, cancellationToken);
             }
-            catch (GitLabApiFailureException ex)
+            catch (GitLabStartupRequiredException ex)
             {
                 _logger.LogWarning(
                     ex,

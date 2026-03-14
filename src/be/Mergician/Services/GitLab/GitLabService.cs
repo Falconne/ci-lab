@@ -1,16 +1,12 @@
 using Mergician.Entities;
 using Mergician.Services.Authentication;
-using Mergician.Utilities;
 using System.Net;
 using System.Runtime.CompilerServices;
-using System.Text.Json;
 
 namespace Mergician.Services.GitLab;
 
 public class GitLabService
 {
-    private static readonly JsonSerializerOptions _jsonOptions = JsonOptions.CaseInsensitive;
-
     private readonly GitLabApiClient _gitLabApiClient;
 
     private readonly ILogger<GitLabService> _logger;
@@ -50,10 +46,7 @@ public class GitLabService
         try
         {
             return await _gitLabApiClient.ExecuteAsync<GitLabUserInfo>(
-                () => accessDetails.CreateRequest(HttpMethod.Get, "user"),
-                _jsonOptions,
-                "GetCurrentUser",
-                GitLabApiFailureBehavior.EnterStartupMode);
+                () => accessDetails.CreateRequest(HttpMethod.Get, "user"));
         }
         catch (GitLabUnexpectedResponseException ex)
         {
@@ -96,7 +89,6 @@ public class GitLabService
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var operationName = $"GetPushEventsForUserSince(page={page})";
             List<GitLabPushEvent> pageEvents;
             string? nextPage;
 
@@ -106,9 +98,6 @@ public class GitLabService
                     () => accessDetails.CreateRequest(
                         HttpMethod.Get,
                         $"events?after={afterDate}&action=pushed&sort=desc&per_page=100&page={page}"),
-                    _jsonOptions,
-                    operationName,
-                    GitLabApiFailureBehavior.Throw,
                     cancellationToken);
             }
             catch (GitLabUnexpectedResponseException ex)
@@ -182,16 +171,12 @@ public class GitLabService
             return cached;
         }
 
-        var operationName = $"GetProject({projectId})";
         GitLabProject? project;
 
         try
         {
             project = await _gitLabApiClient.ExecuteAsync<GitLabProject>(
-                () => accessDetails.CreateRequest(HttpMethod.Get, $"projects/{projectId}"),
-                _jsonOptions,
-                operationName,
-                GitLabApiFailureBehavior.Throw);
+                () => accessDetails.CreateRequest(HttpMethod.Get, $"projects/{projectId}"));
         }
         catch (GitLabUnexpectedResponseException ex)
         {
@@ -232,17 +217,13 @@ public class GitLabService
         string branchName)
     {
         var encodedBranch = Uri.EscapeDataString(branchName);
-        var operationName = $"GetBranchDetails(projectId={projectId}, branchName={branchName})";
 
         try
         {
             return await _gitLabApiClient.ExecuteAsync<GitLabBranchDetails>(
                 () => accessDetails.CreateRequest(
                     HttpMethod.Get,
-                    $"projects/{projectId}/repository/branches/{encodedBranch}"),
-                _jsonOptions,
-                operationName,
-                GitLabApiFailureBehavior.Throw);
+                    $"projects/{projectId}/repository/branches/{encodedBranch}"));
         }
         catch (GitLabUnexpectedResponseException ex)
         {
@@ -277,17 +258,13 @@ public class GitLabService
         string branchName)
     {
         var encodedBranch = Uri.EscapeDataString(branchName);
-        var operationName = $"GetBranchLookupResult(projectId={projectId}, branchName={branchName})";
 
         try
         {
             await _gitLabApiClient.ExecuteAsync<GitLabBranchDetails>(
                 () => accessDetails.CreateRequest(
                     HttpMethod.Get,
-                    $"projects/{projectId}/repository/branches/{encodedBranch}"),
-                _jsonOptions,
-                operationName,
-                GitLabApiFailureBehavior.Throw);
+                    $"projects/{projectId}/repository/branches/{encodedBranch}"));
 
             _logger.LogDebug("Branch '{BranchName}' exists in project {ProjectId}", branchName, projectId);
             return new GitLabBranchLookupResult(GitLabBranchLookupStatus.Exists, 200);
@@ -324,17 +301,13 @@ public class GitLabService
         string sourceBranch)
     {
         var encodedBranch = Uri.EscapeDataString(sourceBranch);
-        var operationName = $"GetMergeRequests(projectId={projectId}, sourceBranch={sourceBranch})";
 
         try
         {
             return await _gitLabApiClient.ExecuteAsync<List<GitLabMergeRequest>>(
                 () => accessDetails.CreateRequest(
                     HttpMethod.Get,
-                    $"projects/{projectId}/merge_requests?source_branch={encodedBranch}&state=opened"),
-                _jsonOptions,
-                operationName,
-                GitLabApiFailureBehavior.Throw);
+                    $"projects/{projectId}/merge_requests?source_branch={encodedBranch}&state=opened"));
         }
         catch (GitLabUnexpectedResponseException ex)
         {
@@ -361,17 +334,13 @@ public class GitLabService
     {
         var encodedFrom = Uri.EscapeDataString(defaultBranch);
         var encodedTo = Uri.EscapeDataString(branchName);
-        var operationName = $"HasBranchDifferencesFromDefault(projectId={projectId}, branch={branchName}, default={defaultBranch})";
 
         try
         {
             var result = await _gitLabApiClient.ExecuteAsync<GitLabCompareResult>(
                 () => accessDetails.CreateRequest(
                     HttpMethod.Get,
-                    $"projects/{projectId}/repository/compare?from={encodedFrom}&to={encodedTo}&straight=true"),
-                _jsonOptions,
-                operationName,
-                GitLabApiFailureBehavior.Throw);
+                    $"projects/{projectId}/repository/compare?from={encodedFrom}&to={encodedTo}&straight=true"));
 
             if (result.CompareTimeout)
             {
@@ -429,18 +398,13 @@ public class GitLabService
     {
         var encodedSource = Uri.EscapeDataString(sourceBranch);
         var encodedTarget = Uri.EscapeDataString(targetBranch);
-        var operationName =
-            $"HasMergedMergeRequest(projectId={projectId}, sourceBranch={sourceBranch}, targetBranch={targetBranch})";
 
         try
         {
             var results = await _gitLabApiClient.ExecuteAsync<List<GitLabMergeRequest>>(
                 () => accessDetails.CreateRequest(
                     HttpMethod.Get,
-                    $"projects/{projectId}/merge_requests?source_branch={encodedSource}&target_branch={encodedTarget}&state=merged&per_page=1"),
-                _jsonOptions,
-                operationName,
-                GitLabApiFailureBehavior.Throw);
+                    $"projects/{projectId}/merge_requests?source_branch={encodedSource}&target_branch={encodedTarget}&state=merged&per_page=1"));
 
             return results.Count > 0;
         }
@@ -464,18 +428,12 @@ public class GitLabService
         int projectId,
         int mergeRequestIid)
     {
-        var operationName =
-            $"GetMergeRequestApprovals(projectId={projectId}, mergeRequestIid={mergeRequestIid})";
-
         try
         {
             return await _gitLabApiClient.ExecuteAsync<GitLabApprovalState>(
                 () => accessDetails.CreateRequest(
                     HttpMethod.Get,
-                    $"projects/{projectId}/merge_requests/{mergeRequestIid}/approvals"),
-                _jsonOptions,
-                operationName,
-                GitLabApiFailureBehavior.Throw);
+                    $"projects/{projectId}/merge_requests/{mergeRequestIid}/approvals"));
         }
         catch (GitLabUnexpectedResponseException ex)
         {
