@@ -1,13 +1,12 @@
 using Mergician.Entities;
 using Mergician.Services.Authentication;
+using Mergician.Services.GitLab;
 using Mergician.Utilities;
 using System.Net;
 using System.Text;
 using System.Text.Json;
 
-namespace Mergician.Services.GitLab;
-
-// TODO: move this class into the Services/AutoMerge dir and update namespace references.
+namespace Mergician.Services.AutoMerge;
 
 /// <summary>
 ///     GitLab API operations related to auto merge functionality:

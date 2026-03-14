@@ -1,10 +1,9 @@
 using Mergician.Entities;
 using Mergician.Services.Authentication;
 using Mergician.Services.Database;
+using Mergician.Services.GitLab;
 
-namespace Mergician.Services.GitLab;
-
-// TODO: move this class into the Services/AutoMerge dir and update namespace references.
+namespace Mergician.Services.AutoMerge;
 
 /// <summary>
 ///     Background service that monitors merge groups with auto merge or auto rebase enabled.

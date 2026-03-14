@@ -1,6 +1,7 @@
 using Mergician.Entities;
 using Mergician.Services;
 using Mergician.Services.Authentication;
+using Mergician.Services.AutoMerge;
 using Mergician.Services.Database;
 using Mergician.Services.GitLab;
 using Microsoft.AspNetCore.Authentication;
