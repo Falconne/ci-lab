@@ -59,7 +59,7 @@ try
     builder.Services.AddSingleton<GitLabService>();
     builder.Services.AddSingleton<GitLabPipelineService>();
     builder.Services.AddSingleton<DeadBranchesService>();
-    builder.Services.AddSingleton<GitLabAutoMergeApiService>();
+    builder.Services.AddSingleton<AutoMergeGitLabApiService>();
     builder.Services.AddSingleton<VersionService>();
 
     // Register background user activity sync service

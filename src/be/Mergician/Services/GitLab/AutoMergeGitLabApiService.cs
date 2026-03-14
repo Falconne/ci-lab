@@ -11,17 +11,17 @@ namespace Mergician.Services.GitLab;
 ///     GitLab API operations related to auto merge functionality:
 ///     retrieving detailed MR info, rebasing, checking pipelines, and merging.
 /// </summary>
-public class GitLabAutoMergeApiService
+public class AutoMergeGitLabApiService
 {
     private static readonly JsonSerializerOptions _jsonOptions = JsonOptions.CaseInsensitive;
 
     private readonly GitLabApiClient _gitLabApiClient;
 
-    private readonly ILogger<GitLabAutoMergeApiService> _logger;
+    private readonly ILogger<AutoMergeGitLabApiService> _logger;
 
-    public GitLabAutoMergeApiService(
+    public AutoMergeGitLabApiService(
         GitLabApiClient gitLabApiClient,
-        ILogger<GitLabAutoMergeApiService> logger)
+        ILogger<AutoMergeGitLabApiService> logger)
     {
         _gitLabApiClient = gitLabApiClient;
         _logger = logger;

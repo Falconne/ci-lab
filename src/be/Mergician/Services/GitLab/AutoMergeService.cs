@@ -16,7 +16,7 @@ public class AutoMergeService : BackgroundService
 {
     private static readonly TimeSpan _pollInterval = TimeSpan.FromSeconds(5);
 
-    private readonly GitLabAutoMergeApiService _autoMergeApiService;
+    private readonly AutoMergeGitLabApiService _apiService;
 
     private readonly GitLabService _gitLabService;
 
@@ -31,7 +31,7 @@ public class AutoMergeService : BackgroundService
     private readonly IMergeGroupRepository _mergeGroupRepository;
 
     public AutoMergeService(
-        GitLabAutoMergeApiService autoMergeApiService,
+        AutoMergeGitLabApiService apiService,
         GitLabService gitLabService,
         GitLabRecoveryService gitLabRecoveryService,
         GitLabUserFactory userFactory,
@@ -39,7 +39,7 @@ public class AutoMergeService : BackgroundService
         IMergeGroupRepository mergeGroupRepository,
         ILogger<AutoMergeService> logger)
     {
-        _autoMergeApiService = autoMergeApiService;
+        _apiService = apiService;
         _gitLabService = gitLabService;
         _gitLabRecoveryService = gitLabRecoveryService;
         _userFactory = userFactory;
@@ -153,7 +153,7 @@ public class AutoMergeService : BackgroundService
                 continue;
             }
 
-            var detailedMr = await _autoMergeApiService.GetDetailedMergeRequest(
+            var detailedMr = await _apiService.GetDetailedMergeRequest(
                 serviceUser,
                 branch.ProjectId,
                 mergeRequests[0].Iid);
@@ -208,7 +208,7 @@ public class AutoMergeService : BackgroundService
                 mr.DivergedCommitsCount,
                 mr.HasConflicts);
 
-            await _autoMergeApiService.RebaseMergeRequest(serviceUser, branch.ProjectId, mr.Iid);
+            await _apiService.RebaseMergeRequest(serviceUser, branch.ProjectId, mr.Iid);
         }
     }
 
@@ -269,7 +269,7 @@ public class AutoMergeService : BackgroundService
         var mergeTasks = branchMrDetails.Select(async item =>
         {
             var (branch, mr) = item;
-            var result = await _autoMergeApiService.AcceptMergeRequest(
+            var result = await _apiService.AcceptMergeRequest(
                 serviceUser,
                 branch.ProjectId,
                 mr.Iid);
@@ -345,7 +345,7 @@ public class AutoMergeService : BackgroundService
         }
 
         // Check pipelines
-        var pipelines = await _autoMergeApiService.GetMergeRequestPipelines(
+        var pipelines = await _apiService.GetMergeRequestPipelines(
             serviceUser,
             branch.ProjectId,
             mr.Iid);
