@@ -120,7 +120,7 @@ public class AuthController : ControllerBase
 
         // Fetch and persist the user ID so the authentication handler can include it
         // in the AccessDetailsForUser on subsequent requests without an additional API call
-        var tempUser = new AccessDetailsForUser(tokenResponse.AccessToken, _authSettings.ApiBaseUrl, 0);
+        var tempUser = new AccessDetailsBase(tokenResponse.AccessToken, _authSettings.ApiBaseUrl);
         var userInfo = await _gitLabService.GetCurrentUser(tempUser);
         if (userInfo != null)
         {

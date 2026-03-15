@@ -22,7 +22,7 @@ public class GitLabPipelineService
     ///     Returns build job statuses for the latest pipeline on the branch.
     /// </summary>
     public async Task<List<BranchBuildJob>> GetLatestBuildJobsForBranch(
-        AccessDetailsForUser accessDetails,
+        AccessDetailsBase accessDetails,
         int projectId,
         string branchName,
         CancellationToken cancellationToken)
@@ -60,7 +60,7 @@ public class GitLabPipelineService
     }
 
     private async Task<GitLabPipeline?> GetLatestPipeline(
-        AccessDetailsForUser accessDetails,
+        AccessDetailsBase accessDetails,
         int projectId,
         string branchName,
         CancellationToken cancellationToken)
@@ -90,7 +90,7 @@ public class GitLabPipelineService
     }
 
     private async Task<List<BranchBuildJob>> GetJobsFromPipeline(
-        AccessDetailsForUser accessDetails,
+        AccessDetailsBase accessDetails,
         int projectId,
         int pipelineId,
         CancellationToken cancellationToken)

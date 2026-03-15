@@ -32,7 +32,7 @@ public class GitLabService
         return branchName is "main" or "master" or "develop";
     }
 
-    public async Task<GitLabUserInfo?> GetCurrentUser(AccessDetailsForUser accessDetails)
+    public async Task<GitLabUserInfo?> GetCurrentUser(AccessDetailsBase accessDetails)
     {
         try
         {
@@ -53,7 +53,7 @@ public class GitLabService
     /// </summary>
     public async IAsyncEnumerable<(string BranchName, int ProjectId, DateTimeOffset CreatedAt)>
         GetPushEventsForUserSince(
-            AccessDetailsForUser accessDetails,
+            AccessDetailsBase accessDetails,
             DateTimeOffset since,
             [EnumeratorCancellation] CancellationToken cancellationToken)
     {
@@ -154,7 +154,7 @@ public class GitLabService
             sinceUtc);
     }
 
-    public async Task<GitLabProject?> GetProject(AccessDetailsForUser accessDetails, int projectId)
+    public async Task<GitLabProject?> GetProject(AccessDetailsBase accessDetails, int projectId)
     {
         if (_projectCache.TryGet(projectId, out var cached))
         {
@@ -207,7 +207,7 @@ public class GitLabService
     ///     Returns null when the branch does not exist or the request fails.
     /// </summary>
     public async Task<GitLabBranchDetails?> GetBranchDetails(
-        AccessDetailsForUser accessDetails,
+        AccessDetailsBase accessDetails,
         int projectId,
         string branchName)
     {
@@ -247,7 +247,7 @@ public class GitLabService
     ///     Returns Missing only for 404 responses; all other failures are Unavailable.
     /// </summary>
     public async Task<GitLabBranchLookupResult> GetBranchLookupResult(
-        AccessDetailsForUser accessDetails,
+        AccessDetailsBase accessDetails,
         int projectId,
         string branchName)
     {
@@ -289,7 +289,7 @@ public class GitLabService
     ///     Finds open merge requests for a given source branch in a project.
     /// </summary>
     public async Task<List<GitLabMergeRequest>> GetMergeRequests(
-        AccessDetailsForUser accessDetails,
+        AccessDetailsBase accessDetails,
         int projectId,
         string sourceBranch)
     {
@@ -318,7 +318,7 @@ public class GitLabService
     ///     Gets the approval state for a merge request.
     /// </summary>
     public async Task<GitLabApprovalState?> GetMergeRequestApprovals(
-        AccessDetailsForUser accessDetails,
+        AccessDetailsBase accessDetails,
         int projectId,
         int mergeRequestIid)
     {

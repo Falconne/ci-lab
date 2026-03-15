@@ -124,7 +124,7 @@ public class AutoMergeService : BackgroundService
     }
 
     private async Task ProcessMergeGroup(
-        AccessDetailsForUser serviceUser,
+        AccessDetailsBase serviceUser,
         MergeGroup group,
         CancellationToken cancellationToken)
     {
@@ -184,7 +184,7 @@ public class AutoMergeService : BackgroundService
     }
 
     private async Task ProcessAutoRebase(
-        AccessDetailsForUser serviceUser,
+        AccessDetailsBase serviceUser,
         MergeGroup group,
         List<(BranchWithActivity Branch, GitLabDetailedMergeRequest MergeRequest)> branchMrDetails,
         CancellationToken cancellationToken)
@@ -274,7 +274,7 @@ public class AutoMergeService : BackgroundService
     }
 
     private async Task ProcessAutoMerge(
-        AccessDetailsForUser serviceUser,
+        AccessDetailsBase serviceUser,
         MergeGroup group,
         List<(BranchWithActivity Branch, GitLabDetailedMergeRequest MergeRequest)> branchMrDetails,
         CancellationToken cancellationToken)
@@ -384,7 +384,7 @@ public class AutoMergeService : BackgroundService
     }
 
     private async Task<bool> IsBranchReadyToMerge(
-        AccessDetailsForUser serviceUser,
+        AccessDetailsBase serviceUser,
         BranchWithActivity branch,
         GitLabDetailedMergeRequest mr,
         bool autoRebaseEnabled,
