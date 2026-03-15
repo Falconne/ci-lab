@@ -263,9 +263,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
     }
 
     /// <summary>
-    ///     Checks all tracked branches for a user and removes any that have been deleted from GitLab
-    ///     or have no remaining file differences from the project's default branch.
-    ///     Called by the background sync thread during each poll cycle.
+    ///     Checks all tracked branches for a user and removes any that have been deleted from GitLab.
     /// </summary>
     private async Task CleanupDeletedBranches(
         AccessDetailsForUser accessDetails,
@@ -275,7 +273,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
         var userGroups = _mergeGroupRepository.GetMergeGroupsForUser(userId);
         var userBranches = userGroups.SelectMany(g => g.Branches).ToList();
         _logger.LogDebug(
-            "Checking {Count} tracked branches for user {UserId} for deletion or no-diff status",
+            "Checking {Count} tracked branches for user {UserId} for deletion",
             userBranches.Count,
             userId);
 
@@ -305,7 +303,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             since);
 
         var pushEvents = _gitLabService.GetPushEventsForUserSince(accessDetails, since, cancellationToken);
-        var processedKeys = new HashSet<string>();
+        var processedBranches = new HashSet<(string BranchName, int ProjectId)>();
 
         await foreach (var pushEvent in pushEvents)
         {
@@ -321,8 +319,8 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                 continue;
             }
 
-            var key = $"{pushEvent.BranchName}:{pushEvent.ProjectId}";
-            if (!processedKeys.Add(key))
+            var key = (pushEvent.BranchName, pushEvent.ProjectId);
+            if (!processedBranches.Add(key))
             {
                 _logger.LogDebug(
                     "Already processed branch '{BranchName}' in project {ProjectId}, skipping duplicate push event",
@@ -336,8 +334,8 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             // Recent events almost certainly refer to a branch that was just pushed and still exists,
             // so skipping this API call avoids unnecessary GitLab traffic.
             var pushEventAge = DateTimeOffset.UtcNow - pushEvent.CreatedAt;
-            if (pushEventAge > TimeSpan.FromMinutes(10) &&
-                await _deadBranchesService.IsBranchGone(
+            if (pushEventAge > TimeSpan.FromMinutes(10)
+                && await _deadBranchesService.IsBranchGone(
                     pushEvent.BranchName,
                     pushEvent.ProjectId,
                     cancellationToken))
