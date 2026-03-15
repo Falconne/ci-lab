@@ -111,7 +111,7 @@ public class AutoMergeGitLabApiService
         }
         catch (GitLabUnexpectedResponseException ex)
         {
-            _logger.LogWarning(
+            _logger.LogError(
                 "RebaseMergeRequest failed with status {StatusCode} for project {ProjectId}, MR {MrIid}",
                 (int)ex.StatusCode,
                 projectId,
@@ -125,7 +125,7 @@ public class AutoMergeGitLabApiService
     ///     Accepts (merges) a merge request.
     ///     Returns the merge response, or null if the merge failed.
     /// </summary>
-    public async Task<GitLabMergeResponse?> AcceptMergeRequest(
+    public async Task<GitLabMergeResponse?> Merge(
         AccessDetailsBase accessDetails,
         int projectId,
         int mergeRequestIid)
@@ -143,7 +143,7 @@ public class AutoMergeGitLabApiService
             });
 
             _logger.LogInformation(
-                "Accepted merge request for project {ProjectId}, MR {MrIid}, state={State}",
+                "Merged MR for project {ProjectId}, MR {MrIid}, state={State}",
                 projectId,
                 mergeRequestIid,
                 result.State);
@@ -152,12 +152,13 @@ public class AutoMergeGitLabApiService
         }
         catch (GitLabUnexpectedResponseException ex)
         {
-            if (ex.StatusCode == HttpStatusCode.NotAcceptable
-                || ex.StatusCode == HttpStatusCode.MethodNotAllowed
-                || ex.StatusCode == HttpStatusCode.Conflict)
+            if (ex.StatusCode is
+                HttpStatusCode.NotAcceptable
+                or HttpStatusCode.MethodNotAllowed
+                or HttpStatusCode.Conflict)
             {
                 _logger.LogWarning(
-                    "AcceptMergeRequest not possible for project {ProjectId}, MR {MrIid}: status {StatusCode}, body: {Body}",
+                    "Merge not possible for project {ProjectId}, MR {MrIid}: status {StatusCode}, body: {Body}",
                     projectId,
                     mergeRequestIid,
                     (int)ex.StatusCode,
@@ -167,7 +168,7 @@ public class AutoMergeGitLabApiService
             }
 
             _logger.LogError(
-                "AcceptMergeRequest failed with status {StatusCode} for project {ProjectId}, MR {MrIid}",
+                "Merge failed with status {StatusCode} for project {ProjectId}, MR {MrIid}",
                 (int)ex.StatusCode,
                 projectId,
                 mergeRequestIid);

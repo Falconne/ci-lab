@@ -63,6 +63,9 @@ public class GitLabApiClient
     /// </summary>
     public TimeSpan GitLabUtcOffset { get; private set; } = TimeSpan.Zero;
 
+    // TODO: Check all calls to `ExecuteAsync` and `ExecutePagedAsync` where a specific cancellation token is not passed in,
+    // and check up the call tree to see if there is a suitable token to pass down the call chain.
+
     /// <summary>
     ///     Executes a GitLab API call with retry logic and JSON deserialization.
     ///     The <paramref name="requestFactory" /> is invoked once per attempt to produce a

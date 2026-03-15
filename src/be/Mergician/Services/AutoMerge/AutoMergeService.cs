@@ -338,7 +338,7 @@ public class AutoMergeService : BackgroundService
         var mergeTasks = branchMrDetails.Select(async item =>
             {
                 var (branch, mr) = item;
-                var result = await _apiService.AcceptMergeRequest(
+                var result = await _apiService.Merge(
                     serviceUser,
                     branch.ProjectId,
                     mr.Iid);
@@ -461,8 +461,13 @@ public class AutoMergeService : BackgroundService
         }
 
         // Check merge status from GitLab
-        if (mr.DetailedMergeStatus is "not_open" or "blocked_status" or "ci_must_pass"
-            or "ci_still_running" or "discussions_not_resolved" or "draft_status" or "conflict")
+        if (mr.DetailedMergeStatus is "not_open"
+            or "blocked_status"
+            or "ci_must_pass"
+            or "ci_still_running"
+            or "discussions_not_resolved"
+            or "draft_status"
+            or "conflict")
         {
             reasons.Add($"{branchLabel}: merge status is '{mr.DetailedMergeStatus}'");
             ready = false;
