@@ -987,7 +987,8 @@ public class GitLabService : IDisposable
         var deleteRequest = new RestRequest($"groups/{group.Id}", Method.Delete);
         var deleteResponse = await _client.ExecuteAsync(deleteRequest);
 
-        if (deleteResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Accepted
+        if (deleteResponse.StatusCode is HttpStatusCode.OK
+            or HttpStatusCode.Accepted
             or HttpStatusCode.NoContent)
         {
             Log.Information($"Group '{groupName}' (ID: {group.Id}) deleted successfully");
@@ -1055,7 +1056,8 @@ public class GitLabService : IDisposable
         var deleteRequest = new RestRequest($"projects/{project.Id}", Method.Delete);
         var deleteResponse = await _client.ExecuteAsync(deleteRequest);
 
-        if (deleteResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Accepted
+        if (deleteResponse.StatusCode is HttpStatusCode.OK
+            or HttpStatusCode.Accepted
             or HttpStatusCode.NoContent)
         {
             Log.Information($"Project '{projectName}' (ID: {project.Id}) deleted successfully");

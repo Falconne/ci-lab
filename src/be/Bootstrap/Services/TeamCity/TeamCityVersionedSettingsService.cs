@@ -92,7 +92,8 @@ public class TeamCityVersionedSettingsService
 
             var postResponse = await _client.ExecuteAsync(postRequest);
 
-            if (postResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.NoContent
+            if (postResponse.StatusCode is HttpStatusCode.OK
+                or HttpStatusCode.NoContent
                 or HttpStatusCode.Created)
             {
                 Log.Information("Versioned settings enabled successfully via POST");

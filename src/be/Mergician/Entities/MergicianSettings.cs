@@ -1,6 +1,6 @@
-namespace Mergician.Entities;
-
 using Util;
+
+namespace Mergician.Entities;
 
 public class MergicianSettings
 {

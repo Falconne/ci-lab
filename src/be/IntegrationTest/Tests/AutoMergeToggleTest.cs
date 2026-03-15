@@ -143,6 +143,7 @@ public class AutoMergeToggleTest : IDisposable
         var cardWithBadge = _browser.Page
             .Locator(".merge-group-card")
             .Filter(new LocatorFilterOptions { Has = _browser.Page.Locator(".auto-merge-badge") });
+
         await cardWithBadge.First.ClickAsync();
         await _browser.Page.WaitForURLAsync(
             url => url.Contains("/merge-group/"),
