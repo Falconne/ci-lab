@@ -537,8 +537,6 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             return;
         }
 
-        var projectUrl = project.WebUrl;
-
         var mergeRequests = await _gitLabService.GetMergeRequests(
             accessDetails,
             branch.ProjectId,
@@ -596,7 +594,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             hasMr,
             mrTitle,
             mrUrl,
-            projectUrl,
+            project.WebUrl,
             approvalsRequired,
             approvalsGiven,
             buildJobs,
