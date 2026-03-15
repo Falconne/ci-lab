@@ -339,50 +339,6 @@ public class GitLabTestHelper
     }
 
     /// <summary>
-    ///     Accepts (merges) a merge request using the admin token.
-    ///     The MR must be in a mergeable state.
-    /// </summary>
-    public void AcceptMergeRequest(int projectId, int mrIid)
-    {
-        var request = new RestRequest(
-            $"/api/v4/projects/{projectId}/merge_requests/{mrIid}/merge",
-            Method.Put);
-
-        var response = _adminClient.Execute(request);
-        if (!response.IsSuccessful)
-        {
-            throw new InvalidOperationException(
-                $"Failed to accept MR !{mrIid} in project {projectId}: {response.StatusCode} {response.Content}");
-        }
-
-        Log.Information("Accepted MR !{MrIid} in project {ProjectId}", mrIid, projectId);
-    }
-
-    /// <summary>
-    ///     Updates whether the project requires all pipelines to pass before merging.
-    ///     Use this to temporarily relax the CI requirement when merging in tests that
-    ///     don't have a CI pipeline configured (e.g., projects set up with
-    ///     <c>only_allow_merge_if_pipeline_succeeds = true</c> by the bootstrapper).
-    /// </summary>
-    public void SetProjectPipelineRequirement(int projectId, bool required)
-    {
-        var request = new RestRequest($"/api/v4/projects/{projectId}", Method.Put);
-        request.AddJsonBody(new { only_allow_merge_if_pipeline_succeeds = required });
-
-        var response = _adminClient.Execute(request);
-        if (!response.IsSuccessful)
-        {
-            throw new InvalidOperationException(
-                $"Failed to update pipeline requirement for project {projectId}: {response.StatusCode} {response.Content}");
-        }
-
-        Log.Information(
-            "Set project {ProjectId} pipeline requirement to {Required}",
-            projectId,
-            required);
-    }
-
-    /// <summary>
     ///     Closes an open merge request.
     /// </summary>
     public void CloseMergeRequest(int projectId, int mrIid)
