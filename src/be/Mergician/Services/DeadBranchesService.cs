@@ -36,7 +36,7 @@ public class DeadBranchesService
     ///     If the branch should be removed, removes it from the database and cleans up empty merge groups.
     ///     Returns true if the branch was removed or should be skipped; false if it has changes and should be kept.
     /// </summary>
-    public async Task<bool> ShouldRemoveAsInactiveOrMissing(
+    public async Task<bool> RemoveBranchIfGone(
         string branchName,
         int projectId,
         int trackedBranchInProjectId,

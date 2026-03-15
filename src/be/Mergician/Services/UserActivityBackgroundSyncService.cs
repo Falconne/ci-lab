@@ -279,7 +279,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
 
         foreach (var branch in userBranches)
         {
-            await _deadBranchesService.ShouldRemoveAsInactiveOrMissing(
+            await _deadBranchesService.RemoveBranchIfGone(
                 branch.BranchName,
                 branch.ProjectId,
                 branch.Id,

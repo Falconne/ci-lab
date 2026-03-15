@@ -113,7 +113,7 @@ public class CleanupService : IHostedService, IDisposable
                 break;
             }
 
-            var removed = await _deadBranchesService.ShouldRemoveAsInactiveOrMissing(
+            var removed = await _deadBranchesService.RemoveBranchIfGone(
                 branch.BranchName,
                 branch.ProjectId,
                 branch.Id,
