@@ -13,6 +13,8 @@ source "$ROOT_DIR/scripts/common.sh"
 # Restart Mergician with a fresh database. Accumulated branch records from previous
 # test runs slow down the background sync cycle, making timing-sensitive tests flaky.
 # Reusing the existing image (no rebuild) keeps this fast.
+# TODO: Run bootstrap.sh and wait for it to finish before restarting Mergician. This will help keep the initial data as clean as possible for the integration tests.
+# Make sure to wait for it to finish successfully before carrying on.
 echo "Restarting Mergician with a fresh database..."
 docker compose -f mergician-compose.yaml down -v
 docker compose -f mergician-compose.yaml up -d

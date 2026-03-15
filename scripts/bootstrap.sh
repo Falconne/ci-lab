@@ -37,6 +37,9 @@ if [ ! "$(docker images -q ci-lab-bootstrap:latest 2> /dev/null)" ] || [ "$ROOT_
   touch "$ROOT_DIR/.docker-bootstrap-build"
 fi
 
+# TODO: If bootstrapper doesn't finish within 15 minutes, something has gone wrong. Make sure these is a time to stop the container and exit with a non-zero
+# exit code if this happens. We still need to see the output from the bootstrap in stdout so the agent can't diagnose issues then they happen.
+
 docker run --net=host --rm -it \
   -v "$ROOT_DIR":/workspace \
   -v "$ROOT_DIR/data/logs":/workspace/data/logs \
