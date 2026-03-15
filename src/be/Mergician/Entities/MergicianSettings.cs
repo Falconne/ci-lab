@@ -1,5 +1,7 @@
 namespace Mergician.Entities;
 
+using Util;
+
 public class MergicianSettings
 {
     public string BaseUrl { get; set; } = "";
@@ -24,7 +26,7 @@ public class GitLabSettings
     ///     Use this for server-side HTTP calls to GitLab (token exchange, API requests).
     ///     Use Url for browser-facing redirects (OAuth authorize).
     /// </summary>
-    public string ServerUrl => string.IsNullOrWhiteSpace(InternalUrl) ? Url : InternalUrl;
+    public string ServerUrl => InternalUrl.IsEmpty() ? Url : InternalUrl;
 }
 
 public class OAuthSettings

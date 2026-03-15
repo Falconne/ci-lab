@@ -3,9 +3,6 @@ using System.Text;
 
 namespace Util;
 
-// TODO: Check all the C# code in this repo where the utility methods in this class can be used
-// and apply them. Specifically, replace string IsNullOrWhiteSpace checks with IsEmpty and IsNotEmpty.
-
 public static class Extensions
 {
     public static bool ContainsIgnoringCase(this string? str, string compareTo)

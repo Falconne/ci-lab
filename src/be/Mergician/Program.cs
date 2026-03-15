@@ -6,6 +6,7 @@ using Mergician.Services.Database;
 using Mergician.Services.GitLab;
 using Microsoft.AspNetCore.Authentication;
 using Serilog;
+using Util;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -20,13 +21,13 @@ try
     var mergicianSettings = new MergicianSettings();
     builder.Configuration.GetSection("Mergician").Bind(mergicianSettings);
 
-    if (string.IsNullOrWhiteSpace(mergicianSettings.GitLab.Url))
+    if (mergicianSettings.GitLab.Url.IsEmpty())
     {
         throw new InvalidOperationException(
             "Mergician:GitLab:Url is not configured. Set it via appsettings.json or the Mergician__GitLab__Url environment variable.");
     }
 
-    if (string.IsNullOrWhiteSpace(mergicianSettings.Database.Host))
+    if (mergicianSettings.Database.Host.IsEmpty())
     {
         throw new InvalidOperationException(
             "Mergician:Database:Host is not configured. Set it via appsettings.json or the Mergician__Database__Host environment variable.");

@@ -1,3 +1,5 @@
+using Util;
+
 namespace Mergician.Services.Authentication;
 
 public static class CookieSecurity
@@ -16,7 +18,7 @@ public static class CookieSecurity
 
         foreach (var value in forwardedProtoValues)
         {
-            if (string.IsNullOrWhiteSpace(value))
+            if (value.IsEmpty())
             {
                 continue;
             }
