@@ -432,19 +432,18 @@ public class AutoMergeBehaviorTest : IDisposable
         Log.Information("Scenario 4 PASSED: Both MRs were successfully merged by AutoMergeService");
 
         // Navigate back to dashboard and wait for the merge group to disappear.
-        // shouldDeleteSourceBranch=true (the default) so GitLab deletes the branches after merge.
-        // The background sync detects they are gone (via the dead-branch check) and removes them
-        // from the database, causing the card to vanish from the dashboard.
+        // AutoMergeService removes merged branches from the DB immediately after merging,
+        // so the card should vanish within the next dashboard poll cycle (a few seconds).
 
         await _browser.Navigate(TestConfig.MergicianUrl);
         await Task.Delay(3000);
         await _browser.TakeScreenshot("behavior_07_dashboard_after_merge");
 
         Log.Information(
-            "Waiting for merge group '{BranchName}' to disappear from dashboard (branch deletion detection)...",
+            "Waiting for merge group '{BranchName}' to disappear from dashboard...",
             branchName);
 
-        var disappeared = await WaitForBranchToDisappearFromDashboard(branchName, 90);
+        var disappeared = await WaitForBranchToDisappearFromDashboard(branchName, 30);
 
         await _browser.TakeScreenshot("behavior_08_dashboard_merge_group_gone");
 
@@ -452,7 +451,7 @@ public class AutoMergeBehaviorTest : IDisposable
         {
             throw new InvalidOperationException(
                 $"Scenario 4: Merge group for '{branchName}' did not disappear from dashboard within timeout "
-                + "after successful merge (branch deletion detection path)");
+                + "after successful merge");
         }
 
         Log.Information(

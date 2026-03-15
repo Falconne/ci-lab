@@ -20,6 +20,8 @@ public class AutoMergeService : BackgroundService
 
     private readonly AutoMergeGitLabApiService _apiService;
 
+    private readonly DeadBranchesService _deadBranchesService;
+
     private readonly GitLabRecoveryService _gitLabRecoveryService;
 
     private readonly GitLabService _gitLabService;
@@ -36,6 +38,7 @@ public class AutoMergeService : BackgroundService
 
     public AutoMergeService(
         AutoMergeGitLabApiService apiService,
+        DeadBranchesService deadBranchesService,
         GitLabService gitLabService,
         GitLabRecoveryService gitLabRecoveryService,
         GitLabUserFactory userFactory,
@@ -45,6 +48,7 @@ public class AutoMergeService : BackgroundService
         ILogger<AutoMergeService> logger)
     {
         _apiService = apiService;
+        _deadBranchesService = deadBranchesService;
         _gitLabService = gitLabService;
         _gitLabRecoveryService = gitLabRecoveryService;
         _userFactory = userFactory;
@@ -382,7 +386,17 @@ public class AutoMergeService : BackgroundService
             _mergeGroupRepository.UpdateAutoMergeWarning(group.Id, null);
         }
 
-        // TODO: For all branches that successfully merged, call `RemoveBranchAndCleanup` to clean them up.
+        // Remove successfully merged branches immediately so they disappear from the dashboard
+        // without waiting for the background sync's dead-branch detection cycle.
+        foreach (var (branch, _, _) in succeeded)
+        {
+            _logger.LogInformation(
+                "AutoMergeService: removing merged branch '{BranchName}' in project {ProjectId} from database",
+                branch.BranchName,
+                branch.ProjectId);
+
+            _deadBranchesService.RemoveBranchAndCleanup(branch.Id);
+        }
     }
 
     private async Task<bool> IsBranchReadyToMerge(

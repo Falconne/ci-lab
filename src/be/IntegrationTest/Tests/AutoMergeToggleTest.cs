@@ -52,9 +52,29 @@ public class AutoMergeToggleTest : IDisposable
                 "Expected no auto merge badges on dashboard initially");
         }
 
-        // Click on the first card to navigate to the merge group details page
-        var firstCard = _browser.Page.Locator(".merge-group-card").First;
-        await firstCard.ClickAsync();
+        // Find a merge group card that has at least one branch without an MR.
+        // This prevents AutoMergeService from immediately merging the group when we enable
+        // auto merge, which would remove the card from the dashboard before we can verify the badge.
+        var allCards = _browser.Page.Locator(".merge-group-card");
+        ILocator? targetCard = null;
+        var totalCards = await allCards.CountAsync();
+        for (var i = 0; i < totalCards; i++)
+        {
+            var card = allCards.Nth(i);
+            if (await card.Locator(".item-no-mr").CountAsync() > 0)
+            {
+                targetCard = card;
+                break;
+            }
+        }
+
+        if (targetCard == null)
+        {
+            throw new InvalidOperationException(
+                "No merge group card with branches without MRs found; cannot safely run auto merge toggle test");
+        }
+
+        await targetCard.ClickAsync();
         await _browser.Page.WaitForURLAsync(
             url => url.Contains("/merge-group/"),
             new PageWaitForURLOptions { Timeout = 15000 });
@@ -118,9 +138,12 @@ public class AutoMergeToggleTest : IDisposable
                 "Expected at least one auto merge badge on dashboard after enabling auto merge");
         }
 
-        // Navigate back to details and disable auto merge
-        firstCard = _browser.Page.Locator(".merge-group-card").First;
-        await firstCard.ClickAsync();
+        // Navigate back to details and disable auto merge.
+        // Find the card with the auto merge badge specifically (the one we just enabled).
+        var cardWithBadge = _browser.Page
+            .Locator(".merge-group-card")
+            .Filter(new LocatorFilterOptions { Has = _browser.Page.Locator(".auto-merge-badge") });
+        await cardWithBadge.First.ClickAsync();
         await _browser.Page.WaitForURLAsync(
             url => url.Contains("/merge-group/"),
             new PageWaitForURLOptions { Timeout = 15000 });
