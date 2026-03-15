@@ -7,11 +7,31 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 cd "$ROOT_DIR"
 
-# Run from the project directory
-cd src/be/IntegrationTest
-
 # Source common helpers
 source "$ROOT_DIR/scripts/common.sh"
+
+# Restart Mergician with a fresh database. Accumulated branch records from previous
+# test runs slow down the background sync cycle, making timing-sensitive tests flaky.
+# Reusing the existing image (no rebuild) keeps this fast.
+echo "Restarting Mergician with a fresh database..."
+docker compose -f mergician-compose.yaml down -v
+docker compose -f mergician-compose.yaml up -d
+
+echo "Waiting for Mergician to be healthy..."
+for i in $(seq 1 45); do
+  if curl -sf http://localhost:5000/api/health > /dev/null 2>&1; then
+    echo "Mergician is healthy."
+    break
+  fi
+  if [ "$i" -eq 45 ]; then
+    echo "ERROR: Mergician did not become healthy within 90 seconds."
+    exit 1
+  fi
+  sleep 2
+done
+
+# Run from the project directory
+cd src/be/IntegrationTest
 
 # Pass environment variables
 GITLAB_ROOT_PASSWORD="${GITLAB_ROOT_PASSWORD:-changeme123}"
