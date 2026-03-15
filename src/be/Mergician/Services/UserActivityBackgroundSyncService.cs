@@ -377,7 +377,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
 
             if (isNewToMergeGroup)
             {
-                _logger.LogDebug(
+                _logger.LogInformation(
                     "Branch {BranchId} not yet in merge group {MergeGroupId}, associating",
                     branchRecord.Id,
                     mergeGroup.Id);
