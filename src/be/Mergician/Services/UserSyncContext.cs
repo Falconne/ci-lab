@@ -13,6 +13,8 @@ public class UserSyncContext
 
     public readonly object StartLock = new();
 
+    // TODO: This class should always be constructed with a non-null AccessDetailsForUser. Do that and make this non-nullable.
+    // Remove any code that does null checking on AccessUser after that.
     private AccessDetailsForUser? _accessUser;
 
     private long _lastPollTicks = DateTimeOffset.UtcNow.UtcTicks;

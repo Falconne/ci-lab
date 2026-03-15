@@ -381,6 +381,8 @@ public class AutoMergeService : BackgroundService
             // Clear any previous warning on full success
             _mergeGroupRepository.UpdateAutoMergeWarning(group.Id, null);
         }
+
+        // TODO: For all branches that successfully merged, call `RemoveBranchAndCleanup` to clean them up.
     }
 
     private async Task<bool> IsBranchReadyToMerge(
