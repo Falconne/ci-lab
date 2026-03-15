@@ -32,9 +32,20 @@ public class DeadBranchesService
     }
 
     /// <summary>
-    ///     Checks if a branch should be removed because it is missing from GitLab.
+    ///     Returns true if the project or group name indicates it is scheduled for deletion.
+    ///     GitLab renames groups and their projects to include "deletion_scheduled" in the
+    ///     namespace during its asynchronous deletion process.
+    /// </summary>
+    public static bool IsScheduledForDeletion(string nameWithNamespace)
+    {
+        return nameWithNamespace.Contains("deletion_scheduled", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    ///     Checks if a branch should be removed because it is missing from GitLab,
+    ///     or because its project has been deleted or is scheduled for deletion.
     ///     If the branch should be removed, removes it from the database and cleans up empty merge groups.
-    ///     Returns true if the branch was removed or should be skipped; false if it has changes and should be kept.
+    ///     Returns true if the branch was removed or should be skipped; false if it should be kept.
     /// </summary>
     public async Task<bool> RemoveBranchIfGone(
         string branchName,
@@ -59,8 +70,28 @@ public class DeadBranchesService
 
         var project = await _gitLabService.GetProject(accessDetails, projectId);
 
-        // TODO: If the project is null or its NameWithNamespace indicates that it is scheduled for deletion, we should also `RemoveBranchAndCleanup`
-        // on this branch. Consolidate the above code so we only have to call `RemoveBranchAndCleanup` in one place.
+        if (project == null)
+        {
+            _logger.LogInformation(
+                "Project {ProjectId} not found for branch '{BranchName}'; removing branch record",
+                projectId,
+                branchName);
+
+            RemoveBranchAndCleanup(trackedBranchInProjectId);
+            return true;
+        }
+
+        if (IsScheduledForDeletion(project.NameWithNamespace))
+        {
+            _logger.LogInformation(
+                "Project {ProjectId} ('{NameWithNamespace}') is scheduled for deletion; removing branch '{BranchName}'",
+                projectId,
+                project.NameWithNamespace,
+                branchName);
+
+            RemoveBranchAndCleanup(trackedBranchInProjectId);
+            return true;
+        }
 
         return false;
     }

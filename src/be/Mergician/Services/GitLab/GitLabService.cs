@@ -2,6 +2,7 @@ using Mergician.Entities;
 using Mergician.Services.Authentication;
 using System.Net;
 using System.Runtime.CompilerServices;
+using Util;
 
 namespace Mergician.Services.GitLab;
 
@@ -31,18 +32,7 @@ public class GitLabService
         return branchName is "main" or "master" or "develop";
     }
 
-    /// <summary>
-    ///     Returns true if the project or group name indicates it is scheduled for deletion.
-    ///     GitLab renames groups and their projects to include "deletion_scheduled" in the
-    ///     namespace during its asynchronous deletion process.
-    /// </summary>
-    public static bool IsScheduledForDeletion(string nameWithNamespace)
-    {
-        // TODO: Move this to DeadBranchesService
-        return nameWithNamespace.Contains("deletion_scheduled", StringComparison.OrdinalIgnoreCase);
-    }
-
-    public async Task<GitLabUserInfo?> GetCurrentUser(AccessDetailsBase accessDetails)
+    public async Task<GitLabUserInfo?> GetCurrentUser(AccessDetailsForUser accessDetails)
     {
         try
         {
@@ -63,7 +53,7 @@ public class GitLabService
     /// </summary>
     public async IAsyncEnumerable<(string BranchName, int ProjectId, DateTimeOffset CreatedAt)>
         GetPushEventsForUserSince(
-            AccessDetailsBase accessDetails,
+            AccessDetailsForUser accessDetails,
             DateTimeOffset since,
             [EnumeratorCancellation] CancellationToken cancellationToken)
     {
@@ -141,7 +131,7 @@ public class GitLabService
                 yield return (pushEvent.PushData.Ref, pushEvent.ProjectId, pushEvent.CreatedAt);
             }
 
-            if (string.IsNullOrWhiteSpace(nextPage))
+            if (nextPage.IsEmpty())
             {
                 break;
             }
@@ -164,7 +154,7 @@ public class GitLabService
             sinceUtc);
     }
 
-    public async Task<GitLabProject?> GetProject(AccessDetailsBase accessDetails, int projectId)
+    public async Task<GitLabProject?> GetProject(AccessDetailsForUser accessDetails, int projectId)
     {
         if (_projectCache.TryGet(projectId, out var cached))
         {
@@ -181,19 +171,31 @@ public class GitLabService
         }
         catch (GitLabUnexpectedResponseException ex)
         {
-            // TODO: If the wrapped exception shows a status of "not found", this is not an error, it means the
-            // project may have been deleted. Just log an informational message and return null in that case. If
-            // the error is something else, then rethrow rather than logging here.
+            if (ex.StatusCode == HttpStatusCode.NotFound)
+            {
+                _logger.LogInformation(
+                    "GetProject({ProjectId}) returned 404; project may have been deleted",
+                    projectId);
+
+                return null;
+            }
 
             _logger.LogError(
-                "GetProject({ProjectId}) failed with status {StatusCode}",
+                "GetProject({ProjectId}) failed with unexpected status {StatusCode}",
                 projectId,
                 (int)ex.StatusCode);
 
-            return null;
+            throw;
         }
 
-        // TODO: If the GitLabProject Name of NameWithNamespace is null or empty, log an error and return null.
+        if (project.Name.IsEmpty() || project.NameWithNamespace.IsEmpty())
+        {
+            _logger.LogError(
+                "GetProject({ProjectId}) returned a project with missing Name or NameWithNamespace; skipping",
+                projectId);
+
+            return null;
+        }
 
         _projectCache.Set(projectId, project);
         _logger.LogDebug("Cached project info for project {ProjectId}", projectId);
@@ -205,7 +207,7 @@ public class GitLabService
     ///     Returns null when the branch does not exist or the request fails.
     /// </summary>
     public async Task<GitLabBranchDetails?> GetBranchDetails(
-        AccessDetailsBase accessDetails,
+        AccessDetailsForUser accessDetails,
         int projectId,
         string branchName)
     {
@@ -245,7 +247,7 @@ public class GitLabService
     ///     Returns Missing only for 404 responses; all other failures are Unavailable.
     /// </summary>
     public async Task<GitLabBranchLookupResult> GetBranchLookupResult(
-        AccessDetailsBase accessDetails,
+        AccessDetailsForUser accessDetails,
         int projectId,
         string branchName)
     {
@@ -287,7 +289,7 @@ public class GitLabService
     ///     Finds open merge requests for a given source branch in a project.
     /// </summary>
     public async Task<List<GitLabMergeRequest>> GetMergeRequests(
-        AccessDetailsBase accessDetails,
+        AccessDetailsForUser accessDetails,
         int projectId,
         string sourceBranch)
     {
@@ -316,7 +318,7 @@ public class GitLabService
     ///     Gets the approval state for a merge request.
     /// </summary>
     public async Task<GitLabApprovalState?> GetMergeRequestApprovals(
-        AccessDetailsBase accessDetails,
+        AccessDetailsForUser accessDetails,
         int projectId,
         int mergeRequestIid)
     {
