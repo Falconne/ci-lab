@@ -330,9 +330,8 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                 continue;
             }
 
-            // Only check if the branch still exists for push events older than 10 minutes.
-            // Recent events almost certainly refer to a branch that was just pushed and still exists,
-            // so skipping this API call avoids unnecessary GitLab traffic.
+            // Only check if the branch still exists for push events older than 10 minutes,
+            // to avoid unnecessary GitLab API calls.
             var pushEventAge = DateTimeOffset.UtcNow - pushEvent.CreatedAt;
             if (pushEventAge > TimeSpan.FromMinutes(10)
                 && await _deadBranchesService.IsBranchGone(
