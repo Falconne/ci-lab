@@ -1,5 +1,0 @@
-Task 1)
-Standardise the use of the abbreviation for "Merge Reqeust" in the codebase. For example, instead of `branchMrDetails`, use `branchMRDetails`.
-
-Task 2)
-For any methods in this codebase that end in Async, remove the Async suffix unless there is an equivalent synchronous version of the methods.
