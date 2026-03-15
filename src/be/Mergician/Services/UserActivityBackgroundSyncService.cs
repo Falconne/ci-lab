@@ -115,7 +115,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
     public void EnsureSyncRunning(AccessDetailsForUser accessDetails)
     {
         var userId = accessDetails.UserId;
-        var context = _userContexts.GetOrAdd(userId, _ => new UserSyncContext());
+        var context = _userContexts.GetOrAdd(userId, _ => new UserSyncContext(accessDetails));
         context.UpdateActivity(accessDetails);
 
         if (context.IsRunning)
@@ -175,15 +175,6 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                 }
 
                 var accessUser = context.AccessUser;
-                if (accessUser == null)
-                {
-                    _logger.LogError(
-                        "No access token available for user {UserId}, skipping poll cycle",
-                        gitLabUserId);
-
-                    await Task.Delay(_pollInterval, ct);
-                    continue;
-                }
 
                 if (firstPoll)
                 {
@@ -408,14 +399,6 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
         CancellationToken ct)
     {
         var accessUser = context.AccessUser;
-        if (accessUser == null)
-        {
-            _logger.LogWarning(
-                "No access token available for backfill for user {UserId}",
-                gitLabUserId);
-
-            return;
-        }
 
         var since = DateTimeOffset.UtcNow.Subtract(_maxActivityLookback);
         _logger.LogInformation(

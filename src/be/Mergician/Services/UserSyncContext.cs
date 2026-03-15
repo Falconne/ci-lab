@@ -13,11 +13,14 @@ public class UserSyncContext
 
     public readonly object StartLock = new();
 
-    // TODO: This class should always be constructed with a non-null AccessDetailsForUser. Do that and make this non-nullable.
-    // Remove any code that does null checking on AccessUser after that.
-    private AccessDetailsForUser? _accessUser;
+    private AccessDetailsForUser _accessUser;
 
     private long _lastPollTicks = DateTimeOffset.UtcNow.UtcTicks;
+
+    public UserSyncContext(AccessDetailsForUser accessUser)
+    {
+        _accessUser = accessUser;
+    }
 
     public CancellationTokenSource? Cts { get; set; }
 
@@ -27,7 +30,7 @@ public class UserSyncContext
     ///     The user's latest access token for GitLab API calls.
     ///     Updated on each incoming request so the background thread always uses a fresh token.
     /// </summary>
-    public AccessDetailsForUser? AccessUser
+    public AccessDetailsForUser AccessUser
     {
         get
         {
