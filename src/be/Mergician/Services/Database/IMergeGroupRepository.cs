@@ -9,14 +9,11 @@ namespace Mergician.Services.Database;
 public interface IMergeGroupRepository
 {
     /// <summary>
-    ///     Gets or creates a BranchInProject record. Returns the existing or new record.
+    ///     Gets or creates a BranchInProject record for the given branch in the given project.
+    ///     Returns the existing or new record.
     ///     Thread-safe: uses INSERT ON CONFLICT to avoid duplicates from concurrent callers.
     /// </summary>
-    BranchInProject GetOrCreateBranchRecord(
-        string branchName,
-        int projectId,
-        string projectName,
-        string projectDisplayName);
+    BranchInProject GetOrCreateBranchRecord(string branchName, GitLabProject project);
 
     /// <summary>
     ///     Gets or creates a MergeGroup by name. Returns the existing or new group with its associated branches.

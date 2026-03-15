@@ -23,46 +23,39 @@ public class MergeGroupRepository : IMergeGroupRepository
         _logger = logger;
     }
 
-    public BranchInProject GetOrCreateBranchRecord(
-        string branchName,
-        int projectId,
-        string projectName,
-        string projectDisplayName)
+    public BranchInProject GetOrCreateBranchRecord(string branchName, GitLabProject project)
     {
-        // TODO: Change this method to take in a `GitLabProject` so we don't need to pass in projectId, projectName and projectDisplayName (which is projectNameWithNamespace).
-        // Change the database schema to rename the column `project_display_name` to `project_name_with_namespace` and ensure
-        // the returned BranchInProject record has the ProjectNameWithNamespace properly populated with this column.
-
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();
 
         var record = connection.QueryFirstOrDefault<BranchInProject>(
             """
-            INSERT INTO branch_in_project (branch_name, project_id, project_name, project_display_name)
-            VALUES (@BranchName, @ProjectId, @ProjectName, @ProjectDisplayName)
+            INSERT INTO branch_in_project (branch_name, project_id, project_name, project_name_with_namespace)
+            VALUES (@BranchName, @ProjectId, @ProjectName, @ProjectNameWithNamespace)
             ON CONFLICT (branch_name, project_id)
-            DO UPDATE SET project_name = EXCLUDED.project_name, project_display_name = EXCLUDED.project_display_name
-            RETURNING id, branch_name AS BranchName, project_id AS ProjectId, project_name AS ProjectName
+            DO UPDATE SET project_name = EXCLUDED.project_name, project_name_with_namespace = EXCLUDED.project_name_with_namespace
+            RETURNING id, branch_name AS BranchName, project_id AS ProjectId, project_name AS ProjectName,
+                      project_name_with_namespace AS ProjectNameWithNamespace
             """,
             new
             {
                 BranchName = branchName,
-                ProjectId = projectId,
-                ProjectName = projectName,
-                ProjectDisplayName = projectDisplayName
+                ProjectId = project.Id,
+                ProjectName = project.Name,
+                ProjectNameWithNamespace = project.NameWithNamespace
             });
 
         if (record == null)
         {
             throw new InvalidOperationException(
-                $"Failed to get or create branch '{branchName}' in project {projectId}");
+                $"Failed to get or create branch '{branchName}' in project {project.Id}");
         }
 
         _logger.LogDebug(
             "Got/created branch record {Id} for '{BranchName}' in project {ProjectId}",
             record.Id,
             branchName,
-            projectId);
+            project.Id);
 
         return record;
     }
@@ -151,7 +144,7 @@ public class MergeGroupRepository : IMergeGroupRepository
                     bp.branch_name AS BranchName,
                     bp.project_id AS ProjectId,
                     bp.project_name AS ProjectName,
-                    bp.project_display_name AS ProjectNameWithNamespace,
+                    bp.project_name_with_namespace AS ProjectNameWithNamespace,
                     bp.last_update_time AS LastUpdated,
                     bp.has_merge_request AS HasMergeRequest,
                     bp.merge_request_title AS MergeRequestTitle,
@@ -472,7 +465,7 @@ public class MergeGroupRepository : IMergeGroupRepository
                     bp.branch_name AS BranchName,
                     bp.project_id AS ProjectId,
                     bp.project_name AS ProjectName,
-                    bp.project_display_name AS ProjectNameWithNamespace,
+                    bp.project_name_with_namespace AS ProjectNameWithNamespace,
                     bp.has_merge_request AS HasMergeRequest,
                     bp.approvals_required AS ApprovalsRequired,
                     bp.approvals_given AS ApprovalsGiven,
