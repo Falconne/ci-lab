@@ -68,7 +68,7 @@ public class DeadBranchesService
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        var project = await _gitLabService.GetProject(accessDetails, projectId);
+        var project = await _gitLabService.GetProject(accessDetails, projectId, cancellationToken);
 
         if (project == null)
         {
@@ -111,7 +111,8 @@ public class DeadBranchesService
         var branchLookup = await _gitLabService.GetBranchLookupResult(
             accessDetails,
             projectId,
-            branchName);
+            branchName,
+            cancellationToken);
 
         if (branchLookup.IsMissing)
         {

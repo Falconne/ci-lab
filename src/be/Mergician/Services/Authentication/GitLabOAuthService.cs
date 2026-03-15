@@ -38,7 +38,7 @@ public class GitLabOAuthService
 
         try
         {
-            return await _gitLabApiClient.ExecuteAsync<GitLabOAuthTokenResponse>(() =>
+            return await _gitLabApiClient.Execute<GitLabOAuthTokenResponse>(() =>
                 new HttpRequestMessage(HttpMethod.Post, $"{gitlabUrl}/oauth/token")
                 {
                     Content = new FormUrlEncodedContent(
@@ -70,7 +70,7 @@ public class GitLabOAuthService
 
         try
         {
-            return await _gitLabApiClient.ExecuteAsync<GitLabOAuthTokenResponse>(() =>
+            return await _gitLabApiClient.Execute<GitLabOAuthTokenResponse>(() =>
                 new HttpRequestMessage(HttpMethod.Post, $"{gitlabUrl}/oauth/token")
                 {
                     Content = new FormUrlEncodedContent(

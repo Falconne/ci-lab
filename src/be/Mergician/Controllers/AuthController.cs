@@ -121,7 +121,7 @@ public class AuthController : ControllerBase
         // Fetch and persist the user ID so the authentication handler can include it
         // in the AccessDetailsForUser on subsequent requests without an additional API call
         var tempUser = new AccessDetailsBase(tokenResponse.AccessToken, _authSettings.ApiBaseUrl);
-        var userInfo = await _gitLabService.GetCurrentUser(tempUser);
+        var userInfo = await _gitLabService.GetCurrentUser(tempUser, HttpContext.RequestAborted);
         if (userInfo != null)
         {
             _logger.LogDebug("Storing user ID {UserId} in cookie after login", userInfo.Id);
@@ -145,7 +145,7 @@ public class AuthController : ControllerBase
     {
         var accessUser = HttpContext.GetGitLabUser();
 
-        var user = await _gitLabService.GetCurrentUser(accessUser);
+        var user = await _gitLabService.GetCurrentUser(accessUser, HttpContext.RequestAborted);
         if (user == null)
         {
             return Unauthorized();

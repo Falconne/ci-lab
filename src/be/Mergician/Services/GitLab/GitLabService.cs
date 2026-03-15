@@ -32,12 +32,12 @@ public class GitLabService
         return branchName is "main" or "master" or "develop";
     }
 
-    public async Task<GitLabUserInfo?> GetCurrentUser(AccessDetailsBase accessDetails)
+    public async Task<GitLabUserInfo?> GetCurrentUser(AccessDetailsBase accessDetails, CancellationToken cancellationToken = default)
     {
         try
         {
-            return await _gitLabApiClient.ExecuteAsync<GitLabUserInfo>(() =>
-                accessDetails.CreateRequest(HttpMethod.Get, "user"));
+            return await _gitLabApiClient.Execute<GitLabUserInfo>(() =>
+                accessDetails.CreateRequest(HttpMethod.Get, "user"), cancellationToken);
         }
         catch (GitLabUnexpectedResponseException ex)
         {
@@ -85,7 +85,7 @@ public class GitLabService
 
             try
             {
-                (pageEvents, nextPage) = await _gitLabApiClient.ExecutePagedAsync<List<GitLabPushEvent>>(
+                (pageEvents, nextPage) = await _gitLabApiClient.ExecutePaged<List<GitLabPushEvent>>(
                     () => accessDetails.CreateRequest(
                         HttpMethod.Get,
                         $"events?after={afterDate}&action=pushed&sort=desc&per_page=100&page={page}"),
@@ -154,7 +154,7 @@ public class GitLabService
             sinceUtc);
     }
 
-    public async Task<GitLabProject?> GetProject(AccessDetailsBase accessDetails, int projectId)
+    public async Task<GitLabProject?> GetProject(AccessDetailsBase accessDetails, int projectId, CancellationToken cancellationToken = default)
     {
         if (_projectCache.TryGet(projectId, out var cached))
         {
@@ -166,8 +166,8 @@ public class GitLabService
 
         try
         {
-            project = await _gitLabApiClient.ExecuteAsync<GitLabProject>(() =>
-                accessDetails.CreateRequest(HttpMethod.Get, $"projects/{projectId}"));
+            project = await _gitLabApiClient.Execute<GitLabProject>(() =>
+                accessDetails.CreateRequest(HttpMethod.Get, $"projects/{projectId}"), cancellationToken);
         }
         catch (GitLabUnexpectedResponseException ex)
         {
@@ -209,15 +209,16 @@ public class GitLabService
     public async Task<GitLabBranchDetails?> GetBranchDetails(
         AccessDetailsBase accessDetails,
         int projectId,
-        string branchName)
+        string branchName,
+        CancellationToken cancellationToken = default)
     {
         var encodedBranch = Uri.EscapeDataString(branchName);
 
         try
         {
-            return await _gitLabApiClient.ExecuteAsync<GitLabBranchDetails>(() => accessDetails.CreateRequest(
+            return await _gitLabApiClient.Execute<GitLabBranchDetails>(() => accessDetails.CreateRequest(
                 HttpMethod.Get,
-                $"projects/{projectId}/repository/branches/{encodedBranch}"));
+                $"projects/{projectId}/repository/branches/{encodedBranch}"), cancellationToken);
         }
         catch (GitLabUnexpectedResponseException ex)
         {
@@ -249,15 +250,16 @@ public class GitLabService
     public async Task<GitLabBranchLookupResult> GetBranchLookupResult(
         AccessDetailsBase accessDetails,
         int projectId,
-        string branchName)
+        string branchName,
+        CancellationToken cancellationToken = default)
     {
         var encodedBranch = Uri.EscapeDataString(branchName);
 
         try
         {
-            await _gitLabApiClient.ExecuteAsync<GitLabBranchDetails>(() => accessDetails.CreateRequest(
+            await _gitLabApiClient.Execute<GitLabBranchDetails>(() => accessDetails.CreateRequest(
                 HttpMethod.Get,
-                $"projects/{projectId}/repository/branches/{encodedBranch}"));
+                $"projects/{projectId}/repository/branches/{encodedBranch}"), cancellationToken);
 
             _logger.LogDebug("Branch '{BranchName}' exists in project {ProjectId}", branchName, projectId);
             return new GitLabBranchLookupResult(GitLabBranchLookupStatus.Exists, 200);
@@ -291,16 +293,17 @@ public class GitLabService
     public async Task<List<GitLabMergeRequest>> GetMergeRequests(
         AccessDetailsBase accessDetails,
         int projectId,
-        string sourceBranch)
+        string sourceBranch,
+        CancellationToken cancellationToken = default)
     {
         var encodedBranch = Uri.EscapeDataString(sourceBranch);
 
         try
         {
-            return await _gitLabApiClient.ExecuteAsync<List<GitLabMergeRequest>>(() =>
+            return await _gitLabApiClient.Execute<List<GitLabMergeRequest>>(() =>
                 accessDetails.CreateRequest(
                     HttpMethod.Get,
-                    $"projects/{projectId}/merge_requests?source_branch={encodedBranch}&state=opened"));
+                    $"projects/{projectId}/merge_requests?source_branch={encodedBranch}&state=opened"), cancellationToken);
         }
         catch (GitLabUnexpectedResponseException ex)
         {
@@ -320,13 +323,14 @@ public class GitLabService
     public async Task<GitLabApprovalState?> GetMergeRequestApprovals(
         AccessDetailsBase accessDetails,
         int projectId,
-        int mergeRequestIid)
+        int mergeRequestIid,
+        CancellationToken cancellationToken = default)
     {
         try
         {
-            return await _gitLabApiClient.ExecuteAsync<GitLabApprovalState>(() => accessDetails.CreateRequest(
+            return await _gitLabApiClient.Execute<GitLabApprovalState>(() => accessDetails.CreateRequest(
                 HttpMethod.Get,
-                $"projects/{projectId}/merge_requests/{mergeRequestIid}/approvals"));
+                $"projects/{projectId}/merge_requests/{mergeRequestIid}/approvals"), cancellationToken);
         }
         catch (GitLabUnexpectedResponseException ex)
         {

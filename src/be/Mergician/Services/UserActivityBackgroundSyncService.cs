@@ -338,7 +338,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                 continue;
             }
 
-            var project = await _gitLabService.GetProject(accessDetails, pushEvent.ProjectId);
+        var project = await _gitLabService.GetProject(accessDetails, pushEvent.ProjectId, cancellationToken);
             if (project == null)
             {
                 _logger.LogInformation(
@@ -499,7 +499,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             branch.BranchName,
             branch.ProjectId);
 
-        var project = await _gitLabService.GetProject(accessDetails, branch.ProjectId);
+        var project = await _gitLabService.GetProject(accessDetails, branch.ProjectId, cancellationToken);
         if (project == null)
         {
             _logger.LogDebug(
@@ -523,7 +523,8 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
         var mergeRequests = await _gitLabService.GetMergeRequests(
             accessDetails,
             branch.ProjectId,
-            branch.BranchName);
+            branch.BranchName,
+            cancellationToken);
 
         var hasMr = mergeRequests.Count > 0;
         int? approvalsRequired = null;
@@ -540,7 +541,8 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             var approval = await _gitLabService.GetMergeRequestApprovals(
                 accessDetails,
                 branch.ProjectId,
-                first.Iid);
+                first.Iid,
+                cancellationToken);
 
             if (approval != null)
             {
@@ -559,7 +561,8 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
         var branchDetails = await _gitLabService.GetBranchDetails(
             accessDetails,
             branch.ProjectId,
-            branch.BranchName);
+            branch.BranchName,
+            cancellationToken);
 
         DateTimeOffset? lastCommitTime;
         if (branchDetails?.Commit?.CommittedDate != null)

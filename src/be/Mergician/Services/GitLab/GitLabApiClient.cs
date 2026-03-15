@@ -63,9 +63,6 @@ public class GitLabApiClient
     /// </summary>
     public TimeSpan GitLabUtcOffset { get; private set; } = TimeSpan.Zero;
 
-    // TODO: Check all calls to `ExecuteAsync` and `ExecutePagedAsync` where a specific cancellation token is not passed in,
-    // and check up the call tree to see if there is a suitable token to pass down the call chain.
-
     /// <summary>
     ///     Executes a GitLab API call with retry logic and JSON deserialization.
     ///     The <paramref name="requestFactory" /> is invoked once per attempt to produce a
@@ -73,11 +70,11 @@ public class GitLabApiClient
     ///     Non-retriable HTTP errors (4xx) throw <see cref="GitLabUnexpectedResponseException" />
     ///     immediately; connection failures and 5xx responses are retried with linear back-off.
     /// </summary>
-    public async Task<T> ExecuteAsync<T>(
+    public async Task<T> Execute<T>(
         Func<HttpRequestMessage> requestFactory,
         CancellationToken cancellationToken = default)
     {
-        var (result, _) = await ExecuteCoreAsync<T>(
+        var (result, _) = await ExecuteCore<T>(
             requestFactory,
             false,
             cancellationToken);
@@ -86,14 +83,14 @@ public class GitLabApiClient
     }
 
     /// <summary>
-    ///     Like <see cref="ExecuteAsync{T}" /> but also returns the value of the
+    ///     Like <see cref="Execute{T}" /> but also returns the value of the
     ///     <c>X-Next-Page</c> response header, for use with paginated GitLab endpoints.
     /// </summary>
-    public async Task<(T Data, string? NextPage)> ExecutePagedAsync<T>(
+    public async Task<(T Data, string? NextPage)> ExecutePaged<T>(
         Func<HttpRequestMessage> requestFactory,
         CancellationToken cancellationToken)
     {
-        var (result, nextPage) = await ExecuteCoreAsync<T>(
+        var (result, nextPage) = await ExecuteCore<T>(
             requestFactory,
             true,
             cancellationToken);
@@ -119,7 +116,7 @@ public class GitLabApiClient
     public async Task DetectTimezone(CancellationToken cancellationToken)
     {
         var serviceUser = _userFactory.GetServiceUser();
-        var tokenInfo = await ExecuteAsync<GitLabTokenSelfInfo>(
+        var tokenInfo = await Execute<GitLabTokenSelfInfo>(
             () => serviceUser.CreateRequest(HttpMethod.Get, "personal_access_tokens/self"),
             cancellationToken);
 
@@ -206,7 +203,7 @@ public class GitLabApiClient
     ///     this method flips the app into recovery mode so middleware can surface the recovery
     ///     overlay and sibling requests can stop retrying immediately.
     /// </summary>
-    private async Task<(T? Data, string? NextPage)> ExecuteCoreAsync<T>(
+    private async Task<(T? Data, string? NextPage)> ExecuteCore<T>(
         Func<HttpRequestMessage> requestFactory,
         bool captureNextPage,
         CancellationToken cancellationToken)
@@ -225,7 +222,7 @@ public class GitLabApiClient
                 using var request = requestFactory();
                 operationName ??= GenerateOperationName(request);
 
-                await _rateLimiter.WaitAsync(cancellationToken);
+                await _rateLimiter.Wait(cancellationToken);
                 using var response = await client.SendAsync(request, cancellationToken);
 
                 if (!response.IsSuccessStatusCode)

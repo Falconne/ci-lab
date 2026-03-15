@@ -31,14 +31,15 @@ public class AutoMergeGitLabApiService
     public async Task<GitLabDetailedMergeRequest?> GetDetailedMergeRequest(
         AccessDetailsBase accessDetails,
         int projectId,
-        int mergeRequestIid)
+        int mergeRequestIid,
+        CancellationToken cancellationToken = default)
     {
         try
         {
-            return await _gitLabApiClient.ExecuteAsync<GitLabDetailedMergeRequest>(() =>
+            return await _gitLabApiClient.Execute<GitLabDetailedMergeRequest>(() =>
                 accessDetails.CreateRequest(
                     HttpMethod.Get,
-                    $"projects/{projectId}/merge_requests/{mergeRequestIid}"));
+                    $"projects/{projectId}/merge_requests/{mergeRequestIid}"), cancellationToken);
         }
         catch (GitLabUnexpectedResponseException ex)
         {
@@ -58,14 +59,15 @@ public class AutoMergeGitLabApiService
     public async Task<GitLabPipelineDetail?> GetLatestMergeRequestPipeline(
         AccessDetailsBase accessDetails,
         int projectId,
-        int mergeRequestIid)
+        int mergeRequestIid,
+        CancellationToken cancellationToken = default)
     {
         try
         {
-            var pipelines = await _gitLabApiClient.ExecuteAsync<List<GitLabPipelineDetail>>(() =>
+            var pipelines = await _gitLabApiClient.Execute<List<GitLabPipelineDetail>>(() =>
                 accessDetails.CreateRequest(
                     HttpMethod.Get,
-                    $"projects/{projectId}/merge_requests/{mergeRequestIid}/pipelines?per_page=1&sort=desc"));
+                    $"projects/{projectId}/merge_requests/{mergeRequestIid}/pipelines?per_page=1&sort=desc"), cancellationToken);
 
             return pipelines.FirstOrDefault();
         }
@@ -88,11 +90,12 @@ public class AutoMergeGitLabApiService
     public async Task<bool> RebaseMergeRequest(
         AccessDetailsBase accessDetails,
         int projectId,
-        int mergeRequestIid)
+        int mergeRequestIid,
+        CancellationToken cancellationToken = default)
     {
         try
         {
-            await _gitLabApiClient.ExecuteAsync<GitLabRebaseResponse>(() =>
+            await _gitLabApiClient.Execute<GitLabRebaseResponse>(() =>
             {
                 var request = accessDetails.CreateRequest(
                     HttpMethod.Put,
@@ -100,7 +103,7 @@ public class AutoMergeGitLabApiService
 
                 request.Content = new StringContent("{}", Encoding.UTF8, "application/json");
                 return request;
-            });
+            }, cancellationToken);
 
             _logger.LogInformation(
                 "Initiated rebase for project {ProjectId}, MR {MrIid}",
@@ -128,11 +131,12 @@ public class AutoMergeGitLabApiService
     public async Task<GitLabMergeResponse?> Merge(
         AccessDetailsBase accessDetails,
         int projectId,
-        int mergeRequestIid)
+        int mergeRequestIid,
+        CancellationToken cancellationToken = default)
     {
         try
         {
-            var result = await _gitLabApiClient.ExecuteAsync<GitLabMergeResponse>(() =>
+            var result = await _gitLabApiClient.Execute<GitLabMergeResponse>(() =>
             {
                 var request = accessDetails.CreateRequest(
                     HttpMethod.Put,
@@ -140,7 +144,7 @@ public class AutoMergeGitLabApiService
 
                 request.Content = new StringContent("{}", Encoding.UTF8, "application/json");
                 return request;
-            });
+            }, cancellationToken);
 
             _logger.LogInformation(
                 "Merged MR for project {ProjectId}, MR {MrIid}, state={State}",
@@ -184,13 +188,14 @@ public class AutoMergeGitLabApiService
         AccessDetailsBase accessDetails,
         int projectId,
         int mergeRequestIid,
-        string body)
+        string body,
+        CancellationToken cancellationToken = default)
     {
         try
         {
             var jsonBody = JsonSerializer.Serialize(new { body });
 
-            await _gitLabApiClient.ExecuteAsync<GitLabNote>(() =>
+            await _gitLabApiClient.Execute<GitLabNote>(() =>
             {
                 var request = accessDetails.CreateRequest(
                     HttpMethod.Post,
@@ -198,7 +203,7 @@ public class AutoMergeGitLabApiService
 
                 request.Content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
                 return request;
-            });
+            }, cancellationToken);
 
             _logger.LogInformation(
                 "Posted comment on project {ProjectId}, MR {MrIid}",

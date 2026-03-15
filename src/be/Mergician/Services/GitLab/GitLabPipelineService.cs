@@ -69,7 +69,7 @@ public class GitLabPipelineService
 
         try
         {
-            var pipelines = await _gitLabApiClient.ExecuteAsync<List<GitLabPipeline>>(
+            var pipelines = await _gitLabApiClient.Execute<List<GitLabPipeline>>(
                 () => accessDetails.CreateRequest(
                     HttpMethod.Get,
                     $"projects/{projectId}/pipelines?ref={encodedBranch}&order_by=updated_at&sort=desc&per_page=1"),
@@ -99,7 +99,7 @@ public class GitLabPipelineService
 
         try
         {
-            jobs = await _gitLabApiClient.ExecuteAsync<List<GitLabPipelineJob>>(
+            jobs = await _gitLabApiClient.Execute<List<GitLabPipelineJob>>(
                 () => accessDetails.CreateRequest(
                     HttpMethod.Get,
                     $"projects/{projectId}/pipelines/{pipelineId}/jobs?per_page=100"),

@@ -48,7 +48,7 @@ public sealed class ExternalServiceRateLimiter : IDisposable
     ///     (throttled to at most once per 30-second window) with the number of calls throttled
     ///     in that window.
     /// </summary>
-    public async ValueTask WaitAsync(CancellationToken cancellationToken)
+    public async ValueTask Wait(CancellationToken cancellationToken)
     {
         // Fast path: token available immediately, no throttling.
         using var instantLease = _rateLimiter.AttemptAcquire();
