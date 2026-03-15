@@ -37,13 +37,18 @@ if [ ! "$(docker images -q ci-lab-bootstrap:latest 2> /dev/null)" ] || [ "$ROOT_
   touch "$ROOT_DIR/.docker-bootstrap-build"
 fi
 
-# TODO: If bootstrapper doesn't finish within 15 minutes, something has gone wrong. Make sure these is a time to stop the container and exit with a non-zero
-# exit code if this happens. We still need to see the output from the bootstrap in stdout so the agent can't diagnose issues then they happen.
-
-docker run --net=host --rm -it \
+timeout_code=0
+timeout --foreground 900 docker run --net=host --rm -it \
   -v "$ROOT_DIR":/workspace \
   -v "$ROOT_DIR/data/logs":/workspace/data/logs \
   -e GITLAB_ROOT_PASSWORD="$GITLAB_ROOT_PASSWORD" \
   -e GITLAB_URL="${GITLAB_URL:-http://localhost:8081}" \
   -e TEAMCITY_URL="${TEAMCITY_URL:-http://localhost:8111}" \
-  ci-lab-bootstrap:latest "$@"
+  ci-lab-bootstrap:latest "$@" || timeout_code=$?
+
+if [ "$timeout_code" -eq 124 ]; then
+  echo "ERROR: Bootstrap did not finish within 15 minutes. Something has gone wrong." >&2
+  exit 1
+elif [ "$timeout_code" -ne 0 ]; then
+  exit "$timeout_code"
+fi
