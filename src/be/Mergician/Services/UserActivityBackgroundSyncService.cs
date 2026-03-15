@@ -355,12 +355,6 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                 continue;
             }
 
-            if (string.IsNullOrWhiteSpace(project.Name))
-            {
-                _logger.LogError("Invalid empty project name in project id {id}", pushEvent.ProjectId);
-                continue;
-            }
-
             if (GitLabService.IsScheduledForDeletion(project.NameWithNamespace))
             {
                 _logger.LogInformation(

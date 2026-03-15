@@ -193,6 +193,8 @@ public class GitLabService
             return null;
         }
 
+        // TODO: If the GitLabProject Name of NameWithNamespace is null or empty, log an error and return null.
+
         _projectCache.Set(projectId, project);
         _logger.LogDebug("Cached project info for project {ProjectId}", projectId);
         return project;
