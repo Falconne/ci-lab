@@ -262,19 +262,19 @@ public class AutoMergeService : BackgroundService
 
     private string BuildRebaseConflictComment(int mergeGroupId, string mergeGroupName)
     {
-        // TODO: Consolidate the repeated code here.
-        var baseUrl = _settings.BaseUrl.TrimEnd('/');
-        if (baseUrl.IsEmpty())
-        {
-            return
-                $"Mergician can no longer rebase this branch due to conflicts. "
-                + $"Auto merge and auto rebase have been disabled for merge group \"{mergeGroupName}\".";
-        }
-
-        var mergeGroupUrl = $"{baseUrl}/merge-group/{mergeGroupId}";
+        var groupRef = FormatMergeGroupLink(mergeGroupId, mergeGroupName);
         return
             $"Mergician can no longer rebase this branch due to conflicts. "
-            + $"Auto merge and auto rebase have been disabled for merge group [{mergeGroupName}]({mergeGroupUrl}).";
+            + $"Auto merge and auto rebase have been disabled for merge group {groupRef}.";
+    }
+
+    private string FormatMergeGroupLink(int mergeGroupId, string mergeGroupName)
+    {
+        var baseUrl = _settings.BaseUrl.TrimEnd('/');
+        if (baseUrl.IsEmpty())
+            return $"\"{mergeGroupName}\"";
+
+        return $"[{mergeGroupName}]({baseUrl}/merge-group/{mergeGroupId})";
     }
 
     private async Task ProcessAutoMerge(
