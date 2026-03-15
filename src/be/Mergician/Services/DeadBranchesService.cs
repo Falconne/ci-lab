@@ -111,32 +111,12 @@ public class DeadBranchesService
         string branchName,
         int projectId,
         string projectNameWithNamespace,
-        int? trackedBranchInMergeGroupId,
         string operationName)
     {
         // TODO: Change this method to take in a `GitLabProject` so we don't need to pass in projectId and projectNameWithNamespace.
         if (!GitLabService.IsScheduledForDeletion(projectNameWithNamespace))
         {
             return false;
-        }
-
-        _logger.LogInformation(
-            "Skipping branch '{BranchName}' in project {ProjectId} during {OperationName}: project/group is scheduled for deletion ('{ProjectNameWithNamespace}')",
-            branchName,
-            projectId,
-            operationName,
-            projectNameWithNamespace);
-
-        if (trackedBranchInMergeGroupId.HasValue)
-        {
-            _logger.LogInformation(
-                "Removing tracked branch record {BranchRecordId} for '{BranchName}' in project {ProjectId} during {OperationName} because project is scheduled for deletion",
-                trackedBranchInMergeGroupId.Value,
-                branchName,
-                projectId,
-                operationName);
-
-            RemoveBranchAndCleanup(trackedBranchInMergeGroupId.Value);
         }
 
         return true;

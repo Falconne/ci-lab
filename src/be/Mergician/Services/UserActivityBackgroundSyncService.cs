@@ -359,9 +359,15 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                     pushEvent.BranchName,
                     pushEvent.ProjectId,
                     project.NameWithNamespace,
-                    null,
                     "push-event processing"))
             {
+                _logger.LogInformation(
+                    "Skipping branch '{BranchName}' in project {ProjectId} during push-event processing: project/group is scheduled for deletion ('{ProjectNameWithNamespace}')",
+                    pushEvent.BranchName,
+                    pushEvent.ProjectId,
+                    project.NameWithNamespace
+                );
+
                 continue;
             }
 
