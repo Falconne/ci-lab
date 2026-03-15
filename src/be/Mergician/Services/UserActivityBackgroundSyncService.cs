@@ -578,7 +578,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             branch.ProjectId,
             branch.BranchName);
 
-        DateTimeOffset? lastCommitTime = null;
+        DateTimeOffset? lastCommitTime;
         if (branchDetails?.Commit?.CommittedDate != null)
         {
             lastCommitTime = branchDetails.Commit.CommittedDate.Value.ToUniversalTime();
@@ -587,6 +587,15 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                 branch.BranchName,
                 branch.ProjectId,
                 lastCommitTime);
+        }
+        else
+        {
+            _logger.LogInformation(
+                "No last commit found for '{BranchName}' in project {ProjectId}: assuming branch is gone",
+                branch.BranchName,
+                branch.ProjectId);
+
+            return;
         }
 
         _mergeGroupRepository.UpdateBranchDetails(
