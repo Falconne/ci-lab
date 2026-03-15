@@ -74,15 +74,13 @@ public class AutoMergeBehaviorTest : IDisposable
                 projectId1,
                 branchName,
                 "test1",
-                $"Auto merge test - primary-1 ({timestamp})",
-                false);
+                $"Auto merge test - primary-1 ({timestamp})");
 
             mrIid2 = _gitLab.CreateMergeRequest(
                 projectId2,
                 branchName,
                 "test1",
-                $"Auto merge test - secondary-1 ({timestamp})",
-                false);
+                $"Auto merge test - secondary-1 ({timestamp})");
 
             Log.Information(
                 "Created MRs: project {P1} MR !{Mr1}, project {P2} MR !{Mr2}",
@@ -434,22 +432,16 @@ public class AutoMergeBehaviorTest : IDisposable
         Log.Information("Scenario 4 PASSED: Both MRs were successfully merged by AutoMergeService");
 
         // Navigate back to dashboard and wait for the merge group to disappear.
-        // shouldDeleteSourceBranch=false so the branches remain in GitLab after merge.
-        // The background sync detects they have no diffs from the default branch (via the
-        // Compare API) and removes them from the database, causing the card to vanish.
-        // This path is faster and more deterministic than waiting for GitLab's async branch deletion.
-
-        //TODO: The statement about "The background sync detects they have no diffs" is no longer accurate
-        // as that functionality as been removed as we don't need to check that anymore. Remove the tests
-        // that leave the branches around after they are merged, and just test with the "Delete on merge"
-        // checkbox always turned on.
+        // shouldDeleteSourceBranch=true (the default) so GitLab deletes the branches after merge.
+        // The background sync detects they are gone (via the dead-branch check) and removes them
+        // from the database, causing the card to vanish from the dashboard.
 
         await _browser.Navigate(TestConfig.MergicianUrl);
         await Task.Delay(3000);
         await _browser.TakeScreenshot("behavior_07_dashboard_after_merge");
 
         Log.Information(
-            "Waiting for merge group '{BranchName}' to disappear from dashboard (no-diff detection)...",
+            "Waiting for merge group '{BranchName}' to disappear from dashboard (branch deletion detection)...",
             branchName);
 
         var disappeared = await WaitForBranchToDisappearFromDashboard(branchName, 90);
@@ -460,7 +452,7 @@ public class AutoMergeBehaviorTest : IDisposable
         {
             throw new InvalidOperationException(
                 $"Scenario 4: Merge group for '{branchName}' did not disappear from dashboard within timeout "
-                + "after successful merge (no-diff detection path)");
+                + "after successful merge (branch deletion detection path)");
         }
 
         Log.Information(
