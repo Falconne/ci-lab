@@ -258,6 +258,7 @@ public class AutoMergeService : BackgroundService
 
     private string BuildRebaseConflictComment(int mergeGroupId, string mergeGroupName)
     {
+        // TODO: Consolidate the repeated code here.
         var baseUrl = _settings.BaseUrl.TrimEnd('/');
         if (baseUrl.IsEmpty())
         {
