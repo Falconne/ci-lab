@@ -13,7 +13,7 @@ source "$ROOT_DIR/scripts/common.sh"
 # Restart Mergician with a fresh database. Accumulated branch records from previous
 # test runs slow down the background sync cycle, making timing-sensitive tests flaky.
 echo "Restarting Mergician with a fresh database..."
-docker compose -f mergician-compose.yaml down -v
+docker compose -f mergician-compose.yaml down -v --timeout 15
 docker compose -f mergician-compose.yaml up -d --build
 
 echo "Waiting for Mergician to be healthy..."
