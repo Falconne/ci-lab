@@ -101,28 +101,6 @@ public class DeadBranchesService
     }
 
     /// <summary>
-    ///     Checks if a branch should be skipped because its project is scheduled for deletion.
-    ///     If so, and a tracked record ID is provided, removes it from the DB.
-    ///     This does not check call the Gitlab API, as this can be inferred from the project name
-    ///     already returned by Gitlab.
-    ///     Returns true if the branch should be skipped.
-    /// </summary>
-    public bool ShouldSkipScheduledForDeletionByName(
-        string branchName,
-        int projectId,
-        string projectNameWithNamespace,
-        string operationName)
-    {
-        // TODO: Change this method to take in a `GitLabProject` so we don't need to pass in projectId and projectNameWithNamespace.
-        if (!GitLabService.IsScheduledForDeletion(projectNameWithNamespace))
-        {
-            return false;
-        }
-
-        return true;
-    }
-
-    /// <summary>
     ///     Removes a branch record from the database and cleans up any merge groups that become empty.
     /// </summary>
     public void RemoveBranchAndCleanup(int branchInProjectId)

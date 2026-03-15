@@ -38,6 +38,7 @@ public class GitLabService
     /// </summary>
     public static bool IsScheduledForDeletion(string nameWithNamespace)
     {
+        // TODO: Move this to DeadBranchesService
         return nameWithNamespace.Contains("deletion_scheduled", StringComparison.OrdinalIgnoreCase);
     }
 

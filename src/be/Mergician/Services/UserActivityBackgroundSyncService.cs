@@ -355,11 +355,13 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                 continue;
             }
 
-            if (_deadBranchesService.ShouldSkipScheduledForDeletionByName(
-                    pushEvent.BranchName,
-                    pushEvent.ProjectId,
-                    project.NameWithNamespace,
-                    "push-event processing"))
+            if (string.IsNullOrWhiteSpace(project.Name))
+            {
+                _logger.LogError("Invalid empty project name in project id {id}", pushEvent.ProjectId);
+                continue;
+            }
+
+            if (GitLabService.IsScheduledForDeletion(project.NameWithNamespace))
             {
                 _logger.LogInformation(
                     "Skipping branch '{BranchName}' in project {ProjectId} during push-event processing: project/group is scheduled for deletion ('{ProjectNameWithNamespace}')",
@@ -368,12 +370,6 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                     project.NameWithNamespace
                 );
 
-                continue;
-            }
-
-            if (string.IsNullOrWhiteSpace(project.Name))
-            {
-                _logger.LogError("Invalid empty project name in project id {id}", pushEvent.ProjectId);
                 continue;
             }
 
