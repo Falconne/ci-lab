@@ -25,20 +25,14 @@ WORKDIR /src
 # Install git to capture the git hash
 RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
 
-# TODO: There is no need to be specific about which csproj files to copy here, we can just copy the entire src/be folder and just make sure to only build the Mergician project.
-
-COPY src/be/Mergician/Mergician.csproj Mergician/
-COPY src/be/Util/Util.csproj Util/
-RUN dotnet restore Mergician/Mergician.csproj
+COPY src/be/ .
 
 # Copy git folder to get version info
 COPY .git/ /src/.git/
 
-COPY src/be/Mergician/ Mergician/
-COPY src/be/Util/ Util/
-
 # Capture git hash and pass it to the build
-RUN GIT_HASH=$(git rev-parse HEAD 2>/dev/null || echo "unknown") && \
+RUN dotnet restore Mergician/Mergician.csproj && \
+    GIT_HASH=$(git rev-parse HEAD 2>/dev/null || echo "unknown") && \
     dotnet publish Mergician/Mergician.csproj -c Release -o /app/publish \
     -p:InformationalVersion=$GIT_HASH
 
