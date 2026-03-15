@@ -41,7 +41,7 @@ public class ActivityController : ControllerBase
         var userId = currentUser.UserId;
 
         // Ensure the background sync thread is running (also records that user is still active)
-        _backgroundSyncService.EnsureSyncRunning(userId, currentUser);
+        _backgroundSyncService.EnsureSyncRunning(currentUser);
 
         _logger.LogDebug("Dashboard refresh for user {UserId}", userId);
 

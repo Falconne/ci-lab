@@ -154,7 +154,7 @@ public class GitLabCookieAuthenticationHandler : AuthenticationHandler<Authentic
     /// </summary>
     private async Task<GitLabUserInfo?> ValidateToken(string accessToken)
     {
-        var accessDetails = new AccessDetailsBase(accessToken, _apiBaseUrl);
+        var accessDetails = new AccessDetailsForUser(accessToken, _apiBaseUrl, 0);
         return await _gitLabService.GetCurrentUser(accessDetails);
     }
 }

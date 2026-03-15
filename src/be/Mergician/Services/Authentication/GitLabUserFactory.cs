@@ -1,7 +1,9 @@
+using Util;
+
 namespace Mergician.Services.Authentication;
 
 /// <summary>
-///     Factory for creating <see cref="AccessDetailsBase" /> instances for the service user.
+///     Factory for creating <see cref="AccessDetailsForUser" /> instances for the service user.
 ///     The service user is used by the backend for background maintenance tasks
 ///     and does not require an HTTP context. Current user authentication is
 ///     handled by the GitLabCookieAuthenticationHandler instead.
@@ -19,17 +21,18 @@ public class GitLabUserFactory
     }
 
     /// <summary>
-    ///     Returns an <see cref="AccessDetailsBase" /> for the configured service account.
+    ///     Returns an <see cref="AccessDetailsForUser" /> for the configured service account.
+    ///     The UserId is 0 because the service user has no specific GitLab user identity.
     ///     Throws if the service token is not configured because this indicates
     ///     a misconfiguration that should result in a server error.
     /// </summary>
-    public AccessDetailsBase GetServiceUser()
+    public AccessDetailsForUser GetServiceUser()
     {
-        if (string.IsNullOrWhiteSpace(_serviceToken))
+        if (_serviceToken.IsEmpty())
         {
             throw new InvalidOperationException("GitLab service token is not configured");
         }
 
-        return new AccessDetailsBase(_serviceToken!, _apiBaseUrl);
+        return new AccessDetailsForUser(_serviceToken, _apiBaseUrl, 0);
     }
 }

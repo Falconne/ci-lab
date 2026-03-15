@@ -29,7 +29,7 @@ public class AutoMergeGitLabApiService
     ///     Fetches detailed merge request information including merge status and conflicts.
     /// </summary>
     public async Task<GitLabDetailedMergeRequest?> GetDetailedMergeRequest(
-        AccessDetailsBase accessDetails,
+        AccessDetailsForUser accessDetails,
         int projectId,
         int mergeRequestIid)
     {
@@ -56,7 +56,7 @@ public class AutoMergeGitLabApiService
     ///     Fetches the latest pipeline for a merge request, or null if none exists.
     /// </summary>
     public async Task<GitLabPipelineDetail?> GetLatestMergeRequestPipeline(
-        AccessDetailsBase accessDetails,
+        AccessDetailsForUser accessDetails,
         int projectId,
         int mergeRequestIid)
     {
@@ -86,7 +86,7 @@ public class AutoMergeGitLabApiService
     ///     Returns true if the rebase was initiated, false on failure.
     /// </summary>
     public async Task<bool> RebaseMergeRequest(
-        AccessDetailsBase accessDetails,
+        AccessDetailsForUser accessDetails,
         int projectId,
         int mergeRequestIid)
     {
@@ -126,7 +126,7 @@ public class AutoMergeGitLabApiService
     ///     Returns the merge response, or null if the merge failed.
     /// </summary>
     public async Task<GitLabMergeResponse?> AcceptMergeRequest(
-        AccessDetailsBase accessDetails,
+        AccessDetailsForUser accessDetails,
         int projectId,
         int mergeRequestIid)
     {
@@ -180,7 +180,7 @@ public class AutoMergeGitLabApiService
     ///     Posts a comment (note) on a merge request.
     /// </summary>
     public async Task PostMergeRequestComment(
-        AccessDetailsBase accessDetails,
+        AccessDetailsForUser accessDetails,
         int projectId,
         int mergeRequestIid,
         string body)

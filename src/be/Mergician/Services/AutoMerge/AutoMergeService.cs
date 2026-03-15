@@ -2,6 +2,7 @@ using Mergician.Entities;
 using Mergician.Services.Authentication;
 using Mergician.Services.Database;
 using Mergician.Services.GitLab;
+using Util;
 
 namespace Mergician.Services.AutoMerge;
 
@@ -123,7 +124,7 @@ public class AutoMergeService : BackgroundService
     }
 
     private async Task ProcessMergeGroup(
-        AccessDetailsBase serviceUser,
+        AccessDetailsForUser serviceUser,
         MergeGroup group,
         CancellationToken cancellationToken)
     {
@@ -183,7 +184,7 @@ public class AutoMergeService : BackgroundService
     }
 
     private async Task ProcessAutoRebase(
-        AccessDetailsBase serviceUser,
+        AccessDetailsForUser serviceUser,
         MergeGroup group,
         List<(BranchWithActivity Branch, GitLabDetailedMergeRequest MergeRequest)> branchMrDetails,
         CancellationToken cancellationToken)
@@ -258,7 +259,7 @@ public class AutoMergeService : BackgroundService
     private string BuildRebaseConflictComment(int mergeGroupId, string mergeGroupName)
     {
         var baseUrl = _settings.BaseUrl.TrimEnd('/');
-        if (string.IsNullOrWhiteSpace(baseUrl))
+        if (baseUrl.IsEmpty())
         {
             return
                 $"Mergician can no longer rebase this branch due to conflicts. "
@@ -272,7 +273,7 @@ public class AutoMergeService : BackgroundService
     }
 
     private async Task ProcessAutoMerge(
-        AccessDetailsBase serviceUser,
+        AccessDetailsForUser serviceUser,
         MergeGroup group,
         List<(BranchWithActivity Branch, GitLabDetailedMergeRequest MergeRequest)> branchMrDetails,
         CancellationToken cancellationToken)
@@ -382,7 +383,7 @@ public class AutoMergeService : BackgroundService
     }
 
     private async Task<bool> IsBranchReadyToMerge(
-        AccessDetailsBase serviceUser,
+        AccessDetailsForUser serviceUser,
         BranchWithActivity branch,
         GitLabDetailedMergeRequest mr,
         bool autoRebaseEnabled,

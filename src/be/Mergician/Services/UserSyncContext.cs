@@ -13,7 +13,7 @@ public class UserSyncContext
 
     public readonly object StartLock = new();
 
-    private AccessDetailsBase? _accessUser;
+    private AccessDetailsForUser? _accessUser;
 
     private long _lastPollTicks = DateTimeOffset.UtcNow.UtcTicks;
 
@@ -25,7 +25,7 @@ public class UserSyncContext
     ///     The user's latest access token for GitLab API calls.
     ///     Updated on each incoming request so the background thread always uses a fresh token.
     /// </summary>
-    public AccessDetailsBase? AccessUser
+    public AccessDetailsForUser? AccessUser
     {
         get
         {
@@ -56,7 +56,7 @@ public class UserSyncContext
     /// <summary>
     ///     Updates the access token and records a poll activity timestamp.
     /// </summary>
-    public void UpdateActivity(AccessDetailsBase accessDetails)
+    public void UpdateActivity(AccessDetailsForUser accessDetails)
     {
         _accessUserLock.EnterWriteLock();
         try

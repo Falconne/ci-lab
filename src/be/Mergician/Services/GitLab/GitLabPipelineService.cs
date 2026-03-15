@@ -1,5 +1,6 @@
 using Mergician.Entities;
 using Mergician.Services.Authentication;
+using Util;
 
 namespace Mergician.Services.GitLab;
 
@@ -21,7 +22,7 @@ public class GitLabPipelineService
     ///     Returns build job statuses for the latest pipeline on the branch.
     /// </summary>
     public async Task<List<BranchBuildJob>> GetLatestBuildJobsForBranch(
-        AccessDetailsBase accessDetails,
+        AccessDetailsForUser accessDetails,
         int projectId,
         string branchName,
         CancellationToken cancellationToken)
@@ -59,7 +60,7 @@ public class GitLabPipelineService
     }
 
     private async Task<GitLabPipeline?> GetLatestPipeline(
-        AccessDetailsBase accessDetails,
+        AccessDetailsForUser accessDetails,
         int projectId,
         string branchName,
         CancellationToken cancellationToken)
@@ -89,7 +90,7 @@ public class GitLabPipelineService
     }
 
     private async Task<List<BranchBuildJob>> GetJobsFromPipeline(
-        AccessDetailsBase accessDetails,
+        AccessDetailsForUser accessDetails,
         int projectId,
         int pipelineId,
         CancellationToken cancellationToken)
@@ -117,9 +118,9 @@ public class GitLabPipelineService
 
         return jobs
             .Select(job => new BranchBuildJob(
-                string.IsNullOrWhiteSpace(job.Name) ? "job" : job.Name,
-                string.IsNullOrWhiteSpace(job.Status) ? "unknown" : job.Status,
-                string.IsNullOrWhiteSpace(job.WebUrl) ? null : job.WebUrl))
+                job.Name.IsEmpty() ? "job" : job.Name,
+                job.Status.IsEmpty() ? "unknown" : job.Status,
+                job.WebUrl.IsEmpty() ? null : job.WebUrl))
             .ToList();
     }
 }

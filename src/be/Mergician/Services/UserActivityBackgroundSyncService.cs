@@ -3,6 +3,7 @@ using Mergician.Services.Authentication;
 using Mergician.Services.Database;
 using Mergician.Services.GitLab;
 using System.Collections.Concurrent;
+using Util;
 
 namespace Mergician.Services;
 
@@ -111,14 +112,15 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
     ///     Updates the stored access token and records poll activity.
     ///     If a thread is already running, this is a no-op (apart from updating the token).
     /// </summary>
-    public void EnsureSyncRunning(int gitLabUserId, AccessDetailsBase accessDetails)
+    public void EnsureSyncRunning(AccessDetailsForUser accessDetails)
     {
-        var context = _userContexts.GetOrAdd(gitLabUserId, _ => new UserSyncContext());
+        var userId = accessDetails.UserId;
+        var context = _userContexts.GetOrAdd(userId, _ => new UserSyncContext());
         context.UpdateActivity(accessDetails);
 
         if (context.IsRunning)
         {
-            _logger.LogDebug("Sync thread already running for user {UserId}", gitLabUserId);
+            _logger.LogDebug("Sync thread already running for user {UserId}", userId);
             return;
         }
 
@@ -129,14 +131,14 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                 return;
             }
 
-            _logger.LogInformation("Starting background sync thread for user {UserId}", gitLabUserId);
+            _logger.LogInformation("Starting background sync thread for user {UserId}", userId);
 
             context.Cts?.Dispose();
             var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
                 _globalCts?.Token ?? CancellationToken.None);
 
             context.Cts = linkedCts;
-            context.SyncTask = Task.Run(() => RunUserSync(gitLabUserId, context, linkedCts.Token));
+            context.SyncTask = Task.Run(() => RunUserSync(userId, context, linkedCts.Token));
         }
     }
 
@@ -187,7 +189,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                 {
                     firstPoll = false;
                     // Refresh branch details immediately on first poll for responsive UI
-                    await RefreshAllBranchDetails(accessUser, gitLabUserId, ct);
+                    await RefreshAllBranchDetails(accessUser, ct);
                 }
                 else
                 {
@@ -209,15 +211,15 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                 {
                     var nextPollTimeFrom = DateTimeOffset.UtcNow;
                     // Poll for new push events since the last successful poll
-                    await FetchNewUserActivityFromGitLab(accessUser, gitLabUserId, lastPollTime, ct);
+                    await FetchNewUserActivityFromGitLab(accessUser, lastPollTime, ct);
 
                     lastPollTime = nextPollTimeFrom;
 
                     // Check for deleted branches and clean up DB records
-                    await CleanupDeletedBranches(accessUser, gitLabUserId, ct);
+                    await CleanupDeletedBranches(accessUser, ct);
 
                     // Refresh MR, approval, and build status for all tracked branches
-                    await RefreshAllBranchDetails(accessUser, gitLabUserId, ct);
+                    await RefreshAllBranchDetails(accessUser, ct);
                 }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested)
                 {
@@ -266,16 +268,16 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
     ///     Called by the background sync thread during each poll cycle.
     /// </summary>
     private async Task CleanupDeletedBranches(
-        AccessDetailsBase accessDetails,
-        int gitLabUserId,
+        AccessDetailsForUser accessDetails,
         CancellationToken cancellationToken)
     {
-        var userGroups = _mergeGroupRepository.GetMergeGroupsForUser(gitLabUserId);
+        var userId = accessDetails.UserId;
+        var userGroups = _mergeGroupRepository.GetMergeGroupsForUser(userId);
         var userBranches = userGroups.SelectMany(g => g.Branches).ToList();
         _logger.LogDebug(
             "Checking {Count} tracked branches for user {UserId} for deletion or no-diff status",
             userBranches.Count,
-            gitLabUserId);
+            userId);
 
         foreach (var branch in userBranches)
         {
@@ -292,14 +294,14 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
     ///     branches in the database. Called by the background sync thread.
     /// </summary>
     private async Task FetchNewUserActivityFromGitLab(
-        AccessDetailsBase accessDetails,
-        int gitLabUserId,
+        AccessDetailsForUser accessDetails,
         DateTimeOffset since,
         CancellationToken cancellationToken)
     {
+        var userId = accessDetails.UserId;
         _logger.LogDebug(
             "Syncing GitLab activity for user {UserId} since {Since}",
-            gitLabUserId,
+            userId,
             since);
 
         var pushEvents = _gitLabService.GetPushEventsForUserSince(accessDetails, since, cancellationToken);
@@ -330,8 +332,12 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                 continue;
             }
 
-            // TODO: Only make this call here if the push event is more than 10 minutes old.
-            if (await _deadBranchesService.IsBranchGone(
+            // Only check if the branch still exists for push events older than 10 minutes.
+            // Recent events almost certainly refer to a branch that was just pushed and still exists,
+            // so skipping this API call avoids unnecessary GitLab traffic.
+            var pushEventAge = DateTimeOffset.UtcNow - pushEvent.CreatedAt;
+            if (pushEventAge > TimeSpan.FromMinutes(10) &&
+                await _deadBranchesService.IsBranchGone(
                     pushEvent.BranchName,
                     pushEvent.ProjectId,
                     cancellationToken))
@@ -355,7 +361,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                 continue;
             }
 
-            if (GitLabService.IsScheduledForDeletion(project.NameWithNamespace))
+            if (DeadBranchesService.IsScheduledForDeletion(project.NameWithNamespace))
             {
                 _logger.LogInformation(
                     "Skipping branch '{BranchName}' in project {ProjectId} during push-event processing: project/group is scheduled for deletion ('{ProjectNameWithNamespace}')",
@@ -367,14 +373,10 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                 continue;
             }
 
-            var branchRecord = _mergeGroupRepository.GetOrCreateBranchRecord(
-                pushEvent.BranchName,
-                pushEvent.ProjectId,
-                project.Name,
-                project.NameWithNamespace);
+            var branchRecord = _mergeGroupRepository.GetOrCreateBranchRecord(pushEvent.BranchName, project);
 
             var mergeGroup = _mergeGroupRepository.GetOrCreateMergeGroup(pushEvent.BranchName);
-            var isNewToMergeGroup = !mergeGroup.Branches.Any(b => b.Id == branchRecord.Id);
+            var isNewToMergeGroup = mergeGroup.Branches.NotAny(b => b.Id == branchRecord.Id);
 
             if (isNewToMergeGroup)
             {
@@ -393,13 +395,13 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                     mergeGroup.Id);
             }
 
-            _mergeGroupRepository.EnsureUserInMergeGroup(gitLabUserId, mergeGroup.Id);
+            _mergeGroupRepository.EnsureUserInMergeGroup(userId, mergeGroup.Id);
 
             _logger.LogDebug(
                 "Stored branch '{BranchName}' in project {ProjectId} for user {UserId}",
                 pushEvent.BranchName,
                 pushEvent.ProjectId,
-                gitLabUserId);
+                userId);
         }
     }
 
@@ -426,7 +428,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
 
         try
         {
-            await FetchNewUserActivityFromGitLab(accessUser, gitLabUserId, since, ct);
+            await FetchNewUserActivityFromGitLab(accessUser, since, ct);
 
             _logger.LogInformation("Backfill completed for user {UserId}", gitLabUserId);
         }
@@ -455,17 +457,17 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
     ///     Called by the background sync thread as a second pass after activity sync.
     /// </summary>
     private async Task RefreshAllBranchDetails(
-        AccessDetailsBase accessDetails,
-        int gitLabUserId,
+        AccessDetailsForUser accessDetails,
         CancellationToken cancellationToken)
     {
-        var userGroups = _mergeGroupRepository.GetMergeGroupsForUser(gitLabUserId);
+        var userId = accessDetails.UserId;
+        var userGroups = _mergeGroupRepository.GetMergeGroupsForUser(userId);
         var userBranches = userGroups.SelectMany(g => g.Branches).ToList();
 
         _logger.LogDebug(
             "Refreshing details for {Count} branches for user {UserId}",
             userBranches.Count,
-            gitLabUserId);
+            userId);
 
         foreach (var branch in userBranches)
         {
@@ -484,7 +486,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                 _logger.LogError(
                     ex,
                     "GitLab became unavailable while refreshing branch details for user {UserId}; ending the current refresh cycle",
-                    gitLabUserId);
+                    userId);
 
                 break;
             }
@@ -498,7 +500,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             }
         }
 
-        _logger.LogDebug("Finished refreshing details for user {UserId}", gitLabUserId);
+        _logger.LogDebug("Finished refreshing details for user {UserId}", userId);
     }
 
     /// <summary>
@@ -506,7 +508,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
     ///     and persists them in the database. Silently skips if project info is unavailable.
     /// </summary>
     private async Task RefreshBranchDetails(
-        AccessDetailsBase accessDetails,
+        AccessDetailsForUser accessDetails,
         BranchInProject branch,
         CancellationToken cancellationToken)
     {
@@ -528,7 +530,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             return;
         }
 
-        if (GitLabService.IsScheduledForDeletion(project.NameWithNamespace))
+        if (DeadBranchesService.IsScheduledForDeletion(project.NameWithNamespace))
         {
             _logger.LogInformation(
                 "Skipping detail refresh for branch '{BranchName}' in project {ProjectId}: project scheduled for deletion",

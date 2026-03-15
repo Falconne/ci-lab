@@ -42,7 +42,7 @@ public class MergeGroupController : ControllerBase
         var userId = currentUser.UserId;
 
         // Keep the background sync thread alive during polling
-        _backgroundSyncService.EnsureSyncRunning(userId, currentUser);
+        _backgroundSyncService.EnsureSyncRunning(currentUser);
 
         _logger.LogDebug(
             "Merge group refresh for user {UserId}, merge group {MergeGroupId}",
