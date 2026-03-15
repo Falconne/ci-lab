@@ -272,7 +272,9 @@ public class AutoMergeService : BackgroundService
     {
         var baseUrl = _settings.BaseUrl.TrimEnd('/');
         if (baseUrl.IsEmpty())
+        {
             return $"\"{mergeGroupName}\"";
+        }
 
         return $"[{mergeGroupName}]({baseUrl}/merge-group/{mergeGroupId})";
     }
@@ -390,7 +392,7 @@ public class AutoMergeService : BackgroundService
         // without waiting for the background sync's dead-branch detection cycle.
         foreach (var (branch, _, _) in succeeded)
         {
-            _logger.LogInformation(
+            _logger.LogDebug(
                 "AutoMergeService: removing merged branch '{BranchName}' in project {ProjectId} from database",
                 branch.BranchName,
                 branch.ProjectId);
@@ -416,7 +418,7 @@ public class AutoMergeService : BackgroundService
             branch.ProjectId,
             mr.Iid);
 
-        if (approvals != null && approvals.ApprovalsRequired.GetValueOrDefault() > 0)
+        if (approvals is { ApprovalsRequired: > 0 })
         {
             if (approvals.ApprovedBy.Count < approvals.ApprovalsRequired.GetValueOrDefault())
             {
