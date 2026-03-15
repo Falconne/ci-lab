@@ -253,7 +253,7 @@ public class AutoMergeService : BackgroundService
             _mergeGroupRepository.UpdateAutoMergeWarning(group.Id, warning);
 
             var comment = BuildRebaseConflictComment(group.Id, group.Name);
-            await _apiService.PostMergeRequestComment(serviceUser, branch.ProjectId, mr.Iid, comment);
+            await _apiService.PostComment(serviceUser, branch.ProjectId, mr.Iid, comment);
 
             // Stop processing further branches in this group since auto settings are now disabled
             break;

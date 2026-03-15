@@ -178,9 +178,9 @@ public class AutoMergeGitLabApiService
     }
 
     /// <summary>
-    ///     Posts a comment (note) on a merge request.
+    ///     Posts a comment on a merge request.
     /// </summary>
-    public async Task PostMergeRequestComment(
+    public async Task PostComment(
         AccessDetailsBase accessDetails,
         int projectId,
         int mergeRequestIid,
@@ -207,8 +207,8 @@ public class AutoMergeGitLabApiService
         }
         catch (GitLabUnexpectedResponseException ex)
         {
-            _logger.LogWarning(
-                "PostMergeRequestComment failed with status {StatusCode} for project {ProjectId}, MR {MrIid}",
+            _logger.LogError(
+                "PostComment failed with status {StatusCode} for project {ProjectId}, MR {MrIid}",
                 (int)ex.StatusCode,
                 projectId,
                 mergeRequestIid);
