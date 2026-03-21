@@ -323,7 +323,7 @@ public class AutoMergeService : BackgroundService
 
         if (!allReady)
         {
-            _logger.LogDebug(
+            _logger.LogInformation(
                 "AutoMergeService: merge group '{MergeGroupName}' is not ready to merge: {Reasons}",
                 group.Name,
                 string.Join("; ", reasons));
