@@ -136,6 +136,20 @@ public class GitLabTestHelper
         string? title = null,
         bool shouldDeleteSourceBranch = true)
     {
+        var (iid, _) = CreateMergeRequestWithUrl(projectId, sourceBranch, username, title, shouldDeleteSourceBranch);
+        return iid;
+    }
+
+    /// <summary>
+    ///     Creates a merge request and returns both the IID and web URL.
+    /// </summary>
+    public (int Iid, string WebUrl) CreateMergeRequestWithUrl(
+        int projectId,
+        string sourceBranch,
+        string username,
+        string? title = null,
+        bool shouldDeleteSourceBranch = true)
+    {
         var userToken = TestConfig.GetTestUserToken(username);
         var userClient = new RestClient(
             new RestClientOptions(TestConfig.GitLabUrl)
@@ -172,7 +186,7 @@ public class GitLabTestHelper
             username,
             shouldDeleteSourceBranch);
 
-        return mr.Iid;
+        return (mr.Iid, mr.WebUrl);
     }
 
     /// <summary>

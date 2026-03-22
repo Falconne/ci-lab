@@ -7,7 +7,8 @@ public record GitLabProjectInfo(
     [property: JsonPropertyName("name")] string Name);
 
 public record GitLabMrInfo(
-    [property: JsonPropertyName("iid")] int Iid);
+    [property: JsonPropertyName("iid")] int Iid,
+    [property: JsonPropertyName("web_url")] string WebUrl);
 
 public record GitLabMrDetail(
     [property: JsonPropertyName("iid")] int Iid,

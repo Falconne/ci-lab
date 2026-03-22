@@ -254,6 +254,31 @@ try
     {
         autoMergeBehaviorTest.Dispose();
     }
+
+    // Test 8: Merge group management (subscribe/unsubscribe, add MR, find by MR)
+    var mergeGroupManagementTest = new MergeGroupManagementTest();
+    try
+    {
+        Log.Information("");
+        Log.Information("--- Test: Merge Group Management ---");
+        await mergeGroupManagementTest.Run();
+        results.Add(("Merge Group Management", true, null));
+        Log.Information("PASS: Merge Group Management");
+    }
+    catch (Exception ex)
+    {
+        results.Add(("Merge Group Management", false, ex.Message));
+        Log.Error($"FAIL: Merge Group Management - {ex.Message}");
+        allPassed = false;
+        if (abortOnFirstFailure)
+        {
+            throw;
+        }
+    }
+    finally
+    {
+        mergeGroupManagementTest.Dispose();
+    }
 }
 catch (Exception ex)
 {
