@@ -114,7 +114,10 @@ try
 
     Log.Information("GitLab API base URL: {GitLabApiBaseUrl}", gitlabApiBaseUrl);
 
-    app.UseSerilogRequestLogging();
+    app.UseSerilogRequestLogging(options =>
+    {
+        options.GetLevel = (_, _, _) => Serilog.Events.LogEventLevel.Debug;
+    });
     app.UseCors();
 
     // ---------------------------------------------------------------------
