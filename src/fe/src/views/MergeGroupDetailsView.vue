@@ -52,6 +52,18 @@
                 {{ overallStatusLabel }}
               </span>
               <span v-else class="skeleton-badge"><span class="skeleton-shimmer" /></span>
+              <v-btn
+                v-if="subscriptionLoaded"
+                :variant="isSubscribed ? 'tonal' : 'outlined'"
+                :color="isSubscribed ? 'primary' : undefined"
+                size="small"
+                :prepend-icon="isSubscribed ? 'mdi-star' : 'mdi-star-outline'"
+                :loading="subscriptionUpdating"
+                class="subscription-btn"
+                @click="toggleSubscription"
+              >
+                {{ isSubscribed ? 'In my Merge Groups' : 'Add to my Merge Groups' }}
+              </v-btn>
             </div>
 
             <!-- Auto Merge / Auto Rebase toggles -->
@@ -77,7 +89,46 @@
             </div>
           </div>
 
-          <!-- Auto merge warning -->
+          <!-- Action buttons -->
+          <div class="d-flex ga-2 mb-4">
+            <v-btn
+              variant="outlined"
+              size="small"
+              prepend-icon="mdi-source-merge"
+              class="text-none"
+              @click="showAddMrDialog = true"
+            >
+              Add Merge Request...
+            </v-btn>
+          </div>
+
+          <!-- Add Merge Request dialog -->
+          <v-dialog v-model="showAddMrDialog" max-width="520" persistent>
+            <v-card>
+              <v-card-title>Add Merge Request</v-card-title>
+              <v-card-text>
+                <p class="text-body-2 mb-3">
+                  Enter the URL of a GitLab merge request to add its branch to this merge group.
+                </p>
+                <v-text-field
+                  v-model="addMrUrl"
+                  label="Merge Request URL"
+                  placeholder="https://gitlab.example.com/group/project/-/merge_requests/123"
+                  variant="outlined"
+                  density="compact"
+                  :error-messages="addMrError"
+                  :disabled="addMrLoading"
+                  autofocus
+                  @keyup.enter="submitAddMr"
+                />
+              </v-card-text>
+              <v-card-actions>
+                <v-spacer />
+                <v-btn variant="text" :disabled="addMrLoading" @click="closeAddMrDialog">Cancel</v-btn>
+                <v-btn color="primary" :loading="addMrLoading" :disabled="!addMrUrl.trim()" @click="submitAddMr">Add</v-btn>
+              </v-card-actions>
+            </v-card>
+          </v-dialog>
           <v-alert
             v-if="autoMergeWarning"
             type="warning"
@@ -254,6 +305,13 @@ const autoMerge = ref(false)
 const autoRebase = ref(false)
 const autoMergeWarning = ref<string | null>(null)
 const settingsUpdating = ref(false)
+const isSubscribed = ref(false)
+const subscriptionLoaded = ref(false)
+const subscriptionUpdating = ref(false)
+const showAddMrDialog = ref(false)
+const addMrUrl = ref('')
+const addMrError = ref('')
+const addMrLoading = ref(false)
 
 let pollIntervalId: ReturnType<typeof setInterval> | null = null
 let fastPollTimeoutId: ReturnType<typeof setTimeout> | null = null
@@ -346,6 +404,88 @@ function jobStatusColor(status: string): string {
 
 function goBack() {
   router.push('/')
+}
+
+// --- Subscription management ---
+
+async function loadSubscription() {
+  const mergeGroupId = getMergeGroupId()
+  if (!mergeGroupId) return
+
+  try {
+    const response = await fetchBackend(`/api/merge-groups/${mergeGroupId}/subscription`)
+    if (response.ok) {
+      const data = await response.json()
+      isSubscribed.value = data.isSubscribed
+      subscriptionLoaded.value = true
+    }
+  } catch (err) {
+    if (isStartupRequiredError(err)) return
+    console.error('Failed to load subscription state:', err)
+  }
+}
+
+async function toggleSubscription() {
+  const mergeGroupId = getMergeGroupId()
+  if (!mergeGroupId) return
+
+  subscriptionUpdating.value = true
+  const method = isSubscribed.value ? 'DELETE' : 'PUT'
+
+  try {
+    const response = await fetchBackend(`/api/merge-groups/${mergeGroupId}/subscription`, { method })
+    if (response.ok) {
+      const data = await response.json()
+      isSubscribed.value = data.isSubscribed
+    } else {
+      console.error('Failed to update subscription, status', response.status)
+      errorMessage.value = 'Failed to update subscription.'
+    }
+  } catch (err) {
+    if (isStartupRequiredError(err)) return
+    console.error('Failed to update subscription:', err)
+    errorMessage.value = 'Failed to update subscription.'
+  } finally {
+    subscriptionUpdating.value = false
+  }
+}
+
+// --- Add Merge Request dialog ---
+
+function closeAddMrDialog() {
+  showAddMrDialog.value = false
+  addMrUrl.value = ''
+  addMrError.value = ''
+}
+
+async function submitAddMr() {
+  const mergeGroupId = getMergeGroupId()
+  if (!mergeGroupId || !addMrUrl.value.trim()) return
+
+  addMrLoading.value = true
+  addMrError.value = ''
+
+  try {
+    const response = await fetchBackend(`/api/merge-groups/${mergeGroupId}/add-by-merge-request`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mergeRequestUrl: addMrUrl.value.trim() })
+    })
+
+    if (response.ok) {
+      closeAddMrDialog()
+      await pollMergeGroup()
+    } else {
+      const data = await response.json().catch(() => null)
+      addMrError.value = data?.error || `Request failed with status ${response.status}`
+    }
+  } catch (err) {
+    if (isStartupRequiredError(err)) return
+    console.error('Failed to add merge request:', err)
+    addMrError.value = 'Failed to add merge request. Please try again.'
+  } finally {
+    addMrLoading.value = false
+  }
 }
 
 // --- Auto merge settings ---
@@ -572,6 +712,7 @@ onMounted(async () => {
 
   initialLoading.value = false
   startPolling()
+  loadSubscription()
 })
 
 onUnmounted(() => {
@@ -589,6 +730,10 @@ onUnmounted(() => {
   display: flex;
   gap: 24px;
   flex-wrap: wrap;
+}
+
+.subscription-btn {
+  text-transform: none;
 }
 
 /* ---- Status badges (shared with home page style) ---- */

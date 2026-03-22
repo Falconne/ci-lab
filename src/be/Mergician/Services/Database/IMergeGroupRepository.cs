@@ -98,4 +98,20 @@ public interface IMergeGroupRepository
     ///     Sets or clears the auto merge warning text for a merge group.
     /// </summary>
     void UpdateAutoMergeWarning(int mergeGroupId, string? warning);
+
+    /// <summary>
+    ///     Returns true if the user is associated with the specified merge group.
+    /// </summary>
+    bool IsUserInMergeGroup(int gitlabUserId, int mergeGroupId);
+
+    /// <summary>
+    ///     Removes the association between a user and a merge group.
+    /// </summary>
+    void RemoveUserFromMergeGroup(int gitlabUserId, int mergeGroupId);
+
+    /// <summary>
+    ///     Finds a merge group that contains the given branch name in the given project.
+    ///     Returns null if no merge group tracks that branch in that project.
+    /// </summary>
+    MergeGroup? FindMergeGroupByBranch(string branchName, int projectId);
 }

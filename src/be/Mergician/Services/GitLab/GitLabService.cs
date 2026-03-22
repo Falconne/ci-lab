@@ -352,4 +352,73 @@ public class GitLabService
             return null;
         }
     }
+
+    /// <summary>
+    ///     Looks up a GitLab project by its URL-encoded path (e.g. "group/subgroup/project").
+    ///     Returns null if the project is not found or the request fails.
+    /// </summary>
+    public async Task<GitLabProject?> GetProjectByPath(
+        AccessDetailsBase accessDetails,
+        string projectPath,
+        CancellationToken cancellationToken = default)
+    {
+        var encodedPath = Uri.EscapeDataString(projectPath);
+
+        try
+        {
+            var project = await _gitLabApiClient.Execute<GitLabProject>(() =>
+                accessDetails.CreateRequest(HttpMethod.Get, $"projects/{encodedPath}"), cancellationToken);
+
+            if (project.Name.IsEmpty() || project.NameWithNamespace.IsEmpty())
+            {
+                _logger.LogError(
+                    "GetProjectByPath('{ProjectPath}') returned a project with missing Name or NameWithNamespace",
+                    projectPath);
+                return null;
+            }
+
+            _projectCache.Set(project.Id, project);
+            _logger.LogDebug("Resolved project path '{ProjectPath}' to project {ProjectId}", projectPath, project.Id);
+            return project;
+        }
+        catch (GitLabUnexpectedResponseException ex)
+        {
+            if (ex.StatusCode == HttpStatusCode.NotFound)
+            {
+                _logger.LogInformation("GetProjectByPath('{ProjectPath}') returned 404", projectPath);
+                return null;
+            }
+
+            _logger.LogError(
+                "GetProjectByPath('{ProjectPath}') failed with status {StatusCode}",
+                projectPath, (int)ex.StatusCode);
+            throw;
+        }
+    }
+
+    /// <summary>
+    ///     Fetches merge requests by IID in a project. Returns all states (opened, merged, closed).
+    ///     Used by MR URL lookup to find the source branch regardless of MR state.
+    /// </summary>
+    public async Task<List<GitLabMergeRequest>> GetMergeRequestsByIid(
+        AccessDetailsBase accessDetails,
+        int projectId,
+        int mrIid,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await _gitLabApiClient.Execute<List<GitLabMergeRequest>>(() =>
+                accessDetails.CreateRequest(
+                    HttpMethod.Get,
+                    $"projects/{projectId}/merge_requests?iids[]={mrIid}"), cancellationToken);
+        }
+        catch (GitLabUnexpectedResponseException ex)
+        {
+            _logger.LogError(
+                "GetMergeRequestsByIid failed with status {StatusCode} for project {ProjectId}, MR IID {MrIid}",
+                (int)ex.StatusCode, projectId, mrIid);
+            return [];
+        }
+    }
 }

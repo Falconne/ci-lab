@@ -456,6 +456,66 @@ public class MergeGroupRepository : IMergeGroupRepository
         }
     }
 
+    public bool IsUserInMergeGroup(int gitlabUserId, int mergeGroupId)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        connection.Open();
+
+        var exists = connection.QueryFirstOrDefault<int?>(
+            """
+            SELECT 1
+            FROM users_in_merge_groups
+            WHERE gitlab_user_id = @GitlabUserId AND merge_group_id = @MergeGroupId
+            """,
+            new { GitlabUserId = gitlabUserId, MergeGroupId = mergeGroupId });
+
+        return exists != null;
+    }
+
+    public void RemoveUserFromMergeGroup(int gitlabUserId, int mergeGroupId)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        connection.Open();
+
+        connection.Execute(
+            """
+            DELETE FROM users_in_merge_groups
+            WHERE gitlab_user_id = @GitlabUserId AND merge_group_id = @MergeGroupId
+            """,
+            new { GitlabUserId = gitlabUserId, MergeGroupId = mergeGroupId });
+
+        _logger.LogInformation(
+            "Removed user {UserId} from merge group {MergeGroupId}",
+            gitlabUserId,
+            mergeGroupId);
+    }
+
+    public MergeGroup? FindMergeGroupByBranch(string branchName, int projectId)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        connection.Open();
+
+        var record = connection.QueryFirstOrDefault<MergeGroupBase>(
+            """
+            SELECT mg.id AS Id, mg.name AS Name, mg.auto_merge AS AutoMerge, mg.auto_rebase AS AutoRebase, mg.auto_merge_warning AS AutoMergeWarning
+            FROM merge_group mg
+            INNER JOIN branches_in_merge_group bmg ON bmg.merge_group_id = mg.id
+            INNER JOIN branch_in_project bp ON bp.id = bmg.branch_in_project_id
+            WHERE bp.branch_name = @BranchName AND bp.project_id = @ProjectId
+            LIMIT 1
+            """,
+            new { BranchName = branchName, ProjectId = projectId });
+
+        if (record == null)
+        {
+            _logger.LogDebug("No merge group found containing branch '{BranchName}' in project {ProjectId}", branchName, projectId);
+            return null;
+        }
+
+        _logger.LogDebug("Found merge group {MergeGroupId} for branch '{BranchName}' in project {ProjectId}", record.Id, branchName, projectId);
+        return GetBranchesFor(connection, record);
+    }
+
     private MergeGroup GetBranchesFor(IDbConnection connection, MergeGroupBase record)
     {
         // query only branch details; merge group id/name already known

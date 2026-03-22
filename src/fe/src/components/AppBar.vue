@@ -11,6 +11,16 @@
 
     <template v-slot:append>
       <div class="d-flex align-center">
+        <v-btn
+          v-if="currentUser"
+          variant="text"
+          size="small"
+          prepend-icon="mdi-magnify"
+          class="text-none find-mr-btn mr-2"
+          @click="showFindMrDialog = true"
+        >
+          Find by Merge Request...
+        </v-btn>
         <span class="version-text mr-4">
           fe: {{ frontendVersion.slice(0, 7) }} | be: {{ backendVersion.slice(0, 7) }}
         </span>
@@ -34,6 +44,35 @@
       class="app-bar-progress"
     />
   </v-app-bar>
+
+  <!-- Find by Merge Request dialog -->
+  <v-dialog v-model="showFindMrDialog" max-width="520" persistent>
+    <v-card>
+      <v-card-title>Find by Merge Request</v-card-title>
+      <v-card-text>
+        <p class="text-body-2 mb-3">
+          Enter the URL of a GitLab merge request to navigate to its merge group.
+          If no merge group exists yet, one will be created.
+        </p>
+        <v-text-field
+          v-model="findMrUrl"
+          label="Merge Request URL"
+          placeholder="https://gitlab.example.com/group/project/-/merge_requests/123"
+          variant="outlined"
+          density="compact"
+          :error-messages="findMrError"
+          :disabled="findMrLoading"
+          autofocus
+          @keyup.enter="submitFindMr"
+        />
+      </v-card-text>
+      <v-card-actions>
+        <v-spacer />
+        <v-btn variant="text" :disabled="findMrLoading" @click="closeFindMrDialog">Cancel</v-btn>
+        <v-btn color="primary" :loading="findMrLoading" :disabled="!findMrUrl.trim()" @click="submitFindMr">Find</v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
 </template>
 
 <script setup lang="ts">
@@ -49,6 +88,10 @@ const frontendVersion = ref(__APP_VERSION__)
 const backendVersion = ref('unknown')
 const { currentUser, loadCurrentUser, clearCurrentUser } = useCurrentUser()
 const { appLoading } = useAppLoading()
+const showFindMrDialog = ref(false)
+const findMrUrl = ref('')
+const findMrError = ref('')
+const findMrLoading = ref(false)
 const pageTitle = computed(() => {
   if (route.name === 'merge-group-details') {
     const mergeGroupTitle = (route.query.title as string | undefined)?.trim()
@@ -102,6 +145,44 @@ async function logout() {
 function goHome() {
   router.push('/')
 }
+
+// --- Find by Merge Request dialog ---
+
+function closeFindMrDialog() {
+  showFindMrDialog.value = false
+  findMrUrl.value = ''
+  findMrError.value = ''
+}
+
+async function submitFindMr() {
+  if (!findMrUrl.value.trim()) return
+
+  findMrLoading.value = true
+  findMrError.value = ''
+
+  try {
+    const response = await fetchBackend('/api/merge-groups/find-by-merge-request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mergeRequestUrl: findMrUrl.value.trim() })
+    })
+
+    if (response.ok) {
+      const data = await response.json()
+      closeFindMrDialog()
+      router.push(`/merge-group/${data.mergeGroupId}`)
+    } else {
+      const data = await response.json().catch(() => null)
+      findMrError.value = data?.error || `Request failed with status ${response.status}`
+    }
+  } catch (err) {
+    if (isStartupRequiredError(err)) return
+    console.error('[Mergician] Find by merge request failed:', err)
+    findMrError.value = 'Failed to find merge request. Please try again.'
+  } finally {
+    findMrLoading.value = false
+  }
+}
 </script>
 
 <style scoped>
@@ -133,5 +214,9 @@ function goHome() {
   bottom: 0;
   left: 0;
   right: 0;
+}
+
+.find-mr-btn {
+  font-size: 0.8rem;
 }
 </style>
