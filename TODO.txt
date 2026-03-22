@@ -1,0 +1,12 @@
+Mergician needs the ability to manually add branches to merge groups, subscribe to merge groups they are not part of, remove themselves from merge groups, etc. Implement the following features and add unit tests for them (ensure they all pass).
+
+Task 1)
+If the user is on a Merge Group details page for a MG (Merge Group) they are not associated with, add a button at the top to "Add to my Merge Groups" and implement the functionality.
+
+If they are associated with the MG, add a button to "Remove from my Merge Groups" and implement the functionality.
+
+Task 2)
+On the Merge Group details page, add a button to "Add Merge Request..." which brings up a dialog to enter a link to a Merge Request. If this exists, add its branch to the current MG. This provides a way to add branches that are not named the same as the MG.
+
+Task 3)
+Add a button to the top bar (just to the left of the version display) saying "Find by Merge Request..." which brings up a dialog to enter a link to a Merge Request. If this exists, navigate to the MG that contains the branch for that MR. If the MR exists but the MG does not, create the MG, associate it with the user and navigate to its details page.
