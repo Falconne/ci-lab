@@ -1,6 +1,6 @@
+using System.Data;
 using Mergician.Entities;
 using Npgsql;
-using System.Data;
 
 namespace Mergician.Services.Database;
 

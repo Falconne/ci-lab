@@ -1,9 +1,9 @@
+using System.Text;
 using Bootstrap.Entities.GitLab;
 using Bootstrap.Services.GitLab;
 using Bootstrap.Services.TeamCity;
 using LibGit2Sharp;
 using Serilog;
-using System.Text;
 
 namespace Bootstrap.Services;
 

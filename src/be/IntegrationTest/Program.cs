@@ -1,7 +1,7 @@
+using System.Text.Json;
 using IntegrationTest;
 using IntegrationTest.Tests;
 using Serilog;
-using System.Text.Json;
 
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Debug()

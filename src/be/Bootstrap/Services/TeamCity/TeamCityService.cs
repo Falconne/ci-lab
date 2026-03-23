@@ -1,8 +1,8 @@
+using System.Net;
+using System.Text.Json;
 using RestSharp;
 using RestSharp.Authenticators;
 using Serilog;
-using System.Net;
-using System.Text.Json;
 
 namespace Bootstrap.Services.TeamCity;
 

@@ -6,6 +6,7 @@ using Mergician.Services.Database;
 using Mergician.Services.GitLab;
 using Microsoft.AspNetCore.Authentication;
 using Serilog;
+using Serilog.Events;
 using Util;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -117,8 +118,9 @@ try
 
     app.UseSerilogRequestLogging(options =>
     {
-        options.GetLevel = (_, _, _) => Serilog.Events.LogEventLevel.Debug;
+        options.GetLevel = (_, _, _) => LogEventLevel.Debug;
     });
+
     app.UseCors();
 
     // ---------------------------------------------------------------------

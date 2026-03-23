@@ -1,9 +1,9 @@
+using System.Security.Claims;
+using System.Text.Encodings.Web;
 using Mergician.Entities;
 using Mergician.Services.GitLab;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Options;
-using System.Security.Claims;
-using System.Text.Encodings.Web;
 
 namespace Mergician.Services.Authentication;
 

@@ -1,7 +1,7 @@
-using Mergician.Entities;
-using Mergician.Services.Authentication;
 using System.Net;
 using System.Runtime.CompilerServices;
+using Mergician.Entities;
+using Mergician.Services.Authentication;
 using Util;
 
 namespace Mergician.Services.GitLab;
@@ -32,12 +32,16 @@ public class GitLabService
         return branchName is "main" or "master" or "develop";
     }
 
-    public async Task<GitLabUserInfo?> GetCurrentUser(AccessDetailsBase accessDetails, CancellationToken cancellationToken = default)
+    public async Task<GitLabUserInfo?> GetCurrentUser(
+        AccessDetailsBase accessDetails,
+        CancellationToken cancellationToken = default)
     {
         try
         {
-            return await _gitLabApiClient.Execute<GitLabUserInfo>(() =>
-                accessDetails.CreateRequest(HttpMethod.Get, "user"), cancellationToken);
+            return await _gitLabApiClient.Execute<GitLabUserInfo>(
+                () =>
+                    accessDetails.CreateRequest(HttpMethod.Get, "user"),
+                cancellationToken);
         }
         catch (GitLabUnexpectedResponseException ex)
         {
@@ -154,7 +158,10 @@ public class GitLabService
             sinceUtc);
     }
 
-    public async Task<GitLabProject?> GetProject(AccessDetailsBase accessDetails, int projectId, CancellationToken cancellationToken = default)
+    public async Task<GitLabProject?> GetProject(
+        AccessDetailsBase accessDetails,
+        int projectId,
+        CancellationToken cancellationToken = default)
     {
         if (_projectCache.TryGet(projectId, out var cached))
         {
@@ -166,8 +173,10 @@ public class GitLabService
 
         try
         {
-            project = await _gitLabApiClient.Execute<GitLabProject>(() =>
-                accessDetails.CreateRequest(HttpMethod.Get, $"projects/{projectId}"), cancellationToken);
+            project = await _gitLabApiClient.Execute<GitLabProject>(
+                () =>
+                    accessDetails.CreateRequest(HttpMethod.Get, $"projects/{projectId}"),
+                cancellationToken);
         }
         catch (GitLabUnexpectedResponseException ex)
         {
@@ -216,9 +225,11 @@ public class GitLabService
 
         try
         {
-            return await _gitLabApiClient.Execute<GitLabBranchDetails>(() => accessDetails.CreateRequest(
-                HttpMethod.Get,
-                $"projects/{projectId}/repository/branches/{encodedBranch}"), cancellationToken);
+            return await _gitLabApiClient.Execute<GitLabBranchDetails>(
+                () => accessDetails.CreateRequest(
+                    HttpMethod.Get,
+                    $"projects/{projectId}/repository/branches/{encodedBranch}"),
+                cancellationToken);
         }
         catch (GitLabUnexpectedResponseException ex)
         {
@@ -257,9 +268,11 @@ public class GitLabService
 
         try
         {
-            await _gitLabApiClient.Execute<GitLabBranchDetails>(() => accessDetails.CreateRequest(
-                HttpMethod.Get,
-                $"projects/{projectId}/repository/branches/{encodedBranch}"), cancellationToken);
+            await _gitLabApiClient.Execute<GitLabBranchDetails>(
+                () => accessDetails.CreateRequest(
+                    HttpMethod.Get,
+                    $"projects/{projectId}/repository/branches/{encodedBranch}"),
+                cancellationToken);
 
             _logger.LogDebug("Branch '{BranchName}' exists in project {ProjectId}", branchName, projectId);
             return new GitLabBranchLookupResult(GitLabBranchLookupStatus.Exists, 200);
@@ -300,10 +313,12 @@ public class GitLabService
 
         try
         {
-            return await _gitLabApiClient.Execute<List<GitLabMergeRequest>>(() =>
-                accessDetails.CreateRequest(
-                    HttpMethod.Get,
-                    $"projects/{projectId}/merge_requests?source_branch={encodedBranch}&state=opened"), cancellationToken);
+            return await _gitLabApiClient.Execute<List<GitLabMergeRequest>>(
+                () =>
+                    accessDetails.CreateRequest(
+                        HttpMethod.Get,
+                        $"projects/{projectId}/merge_requests?source_branch={encodedBranch}&state=opened"),
+                cancellationToken);
         }
         catch (GitLabUnexpectedResponseException ex)
         {
@@ -328,9 +343,11 @@ public class GitLabService
     {
         try
         {
-            return await _gitLabApiClient.Execute<GitLabApprovalState>(() => accessDetails.CreateRequest(
-                HttpMethod.Get,
-                $"projects/{projectId}/merge_requests/{mergeRequestIid}/approvals"), cancellationToken);
+            return await _gitLabApiClient.Execute<GitLabApprovalState>(
+                () => accessDetails.CreateRequest(
+                    HttpMethod.Get,
+                    $"projects/{projectId}/merge_requests/{mergeRequestIid}/approvals"),
+                cancellationToken);
         }
         catch (GitLabUnexpectedResponseException ex)
         {
@@ -366,19 +383,26 @@ public class GitLabService
 
         try
         {
-            var project = await _gitLabApiClient.Execute<GitLabProject>(() =>
-                accessDetails.CreateRequest(HttpMethod.Get, $"projects/{encodedPath}"), cancellationToken);
+            var project = await _gitLabApiClient.Execute<GitLabProject>(
+                () =>
+                    accessDetails.CreateRequest(HttpMethod.Get, $"projects/{encodedPath}"),
+                cancellationToken);
 
             if (project.Name.IsEmpty() || project.NameWithNamespace.IsEmpty())
             {
                 _logger.LogError(
                     "GetProjectByPath('{ProjectPath}') returned a project with missing Name or NameWithNamespace",
                     projectPath);
+
                 return null;
             }
 
             _projectCache.Set(project.Id, project);
-            _logger.LogDebug("Resolved project path '{ProjectPath}' to project {ProjectId}", projectPath, project.Id);
+            _logger.LogDebug(
+                "Resolved project path '{ProjectPath}' to project {ProjectId}",
+                projectPath,
+                project.Id);
+
             return project;
         }
         catch (GitLabUnexpectedResponseException ex)
@@ -391,7 +415,9 @@ public class GitLabService
 
             _logger.LogError(
                 "GetProjectByPath('{ProjectPath}') failed with status {StatusCode}",
-                projectPath, (int)ex.StatusCode);
+                projectPath,
+                (int)ex.StatusCode);
+
             throw;
         }
     }
@@ -408,16 +434,21 @@ public class GitLabService
     {
         try
         {
-            return await _gitLabApiClient.Execute<List<GitLabMergeRequest>>(() =>
-                accessDetails.CreateRequest(
-                    HttpMethod.Get,
-                    $"projects/{projectId}/merge_requests?iids[]={mrIid}"), cancellationToken);
+            return await _gitLabApiClient.Execute<List<GitLabMergeRequest>>(
+                () =>
+                    accessDetails.CreateRequest(
+                        HttpMethod.Get,
+                        $"projects/{projectId}/merge_requests?iids[]={mrIid}"),
+                cancellationToken);
         }
         catch (GitLabUnexpectedResponseException ex)
         {
             _logger.LogError(
                 "GetMergeRequestsByIid failed with status {StatusCode} for project {ProjectId}, MR IID {MrIid}",
-                (int)ex.StatusCode, projectId, mrIid);
+                (int)ex.StatusCode,
+                projectId,
+                mrIid);
+
             return [];
         }
     }

@@ -1,8 +1,8 @@
+using System.Data;
 using Dapper;
 using Mergician.Entities;
 using Mergician.Entities.Database;
 using Mergician.Services.Time;
-using System.Data;
 
 namespace Mergician.Services.Database;
 
@@ -508,11 +508,20 @@ public class MergeGroupRepository : IMergeGroupRepository
 
         if (record == null)
         {
-            _logger.LogDebug("No merge group found containing branch '{BranchName}' in project {ProjectId}", branchName, projectId);
+            _logger.LogDebug(
+                "No merge group found containing branch '{BranchName}' in project {ProjectId}",
+                branchName,
+                projectId);
+
             return null;
         }
 
-        _logger.LogDebug("Found merge group {MergeGroupId} for branch '{BranchName}' in project {ProjectId}", record.Id, branchName, projectId);
+        _logger.LogDebug(
+            "Found merge group {MergeGroupId} for branch '{BranchName}' in project {ProjectId}",
+            record.Id,
+            branchName,
+            projectId);
+
         return GetBranchesFor(connection, record);
     }
 

@@ -1,8 +1,8 @@
+using System.Net;
+using System.Text.Json;
 using IntegrationTest.Entities;
 using RestSharp;
 using Serilog;
-using System.Net;
-using System.Text.Json;
 
 namespace IntegrationTest.Services;
 
@@ -136,7 +136,13 @@ public class GitLabTestHelper
         string? title = null,
         bool shouldDeleteSourceBranch = true)
     {
-        var (iid, _) = CreateMergeRequestWithUrl(projectId, sourceBranch, username, title, shouldDeleteSourceBranch);
+        var (iid, _) = CreateMergeRequestWithUrl(
+            projectId,
+            sourceBranch,
+            username,
+            title,
+            shouldDeleteSourceBranch);
+
         return iid;
     }
 

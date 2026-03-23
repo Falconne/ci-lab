@@ -14,6 +14,7 @@ namespace IntegrationTest.Tests;
 public class MergeGroupManagementTest : IDisposable
 {
     private readonly BrowserService _browser = new();
+
     private readonly GitLabTestHelper _gitLab = new();
 
     public void Dispose()
@@ -103,8 +104,12 @@ public class MergeGroupManagementTest : IDisposable
 
         var matchingCards = _browser.Page.Locator(".merge-group-card")
             .Filter(new LocatorFilterOptions { HasTextString = mergeGroupName });
+
         var matchCount = await matchingCards.CountAsync();
-        Log.Information("Merge group '{Name}' cards on dashboard after unsubscribe: {Count}", mergeGroupName, matchCount);
+        Log.Information(
+            "Merge group '{Name}' cards on dashboard after unsubscribe: {Count}",
+            mergeGroupName,
+            matchCount);
 
         if (matchCount > 0)
         {
@@ -148,8 +153,12 @@ public class MergeGroupManagementTest : IDisposable
 
         matchingCards = _browser.Page.Locator(".merge-group-card")
             .Filter(new LocatorFilterOptions { HasTextString = mergeGroupName });
+
         matchCount = await matchingCards.CountAsync();
-        Log.Information("Merge group '{Name}' cards on dashboard after resubscribe: {Count}", mergeGroupName, matchCount);
+        Log.Information(
+            "Merge group '{Name}' cards on dashboard after resubscribe: {Count}",
+            mergeGroupName,
+            matchCount);
 
         if (matchCount == 0)
         {
@@ -176,7 +185,10 @@ public class MergeGroupManagementTest : IDisposable
         var branchName = $"feature/add-mr-test-{DateTime.UtcNow:HHmmss}";
         _gitLab.CreateBranchWithCommit(projectId, branchName, "test1");
         var (_, mrWebUrl) = _gitLab.CreateMergeRequestWithUrl(
-            projectId, branchName, "test1", "Test MR for add-by-URL");
+            projectId,
+            branchName,
+            "test1",
+            "Test MR for add-by-URL");
 
         Log.Information("Created test MR at: {Url}", mrWebUrl);
 
@@ -189,6 +201,7 @@ public class MergeGroupManagementTest : IDisposable
             // not already in feature/alpha, so the branch count should increase.
             var targetCard = _browser.Page.Locator(".merge-group-card")
                 .Filter(new LocatorFilterOptions { HasTextString = "feature/alpha" });
+
             var targetCount = await targetCard.CountAsync();
             Log.Information("Found {Count} merge group card(s) matching 'feature/alpha'", targetCount);
 
@@ -235,7 +248,9 @@ public class MergeGroupManagementTest : IDisposable
             if (dialogCount > 0)
             {
                 // Check for error message in dialog
-                var errorText = await _browser.Page.Locator(".v-dialog .v-messages__message").InnerTextAsync();
+                var errorText =
+                    await _browser.Page.Locator(".v-dialog .v-messages__message").InnerTextAsync();
+
                 throw new InvalidOperationException(
                     $"Dialog still open after submit. Error: {errorText}");
             }
@@ -253,6 +268,7 @@ public class MergeGroupManagementTest : IDisposable
             // Verify the new branch's project name appears
             var newBranchLink = _browser.Page.Locator(".branch-title-link, .branch-title-text")
                 .Filter(new LocatorFilterOptions { HasTextString = "primary-1" });
+
             var linkCount = await newBranchLink.CountAsync();
             Log.Information("Branch entries with 'primary-1': {Count}", linkCount);
 
@@ -297,7 +313,10 @@ public class MergeGroupManagementTest : IDisposable
         var branchName = $"feature/find-mr-test-{DateTime.UtcNow:HHmmss}";
         _gitLab.CreateBranchWithCommit(projectId, branchName, "test1");
         var (_, mrWebUrl) = _gitLab.CreateMergeRequestWithUrl(
-            projectId, branchName, "test1", "Test MR for find-by-URL");
+            projectId,
+            branchName,
+            "test1",
+            "Test MR for find-by-URL");
 
         Log.Information("Created test MR at: {Url}", mrWebUrl);
 
@@ -354,6 +373,7 @@ public class MergeGroupManagementTest : IDisposable
             // Check that secondary-1 project is visible
             var projectLink = _browser.Page.Locator(".branch-title-link, .branch-title-text")
                 .Filter(new LocatorFilterOptions { HasTextString = "secondary-1" });
+
             var projectLinkCount = await projectLink.CountAsync();
             Log.Information("Branch entries with 'secondary-1': {Count}", projectLinkCount);
 

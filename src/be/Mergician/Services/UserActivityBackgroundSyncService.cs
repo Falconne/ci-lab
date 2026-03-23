@@ -1,8 +1,8 @@
+using System.Collections.Concurrent;
 using Mergician.Entities.Database;
 using Mergician.Services.Authentication;
 using Mergician.Services.Database;
 using Mergician.Services.GitLab;
-using System.Collections.Concurrent;
 using Util;
 
 namespace Mergician.Services;
@@ -338,7 +338,11 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                 continue;
             }
 
-        var project = await _gitLabService.GetProject(accessDetails, pushEvent.ProjectId, cancellationToken);
+            var project = await _gitLabService.GetProject(
+                accessDetails,
+                pushEvent.ProjectId,
+                cancellationToken);
+
             if (project == null)
             {
                 _logger.LogInformation(

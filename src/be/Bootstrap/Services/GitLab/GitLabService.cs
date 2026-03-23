@@ -1,8 +1,8 @@
+using System.Net;
 using Bootstrap.Entities.GitLab;
 using LibGit2Sharp;
 using RestSharp;
 using Serilog;
-using System.Net;
 
 namespace Bootstrap.Services.GitLab;
 

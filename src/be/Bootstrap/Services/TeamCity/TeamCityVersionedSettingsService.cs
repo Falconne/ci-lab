@@ -1,6 +1,6 @@
+using System.Net;
 using RestSharp;
 using Serilog;
-using System.Net;
 
 namespace Bootstrap.Services.TeamCity;
 

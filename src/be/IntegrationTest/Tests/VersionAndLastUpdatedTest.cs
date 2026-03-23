@@ -1,5 +1,5 @@
-using Serilog;
 using System.Net.Http.Json;
+using Serilog;
 
 namespace IntegrationTest.Tests;
 

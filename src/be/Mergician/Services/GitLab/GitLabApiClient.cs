@@ -1,8 +1,8 @@
+using System.Net;
+using System.Text.Json;
 using Mergician.Entities;
 using Mergician.Services.Authentication;
 using Mergician.Utilities;
-using System.Net;
-using System.Text.Json;
 
 namespace Mergician.Services.GitLab;
 

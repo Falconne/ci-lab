@@ -202,19 +202,27 @@ public class MergeGroupController : ControllerBase
         var parsed = _mergeRequestLookupService.ParseMergeRequestUrl(request.MergeRequestUrl);
         if (parsed == null)
         {
-            return BadRequest(new ErrorResponse("Invalid merge request URL. Expected format: https://gitlab.example.com/group/project/-/merge_requests/123"));
+            return BadRequest(
+                new ErrorResponse(
+                    "Invalid merge request URL. Expected format: https://gitlab.example.com/group/project/-/merge_requests/123"));
         }
 
         var lookupResult = await _mergeRequestLookupService.LookupMergeRequest(
-            currentUser, parsed.ProjectPath, parsed.MrIid);
+            currentUser,
+            parsed.ProjectPath,
+            parsed.MrIid);
 
         if (lookupResult == null)
         {
-            return NotFound(new ErrorResponse("Merge request not found in GitLab. Check the URL and ensure you have access to the project."));
+            return NotFound(
+                new ErrorResponse(
+                    "Merge request not found in GitLab. Check the URL and ensure you have access to the project."));
         }
 
         var branchRecord = _mergeGroupRepository.GetOrCreateBranchRecord(
-            lookupResult.SourceBranch, lookupResult.Project);
+            lookupResult.SourceBranch,
+            lookupResult.Project);
+
         _mergeGroupRepository.EnsureBranchInMergeGroup(mergeGroupId, branchRecord.Id);
         _mergeGroupRepository.EnsureUserInMergeGroup(currentUser.UserId, mergeGroupId);
 
@@ -243,20 +251,27 @@ public class MergeGroupController : ControllerBase
         var parsed = _mergeRequestLookupService.ParseMergeRequestUrl(request.MergeRequestUrl);
         if (parsed == null)
         {
-            return BadRequest(new ErrorResponse("Invalid merge request URL. Expected format: https://gitlab.example.com/group/project/-/merge_requests/123"));
+            return BadRequest(
+                new ErrorResponse(
+                    "Invalid merge request URL. Expected format: https://gitlab.example.com/group/project/-/merge_requests/123"));
         }
 
         var lookupResult = await _mergeRequestLookupService.LookupMergeRequest(
-            currentUser, parsed.ProjectPath, parsed.MrIid);
+            currentUser,
+            parsed.ProjectPath,
+            parsed.MrIid);
 
         if (lookupResult == null)
         {
-            return NotFound(new ErrorResponse("Merge request not found in GitLab. Check the URL and ensure you have access to the project."));
+            return NotFound(
+                new ErrorResponse(
+                    "Merge request not found in GitLab. Check the URL and ensure you have access to the project."));
         }
 
         // Check if a merge group already contains this branch in this project
         var existingMg = _mergeGroupRepository.FindMergeGroupByBranch(
-            lookupResult.SourceBranch, lookupResult.Project.Id);
+            lookupResult.SourceBranch,
+            lookupResult.Project.Id);
 
         if (existingMg != null)
         {
@@ -274,7 +289,9 @@ public class MergeGroupController : ControllerBase
         // No existing merge group — create one and add the branch
         var mergeGroup = _mergeGroupRepository.GetOrCreateMergeGroup(lookupResult.SourceBranch);
         var branchRecord = _mergeGroupRepository.GetOrCreateBranchRecord(
-            lookupResult.SourceBranch, lookupResult.Project);
+            lookupResult.SourceBranch,
+            lookupResult.Project);
+
         _mergeGroupRepository.EnsureBranchInMergeGroup(mergeGroup.Id, branchRecord.Id);
         _mergeGroupRepository.EnsureUserInMergeGroup(currentUser.UserId, mergeGroup.Id);
 

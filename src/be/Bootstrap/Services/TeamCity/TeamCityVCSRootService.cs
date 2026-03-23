@@ -1,7 +1,7 @@
-using RestSharp;
-using Serilog;
 using System.Net;
 using System.Text.Json;
+using RestSharp;
+using Serilog;
 
 namespace Bootstrap.Services.TeamCity;
 
