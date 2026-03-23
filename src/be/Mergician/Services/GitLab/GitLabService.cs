@@ -423,8 +423,8 @@ public class GitLabService
     }
 
     /// <summary>
-    ///     Fetches merge requests by IID in a project. Returns all states (opened, merged, closed).
-    ///     Used by MR URL lookup to find the source branch regardless of MR state.
+    ///     Fetches open merge requests by IID in a project.
+    ///     Used by MR URL lookup to find the source branch for active merge requests.
     /// </summary>
     public async Task<List<GitLabMergeRequest>> GetMergeRequestsByIid(
         AccessDetailsBase accessDetails,
@@ -432,14 +432,13 @@ public class GitLabService
         int mrIid,
         CancellationToken cancellationToken = default)
     {
-        // TODO: Only return open merge requests.
         try
         {
             return await _gitLabApiClient.Execute<List<GitLabMergeRequest>>(
                 () =>
                     accessDetails.CreateRequest(
                         HttpMethod.Get,
-                        $"projects/{projectId}/merge_requests?iids[]={mrIid}"),
+                        $"projects/{projectId}/merge_requests?iids[]={mrIid}&state=opened"),
                 cancellationToken);
         }
         catch (GitLabUnexpectedResponseException ex)
