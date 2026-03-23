@@ -1,11 +1,8 @@
 using Mergician.Entities;
 using Mergician.Services.Authentication;
-using Mergician.Services.GitLab;
 using System.Text.RegularExpressions;
 
-namespace Mergician.Services;
-
-// TODO: Move this into the Services/Gitlab dir and adjust namespace
+namespace Mergician.Services.GitLab;
 
 /// <summary>
 ///     Parses GitLab merge request URLs and looks up merge request details via the GitLab API.
@@ -52,7 +49,7 @@ public partial class MergeRequestLookupService
     }
 
     /// <summary>
-    ///     Looks up a merge request by project path and MR IID.
+    ///     Looks up an open merge request by project path and MR IID.
     ///     Returns the project and source branch name, or null if the MR or project is not found.
     /// </summary>
     public async Task<MergeRequestLookupResult?> LookupMergeRequest(
@@ -82,7 +79,7 @@ public partial class MergeRequestLookupService
         if (mergeRequests.Count == 0)
         {
             _logger.LogWarning(
-                "Merge request !{MrIid} not found in project {ProjectPath} (id={ProjectId})",
+                "Open merge request !{MrIid} not found in project {ProjectPath} (id={ProjectId})",
                 mrIid,
                 projectPath,
                 project.Id);
