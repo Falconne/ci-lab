@@ -5,6 +5,8 @@ using System.Text.RegularExpressions;
 
 namespace Mergician.Services;
 
+// TODO: Move this into the Services/Gitlab dir and adjust namespace
+
 /// <summary>
 ///     Parses GitLab merge request URLs and looks up merge request details via the GitLab API.
 ///     Used by merge group management features to add branches by MR URL and find merge groups by MR URL.

@@ -1,7 +1,7 @@
-using System.Net;
-using System.Runtime.CompilerServices;
 using Mergician.Entities;
 using Mergician.Services.Authentication;
+using System.Net;
+using System.Runtime.CompilerServices;
 using Util;
 
 namespace Mergician.Services.GitLab;
@@ -432,6 +432,7 @@ public class GitLabService
         int mrIid,
         CancellationToken cancellationToken = default)
     {
+        // TODO: Only return open merge requests.
         try
         {
             return await _gitLabApiClient.Execute<List<GitLabMergeRequest>>(

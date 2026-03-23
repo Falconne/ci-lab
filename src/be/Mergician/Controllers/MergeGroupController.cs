@@ -7,6 +7,8 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Mergician.Controllers;
 
+// TODO: Move business logic to services
+
 [Authorize]
 [ApiController]
 [Route("api/merge-groups")]
