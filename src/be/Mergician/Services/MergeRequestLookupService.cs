@@ -1,3 +1,6 @@
+using Mergician.Entities;
+using Mergician.Services.Authentication;
+using Mergician.Services.GitLab;
 using System.Text.RegularExpressions;
 
 namespace Mergician.Services;
@@ -8,12 +11,12 @@ namespace Mergician.Services;
 /// </summary>
 public partial class MergeRequestLookupService
 {
-    private readonly GitLab.GitLabService _gitLabService;
+    private readonly GitLabService _gitLabService;
 
     private readonly ILogger<MergeRequestLookupService> _logger;
 
     public MergeRequestLookupService(
-        GitLab.GitLabService gitLabService,
+        GitLabService gitLabService,
         ILogger<MergeRequestLookupService> logger)
     {
         _gitLabService = gitLabService;
@@ -51,7 +54,7 @@ public partial class MergeRequestLookupService
     ///     Returns the project and source branch name, or null if the MR or project is not found.
     /// </summary>
     public async Task<MergeRequestLookupResult?> LookupMergeRequest(
-        Authentication.AccessDetailsBase accessDetails,
+        AccessDetailsBase accessDetails,
         string projectPath,
         int mrIid,
         CancellationToken cancellationToken = default)
@@ -69,26 +72,34 @@ public partial class MergeRequestLookupService
         }
 
         var mergeRequests = await _gitLabService.GetMergeRequestsByIid(
-            accessDetails, project.Id, mrIid, cancellationToken);
+            accessDetails,
+            project.Id,
+            mrIid,
+            cancellationToken);
 
         if (mergeRequests.Count == 0)
         {
             _logger.LogWarning(
                 "Merge request !{MrIid} not found in project {ProjectPath} (id={ProjectId})",
-                mrIid, projectPath, project.Id);
+                mrIid,
+                projectPath,
+                project.Id);
+
             return null;
         }
 
         var mr = mergeRequests[0];
         _logger.LogInformation(
             "Found merge request !{MrIid} in project {ProjectName}: sourceBranch={SourceBranch}",
-            mrIid, project.Name, mr.SourceBranch);
+            mrIid,
+            project.Name,
+            mr.SourceBranch);
 
         return new MergeRequestLookupResult(project, mr.SourceBranch, mr.Title);
     }
 
-    private async Task<Entities.GitLabProject?> LookupProjectByPath(
-        Authentication.AccessDetailsBase accessDetails,
+    private async Task<GitLabProject?> LookupProjectByPath(
+        AccessDetailsBase accessDetails,
         string projectPath,
         CancellationToken cancellationToken)
     {
@@ -101,4 +112,4 @@ public partial class MergeRequestLookupService
 
 public record ParsedMergeRequestUrl(string ProjectPath, int MrIid);
 
-public record MergeRequestLookupResult(Entities.GitLabProject Project, string SourceBranch, string MergeRequestTitle);
+public record MergeRequestLookupResult(GitLabProject Project, string SourceBranch, string MergeRequestTitle);

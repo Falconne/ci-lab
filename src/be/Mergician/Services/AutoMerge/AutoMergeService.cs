@@ -221,7 +221,12 @@ public class AutoMergeService : BackgroundService
                 mr.DivergedCommitsCount,
                 mr.HasConflicts);
 
-            var rebaseInitiated = await _apiService.RebaseMergeRequest(serviceUser, branch.ProjectId, mr.Iid, cancellationToken);
+            var rebaseInitiated = await _apiService.RebaseMergeRequest(
+                serviceUser,
+                branch.ProjectId,
+                mr.Iid,
+                cancellationToken);
+
             if (!rebaseInitiated)
             {
                 _logger.LogWarning(
@@ -235,7 +240,12 @@ public class AutoMergeService : BackgroundService
             // Wait briefly for GitLab to process the rebase, then check for conflicts
             await Task.Delay(_rebaseCheckDelay, cancellationToken);
 
-            var updatedMr = await _apiService.GetDetailedMergeRequest(serviceUser, branch.ProjectId, mr.Iid, cancellationToken);
+            var updatedMr = await _apiService.GetDetailedMergeRequest(
+                serviceUser,
+                branch.ProjectId,
+                mr.Iid,
+                cancellationToken);
+
             if (updatedMr is not { HasConflicts: true })
             {
                 continue;
