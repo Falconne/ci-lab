@@ -1,2 +1,0 @@
-Task 1)
-Wherever `Mr` is used in the middle of a variable to abbreviate "MergeRequest", change it to `MergeRequest`.
