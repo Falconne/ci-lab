@@ -6,12 +6,12 @@ public record GitLabProjectInfo(
     [property: JsonPropertyName("id")] int Id,
     [property: JsonPropertyName("name")] string Name);
 
-public record GitLabMrInfo(
+public record GitLabMergeRequestInfo(
     [property: JsonPropertyName("iid")] int Iid,
     [property: JsonPropertyName("web_url")]
     string WebUrl);
 
-public record GitLabMrDetail(
+public record GitLabMergeRequestDetail(
     [property: JsonPropertyName("iid")] int Iid,
     [property: JsonPropertyName("state")] string State,
     [property: JsonPropertyName("source_branch")]

@@ -17,7 +17,7 @@
           size="small"
           prepend-icon="mdi-magnify"
           class="text-none find-mr-btn mr-2"
-          @click="showFindMrDialog = true"
+          @click="showFindMergeRequestDialog = true"
         >
           Find by Merge Request...
         </v-btn>
@@ -46,7 +46,7 @@
   </v-app-bar>
 
   <!-- Find by Merge Request dialog -->
-  <v-dialog v-model="showFindMrDialog" max-width="520" persistent>
+  <v-dialog v-model="showFindMergeRequestDialog" max-width="520" persistent>
     <v-card>
       <v-card-title>Find by Merge Request</v-card-title>
       <v-card-text>
@@ -55,21 +55,21 @@
           If no merge group exists yet, one will be created.
         </p>
         <v-text-field
-          v-model="findMrUrl"
+          v-model="findMergeRequestUrl"
           label="Merge Request URL"
           placeholder="https://gitlab.example.com/group/project/-/merge_requests/123"
           variant="outlined"
           density="compact"
-          :error-messages="findMrError"
-          :disabled="findMrLoading"
+          :error-messages="findMergeRequestError"
+          :disabled="findMergeRequestLoading"
           autofocus
-          @keyup.enter="submitFindMr"
+          @keyup.enter="submitFindMergeRequest"
         />
       </v-card-text>
       <v-card-actions>
         <v-spacer />
-        <v-btn variant="text" :disabled="findMrLoading" @click="closeFindMrDialog">Cancel</v-btn>
-        <v-btn color="primary" :loading="findMrLoading" :disabled="!findMrUrl.trim()" @click="submitFindMr">Find</v-btn>
+        <v-btn variant="text" :disabled="findMergeRequestLoading" @click="closeFindMergeRequestDialog">Cancel</v-btn>
+        <v-btn color="primary" :loading="findMergeRequestLoading" :disabled="!findMergeRequestUrl.trim()" @click="submitFindMergeRequest">Find</v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
@@ -88,10 +88,10 @@ const frontendVersion = ref(__APP_VERSION__)
 const backendVersion = ref('unknown')
 const { currentUser, loadCurrentUser, clearCurrentUser } = useCurrentUser()
 const { appLoading } = useAppLoading()
-const showFindMrDialog = ref(false)
-const findMrUrl = ref('')
-const findMrError = ref('')
-const findMrLoading = ref(false)
+const showFindMergeRequestDialog = ref(false)
+const findMergeRequestUrl = ref('')
+const findMergeRequestError = ref('')
+const findMergeRequestLoading = ref(false)
 const pageTitle = computed(() => {
   if (route.name === 'merge-group-details') {
     const mergeGroupTitle = (route.query.title as string | undefined)?.trim()
@@ -148,39 +148,39 @@ function goHome() {
 
 // --- Find by Merge Request dialog ---
 
-function closeFindMrDialog() {
-  showFindMrDialog.value = false
-  findMrUrl.value = ''
-  findMrError.value = ''
+function closeFindMergeRequestDialog() {
+  showFindMergeRequestDialog.value = false
+  findMergeRequestUrl.value = ''
+  findMergeRequestError.value = ''
 }
 
-async function submitFindMr() {
-  if (!findMrUrl.value.trim()) return
+async function submitFindMergeRequest() {
+  if (!findMergeRequestUrl.value.trim()) return
 
-  findMrLoading.value = true
-  findMrError.value = ''
+  findMergeRequestLoading.value = true
+  findMergeRequestError.value = ''
 
   try {
     const response = await fetchBackend('/api/merge-groups/find-by-merge-request', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mergeRequestUrl: findMrUrl.value.trim() })
+      body: JSON.stringify({ mergeRequestUrl: findMergeRequestUrl.value.trim() })
     })
 
     if (response.ok) {
       const data = await response.json()
-      closeFindMrDialog()
+      closeFindMergeRequestDialog()
       router.push(`/merge-group/${data.mergeGroupId}`)
     } else {
       const data = await response.json().catch(() => null)
-      findMrError.value = data?.error || `Request failed with status ${response.status}`
+      findMergeRequestError.value = data?.error || `Request failed with status ${response.status}`
     }
   } catch (err) {
     if (isStartupRequiredError(err)) return
     console.error('[Mergician] Find by merge request failed:', err)
-    findMrError.value = 'Failed to find merge request. Please try again.'
+    findMergeRequestError.value = 'Failed to find merge request. Please try again.'
   } finally {
-    findMrLoading.value = false
+    findMergeRequestLoading.value = false
   }
 }
 </script>

@@ -44,10 +44,10 @@ public static class DashboardWaitHelper
             {
                 var item = items.Nth(i);
                 var hasApprovals = await item.Locator(".item-approvals").CountAsync() > 0;
-                var hasNoMr = await item.Locator(".item-no-mr").CountAsync() > 0;
-                var hasMrTitle = await item.Locator(".item-mr-title").CountAsync() > 0;
+                var hasNoMergeRequest = await item.Locator(".item-no-mr").CountAsync() > 0;
+                var hasMergeRequestTitle = await item.Locator(".item-mr-title").CountAsync() > 0;
 
-                if (!hasApprovals && !hasNoMr && !hasMrTitle)
+                if (!hasApprovals && !hasNoMergeRequest && !hasMergeRequestTitle)
                 {
                     allResolved = false;
                     break;

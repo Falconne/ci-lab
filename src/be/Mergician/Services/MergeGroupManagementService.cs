@@ -54,7 +54,7 @@ public class MergeGroupManagementService
         var lookupResult = await _mergeRequestLookupService.LookupMergeRequest(
             currentUser,
             parsed.ProjectPath,
-            parsed.MrIid,
+            parsed.MergeRequestIid,
             cancellationToken);
 
         if (lookupResult == null)
@@ -98,7 +98,7 @@ public class MergeGroupManagementService
         var lookupResult = await _mergeRequestLookupService.LookupMergeRequest(
             currentUser,
             parsed.ProjectPath,
-            parsed.MrIid,
+            parsed.MergeRequestIid,
             cancellationToken);
 
         if (lookupResult == null)

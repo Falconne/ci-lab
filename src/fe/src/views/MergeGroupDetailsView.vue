@@ -96,14 +96,14 @@
               size="small"
               prepend-icon="mdi-source-merge"
               class="text-none"
-              @click="showAddMrDialog = true"
+              @click="showAddMergeRequestDialog = true"
             >
               Add Merge Request...
             </v-btn>
           </div>
 
           <!-- Add Merge Request dialog -->
-          <v-dialog v-model="showAddMrDialog" max-width="520" persistent>
+          <v-dialog v-model="showAddMergeRequestDialog" max-width="520" persistent>
             <v-card>
               <v-card-title>Add Merge Request</v-card-title>
               <v-card-text>
@@ -111,21 +111,21 @@
                   Enter the URL of a GitLab merge request to add its branch to this merge group.
                 </p>
                 <v-text-field
-                  v-model="addMrUrl"
+                  v-model="addMergeRequestUrl"
                   label="Merge Request URL"
                   placeholder="https://gitlab.example.com/group/project/-/merge_requests/123"
                   variant="outlined"
                   density="compact"
-                  :error-messages="addMrError"
-                  :disabled="addMrLoading"
+                  :error-messages="addMergeRequestError"
+                  :disabled="addMergeRequestLoading"
                   autofocus
-                  @keyup.enter="submitAddMr"
+                  @keyup.enter="submitAddMergeRequest"
                 />
               </v-card-text>
               <v-card-actions>
                 <v-spacer />
-                <v-btn variant="text" :disabled="addMrLoading" @click="closeAddMrDialog">Cancel</v-btn>
-                <v-btn color="primary" :loading="addMrLoading" :disabled="!addMrUrl.trim()" @click="submitAddMr">Add</v-btn>
+                <v-btn variant="text" :disabled="addMergeRequestLoading" @click="closeAddMergeRequestDialog">Cancel</v-btn>
+                <v-btn color="primary" :loading="addMergeRequestLoading" :disabled="!addMergeRequestUrl.trim()" @click="submitAddMergeRequest">Add</v-btn>
               </v-card-actions>
             </v-card>
           </v-dialog>
@@ -201,7 +201,7 @@
                       No Merge Request
                       <a
                         v-if="item.projectUrl"
-                        :href="createMrUrl(item)"
+                        :href="createMergeRequestUrl(item)"
                         target="_blank"
                         rel="noopener noreferrer"
                         class="detail-link ml-1"
@@ -308,10 +308,10 @@ const settingsUpdating = ref(false)
 const isSubscribed = ref(false)
 const subscriptionLoaded = ref(false)
 const subscriptionUpdating = ref(false)
-const showAddMrDialog = ref(false)
-const addMrUrl = ref('')
-const addMrError = ref('')
-const addMrLoading = ref(false)
+const showAddMergeRequestDialog = ref(false)
+const addMergeRequestUrl = ref('')
+const addMergeRequestError = ref('')
+const addMergeRequestLoading = ref(false)
 
 let pollIntervalId: ReturnType<typeof setInterval> | null = null
 let fastPollTimeoutId: ReturnType<typeof setTimeout> | null = null
@@ -346,7 +346,7 @@ function branchUrl(item: BranchWithActivity): string {
   return `${item.projectUrl}/-/tree/${encodeURIComponent(item.branchName)}?ref_type=heads`
 }
 
-function createMrUrl(item: BranchWithActivity): string {
+function createMergeRequestUrl(item: BranchWithActivity): string {
   if (!item.projectUrl) return ''
   return `${item.projectUrl}/-/merge_requests/new?merge_request[source_branch]=${encodeURIComponent(item.branchName)}`
 }
@@ -452,39 +452,39 @@ async function toggleSubscription() {
 
 // --- Add Merge Request dialog ---
 
-function closeAddMrDialog() {
-  showAddMrDialog.value = false
-  addMrUrl.value = ''
-  addMrError.value = ''
+function closeAddMergeRequestDialog() {
+  showAddMergeRequestDialog.value = false
+  addMergeRequestUrl.value = ''
+  addMergeRequestError.value = ''
 }
 
-async function submitAddMr() {
+async function submitAddMergeRequest() {
   const mergeGroupId = getMergeGroupId()
-  if (!mergeGroupId || !addMrUrl.value.trim()) return
+  if (!mergeGroupId || !addMergeRequestUrl.value.trim()) return
 
-  addMrLoading.value = true
-  addMrError.value = ''
+  addMergeRequestLoading.value = true
+  addMergeRequestError.value = ''
 
   try {
     const response = await fetchBackend(`/api/merge-groups/${mergeGroupId}/add-by-merge-request`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mergeRequestUrl: addMrUrl.value.trim() })
+      body: JSON.stringify({ mergeRequestUrl: addMergeRequestUrl.value.trim() })
     })
 
     if (response.ok) {
-      closeAddMrDialog()
+      closeAddMergeRequestDialog()
       await pollMergeGroup()
     } else {
       const data = await response.json().catch(() => null)
-      addMrError.value = data?.error || `Request failed with status ${response.status}`
+      addMergeRequestError.value = data?.error || `Request failed with status ${response.status}`
     }
   } catch (err) {
     if (isStartupRequiredError(err)) return
     console.error('Failed to add merge request:', err)
-    addMrError.value = 'Failed to add merge request. Please try again.'
+    addMergeRequestError.value = 'Failed to add merge request. Please try again.'
   } finally {
-    addMrLoading.value = false
+    addMergeRequestLoading.value = false
   }
 }
 

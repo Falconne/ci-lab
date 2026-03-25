@@ -42,10 +42,10 @@ public partial class MergeRequestLookupService
         }
 
         var projectPath = match.Groups["projectPath"].Value;
-        var mrIid = int.Parse(match.Groups["mrIid"].Value);
+        var mergeRequestIid = int.Parse(match.Groups["mergeRequestIid"].Value);
 
-        _logger.LogDebug("Parsed MR URL: projectPath={ProjectPath}, mrIid={MrIid}", projectPath, mrIid);
-        return new ParsedMergeRequestUrl(projectPath, mrIid);
+        _logger.LogDebug("Parsed MR URL: projectPath={ProjectPath}, mergeRequestIid={MergeRequestIid}", projectPath, mergeRequestIid);
+        return new ParsedMergeRequestUrl(projectPath, mergeRequestIid);
     }
 
     /// <summary>
@@ -55,13 +55,13 @@ public partial class MergeRequestLookupService
     public async Task<MergeRequestLookupResult?> LookupMergeRequest(
         AccessDetailsBase accessDetails,
         string projectPath,
-        int mrIid,
+        int mergeRequestIid,
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation(
-            "Looking up merge request: project={ProjectPath}, MR IID={MrIid}",
+            "Looking up merge request: project={ProjectPath}, MR IID={MergeRequestIid}",
             projectPath,
-            mrIid);
+            mergeRequestIid);
 
         var project = await LookupProjectByPath(accessDetails, projectPath, cancellationToken);
         if (project == null)
@@ -73,14 +73,14 @@ public partial class MergeRequestLookupService
         var mergeRequests = await _gitLabService.GetMergeRequestsByIid(
             accessDetails,
             project.Id,
-            mrIid,
+            mergeRequestIid,
             cancellationToken);
 
         if (mergeRequests.Count == 0)
         {
             _logger.LogWarning(
-                "Open merge request !{MrIid} not found in project {ProjectPath} (id={ProjectId})",
-                mrIid,
+                "Open merge request !{MergeRequestIid} not found in project {ProjectPath} (id={ProjectId})",
+                mergeRequestIid,
                 projectPath,
                 project.Id);
 
@@ -89,8 +89,8 @@ public partial class MergeRequestLookupService
 
         var mr = mergeRequests[0];
         _logger.LogInformation(
-            "Found merge request !{MrIid} in project {ProjectName}: sourceBranch={SourceBranch}",
-            mrIid,
+            "Found merge request !{MergeRequestIid} in project {ProjectName}: sourceBranch={SourceBranch}",
+            mergeRequestIid,
             project.Name,
             mr.SourceBranch);
 
@@ -105,6 +105,6 @@ public partial class MergeRequestLookupService
         return await _gitLabService.GetProjectByPath(accessDetails, projectPath, cancellationToken);
     }
 
-    [GeneratedRegex(@"https?://[^/]+/(?<projectPath>.+?)/-/merge_requests/(?<mrIid>\d+)")]
+    [GeneratedRegex(@"https?://[^/]+/(?<projectPath>.+?)/-/merge_requests/(?<mergeRequestIid>\d+)")]
     private static partial Regex MergeRequestUrlPattern();
 }

@@ -31,7 +31,7 @@ public class DashboardLiveUpdateTest : IDisposable
             Path.Combine(TestConfig.ScreenshotDir, "activity"));
 
         await TestNewBranchAppearsOnDashboard();
-        await TestMrStatusUpdatesOnDashboard();
+        await TestMergeRequestStatusUpdatesOnDashboard();
         await TestDeletedBranchDisappearsAndStaysGoneAfterReload();
 
         Log.Information("Dashboard live update tests passed");
@@ -77,7 +77,7 @@ public class DashboardLiveUpdateTest : IDisposable
     ///     Verifies that when an MR is created on an existing branch,
     ///     the dashboard updates the MR status via the refresh polling.
     /// </summary>
-    private async Task TestMrStatusUpdatesOnDashboard()
+    private async Task TestMergeRequestStatusUpdatesOnDashboard()
     {
         Log.Information("Testing: MR status updates on loaded dashboard...");
 
@@ -128,11 +128,11 @@ public class DashboardLiveUpdateTest : IDisposable
             .Filter(new LocatorFilterOptions { HasTextString = branchName })
             .First;
 
-        var noMrText = (await card.Locator(".item-no-mr").InnerTextAsync()).Trim();
-        if (!noMrText.Contains("No Merge Request", StringComparison.OrdinalIgnoreCase))
+        var noMergeRequestText = (await card.Locator(".item-no-mr").InnerTextAsync()).Trim();
+        if (!noMergeRequestText.Contains("No Merge Request", StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException(
-                $"Expected 'No Merge Request' text before MR creation, got '{noMrText}'");
+                $"Expected 'No Merge Request' text before MR creation, got '{noMergeRequestText}'");
         }
 
         // there should be no MR title element yet
@@ -162,8 +162,8 @@ public class DashboardLiveUpdateTest : IDisposable
 
         Log.Information("MR status updated on dashboard for '{BranchName}'", branchName);
 
-        var noMrAfterMrCount = await card.Locator(".item-no-mr").CountAsync();
-        if (noMrAfterMrCount > 0)
+        var noMergeRequestAfterMergeRequestCount = await card.Locator(".item-no-mr").CountAsync();
+        if (noMergeRequestAfterMergeRequestCount > 0)
         {
             throw new InvalidOperationException("No-MR text should disappear after MR creation");
         }

@@ -374,7 +374,7 @@ public class MergeGroupRepository : IMergeGroupRepository
         transaction.Commit();
 
         _logger.LogDebug(
-            "Updated branch {BranchInProjectId} details: hasMr={HasMr}, approvals={Given}/{Required}, {JobCount} build jobs, commitTime={CommitTime}",
+            "Updated branch {BranchInProjectId} details: hasMergeRequest={HasMergeRequest}, approvals={Given}/{Required}, {JobCount} build jobs, commitTime={CommitTime}",
             branchInProjectId,
             hasMergeRequest,
             approvalsGiven,

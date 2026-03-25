@@ -444,7 +444,7 @@ public class GitLabService
         catch (GitLabUnexpectedResponseException ex)
         {
             _logger.LogError(
-                "GetMergeRequestsByIid failed with status {StatusCode} for project {ProjectId}, MR IID {MrIid}",
+                "GetMergeRequestsByIid failed with status {StatusCode} for project {ProjectId}, MR IID {MergeRequestIid}",
                 (int)ex.StatusCode,
                 projectId,
                 mrIid);

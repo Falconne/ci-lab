@@ -224,9 +224,9 @@ public class MergeGroupManagementTest : IDisposable
             Log.Information("Initial branch count: {Count}", initialBranchCount);
 
             // Click "Add Merge Request..."
-            var addMrBtn = _browser.Page.Locator("button:has-text('Add Merge Request')");
-            await addMrBtn.WaitForAsync(new LocatorWaitForOptions { Timeout = 10000 });
-            await addMrBtn.ClickAsync();
+            var addMergeRequestBtn = _browser.Page.Locator("button:has-text('Add Merge Request')");
+            await addMergeRequestBtn.WaitForAsync(new LocatorWaitForOptions { Timeout = 10000 });
+            await addMergeRequestBtn.ClickAsync();
             await Task.Delay(1000);
             await _browser.TakeScreenshot("add_mr_02_dialog_open");
 
@@ -326,9 +326,9 @@ public class MergeGroupManagementTest : IDisposable
             await _browser.TakeScreenshot("find_mr_01_dashboard");
 
             // Click "Find by Merge Request..." in the app bar
-            var findMrBtn = _browser.Page.Locator("button:has-text('Find by Merge Request')");
-            await findMrBtn.WaitForAsync(new LocatorWaitForOptions { Timeout = 10000 });
-            await findMrBtn.ClickAsync();
+            var findMergeRequestBtn = _browser.Page.Locator("button:has-text('Find by Merge Request')");
+            await findMergeRequestBtn.WaitForAsync(new LocatorWaitForOptions { Timeout = 10000 });
+            await findMergeRequestBtn.ClickAsync();
             await Task.Delay(1000);
             await _browser.TakeScreenshot("find_mr_02_dialog_open");
 

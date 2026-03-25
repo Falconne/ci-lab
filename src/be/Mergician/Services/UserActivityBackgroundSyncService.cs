@@ -530,17 +530,17 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             branch.BranchName,
             cancellationToken);
 
-        var hasMr = mergeRequests.Count > 0;
+        var hasMergeRequest = mergeRequests.Count > 0;
         int? approvalsRequired = null;
         int? approvalsGiven = null;
-        string? mrTitle = null;
-        string? mrUrl = null;
+        string? mergeRequestTitle = null;
+        string? mergeRequestUrl = null;
 
-        if (hasMr)
+        if (hasMergeRequest)
         {
             var first = mergeRequests[0];
-            mrTitle = first.Title;
-            mrUrl = first.WebUrl;
+            mergeRequestTitle = first.Title;
+            mergeRequestUrl = first.WebUrl;
 
             var approval = await _gitLabService.GetMergeRequestApprovals(
                 accessDetails,
@@ -590,9 +590,9 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
 
         _mergeGroupRepository.UpdateBranchDetails(
             branch.Id,
-            hasMr,
-            mrTitle,
-            mrUrl,
+            hasMergeRequest,
+            mergeRequestTitle,
+            mergeRequestUrl,
             project.WebUrl,
             approvalsRequired,
             approvalsGiven,
@@ -600,10 +600,10 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             lastCommitTime);
 
         _logger.LogDebug(
-            "Updated details for branch '{BranchName}' in project {ProjectId}: hasMr={HasMr}, {JobCount} jobs",
+            "Updated details for branch '{BranchName}' in project {ProjectId}: hasMergeRequest={HasMergeRequest}, {JobCount} jobs",
             branch.BranchName,
             branch.ProjectId,
-            hasMr,
+            hasMergeRequest,
             buildJobs.Count);
     }
 }

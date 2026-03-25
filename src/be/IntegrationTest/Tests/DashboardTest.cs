@@ -302,18 +302,18 @@ public class DashboardTest : IDisposable
                                      ?? "";
 
                 // MR title (if any)
-                var mrTitle = "";
-                var mrTitleEl = item.Locator(".item-mr-title");
-                if (await mrTitleEl.CountAsync() > 0)
+                var mergeRequestTitle = "";
+                var mergeRequestTitleEl = item.Locator(".item-mr-title");
+                if (await mergeRequestTitleEl.CountAsync() > 0)
                 {
-                    mrTitle = (await mrTitleEl.InnerTextAsync()).Trim();
+                    mergeRequestTitle = (await mergeRequestTitleEl.InnerTextAsync()).Trim();
                 }
 
-                var noMrText = "";
-                var noMrEl = item.Locator(".item-no-mr");
-                if (await noMrEl.CountAsync() > 0)
+                var noMergeRequestText = "";
+                var noMergeRequestEl = item.Locator(".item-no-mr");
+                if (await noMergeRequestEl.CountAsync() > 0)
                 {
-                    noMrText = (await noMrEl.InnerTextAsync()).Trim();
+                    noMergeRequestText = (await noMergeRequestEl.InnerTextAsync()).Trim();
                 }
 
                 var approvalEl = item.Locator(".item-approvals");
@@ -339,8 +339,8 @@ public class DashboardTest : IDisposable
                         approvals,
                         tooltip,
                         iconColor,
-                        mrTitle,
-                        noMrText));
+                        mergeRequestTitle,
+                        noMergeRequestText));
             }
 
             cards.Add(new ParsedCard(branchName, groupStatus, items));
@@ -359,9 +359,9 @@ public class DashboardTest : IDisposable
         string expectedApprovals,
         string? expectedTooltip = null,
         string? expectedIconColor = null,
-        string? expectedMrTitle = null,
+        string? expectedMergeRequestTitle = null,
         string? expectedProjectTooltip = null,
-        string? expectedNoMrText = null)
+        string? expectedNoMergeRequestText = null)
     {
         var card = _parsedCards.FirstOrDefault(c =>
             c.BranchName.Contains(branchName, StringComparison.OrdinalIgnoreCase));
@@ -407,12 +407,12 @@ public class DashboardTest : IDisposable
             }
         }
 
-        if (expectedMrTitle != null)
+        if (expectedMergeRequestTitle != null)
         {
-            if (!item.MrTitle.Contains(expectedMrTitle, StringComparison.OrdinalIgnoreCase))
+            if (!item.MergeRequestTitle.Contains(expectedMergeRequestTitle, StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidOperationException(
-                    $"Branch '{branchName}' repo '{repoContains}': expected MR title '{expectedMrTitle}', got '{item.MrTitle}'");
+                    $"Branch '{branchName}' repo '{repoContains}': expected MR title '{expectedMergeRequestTitle}', got '{item.MergeRequestTitle}'");
             }
         }
 
@@ -425,23 +425,23 @@ public class DashboardTest : IDisposable
             }
         }
 
-        if (expectedNoMrText != null)
+        if (expectedNoMergeRequestText != null)
         {
-            if (!item.NoMergeRequestText.Contains(expectedNoMrText, StringComparison.OrdinalIgnoreCase))
+            if (!item.NoMergeRequestText.Contains(expectedNoMergeRequestText, StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidOperationException(
-                    $"Branch '{branchName}' repo '{repoContains}': expected no-MR text '{expectedNoMrText}', got '{item.NoMergeRequestText}'");
+                    $"Branch '{branchName}' repo '{repoContains}': expected no-MR text '{expectedNoMergeRequestText}', got '{item.NoMergeRequestText}'");
             }
         }
 
         Log.Information(
-            "  Verified: {Branch} / {Repo} — ProjectTooltip={ProjectTooltip} Approvals={Approvals} Tooltip={Tooltip} MRTitle={MrTitle}",
+            "  Verified: {Branch} / {Repo} — ProjectTooltip={ProjectTooltip} Approvals={Approvals} Tooltip={Tooltip} MRTitle={MergeRequestTitle}",
             branchName,
             repoContains,
             item.ProjectTooltip,
             item.Approvals,
             item.Tooltip,
-            item.MrTitle);
+            item.MergeRequestTitle);
     }
 
     /// <summary>
@@ -530,7 +530,7 @@ public class DashboardTest : IDisposable
     private async Task TestMergeGroupDetailsNavigationAndLinks(
         string branchName,
         string repoContains,
-        string expectedMrTitle)
+        string expectedMergeRequestTitle)
     {
         Log.Information("Testing merge-group details navigation and links for '{BranchName}'", branchName);
 
@@ -585,22 +585,22 @@ public class DashboardTest : IDisposable
             throw new InvalidOperationException($"Repo link href was empty for repo '{repoContains}'");
         }
 
-        var mrRow = repoCard.Locator(".detail-row")
+        var mergeRequestRow = repoCard.Locator(".detail-row")
             .Filter(new LocatorFilterOptions { HasTextString = "Merge Request:" })
             .First;
 
-        var mrLink = mrRow.Locator(".detail-link").First;
-        var mrText = (await mrLink.InnerTextAsync()).Trim();
-        if (!mrText.Contains(expectedMrTitle, StringComparison.OrdinalIgnoreCase))
+        var mergeRequestLink = mergeRequestRow.Locator(".detail-link").First;
+        var mergeRequestText = (await mergeRequestLink.InnerTextAsync()).Trim();
+        if (!mergeRequestText.Contains(expectedMergeRequestTitle, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException(
-                $"Expected MR title containing '{expectedMrTitle}' on details page, got '{mrText}'");
+                $"Expected MR title containing '{expectedMergeRequestTitle}' on details page, got '{mergeRequestText}'");
         }
 
-        if (mrText.EndsWith("...", StringComparison.Ordinal))
+        if (mergeRequestText.EndsWith("...", StringComparison.Ordinal))
         {
             throw new InvalidOperationException(
-                $"Details page MR title should not be truncated, but got '{mrText}'");
+                $"Details page MR title should not be truncated, but got '{mergeRequestText}'");
         }
 
         var externalJobsSection = repoCard.Locator("text=Build Jobs:");
@@ -667,18 +667,18 @@ public class DashboardTest : IDisposable
                 continue;
             }
 
-            var mrRow = repoCard.Locator(".detail-row")
+            var mergeRequestRow = repoCard.Locator(".detail-row")
                 .Filter(new LocatorFilterOptions { HasTextString = "Merge Request:" })
                 .First;
 
-            var hasMrLink = await mrRow.Locator(".detail-link").CountAsync() > 0;
-            var hasNoMrText = await mrRow.Locator(".text-medium-emphasis").CountAsync() > 0;
-            var noMrText = hasNoMrText
-                ? (await mrRow.Locator(".text-medium-emphasis").InnerTextAsync()).Trim()
+            var hasMergeRequestLink = await mergeRequestRow.Locator(".detail-link").CountAsync() > 0;
+            var hasNoMergeRequestText = await mergeRequestRow.Locator(".text-medium-emphasis").CountAsync() > 0;
+            var noMergeRequestText = hasNoMergeRequestText
+                ? (await mergeRequestRow.Locator(".text-medium-emphasis").InnerTextAsync()).Trim()
                 : "";
 
-            var isResolved = hasMrLink
-                             || noMrText.Contains("No Merge Request", StringComparison.OrdinalIgnoreCase);
+            var isResolved = hasMergeRequestLink
+                             || noMergeRequestText.Contains("No Merge Request", StringComparison.OrdinalIgnoreCase);
 
             // Also check that all cards have resolved (not showing "Resolving...")
             var allResolved = isResolved;
@@ -687,11 +687,11 @@ public class DashboardTest : IDisposable
                 for (var i = 0; i < cardCount; i++)
                 {
                     var card = cards.Nth(i);
-                    var cardMrRow = card.Locator(".detail-row")
+                    var cardMergeRequestRow = card.Locator(".detail-row")
                         .Filter(new LocatorFilterOptions { HasTextString = "Merge Request:" })
                         .First;
 
-                    var text = (await cardMrRow.InnerTextAsync()).Trim();
+                    var text = (await cardMergeRequestRow.InnerTextAsync()).Trim();
                     if (text.Contains("Resolving...", StringComparison.OrdinalIgnoreCase))
                     {
                         allResolved = false;
@@ -732,7 +732,7 @@ public class DashboardTest : IDisposable
         string Approvals,
         string Tooltip,
         string IconColor,
-        string MrTitle,
+        string MergeRequestTitle,
         string NoMergeRequestText);
 
     private record ParsedCard(string BranchName, string GroupStatus, List<ParsedCardItem> Items);

@@ -1,3 +1,3 @@
 namespace Mergician.Entities;
 
-public record ParsedMergeRequestUrl(string ProjectPath, int MrIid);
+public record ParsedMergeRequestUrl(string ProjectPath, int MergeRequestIid);

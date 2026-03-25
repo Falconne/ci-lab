@@ -59,8 +59,8 @@ public class AutoMergeBehaviorTest : IDisposable
             projectId1,
             projectId2);
 
-        var mrIid1 = 0;
-        var mrIid2 = 0;
+        var mergeRequestIid1 = 0;
+        var mergeRequestIid2 = 0;
 
         try
         {
@@ -70,13 +70,13 @@ public class AutoMergeBehaviorTest : IDisposable
             _gitLab.CreateBranchWithCommit(projectId1, branchName, "test1");
             _gitLab.CreateBranchWithCommit(projectId2, branchName, "test1");
 
-            mrIid1 = _gitLab.CreateMergeRequest(
+            mergeRequestIid1 = _gitLab.CreateMergeRequest(
                 projectId1,
                 branchName,
                 "test1",
                 $"Auto merge test - primary-1 ({timestamp})");
 
-            mrIid2 = _gitLab.CreateMergeRequest(
+            mergeRequestIid2 = _gitLab.CreateMergeRequest(
                 projectId2,
                 branchName,
                 "test1",
@@ -85,20 +85,20 @@ public class AutoMergeBehaviorTest : IDisposable
             Log.Information(
                 "Created MRs: project {P1} MR !{Mr1}, project {P2} MR !{Mr2}",
                 projectId1,
-                mrIid1,
+                mergeRequestIid1,
                 projectId2,
-                mrIid2);
+                mergeRequestIid2);
 
             // Wait for MRs to transition out of 'preparing' state
-            await WaitForMrReady(projectId1, mrIid1);
-            await WaitForMrReady(projectId2, mrIid2);
+            await WaitForMergeRequestReady(projectId1, mergeRequestIid1);
+            await WaitForMergeRequestReady(projectId2, mergeRequestIid2);
 
             // Wait for TeamCity to finish building so we have a stable CI baseline.
             // Without this, TeamCity's running pipeline masks other statuses and our
             // commit status overrides are ignored until TeamCity finishes.
             Log.Information("--- Waiting for TeamCity CI to stabilize ---");
-            await WaitForCiStabilization(projectId1, mrIid1, "primary-1");
-            await WaitForCiStabilization(projectId2, mrIid2, "secondary-1");
+            await WaitForCiStabilization(projectId1, mergeRequestIid1, "primary-1");
+            await WaitForCiStabilization(projectId2, mergeRequestIid2, "secondary-1");
 
             // === Login and wait for Mergician to discover the branches ===
             await LoginAndWaitForDashboard("test1");
@@ -117,16 +117,16 @@ public class AutoMergeBehaviorTest : IDisposable
             await _browser.TakeScreenshot("behavior_02_auto_merge_enabled");
 
             // === SCENARIO 1: Blocked by failing pipeline ===
-            await TestBlockedByFailingPipeline(projectId1, projectId2, mrIid1, mrIid2, branchName);
+            await TestBlockedByFailingPipeline(projectId1, projectId2, mergeRequestIid1, mergeRequestIid2, branchName);
 
             // === SCENARIO 2: Blocked by partial readiness (one pipeline passes, other fails) ===
-            await TestBlockedByPartialReadiness(projectId1, projectId2, mrIid1, mrIid2, branchName);
+            await TestBlockedByPartialReadiness(projectId1, projectId2, mergeRequestIid1, mergeRequestIid2, branchName);
 
             // === SCENARIO 3: Branch behind target - auto-rebase should kick in ===
-            await TestAutoRebaseAndBlockedByDivergence(projectId1, projectId2, mrIid1, mrIid2, branchName);
+            await TestAutoRebaseAndBlockedByDivergence(projectId1, projectId2, mergeRequestIid1, mergeRequestIid2, branchName);
 
             // === SCENARIO 4: Everything ready - merge should happen ===
-            await TestSuccessfulMerge(projectId1, projectId2, mrIid1, mrIid2, branchName);
+            await TestSuccessfulMerge(projectId1, projectId2, mergeRequestIid1, mergeRequestIid2, branchName);
 
             Log.Information("=== All auto merge behavior scenarios passed ===");
         }
@@ -147,7 +147,7 @@ public class AutoMergeBehaviorTest : IDisposable
         finally
         {
             // Cleanup: close MRs and delete branches if they still exist
-            CleanupTestData(projectId1, projectId2, branchName, mrIid1, mrIid2);
+            CleanupTestData(projectId1, projectId2, branchName, mergeRequestIid1, mergeRequestIid2);
         }
     }
 
@@ -159,8 +159,8 @@ public class AutoMergeBehaviorTest : IDisposable
     private async Task TestBlockedByFailingPipeline(
         int projectId1,
         int projectId2,
-        int mrIid1,
-        int mrIid2,
+        int mergeRequestIid1,
+        int mergeRequestIid2,
         string branchName)
     {
         Log.Information("--- Scenario 1: Blocked by failing pipeline ---");
@@ -177,18 +177,18 @@ public class AutoMergeBehaviorTest : IDisposable
         await Task.Delay(20_000);
 
         // Verify MRs are still open
-        var mr1 = _gitLab.GetMergeRequestDetail(projectId1, mrIid1);
-        var mr2 = _gitLab.GetMergeRequestDetail(projectId2, mrIid2);
+        var mergeRequest1 = _gitLab.GetMergeRequestDetail(projectId1, mergeRequestIid1);
+        var mergeRequest2 = _gitLab.GetMergeRequestDetail(projectId2, mergeRequestIid2);
 
         Log.Information(
             "After failing pipelines: MR1 state={State1} dms={Dms1}, MR2 state={State2} dms={Dms2}",
-            mr1.State,
-            mr1.DetailedMergeStatus,
-            mr2.State,
-            mr2.DetailedMergeStatus);
+            mergeRequest1.State,
+            mergeRequest1.DetailedMergeStatus,
+            mergeRequest2.State,
+            mergeRequest2.DetailedMergeStatus);
 
-        AssertMrOpen(mr1, "primary-1", "Scenario 1: MR should not merge with failing pipeline");
-        AssertMrOpen(mr2, "secondary-1", "Scenario 1: MR should not merge with failing pipeline");
+        AssertMergeRequestOpen(mergeRequest1, "primary-1", "Scenario 1: MR should not merge with failing pipeline");
+        AssertMergeRequestOpen(mergeRequest2, "secondary-1", "Scenario 1: MR should not merge with failing pipeline");
 
         await _browser.TakeScreenshot("behavior_03_blocked_by_pipeline");
         Log.Information("Scenario 1 PASSED: MRs correctly blocked by failing pipelines");
@@ -201,8 +201,8 @@ public class AutoMergeBehaviorTest : IDisposable
     private async Task TestBlockedByPartialReadiness(
         int projectId1,
         int projectId2,
-        int mrIid1,
-        int mrIid2,
+        int mergeRequestIid1,
+        int mergeRequestIid2,
         string branchName)
     {
         Log.Information("--- Scenario 2: Blocked by partial readiness ---");
@@ -218,18 +218,18 @@ public class AutoMergeBehaviorTest : IDisposable
         await Task.Delay(20_000);
 
         // Verify NEITHER MR was merged (all-or-nothing)
-        var mr1 = _gitLab.GetMergeRequestDetail(projectId1, mrIid1);
-        var mr2 = _gitLab.GetMergeRequestDetail(projectId2, mrIid2);
+        var mergeRequest1 = _gitLab.GetMergeRequestDetail(projectId1, mergeRequestIid1);
+        var mergeRequest2 = _gitLab.GetMergeRequestDetail(projectId2, mergeRequestIid2);
 
         Log.Information(
             "After partial readiness: MR1 state={State1} dms={Dms1}, MR2 state={State2} dms={Dms2}",
-            mr1.State,
-            mr1.DetailedMergeStatus,
-            mr2.State,
-            mr2.DetailedMergeStatus);
+            mergeRequest1.State,
+            mergeRequest1.DetailedMergeStatus,
+            mergeRequest2.State,
+            mergeRequest2.DetailedMergeStatus);
 
-        AssertMrOpen(mr1, "primary-1", "Scenario 2: ready MR should NOT merge while other MR is not ready");
-        AssertMrOpen(mr2, "secondary-1", "Scenario 2: unready MR should remain open");
+        AssertMergeRequestOpen(mergeRequest1, "primary-1", "Scenario 2: ready MR should NOT merge while other MR is not ready");
+        AssertMergeRequestOpen(mergeRequest2, "secondary-1", "Scenario 2: unready MR should remain open");
 
         await _browser.TakeScreenshot("behavior_04_blocked_by_partial");
         Log.Information("Scenario 2 PASSED: Merge group correctly blocked when only some branches are ready");
@@ -244,8 +244,8 @@ public class AutoMergeBehaviorTest : IDisposable
     private async Task TestAutoRebaseAndBlockedByDivergence(
         int projectId1,
         int projectId2,
-        int mrIid1,
-        int mrIid2,
+        int mergeRequestIid1,
+        int mergeRequestIid2,
         string branchName)
     {
         Log.Information("--- Scenario 3: Auto rebase and blocked by divergence ---");
@@ -267,21 +267,21 @@ public class AutoMergeBehaviorTest : IDisposable
         // Wait for GitLab to detect divergence on the MR. The detailed_merge_status
         // should transition from 'mergeable' to 'need_rebase' once detected.
         Log.Information("Waiting for divergence to be detected (up to 60s)...");
-        var divergenceDetected = await WaitForDivergenceDetected(projectId1, mrIid1, 60);
+        var divergenceDetected = await WaitForDivergenceDetected(projectId1, mergeRequestIid1, 60);
 
         if (!divergenceDetected)
         {
             Log.Warning("GitLab did not report divergence within timeout, checking MR state directly...");
-            var mrCheck = _gitLab.GetMergeRequestDetail(projectId1, mrIid1);
+            var mergeRequestCheck = _gitLab.GetMergeRequestDetail(projectId1, mergeRequestIid1);
             Log.Information(
                 "MR1 state={State}, dms={Dms}, diverged={Diverged}",
-                mrCheck.State,
-                mrCheck.DetailedMergeStatus,
-                mrCheck.DivergedCommitsCount);
+                mergeRequestCheck.State,
+                mergeRequestCheck.DetailedMergeStatus,
+                mergeRequestCheck.DivergedCommitsCount);
 
             // Even if not detected, the MR should be open
-            AssertMrOpen(
-                mrCheck,
+            AssertMergeRequestOpen(
+                mergeRequestCheck,
                 "primary-1",
                 "Scenario 3: MR should remain open while branch may be behind target");
 
@@ -292,7 +292,7 @@ public class AutoMergeBehaviorTest : IDisposable
 
         // Wait for the AutoMergeService to trigger rebase
         Log.Information("Divergence detected, waiting for auto-rebase (up to 60s)...");
-        var rebased = await WaitForRebase(projectId1, mrIid1, sha1, 60);
+        var rebased = await WaitForRebase(projectId1, mergeRequestIid1, sha1, 60);
 
         if (rebased)
         {
@@ -303,14 +303,14 @@ public class AutoMergeBehaviorTest : IDisposable
             // a successful pipeline. Wait briefly and check.
             await Task.Delay(10_000);
 
-            var mr1AfterRebase = _gitLab.GetMergeRequestDetail(projectId1, mrIid1);
+            var mergeRequest1AfterRebase = _gitLab.GetMergeRequestDetail(projectId1, mergeRequestIid1);
             Log.Information(
                 "After rebase: MR1 state={State}, dms={Dms}",
-                mr1AfterRebase.State,
-                mr1AfterRebase.DetailedMergeStatus);
+                mergeRequest1AfterRebase.State,
+                mergeRequest1AfterRebase.DetailedMergeStatus);
 
-            AssertMrOpen(
-                mr1AfterRebase,
+            AssertMergeRequestOpen(
+                mergeRequest1AfterRebase,
                 "primary-1",
                 "Scenario 3: MR should not merge immediately after rebase (needs new pipeline)");
 
@@ -322,15 +322,15 @@ public class AutoMergeBehaviorTest : IDisposable
             // Rebase didn't happen but divergence was detected. This could be a timing issue
             // with the AutoMergeService. The MR should still be open.
             Log.Warning("Auto-rebase was not detected within timeout despite divergence being reported");
-            var mr1 = _gitLab.GetMergeRequestDetail(projectId1, mrIid1);
+            var mergeRequest1 = _gitLab.GetMergeRequestDetail(projectId1, mergeRequestIid1);
             Log.Information(
                 "MR1 state={State}, dms={Dms}, diverged={Diverged}",
-                mr1.State,
-                mr1.DetailedMergeStatus,
-                mr1.DivergedCommitsCount);
+                mergeRequest1.State,
+                mergeRequest1.DetailedMergeStatus,
+                mergeRequest1.DivergedCommitsCount);
 
-            AssertMrOpen(
-                mr1,
+            AssertMergeRequestOpen(
+                mergeRequest1,
                 "primary-1",
                 "Scenario 3: MR should remain open when branch is behind target");
 
@@ -349,8 +349,8 @@ public class AutoMergeBehaviorTest : IDisposable
     private async Task TestSuccessfulMerge(
         int projectId1,
         int projectId2,
-        int mrIid1,
-        int mrIid2,
+        int mergeRequestIid1,
+        int mergeRequestIid2,
         string branchName)
     {
         Log.Information("--- Scenario 4: All conditions met - merge should happen ---");
@@ -359,8 +359,8 @@ public class AutoMergeBehaviorTest : IDisposable
         // The rebase creates new commit SHAs, which trigger new ~2-minute TeamCity builds.
         // AutoMergeService won't merge while ci_still_running, so we must wait here.
         Log.Information("Waiting for CI to stabilize on both MRs after rebase before setting success...");
-        await WaitForCiStabilization(projectId1, mrIid1, "primary-1");
-        await WaitForCiStabilization(projectId2, mrIid2, "secondary-1");
+        await WaitForCiStabilization(projectId1, mergeRequestIid1, "primary-1");
+        await WaitForCiStabilization(projectId2, mergeRequestIid2, "secondary-1");
 
         // Ensure both branches have successful pipeline statuses on their current HEAD.
         // Read SHAs after the rebase to post status on the correct commit.
@@ -387,19 +387,19 @@ public class AutoMergeBehaviorTest : IDisposable
         {
             await Task.Delay(5000);
 
-            var mr1 = _gitLab.GetMergeRequestDetail(projectId1, mrIid1);
-            var mr2 = _gitLab.GetMergeRequestDetail(projectId2, mrIid2);
+            var mergeRequest1 = _gitLab.GetMergeRequestDetail(projectId1, mergeRequestIid1);
+            var mergeRequest2 = _gitLab.GetMergeRequestDetail(projectId2, mergeRequestIid2);
 
             Log.Information(
                 "Merge check ({Attempt}/{Max}): MR1 state={State1} dms={Dms1}, MR2 state={State2} dms={Dms2}",
                 i + 1,
                 maxChecks,
-                mr1.State,
-                mr1.DetailedMergeStatus,
-                mr2.State,
-                mr2.DetailedMergeStatus);
+                mergeRequest1.State,
+                mergeRequest1.DetailedMergeStatus,
+                mergeRequest2.State,
+                mergeRequest2.DetailedMergeStatus);
 
-            if (mr1.State == "merged" && mr2.State == "merged")
+            if (mergeRequest1.State == "merged" && mergeRequest2.State == "merged")
             {
                 merged = true;
                 break;
@@ -407,26 +407,26 @@ public class AutoMergeBehaviorTest : IDisposable
 
             // If one MR is already merged but the other isn't, that's a partial merge.
             // Keep waiting - the AutoMergeService may retry or the second may complete.
-            if (mr1.State == "merged" || mr2.State == "merged")
+            if (mergeRequest1.State == "merged" || mergeRequest2.State == "merged")
             {
                 Log.Information("Partial merge detected, waiting for remaining MR...");
             }
 
             // Keep pipeline status current: if a branch SHA changed (rebase), update the status
-            UpdatePipelineStatusIfNeeded(projectId1, branchName, ref sha1, mr1);
-            UpdatePipelineStatusIfNeeded(projectId2, branchName, ref sha2, mr2);
+            UpdatePipelineStatusIfNeeded(projectId1, branchName, ref sha1, mergeRequest1);
+            UpdatePipelineStatusIfNeeded(projectId2, branchName, ref sha2, mergeRequest2);
         }
 
         await _browser.TakeScreenshot("behavior_06_after_merge");
 
         if (!merged)
         {
-            var finalMr1 = _gitLab.GetMergeRequestDetail(projectId1, mrIid1);
-            var finalMr2 = _gitLab.GetMergeRequestDetail(projectId2, mrIid2);
+            var finalMergeRequest1 = _gitLab.GetMergeRequestDetail(projectId1, mergeRequestIid1);
+            var finalMergeRequest2 = _gitLab.GetMergeRequestDetail(projectId2, mergeRequestIid2);
             throw new InvalidOperationException(
                 $"Scenario 4 FAILED: MRs were not merged within timeout. "
-                + $"MR1: state={finalMr1.State}, dms={finalMr1.DetailedMergeStatus}. "
-                + $"MR2: state={finalMr2.State}, dms={finalMr2.DetailedMergeStatus}.");
+                + $"MR1: state={finalMergeRequest1.State}, dms={finalMergeRequest1.DetailedMergeStatus}. "
+                + $"MR2: state={finalMergeRequest2.State}, dms={finalMergeRequest2.DetailedMergeStatus}.");
         }
 
         Log.Information("Scenario 4 PASSED: Both MRs were successfully merged by AutoMergeService");
@@ -466,7 +466,7 @@ public class AutoMergeBehaviorTest : IDisposable
         int projectId,
         string branchName,
         ref string trackedSha,
-        GitLabMrDetail mr)
+        GitLabMergeRequestDetail mr)
     {
         // Only update if the MR is still open and the pipeline status indicates CI issues
         if (mr.State != "opened")
@@ -501,16 +501,16 @@ public class AutoMergeBehaviorTest : IDisposable
     /// <summary>
     ///     Waits for a merge request to transition out of the 'preparing' state.
     /// </summary>
-    private async Task WaitForMrReady(int projectId, int mrIid)
+    private async Task WaitForMergeRequestReady(int projectId, int mergeRequestIid)
     {
         for (var i = 0; i < 20; i++)
         {
-            var mr = _gitLab.GetMergeRequestDetail(projectId, mrIid);
+            var mr = _gitLab.GetMergeRequestDetail(projectId, mergeRequestIid);
             if (mr.DetailedMergeStatus != "preparing")
             {
                 Log.Information(
-                    "MR !{MrIid} in project {ProjectId} ready: dms={Dms}",
-                    mrIid,
+                    "MR !{MergeRequestIid} in project {ProjectId} ready: dms={Dms}",
+                    mergeRequestIid,
                     projectId,
                     mr.DetailedMergeStatus);
 
@@ -520,7 +520,7 @@ public class AutoMergeBehaviorTest : IDisposable
             await Task.Delay(1000);
         }
 
-        Log.Warning("MR !{MrIid} in project {ProjectId} still 'preparing' after timeout", mrIid, projectId);
+        Log.Warning("MR !{MergeRequestIid} in project {ProjectId} still 'preparing' after timeout", mergeRequestIid, projectId);
     }
 
     /// <summary>
@@ -529,24 +529,24 @@ public class AutoMergeBehaviorTest : IDisposable
     ///     all external pipelines complete. This ensures we have a stable baseline before
     ///     manipulating pipeline statuses with the Commit Statuses API.
     /// </summary>
-    private async Task WaitForCiStabilization(int projectId, int mrIid, string projectLabel)
+    private async Task WaitForCiStabilization(int projectId, int mergeRequestIid, string projectLabel)
     {
         const int timeoutSeconds = 240;
         Log.Information(
-            "Waiting for CI to stabilize on MR !{MrIid} in {Project} (up to {Timeout}s)...",
-            mrIid,
+            "Waiting for CI to stabilize on MR !{MergeRequestIid} in {Project} (up to {Timeout}s)...",
+            mergeRequestIid,
             projectLabel,
             timeoutSeconds);
 
         for (var i = 0; i < timeoutSeconds; i++)
         {
-            var mr = _gitLab.GetMergeRequestDetail(projectId, mrIid);
+            var mr = _gitLab.GetMergeRequestDetail(projectId, mergeRequestIid);
             if (mr.DetailedMergeStatus is not ("ci_still_running" or "preparing"))
             {
                 Log.Information(
-                    "CI stabilized on {Project} MR !{MrIid} after ~{Seconds}s: dms={Dms}",
+                    "CI stabilized on {Project} MR !{MergeRequestIid} after ~{Seconds}s: dms={Dms}",
                     projectLabel,
-                    mrIid,
+                    mergeRequestIid,
                     i,
                     mr.DetailedMergeStatus);
 
@@ -556,9 +556,9 @@ public class AutoMergeBehaviorTest : IDisposable
             if (i % 15 == 0 && i > 0)
             {
                 Log.Information(
-                    "Still waiting for CI on {Project} MR !{MrIid}... {Seconds}s (dms={Dms})",
+                    "Still waiting for CI on {Project} MR !{MergeRequestIid}... {Seconds}s (dms={Dms})",
                     projectLabel,
-                    mrIid,
+                    mergeRequestIid,
                     i,
                     mr.DetailedMergeStatus);
             }
@@ -566,13 +566,13 @@ public class AutoMergeBehaviorTest : IDisposable
             await Task.Delay(1000);
         }
 
-        var finalMr = _gitLab.GetMergeRequestDetail(projectId, mrIid);
+        var finalMergeRequest = _gitLab.GetMergeRequestDetail(projectId, mergeRequestIid);
         Log.Warning(
-            "CI did not stabilize on {Project} MR !{MrIid} within {Timeout}s (dms={Dms}). Proceeding anyway.",
+            "CI did not stabilize on {Project} MR !{MergeRequestIid} within {Timeout}s (dms={Dms}). Proceeding anyway.",
             projectLabel,
-            mrIid,
+            mergeRequestIid,
             timeoutSeconds,
-            finalMr.DetailedMergeStatus);
+            finalMergeRequest.DetailedMergeStatus);
     }
 
     /// <summary>
@@ -580,18 +580,18 @@ public class AutoMergeBehaviorTest : IDisposable
     ///     After pushing a commit to main, GitLab may take time to recalculate the MR's
     ///     diverged_commits_count and detailed_merge_status.
     /// </summary>
-    private async Task<bool> WaitForDivergenceDetected(int projectId, int mrIid, int timeoutSeconds)
+    private async Task<bool> WaitForDivergenceDetected(int projectId, int mergeRequestIid, int timeoutSeconds)
     {
         for (var i = 0; i < timeoutSeconds; i++)
         {
             await Task.Delay(1000);
-            var mr = _gitLab.GetMergeRequestDetail(projectId, mrIid);
+            var mr = _gitLab.GetMergeRequestDetail(projectId, mergeRequestIid);
 
             if (mr.DivergedCommitsCount > 0 || mr.DetailedMergeStatus == "need_rebase")
             {
                 Log.Information(
-                    "Divergence detected on MR !{MrIid} after ~{Seconds}s: diverged={Diverged}, dms={Dms}",
-                    mrIid,
+                    "Divergence detected on MR !{MergeRequestIid} after ~{Seconds}s: diverged={Diverged}, dms={Dms}",
+                    mergeRequestIid,
                     i,
                     mr.DivergedCommitsCount,
                     mr.DetailedMergeStatus);
@@ -602,8 +602,8 @@ public class AutoMergeBehaviorTest : IDisposable
             if (i % 10 == 0 && i > 0)
             {
                 Log.Information(
-                    "Waiting for divergence on MR !{MrIid}... {Seconds}s (diverged={Diverged}, dms={Dms})",
-                    mrIid,
+                    "Waiting for divergence on MR !{MergeRequestIid}... {Seconds}s (diverged={Diverged}, dms={Dms})",
+                    mergeRequestIid,
                     i,
                     mr.DivergedCommitsCount,
                     mr.DetailedMergeStatus);
@@ -616,20 +616,20 @@ public class AutoMergeBehaviorTest : IDisposable
     /// <summary>
     ///     Waits for a branch to be rebased (SHA changes from the original).
     /// </summary>
-    private async Task<bool> WaitForRebase(int projectId, int mrIid, string originalSha, int timeoutSeconds)
+    private async Task<bool> WaitForRebase(int projectId, int mergeRequestIid, string originalSha, int timeoutSeconds)
     {
         for (var i = 0; i < timeoutSeconds; i++)
         {
             await Task.Delay(1000);
             try
             {
-                var mr = _gitLab.GetMergeRequestDetail(projectId, mrIid);
+                var mr = _gitLab.GetMergeRequestDetail(projectId, mergeRequestIid);
                 var currentSha = _gitLab.GetBranchHeadSha(projectId, mr.SourceBranch);
                 if (currentSha != originalSha)
                 {
                     Log.Information(
-                        "Rebase detected on MR !{MrIid} after ~{Seconds}s: {OldSha} → {NewSha}",
-                        mrIid,
+                        "Rebase detected on MR !{MergeRequestIid} after ~{Seconds}s: {OldSha} → {NewSha}",
+                        mergeRequestIid,
                         i,
                         originalSha[..8],
                         currentSha[..8]);
@@ -644,7 +644,7 @@ public class AutoMergeBehaviorTest : IDisposable
 
             if (i % 10 == 0 && i > 0)
             {
-                Log.Information("Still waiting for rebase on MR !{MrIid}... {Seconds}s", mrIid, i);
+                Log.Information("Still waiting for rebase on MR !{MergeRequestIid}... {Seconds}s", mergeRequestIid, i);
             }
         }
 
@@ -788,7 +788,7 @@ public class AutoMergeBehaviorTest : IDisposable
         }
     }
 
-    private static void AssertMrOpen(GitLabMrDetail mr, string projectName, string context)
+    private static void AssertMergeRequestOpen(GitLabMergeRequestDetail mr, string projectName, string context)
     {
         if (mr.State != "opened")
         {
@@ -797,19 +797,19 @@ public class AutoMergeBehaviorTest : IDisposable
         }
     }
 
-    private void CleanupTestData(int projectId1, int projectId2, string branchName, int mrIid1, int mrIid2)
+    private void CleanupTestData(int projectId1, int projectId2, string branchName, int mergeRequestIid1, int mergeRequestIid2)
     {
         Log.Information("Cleaning up test data for branch '{BranchName}'...", branchName);
         try
         {
-            if (mrIid1 > 0)
+            if (mergeRequestIid1 > 0)
             {
-                _gitLab.CloseMergeRequest(projectId1, mrIid1);
+                _gitLab.CloseMergeRequest(projectId1, mergeRequestIid1);
             }
 
-            if (mrIid2 > 0)
+            if (mergeRequestIid2 > 0)
             {
-                _gitLab.CloseMergeRequest(projectId2, mrIid2);
+                _gitLab.CloseMergeRequest(projectId2, mergeRequestIid2);
             }
 
             _gitLab.DeleteBranch(projectId1, branchName);

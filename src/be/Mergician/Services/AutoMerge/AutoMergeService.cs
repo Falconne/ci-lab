@@ -140,7 +140,7 @@ public class AutoMergeService : BackgroundService
             group.AutoRebase);
 
         // Get detailed MR info for all branches that have MRs
-        var branchMRDetails =
+        var branchMergeRequestDetails =
             new List<(BranchWithActivity Branch, GitLabDetailedMergeRequest MergeRequest)>();
 
         foreach (var branch in group.Branches)
@@ -164,38 +164,38 @@ public class AutoMergeService : BackgroundService
                 continue;
             }
 
-            var detailedMr = await _apiService.GetDetailedMergeRequest(
+            var detailedMergeRequest = await _apiService.GetDetailedMergeRequest(
                 serviceUser,
                 branch.ProjectId,
                 mergeRequests[0].Iid,
                 cancellationToken);
 
-            if (detailedMr != null)
+            if (detailedMergeRequest != null)
             {
-                branchMRDetails.Add((branch, detailedMr));
+                branchMergeRequestDetails.Add((branch, detailedMergeRequest));
             }
         }
 
         // Step 1: Auto Rebase - rebase branches that are behind their target
         if (group.AutoRebase)
         {
-            await ProcessAutoRebase(serviceUser, group, branchMRDetails, cancellationToken);
+            await ProcessAutoRebase(serviceUser, group, branchMergeRequestDetails, cancellationToken);
         }
 
         // Step 2: Auto Merge - check if all branches are ready and merge them all
         if (group.AutoMerge)
         {
-            await ProcessAutoMerge(serviceUser, group, branchMRDetails, cancellationToken);
+            await ProcessAutoMerge(serviceUser, group, branchMergeRequestDetails, cancellationToken);
         }
     }
 
     private async Task ProcessAutoRebase(
         AccessDetailsBase serviceUser,
         MergeGroup group,
-        List<(BranchWithActivity Branch, GitLabDetailedMergeRequest MergeRequest)> branchMRDetails,
+        List<(BranchWithActivity Branch, GitLabDetailedMergeRequest MergeRequest)> branchMergeRequestDetails,
         CancellationToken cancellationToken)
     {
-        foreach (var (branch, mr) in branchMRDetails)
+        foreach (var (branch, mr) in branchMergeRequestDetails)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -214,7 +214,7 @@ public class AutoMergeService : BackgroundService
             }
 
             _logger.LogInformation(
-                "AutoMergeService: rebasing branch '{BranchName}' in project {ProjectId} (MR !{MrIid}, divergedCommits={DivergedCommits}, hasConflicts={HasConflicts})",
+                "AutoMergeService: rebasing branch '{BranchName}' in project {ProjectId} (MR !{MergeRequestIid}, divergedCommits={DivergedCommits}, hasConflicts={HasConflicts})",
                 branch.BranchName,
                 branch.ProjectId,
                 mr.Iid,
@@ -240,13 +240,13 @@ public class AutoMergeService : BackgroundService
             // Wait briefly for GitLab to process the rebase, then check for conflicts
             await Task.Delay(_rebaseCheckDelay, cancellationToken);
 
-            var updatedMr = await _apiService.GetDetailedMergeRequest(
+            var updatedMergeRequest = await _apiService.GetDetailedMergeRequest(
                 serviceUser,
                 branch.ProjectId,
                 mr.Iid,
                 cancellationToken);
 
-            if (updatedMr is not { HasConflicts: true })
+            if (updatedMergeRequest is not { HasConflicts: true })
             {
                 continue;
             }
@@ -294,17 +294,17 @@ public class AutoMergeService : BackgroundService
     private async Task ProcessAutoMerge(
         AccessDetailsBase serviceUser,
         MergeGroup group,
-        List<(BranchWithActivity Branch, GitLabDetailedMergeRequest MergeRequest)> branchMRDetails,
+        List<(BranchWithActivity Branch, GitLabDetailedMergeRequest MergeRequest)> branchMergeRequestDetails,
         CancellationToken cancellationToken)
     {
         // Check if ALL branches in the merge group have MRs
-        if (branchMRDetails.Count != group.Branches.Count)
+        if (branchMergeRequestDetails.Count != group.Branches.Count)
         {
-            var branchesWithoutMr = group.Branches.Count - branchMRDetails.Count;
+            var branchesWithoutMergeRequest = group.Branches.Count - branchMergeRequestDetails.Count;
             _logger.LogDebug(
                 "AutoMergeService: merge group '{MergeGroupName}' has {Count} branches without MRs, not ready to merge",
                 group.Name,
-                branchesWithoutMr);
+                branchesWithoutMergeRequest);
 
             return;
         }
@@ -313,7 +313,7 @@ public class AutoMergeService : BackgroundService
         var allReady = true;
         var reasons = new List<string>();
 
-        foreach (var (branch, mr) in branchMRDetails)
+        foreach (var (branch, mr) in branchMergeRequestDetails)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -343,11 +343,11 @@ public class AutoMergeService : BackgroundService
 
         _logger.LogInformation(
             "AutoMergeService: all {Count} branches in merge group '{MergeGroupName}' are ready, initiating merge",
-            branchMRDetails.Count,
+            branchMergeRequestDetails.Count,
             group.Name);
 
         // Merge all branches in parallel
-        var mergeTasks = branchMRDetails.Select(async item =>
+        var mergeTasks = branchMergeRequestDetails.Select(async item =>
             {
                 var (branch, mr) = item;
                 var result = await _apiService.Merge(

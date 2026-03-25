@@ -182,11 +182,11 @@ public class GitLabTestHelper
                 $"Failed to create MR for '{sourceBranch}': {response.StatusCode} {response.Content}");
         }
 
-        var mr = JsonSerializer.Deserialize<GitLabMrInfo>(response.Content!, JsonOptions)
+        var mr = JsonSerializer.Deserialize<GitLabMergeRequestInfo>(response.Content!, JsonOptions)
                  ?? throw new InvalidOperationException("Failed to deserialize MR response");
 
         Log.Information(
-            "Created MR !{MrIid} for branch '{BranchName}' as '{Username}' (deleteSourceBranch={DeleteSourceBranch})",
+            "Created MR !{MergeRequestIid} for branch '{BranchName}' as '{Username}' (deleteSourceBranch={DeleteSourceBranch})",
             mr.Iid,
             sourceBranch,
             username,
@@ -198,7 +198,7 @@ public class GitLabTestHelper
     /// <summary>
     ///     Approves a merge request as the specified test user.
     /// </summary>
-    public void ApproveMergeRequest(int projectId, int mrIid, string approverUsername)
+    public void ApproveMergeRequest(int projectId, int mergeRequestIid, string approverUsername)
     {
         var userToken = TestConfig.GetTestUserToken(approverUsername);
         var userClient = new RestClient(
@@ -210,19 +210,19 @@ public class GitLabTestHelper
         userClient.AddDefaultHeader("PRIVATE-TOKEN", userToken);
 
         var request = new RestRequest(
-            $"/api/v4/projects/{projectId}/merge_requests/{mrIid}/approve",
+            $"/api/v4/projects/{projectId}/merge_requests/{mergeRequestIid}/approve",
             Method.Post);
 
         var response = userClient.Execute(request);
         if (!response.IsSuccessful)
         {
             throw new InvalidOperationException(
-                $"Failed to approve MR !{mrIid}: {response.StatusCode} {response.Content}");
+                $"Failed to approve MR !{mergeRequestIid}: {response.StatusCode} {response.Content}");
         }
 
         Log.Information(
-            "Approved MR !{MrIid} in project {ProjectId} as '{Username}'",
-            mrIid,
+            "Approved MR !{MergeRequestIid} in project {ProjectId} as '{Username}'",
+            mergeRequestIid,
             projectId,
             approverUsername);
     }
@@ -312,18 +312,18 @@ public class GitLabTestHelper
     /// <summary>
     ///     Gets merge request details including merge status.
     /// </summary>
-    public GitLabMrDetail GetMergeRequestDetail(int projectId, int mrIid)
+    public GitLabMergeRequestDetail GetMergeRequestDetail(int projectId, int mergeRequestIid)
     {
-        var request = new RestRequest($"/api/v4/projects/{projectId}/merge_requests/{mrIid}");
+        var request = new RestRequest($"/api/v4/projects/{projectId}/merge_requests/{mergeRequestIid}");
         var response = _adminClient.Execute(request);
         if (!response.IsSuccessful)
         {
             throw new InvalidOperationException(
-                $"Failed to get MR !{mrIid}: {response.StatusCode} {response.Content}");
+                $"Failed to get MR !{mergeRequestIid}: {response.StatusCode} {response.Content}");
         }
 
-        return JsonSerializer.Deserialize<GitLabMrDetail>(response.Content!, JsonOptions)
-               ?? throw new InvalidOperationException($"Failed to deserialize MR !{mrIid}");
+        return JsonSerializer.Deserialize<GitLabMergeRequestDetail>(response.Content!, JsonOptions)
+               ?? throw new InvalidOperationException($"Failed to deserialize MR !{mergeRequestIid}");
     }
 
     /// <summary>
@@ -361,19 +361,19 @@ public class GitLabTestHelper
     /// <summary>
     ///     Closes an open merge request.
     /// </summary>
-    public void CloseMergeRequest(int projectId, int mrIid)
+    public void CloseMergeRequest(int projectId, int mergeRequestIid)
     {
-        var request = new RestRequest($"/api/v4/projects/{projectId}/merge_requests/{mrIid}", Method.Put);
+        var request = new RestRequest($"/api/v4/projects/{projectId}/merge_requests/{mergeRequestIid}", Method.Put);
         request.AddJsonBody(new { state_event = "close" });
 
         var response = _adminClient.Execute(request);
         if (!response.IsSuccessful)
         {
-            Log.Warning("Failed to close MR !{MrIid}: {Status}", mrIid, response.StatusCode);
+            Log.Warning("Failed to close MR !{MergeRequestIid}: {Status}", mergeRequestIid, response.StatusCode);
         }
         else
         {
-            Log.Information("Closed MR !{MrIid} in project {ProjectId}", mrIid, projectId);
+            Log.Information("Closed MR !{MergeRequestIid} in project {ProjectId}", mergeRequestIid, projectId);
         }
     }
 }

@@ -46,7 +46,7 @@ public class AutoMergeGitLabApiService
         catch (GitLabUnexpectedResponseException ex)
         {
             _logger.LogError(
-                "GetDetailedMergeRequest failed with status {StatusCode} for project {ProjectId}, MR {MrIid}",
+                "GetDetailedMergeRequest failed with status {StatusCode} for project {ProjectId}, MR {MergeRequestIid}",
                 (int)ex.StatusCode,
                 projectId,
                 mergeRequestIid);
@@ -78,7 +78,7 @@ public class AutoMergeGitLabApiService
         catch (GitLabUnexpectedResponseException ex)
         {
             _logger.LogError(
-                "GetLatestMergeRequestPipeline failed with status {StatusCode} for project {ProjectId}, MR {MrIid}",
+                "GetLatestMergeRequestPipeline failed with status {StatusCode} for project {ProjectId}, MR {MergeRequestIid}",
                 (int)ex.StatusCode,
                 projectId,
                 mergeRequestIid);
@@ -112,7 +112,7 @@ public class AutoMergeGitLabApiService
                 cancellationToken);
 
             _logger.LogInformation(
-                "Initiated rebase for project {ProjectId}, MR {MrIid}",
+                "Initiated rebase for project {ProjectId}, MR {MergeRequestIid}",
                 projectId,
                 mergeRequestIid);
 
@@ -121,7 +121,7 @@ public class AutoMergeGitLabApiService
         catch (GitLabUnexpectedResponseException ex)
         {
             _logger.LogError(
-                "RebaseMergeRequest failed with status {StatusCode} for project {ProjectId}, MR {MrIid}",
+                "RebaseMergeRequest failed with status {StatusCode} for project {ProjectId}, MR {MergeRequestIid}",
                 (int)ex.StatusCode,
                 projectId,
                 mergeRequestIid);
@@ -155,7 +155,7 @@ public class AutoMergeGitLabApiService
                 cancellationToken);
 
             _logger.LogInformation(
-                "Merged MR for project {ProjectId}, MR {MrIid}, state={State}",
+                "Merged MR for project {ProjectId}, MR {MergeRequestIid}, state={State}",
                 projectId,
                 mergeRequestIid,
                 result.State);
@@ -170,7 +170,7 @@ public class AutoMergeGitLabApiService
                 or HttpStatusCode.Conflict)
             {
                 _logger.LogWarning(
-                    "Merge not possible for project {ProjectId}, MR {MrIid}: status {StatusCode}, body: {Body}",
+                    "Merge not possible for project {ProjectId}, MR {MergeRequestIid}: status {StatusCode}, body: {Body}",
                     projectId,
                     mergeRequestIid,
                     (int)ex.StatusCode,
@@ -180,7 +180,7 @@ public class AutoMergeGitLabApiService
             }
 
             _logger.LogError(
-                "Merge failed with status {StatusCode} for project {ProjectId}, MR {MrIid}",
+                "Merge failed with status {StatusCode} for project {ProjectId}, MR {MergeRequestIid}",
                 (int)ex.StatusCode,
                 projectId,
                 mergeRequestIid);
@@ -216,14 +216,14 @@ public class AutoMergeGitLabApiService
                 cancellationToken);
 
             _logger.LogInformation(
-                "Posted comment on project {ProjectId}, MR {MrIid}",
+                "Posted comment on project {ProjectId}, MR {MergeRequestIid}",
                 projectId,
                 mergeRequestIid);
         }
         catch (GitLabUnexpectedResponseException ex)
         {
             _logger.LogError(
-                "PostComment failed with status {StatusCode} for project {ProjectId}, MR {MrIid}",
+                "PostComment failed with status {StatusCode} for project {ProjectId}, MR {MergeRequestIid}",
                 (int)ex.StatusCode,
                 projectId,
                 mergeRequestIid);
