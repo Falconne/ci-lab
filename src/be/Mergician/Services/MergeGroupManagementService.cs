@@ -32,7 +32,7 @@ public class MergeGroupManagementService
     ///     Parses a merge request URL, looks up the MR in GitLab, and adds its source branch
     ///     to the specified merge group, subscribing the user if not already subscribed.
     /// </summary>
-    public async Task<AddBranchByMrResult> AddBranchByMergeRequestUrl(
+    public async Task<(MergeGroup? UpdatedMergeGroup, MergeGroupManagementError? Error)> AddBranchByMergeRequestUrl(
         AccessDetailsForUser currentUser,
         int mergeGroupId,
         string mergeRequestUrl,
@@ -41,14 +41,14 @@ public class MergeGroupManagementService
         var parsed = _mergeRequestLookupService.ParseMergeRequestUrl(mergeRequestUrl);
         if (parsed == null)
         {
-            return new AddBranchByMrResult(null, MergeGroupManagementError.InvalidUrl);
+            return (null, MergeGroupManagementError.InvalidUrl);
         }
 
         var existing = _mergeGroupRepository.GetMergeGroup(mergeGroupId);
         if (existing == null)
         {
             _logger.LogWarning("Merge group {MergeGroupId} not found for AddBranchByMergeRequestUrl", mergeGroupId);
-            return new AddBranchByMrResult(null, MergeGroupManagementError.MergeGroupNotFound);
+            return (null, MergeGroupManagementError.MergeGroupNotFound);
         }
 
         var lookupResult = await _mergeRequestLookupService.LookupMergeRequest(
@@ -59,7 +59,7 @@ public class MergeGroupManagementService
 
         if (lookupResult == null)
         {
-            return new AddBranchByMrResult(null, MergeGroupManagementError.MergeRequestNotFound);
+            return (null, MergeGroupManagementError.MergeRequestNotFound);
         }
 
         var branchRecord = _mergeGroupRepository.GetOrCreateBranchRecord(
@@ -77,14 +77,14 @@ public class MergeGroupManagementService
             mergeGroupId);
 
         var updated = _mergeGroupRepository.GetMergeGroup(mergeGroupId);
-        return new AddBranchByMrResult(updated, null);
+        return (updated, null);
     }
 
     /// <summary>
     ///     Parses a merge request URL, looks up the MR in GitLab, then finds an existing
     ///     merge group containing that branch or creates a new one, subscribing the user.
     /// </summary>
-    public async Task<FindMergeGroupByMrResult> FindOrCreateMergeGroupByMergeRequestUrl(
+    public async Task<(int? MergeGroupId, bool WasCreated, MergeGroupManagementError? Error)> FindOrCreateMergeGroupByMergeRequestUrl(
         AccessDetailsForUser currentUser,
         string mergeRequestUrl,
         CancellationToken cancellationToken = default)
@@ -92,7 +92,7 @@ public class MergeGroupManagementService
         var parsed = _mergeRequestLookupService.ParseMergeRequestUrl(mergeRequestUrl);
         if (parsed == null)
         {
-            return new FindMergeGroupByMrResult(null, false, MergeGroupManagementError.InvalidUrl);
+            return (null, false, MergeGroupManagementError.InvalidUrl);
         }
 
         var lookupResult = await _mergeRequestLookupService.LookupMergeRequest(
@@ -103,7 +103,7 @@ public class MergeGroupManagementService
 
         if (lookupResult == null)
         {
-            return new FindMergeGroupByMrResult(null, false, MergeGroupManagementError.MergeRequestNotFound);
+            return (null, false, MergeGroupManagementError.MergeRequestNotFound);
         }
 
         var existingMg = _mergeGroupRepository.FindMergeGroupByBranch(
@@ -120,7 +120,7 @@ public class MergeGroupManagementService
                 existingMg.Id,
                 lookupResult.SourceBranch);
 
-            return new FindMergeGroupByMrResult(existingMg.Id, false, null);
+            return (existingMg.Id, false, null);
         }
 
         var mergeGroup = _mergeGroupRepository.GetOrCreateMergeGroup(lookupResult.SourceBranch);
@@ -137,6 +137,6 @@ public class MergeGroupManagementService
             mergeGroup.Id,
             lookupResult.SourceBranch);
 
-        return new FindMergeGroupByMrResult(mergeGroup.Id, true, null);
+        return (mergeGroup.Id, true, null);
     }
 }
