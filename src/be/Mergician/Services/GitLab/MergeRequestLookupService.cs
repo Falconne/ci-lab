@@ -109,6 +109,7 @@ public partial class MergeRequestLookupService
     private static partial Regex MergeRequestUrlPattern();
 }
 
+// TODO: Move these records into the Entities namespace.
 public record ParsedMergeRequestUrl(string ProjectPath, int MrIid);
 
 public record MergeRequestLookupResult(GitLabProject Project, string SourceBranch, string MergeRequestTitle);

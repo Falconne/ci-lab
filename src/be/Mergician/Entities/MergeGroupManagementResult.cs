@@ -3,16 +3,14 @@ namespace Mergician.Entities;
 public enum MergeGroupManagementError
 {
     InvalidUrl,
+
     MergeGroupNotFound,
+
     MergeRequestNotFound
 }
 
-public record AddBranchByMrResult(MergeGroup? UpdatedMergeGroup, MergeGroupManagementError? Error)
-{
-    public bool IsSuccess => UpdatedMergeGroup != null;
-}
+// TODO: Replace this with an inlined tuple (i.e. just define the tuple at the return site of the method using this).
+public record AddBranchByMrResult(MergeGroup? UpdatedMergeGroup, MergeGroupManagementError? Error);
 
-public record FindMergeGroupByMrResult(int? MergeGroupId, bool WasCreated, MergeGroupManagementError? Error)
-{
-    public bool IsSuccess => MergeGroupId.HasValue;
-}
+// TODO: Replace this with an inlined tuple (i.e. just define the tuple at the return site of the method using this).
+public record FindMergeGroupByMrResult(int? MergeGroupId, bool WasCreated, MergeGroupManagementError? Error);
