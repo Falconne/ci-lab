@@ -273,7 +273,8 @@ public class ProjectSetupService
                 {
                     CredentialsProvider = (_, _, _) => new UsernamePasswordCredentials
                     {
-                        Username = "root", Password = _gitlabToken
+                        Username = "root",
+                        Password = _gitlabToken
                     }
                 };
 

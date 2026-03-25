@@ -203,11 +203,14 @@ public class MergeGroupController : ControllerBase
             MergeGroupManagementError.InvalidUrl => BadRequest(
                 new ErrorResponse(
                     "Invalid merge request URL. Expected format: https://gitlab.example.com/group/project/-/merge_requests/123")),
+
             MergeGroupManagementError.MergeGroupNotFound => NotFound(
                 new ErrorResponse("Merge group not found")),
+
             MergeGroupManagementError.MergeRequestNotFound => NotFound(
                 new ErrorResponse(
                     "Merge request not found in GitLab. Check the URL and ensure you have access to the project.")),
+
             _ => Ok(result.UpdatedMergeGroup!)
         };
     }

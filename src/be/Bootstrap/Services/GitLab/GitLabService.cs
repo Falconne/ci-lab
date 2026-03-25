@@ -75,7 +75,9 @@ public class GitLabService : IDisposable
             .AddJsonBody(
                 new
                 {
-                    name = groupName, path = groupName.ToLower().Replace(" ", "-"), visibility = "public"
+                    name = groupName,
+                    path = groupName.ToLower().Replace(" ", "-"),
+                    visibility = "public"
                 });
 
         var createResponse = await _client.ExecutePostAsync<GitLabGroup>(createRequest);
@@ -493,7 +495,8 @@ public class GitLabService : IDisposable
         {
             CredentialsProvider = (_, _, _) => new UsernamePasswordCredentials
             {
-                Username = "root", Password = _token
+                Username = "root",
+                Password = _token
             }
         };
 
