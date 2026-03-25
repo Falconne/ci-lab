@@ -10,18 +10,18 @@ namespace Mergician.Controllers;
 [Authorize]
 [ApiController]
 [Route("api/[controller]")]
-public class ActivityController : ControllerBase
+public class DashboardController : ControllerBase
 {
     private readonly UserActivityBackgroundSyncService _backgroundSyncService;
 
-    private readonly ILogger<ActivityController> _logger;
+    private readonly ILogger<DashboardController> _logger;
 
     private readonly IMergeGroupRepository _mergeGroupRepository;
 
-    public ActivityController(
+    public DashboardController(
         IMergeGroupRepository mergeGroupRepository,
         UserActivityBackgroundSyncService backgroundSyncService,
-        ILogger<ActivityController> logger)
+        ILogger<DashboardController> logger)
     {
         _mergeGroupRepository = mergeGroupRepository;
         _backgroundSyncService = backgroundSyncService;

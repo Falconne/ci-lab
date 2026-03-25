@@ -362,7 +362,7 @@ function formatTimeAgo(isoString: string): string {
  */
 async function pollDashboard() {
   try {
-    const response = await fetchBackend('/api/activity/refresh', {
+    const response = await fetchBackend('/api/dashboard/refresh', {
       method: 'POST'
     })
 
