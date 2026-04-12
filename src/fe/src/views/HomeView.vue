@@ -46,21 +46,69 @@
         </div>
 
         <div v-else>
-          <!-- Text filter for searching merge groups by branch name -->
-          <v-text-field
-            v-model="filterText"
-            prepend-inner-icon="mdi-magnify"
-            label="Filter by branch name"
-            variant="outlined"
-            density="compact"
-            clearable
-            hide-details
-            class="mb-4"
-          />
+          <!-- Text filter for searching merge groups by branch name or MR URL -->
+          <div class="filter-row mb-4">
+            <v-text-field
+              v-model="filterText"
+              prepend-inner-icon="mdi-magnify"
+              label="Filter by branch name or MR URL"
+              variant="outlined"
+              density="compact"
+              clearable
+              hide-details
+            >
+              <template #append-inner>
+                <v-tooltip text="Paste from clipboard" location="top">
+                  <template #activator="{ props }">
+                    <v-btn
+                      v-bind="props"
+                      icon
+                      size="x-small"
+                      variant="text"
+                      color="grey"
+                      class="paste-btn"
+                      @click="pasteFromClipboard"
+                    >
+                      <v-icon size="18">mdi-content-paste</v-icon>
+                    </v-btn>
+                  </template>
+                </v-tooltip>
+              </template>
+            </v-text-field>
 
-          <div v-if="filteredMergeGroups.length === 0" class="text-center pa-8">
+            <v-btn
+              v-if="isMrUrlFilter && filteredMergeGroups.length === 0 && !openMrLoading"
+              color="primary"
+              variant="flat"
+              size="small"
+              prepend-icon="mdi-open-in-app"
+              class="ml-2 text-none open-mr-btn"
+              :loading="openMrLoading"
+              @click="openMrAsGroup"
+            >
+              Open MR as Merge Group
+            </v-btn>
+          </div>
+
+          <v-alert
+            v-if="openMrError"
+            type="error"
+            variant="tonal"
+            closable
+            class="mb-4"
+            @click:close="openMrError = ''"
+          >
+            {{ openMrError }}
+          </v-alert>
+
+          <div v-if="filteredMergeGroups.length === 0 && !isMrUrlFilter" class="text-center pa-8">
             <v-icon icon="mdi-filter-off" size="48" color="grey" class="mb-3" />
             <p class="text-body-1 text-grey">No merge groups match &quot;{{ filterText }}&quot;</p>
+          </div>
+
+          <div v-else-if="filteredMergeGroups.length === 0 && isMrUrlFilter" class="text-center pa-8">
+            <v-icon icon="mdi-magnify" size="48" color="grey" class="mb-3" />
+            <p class="text-body-1 text-grey">No tracked merge group found for this MR URL</p>
           </div>
 
           <div v-else class="dashboard-cards">
@@ -247,6 +295,8 @@ const authenticated = computed(() => currentUser.value !== null)
 const initialPhase = ref(false)
 const errorMessage = ref('')
 const filterText = ref('')
+const openMrLoading = ref(false)
+const openMrError = ref('')
 const now = ref(Date.now())
 
 let pollIntervalId: ReturnType<typeof setInterval> | null = null
@@ -361,14 +411,40 @@ const sortedMergeGroups = computed<MergeGroup[]>(() => {
 })
 
 /**
- * Filters sorted merge groups by branch name using the user-entered filter text.
+ * Returns the base MR URL (up to and including the MR number) if the given text
+ * looks like a GitLab merge request URL, otherwise null.
+ */
+function extractMrBaseUrl(text: string): string | null {
+  const match = text.match(/^(https?:\/\/.+\/-\/merge_requests\/\d+)/)
+  return match ? match[1] : null
+}
+
+/**
+ * Whether the current filter text looks like a MR URL.
+ */
+const isMrUrlFilter = computed<boolean>(() => {
+  return extractMrBaseUrl(filterText.value.trim()) !== null
+})
+
+/**
+ * Filters sorted merge groups by branch name or MR URL using the user-entered filter text.
+ * When a MR URL is entered, only groups containing a branch with that MR URL are shown.
  */
 const filteredMergeGroups = computed<MergeGroup[]>(() => {
-  const query = filterText.value.trim().toLowerCase()
+  const query = filterText.value.trim()
   if (!query) return sortedMergeGroups.value
+
+  const mrBase = extractMrBaseUrl(query)
+  if (mrBase) {
+    return sortedMergeGroups.value.filter(group =>
+      group.branches.some(b => b.mergeRequestUrl && b.mergeRequestUrl.startsWith(mrBase))
+    )
+  }
+
+  const lower = query.toLowerCase()
   return sortedMergeGroups.value.filter(group =>
-    group.name.toLowerCase().includes(query) ||
-    group.branches.some(b => b.branchName.toLowerCase().includes(query))
+    group.name.toLowerCase().includes(lower) ||
+    group.branches.some(b => b.branchName.toLowerCase().includes(lower))
   )
 })
 
@@ -541,6 +617,48 @@ function mergeGroupHref(group: MergeGroup): string {
   return resolved.href
 }
 
+// --- Filter box helpers ---
+
+async function pasteFromClipboard() {
+  try {
+    const text = await navigator.clipboard.readText()
+    filterText.value = text
+  } catch (err) {
+    console.warn('[Mergician] Failed to read from clipboard:', err)
+  }
+}
+
+async function openMrAsGroup() {
+  const url = filterText.value.trim()
+  if (!url) return
+
+  openMrLoading.value = true
+  openMrError.value = ''
+
+  try {
+    const response = await fetchBackend('/api/merge-groups/find-by-merge-request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mergeRequestUrl: url })
+    })
+
+    if (response.ok) {
+      const data = await response.json()
+      filterText.value = ''
+      router.push(`/merge-group/${data.mergeGroupId}`)
+    } else {
+      const data = await response.json().catch(() => null)
+      openMrError.value = data?.error || `Request failed with status ${response.status}`
+    }
+  } catch (err) {
+    if (isStartupRequiredError(err)) return
+    console.error('[Mergician] Open MR as merge group failed:', err)
+    openMrError.value = 'Failed to find merge request. Please try again.'
+  } finally {
+    openMrLoading.value = false
+  }
+}
+
 onMounted(async () => {
   timeIntervalId = setInterval(() => { now.value = Date.now() }, 60000)
 
@@ -576,6 +694,21 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* ---- Filter row ---- */
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filter-row .v-text-field {
+  flex: 1;
+}
+
+.open-mr-btn {
+  flex-shrink: 0;
+}
+
 /* ---- Partition sections (time-based grouping) ---- */
 .partition-section {
   margin-bottom: 28px;
