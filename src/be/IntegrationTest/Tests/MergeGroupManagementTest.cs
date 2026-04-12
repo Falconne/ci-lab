@@ -297,10 +297,10 @@ public class MergeGroupManagementTest : IDisposable
     }
 
     /// <summary>
-    ///     Tests the "Find by Merge Request..." feature in the app bar.
-    ///     1. Create a branch + MR in a new unique name
-    ///     2. Click "Find by Merge Request..." in the app bar
-    ///     3. Enter the MR URL
+    ///     Tests the "Find by MR URL" feature integrated into the dashboard filter box.
+    ///     1. Create a branch + MR with a unique name
+    ///     2. Type the MR URL into the filter box on the dashboard
+    ///     3. Click the "Open MR as Merge Group" button that appears
     ///     4. Verify navigation to the merge group details page
     ///     5. Verify the branch appears on the details page
     /// </summary>
@@ -325,21 +325,17 @@ public class MergeGroupManagementTest : IDisposable
             await LoginAndWaitForDashboard("test1");
             await _browser.TakeScreenshot("find_mr_01_dashboard");
 
-            // Click "Find by Merge Request..." in the app bar
-            var findMergeRequestBtn = _browser.Page.Locator("button:has-text('Find by Merge Request')");
-            await findMergeRequestBtn.WaitForAsync(new LocatorWaitForOptions { Timeout = 10000 });
-            await findMergeRequestBtn.ClickAsync();
-            await Task.Delay(1000);
-            await _browser.TakeScreenshot("find_mr_02_dialog_open");
+            // Type the MR URL into the filter box
+            var filterInput = _browser.Page.GetByLabel("Filter by branch name or MR URL");
+            await filterInput.WaitForAsync(new LocatorWaitForOptions { Timeout = 10000 });
+            await filterInput.FillAsync(mrWebUrl);
+            await _browser.TakeScreenshot("find_mr_02_url_filled");
 
-            // Fill in the MR URL
-            var urlField = _browser.Page.Locator(".v-dialog .v-text-field input");
-            await urlField.FillAsync(mrWebUrl);
-            await _browser.TakeScreenshot("find_mr_03_url_filled");
-
-            // Click "Find"
-            var findBtn = _browser.Page.Locator(".v-dialog .v-card-actions button:has-text('Find')");
-            await findBtn.ClickAsync();
+            // Wait for "Open MR as Merge Group" button to appear (shown when URL matches no existing group)
+            var openMrBtn = _browser.Page.Locator(".open-mr-btn");
+            await openMrBtn.WaitForAsync(new LocatorWaitForOptions { Timeout = 10000 });
+            await _browser.TakeScreenshot("find_mr_03_open_btn_visible");
+            await openMrBtn.ClickAsync();
 
             // Wait for navigation to the merge group details page
             await _browser.Page.WaitForURLAsync(
