@@ -1,5 +1,0 @@
-Task 1)
-Into the dashboard screen, add a text filter to the top that will filter the displayed merge groups to any where any of the branches contains the filter text.
-
-Task 2)
-When showing the merge groups in the dashboard page, partition them by groups based on last updated time. Each group should have aa simple but elegant title. The groups should be "Today", "Yesterday", "Last 7 days" and "Older". Don't display any empty groups.
