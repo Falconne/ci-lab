@@ -168,6 +168,21 @@
                       {{ item.projectName }} | {{ item.branchName }}
                     </a>
                     <span v-else class="branch-title-text">{{ item.projectName }} | {{ item.branchName }}</span>
+                    <v-tooltip text="Copy branch name" location="top">
+                      <template #activator="{ props: tooltipProps }">
+                        <v-btn
+                          v-bind="tooltipProps"
+                          icon
+                          size="x-small"
+                          variant="text"
+                          color="grey"
+                          class="copy-branch-btn"
+                          @click.stop="copyBranchName(item.branchName)"
+                        >
+                          <v-icon size="16">mdi-content-copy</v-icon>
+                        </v-btn>
+                      </template>
+                    </v-tooltip>
                   </div>
                   <v-chip v-if="item.hasMergeRequest !== null" size="small" :color="itemStatusColor(item)" variant="tonal" class="flex-shrink-0">
                     {{ itemStatusLabel(item) }}
@@ -349,6 +364,14 @@ function branchUrl(item: BranchWithActivity): string {
 function createMergeRequestUrl(item: BranchWithActivity): string {
   if (!item.projectUrl) return ''
   return `${item.projectUrl}/-/merge_requests/new?merge_request[source_branch]=${encodeURIComponent(item.branchName)}`
+}
+
+async function copyBranchName(branchName: string) {
+  try {
+    await navigator.clipboard.writeText(branchName)
+  } catch (err) {
+    console.warn('[Mergician] Failed to copy branch name to clipboard:', err)
+  }
 }
 
 function itemStatusLabel(item: BranchWithActivity): string {
@@ -808,6 +831,17 @@ onUnmounted(() => {
   align-items: center;
   min-width: 0;
   gap: 6px;
+}
+
+.copy-branch-btn {
+  flex-shrink: 0;
+  opacity: 0.5;
+  transition: opacity 0.15s;
+}
+
+.branch-card:hover .copy-branch-btn,
+.copy-branch-btn:hover {
+  opacity: 1;
 }
 
 .title-icon {
