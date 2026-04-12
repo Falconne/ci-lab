@@ -92,9 +92,10 @@
           <!-- Action buttons -->
           <div class="d-flex ga-2 mb-4">
             <v-btn
-              variant="outlined"
+              color="primary"
+              variant="flat"
               size="small"
-              prepend-icon="mdi-source-merge"
+              prepend-icon="mdi-plus"
               class="text-none"
               @click="showAddMergeRequestDialog = true"
             >
