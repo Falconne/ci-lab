@@ -1,7 +1,7 @@
 <template>
-  <v-container>
-    <v-row justify="center" class="mt-4">
-      <v-col cols="12" md="10" lg="8">
+  <v-container fluid class="px-6">
+    <v-row class="mt-4">
+      <v-col cols="12">
         <!-- Error alert -->
         <v-alert
           v-if="errorMessage"
@@ -729,17 +729,28 @@ onUnmounted(() => {
   border-bottom: 1px solid #f0f0f0;
 }
 
-/* ---- Card container ---- */
+/* ---- Card container — multi-column grid ---- */
 .dashboard-cards {
   position: relative;
 }
 
 .card-container {
-  display: flex;
-  flex-direction: column;
-  /* more vertical space between cards for clarity */
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
   gap: 20px;
   position: relative;
+}
+
+@media (min-width: 900px) {
+  .card-container {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (min-width: 1280px) {
+  .card-container {
+    grid-template-columns: repeat(4, 1fr);
+  }
 }
 
 /* ---- Individual card ---- */
