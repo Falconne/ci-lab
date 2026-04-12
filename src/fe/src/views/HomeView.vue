@@ -45,116 +45,142 @@
           <p class="text-body-1 text-grey">Loading dashboard...</p>
         </div>
 
-        <div v-else class="dashboard-cards">
-          <TransitionGroup name="card-list" tag="div" class="card-container">
+        <div v-else>
+          <!-- Text filter for searching merge groups by branch name -->
+          <v-text-field
+            v-model="filterText"
+            prepend-inner-icon="mdi-magnify"
+            label="Filter by branch name"
+            variant="outlined"
+            density="compact"
+            clearable
+            hide-details
+            class="mb-4"
+          />
+
+          <div v-if="filteredMergeGroups.length === 0" class="text-center pa-8">
+            <v-icon icon="mdi-filter-off" size="48" color="grey" class="mb-3" />
+            <p class="text-body-1 text-grey">No merge groups match &quot;{{ filterText }}&quot;</p>
+          </div>
+
+          <div v-else class="dashboard-cards">
             <div
-              v-for="group in sortedMergeGroups"
-              :key="group.id.toString()"
-              class="merge-group-card"
-              :data-merge-group-id="group.id"
-              @click="openMergeGroupDetails(group)"
+              v-for="partition in partitionedGroups"
+              :key="partition.title"
+              class="partition-section"
             >
-              <div class="card-accent" :class="groupStatusClass(group)" />
-              <div class="card-body">
-                <div class="card-header">
-                                  <div class="branch-info">
-                      <v-icon icon="mdi-source-branch" size="small" class="branch-icon" />
-                      <span class="branch-name">{{ group.name }}</span>
+              <div class="partition-header">{{ partition.title }}</div>
+              <TransitionGroup name="card-list" tag="div" class="card-container">
+                <div
+                  v-for="group in partition.groups"
+                  :key="group.id.toString()"
+                  class="merge-group-card"
+                  :data-merge-group-id="group.id"
+                  @click="openMergeGroupDetails(group)"
+                >
+                  <div class="card-accent" :class="groupStatusClass(group)" />
+                  <div class="card-body">
+                    <div class="card-header">
+                      <div class="branch-info">
+                        <v-icon icon="mdi-source-branch" size="small" class="branch-icon" />
+                        <span class="branch-name">{{ group.name }}</span>
+                      </div>
+                      <div class="card-header-right">
+                        <span v-if="group.autoMerge" class="auto-merge-badge">
+                          <v-icon icon="mdi-merge" size="x-small" />
+                          Auto Merge
+                        </span>
+                        <span v-if="isGroupFullyLoaded(group)" class="card-status-badge" :class="groupStatusClass(group)">
+                          <span class="status-dot" />
+                          {{ groupStatusLabel(group) }}
+                        </span>
+                        <span v-else class="skeleton-badge"><span class="skeleton-shimmer" /></span>
+                        <v-btn
+                          icon
+                          size="x-small"
+                          variant="text"
+                          color="grey"
+                          :href="mergeGroupHref(group)"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="Open in new tab"
+                          @click.stop
+                        >
+                          <v-icon icon="mdi-open-in-new" size="24" />
+                        </v-btn>
+                      </div>
                     </div>
-                  <div class="card-header-right">
-                    <span v-if="group.autoMerge" class="auto-merge-badge">
-                      <v-icon icon="mdi-merge" size="x-small" />
-                      Auto Merge
-                    </span>
-                    <span v-if="isGroupFullyLoaded(group)" class="card-status-badge" :class="groupStatusClass(group)">
-                      <span class="status-dot" />
-                      {{ groupStatusLabel(group) }}
-                    </span>
-                    <span v-else class="skeleton-badge"><span class="skeleton-shimmer" /></span>
-                    <v-btn
-                      icon
-                      size="x-small"
-                      variant="text"
-                      color="grey"
-                      :href="mergeGroupHref(group)"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title="Open in new tab"
-                      @click.stop
-                    >
-                      <v-icon icon="mdi-open-in-new" size="24" />
-                    </v-btn>
+                    <div class="card-items">
+                      <div
+                        v-for="item in group.branches"
+                        :key="`${group.id}-${item.projectId}`"
+                        class="card-item"
+                      >
+                        <span class="item-main">
+                          <v-tooltip location="top" :text="item.projectNameWithNamespace">
+                            <template #activator="{ props }">
+                              <span class="item-project" v-bind="props" :title="item.projectNameWithNamespace">
+                                {{ item.projectName }}
+                              </span>
+                            </template>
+                          </v-tooltip>
+                          <template v-if="isBranchLoading(item)">
+                            <span class="item-skeleton-inline"><span class="skeleton-shimmer" /></span>
+                          </template>
+                          <template v-else>
+                            <span
+                              v-if="item.mergeRequestTitle"
+                              class="item-mr-title"
+                              :title="item.mergeRequestTitle"
+                            >
+                              | {{ truncateTitle(item.mergeRequestTitle as string) }}
+                            </span>
+                            <span
+                              v-else-if="item.hasMergeRequest === false"
+                              class="item-no-mr"
+                            >
+                              | No Merge Request
+                            </span>
+                          </template>
+                        </span>
+                        <v-tooltip
+                          v-if="!isBranchLoading(item) && itemApprovalsText(item)"
+                          location="top"
+                          :text="approvalsTooltip(item)"
+                        >
+                          <template #activator="{ props }">
+                            <span
+                              v-bind="props"
+                              class="item-approvals"
+                              :title="approvalsTooltip(item)"
+                            >
+                              <v-icon
+                                icon="mdi-thumb-up"
+                                size="small"
+                                :color="approvalIconColor(item)"
+                                :data-approval-color="approvalIconColor(item)"
+                                class="approval-icon"
+                              />
+                              <span class="approval-text">{{ itemApprovalsText(item) }}</span>
+                            </span>
+                          </template>
+                        </v-tooltip>
+                        <span class="item-time">
+                          <span v-if="isBranchLoading(item)" class="skeleton-time"><span class="skeleton-shimmer" /></span>
+                          <v-tooltip v-else-if="item.lastUpdated" location="top" :text="formatDateTime(item.lastUpdated)">
+                            <template v-slot:activator="{ props }">
+                              <span v-bind="props">{{ formatTimeAgo(item.lastUpdated) }}</span>
+                            </template>
+                          </v-tooltip>
+                          <span v-else class="text-grey">—</span>
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <div class="card-items">
-                  <div
-                    v-for="item in group.branches"
-                    :key="`${group.id}-${item.projectId}`"
-                    class="card-item"
-                  >
-                    <span class="item-main">
-                      <v-tooltip location="top" :text="item.projectNameWithNamespace">
-                        <template #activator="{ props }">
-                          <span class="item-project" v-bind="props" :title="item.projectNameWithNamespace">
-                            {{ item.projectName }}
-                          </span>
-                        </template>
-                      </v-tooltip>
-                      <template v-if="isBranchLoading(item)">
-                        <span class="item-skeleton-inline"><span class="skeleton-shimmer" /></span>
-                      </template>
-                      <template v-else>
-                        <span
-                          v-if="item.mergeRequestTitle"
-                          class="item-mr-title"
-                          :title="item.mergeRequestTitle"
-                        >
-                          | {{ truncateTitle(item.mergeRequestTitle as string) }}
-                        </span>
-                        <span
-                          v-else-if="item.hasMergeRequest === false"
-                          class="item-no-mr"
-                        >
-                          | No Merge Request
-                        </span>
-                      </template>
-                    </span>
-                    <v-tooltip
-                      v-if="!isBranchLoading(item) && itemApprovalsText(item)"
-                      location="top"
-                      :text="approvalsTooltip(item)"
-                    >
-                      <template #activator="{ props }">
-                        <span
-                          v-bind="props"
-                          class="item-approvals"
-                          :title="approvalsTooltip(item)"
-                        >
-                          <v-icon
-                            icon="mdi-thumb-up"
-                            size="small"
-                            :color="approvalIconColor(item)"
-                            :data-approval-color="approvalIconColor(item)"
-                            class="approval-icon"
-                          />
-                          <span class="approval-text">{{ itemApprovalsText(item) }}</span>
-                        </span>
-                      </template>
-                    </v-tooltip>
-                    <span class="item-time">
-                      <span v-if="isBranchLoading(item)" class="skeleton-time"><span class="skeleton-shimmer" /></span>
-                      <v-tooltip v-else-if="item.lastUpdated" location="top" :text="formatDateTime(item.lastUpdated)">
-                        <template v-slot:activator="{ props }">
-                          <span v-bind="props">{{ formatTimeAgo(item.lastUpdated) }}</span>
-                        </template>
-                      </v-tooltip>
-                      <span v-else class="text-grey">—</span>
-                    </span>
-                  </div>
-                </div>
-              </div>
+              </TransitionGroup>
             </div>
-          </TransitionGroup>
+          </div>
         </div>
       </v-col>
     </v-row>
@@ -199,6 +225,11 @@ interface MergeGroup {
   autoMergeWarning: string | null
 }
 
+interface GroupPartition {
+  title: string
+  groups: MergeGroup[]
+}
+
 type GroupStatus = 'ready' | 'open' | 'waiting'
 
 const FAST_POLL_INTERVAL_MS = 1000
@@ -215,6 +246,7 @@ const initialLoading = ref(true)
 const authenticated = computed(() => currentUser.value !== null)
 const initialPhase = ref(false)
 const errorMessage = ref('')
+const filterText = ref('')
 const now = ref(Date.now())
 
 let pollIntervalId: ReturnType<typeof setInterval> | null = null
@@ -304,11 +336,6 @@ function groupLatestTimestamp(group: MergeGroup): string | null {
   return latest
 }
 
-function groupTimeAgo(group: MergeGroup): string {
-  const ts = groupLatestTimestamp(group)
-  return ts ? formatTimeAgo(ts) : ''
-}
-
 /**
  * Truncates a title to 222 characters, appending "..." when it was longer.
  */
@@ -331,6 +358,58 @@ const sortedMergeGroups = computed<MergeGroup[]>(() => {
     if (!bTs) return 1
     return new Date(bTs).getTime() - new Date(aTs).getTime()
   })
+})
+
+/**
+ * Filters sorted merge groups by branch name using the user-entered filter text.
+ */
+const filteredMergeGroups = computed<MergeGroup[]>(() => {
+  const query = filterText.value.trim().toLowerCase()
+  if (!query) return sortedMergeGroups.value
+  return sortedMergeGroups.value.filter(group =>
+    group.name.toLowerCase().includes(query) ||
+    group.branches.some(b => b.branchName.toLowerCase().includes(query))
+  )
+})
+
+function getPartitionKey(group: MergeGroup): string {
+  const ts = groupLatestTimestamp(group)
+  if (!ts) return 'today'
+
+  const todayMidnight = new Date()
+  todayMidnight.setHours(0, 0, 0, 0)
+
+  const groupDate = new Date(ts)
+  groupDate.setHours(0, 0, 0, 0)
+
+  const daysAgo = Math.floor((todayMidnight.getTime() - groupDate.getTime()) / 86400000)
+  if (daysAgo === 0) return 'today'
+  if (daysAgo === 1) return 'yesterday'
+  if (daysAgo < 7) return 'last7days'
+  return 'older'
+}
+
+/**
+ * Splits the filtered merge groups into time-based partitions for display.
+ * Empty partitions are omitted.
+ */
+const partitionedGroups = computed<GroupPartition[]>(() => {
+  const sections: GroupPartition[] = [
+    { title: 'Today', groups: [] },
+    { title: 'Yesterday', groups: [] },
+    { title: 'Last 7 Days', groups: [] },
+    { title: 'Older', groups: [] },
+  ]
+  const keyToSection: Record<string, GroupPartition> = {
+    today: sections[0],
+    yesterday: sections[1],
+    last7days: sections[2],
+    older: sections[3],
+  }
+  for (const group of filteredMergeGroups.value) {
+    keyToSection[getPartitionKey(group)].groups.push(group)
+  }
+  return sections.filter(s => s.groups.length > 0)
 })
 
 /**
@@ -497,6 +576,26 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* ---- Partition sections (time-based grouping) ---- */
+.partition-section {
+  margin-bottom: 28px;
+}
+
+.partition-section:last-child {
+  margin-bottom: 0;
+}
+
+.partition-header {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #9e9e9e;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
 /* ---- Card container ---- */
 .dashboard-cards {
   position: relative;
