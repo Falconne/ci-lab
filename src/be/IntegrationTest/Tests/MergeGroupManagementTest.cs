@@ -326,7 +326,8 @@ public class MergeGroupManagementTest : IDisposable
             await _browser.TakeScreenshot("find_mr_01_dashboard");
 
             // Type the MR URL into the filter box
-            var filterInput = _browser.Page.GetByLabel("Filter by branch name or MR URL");
+            // Use Exact = true to avoid matching the clearable icon's aria-label which contains the same text
+            var filterInput = _browser.Page.GetByLabel("Filter by branch name or MR URL", new PageGetByLabelOptions { Exact = true });
             await filterInput.WaitForAsync(new LocatorWaitForOptions { Timeout = 10000 });
             await filterInput.FillAsync(mrWebUrl);
             await _browser.TakeScreenshot("find_mr_02_url_filled");
