@@ -52,18 +52,26 @@
                 {{ overallStatusLabel }}
               </span>
               <span v-else class="skeleton-badge"><span class="skeleton-shimmer" /></span>
-              <v-btn
-                v-if="subscriptionLoaded"
-                :variant="isSubscribed ? 'tonal' : 'outlined'"
-                :color="isSubscribed ? 'primary' : undefined"
-                size="small"
-                :prepend-icon="isSubscribed ? 'mdi-star' : 'mdi-star-outline'"
-                :loading="subscriptionUpdating"
-                class="subscription-btn"
-                @click="toggleSubscription"
+              <v-tooltip
+                :text="isSubscribed ? 'Remove this merge group from my dashboard' : 'Track this merge group in my dashboard'"
+                location="bottom"
               >
-                {{ isSubscribed ? 'In my Merge Groups' : 'Add to my Merge Groups' }}
-              </v-btn>
+                <template #activator="{ props: tooltipProps }">
+                  <v-btn
+                    v-if="subscriptionLoaded"
+                    v-bind="tooltipProps"
+                    variant="flat"
+                    :color="isSubscribed ? 'grey' : 'primary'"
+                    size="small"
+                    :prepend-icon="isSubscribed ? 'mdi-minus' : 'mdi-plus'"
+                    :loading="subscriptionUpdating"
+                    class="subscription-btn"
+                    @click="toggleSubscription"
+                  >
+                    {{ isSubscribed ? 'Untrack Merge Group' : 'Track Merge Group' }}
+                  </v-btn>
+                </template>
+              </v-tooltip>
             </div>
 
             <!-- Auto Merge / Auto Rebase toggles -->
