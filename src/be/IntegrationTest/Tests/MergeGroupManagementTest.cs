@@ -325,18 +325,33 @@ public class MergeGroupManagementTest : IDisposable
             await LoginAndWaitForDashboard("test1");
             await _browser.TakeScreenshot("find_mr_01_dashboard");
 
-            // Type the MR URL into the filter box
-            // Use Exact = true to avoid matching the clearable icon's aria-label which contains the same text
+            // Type the MR URL into the filter box.
+            // Use Exact = true to avoid matching the clearable icon's aria-label which contains the same text.
             var filterInput = _browser.Page.GetByLabel("Filter by branch name or MR URL", new PageGetByLabelOptions { Exact = true });
             await filterInput.WaitForAsync(new LocatorWaitForOptions { Timeout = 10000 });
             await filterInput.FillAsync(mrWebUrl);
             await _browser.TakeScreenshot("find_mr_02_url_filled");
 
-            // Wait for "Open MR as Merge Group" button to appear (shown when URL matches no existing group)
+            // Mergician auto-discovers branches quickly, so the merge group may already be on the dashboard
+            // by the time we type the MR URL. Wait for either outcome:
+            //   (a) A filtered merge group card appears (MR is already tracked) → click it to navigate
+            //   (b) The "Open MR as Merge Group" button appears (MR not yet tracked) → click it to open
+            await _browser.Page.WaitForFunctionAsync(
+                "() => document.querySelectorAll('.merge-group-card').length > 0 || document.querySelector('.open-mr-btn') !== null",
+                null, new PageWaitForFunctionOptions { Timeout = 15000 });
+            await _browser.TakeScreenshot("find_mr_03_filtered");
+
             var openMrBtn = _browser.Page.Locator(".open-mr-btn");
-            await openMrBtn.WaitForAsync(new LocatorWaitForOptions { Timeout = 10000 });
-            await _browser.TakeScreenshot("find_mr_03_open_btn_visible");
-            await openMrBtn.ClickAsync();
+            if (await openMrBtn.IsVisibleAsync())
+            {
+                Log.Information("MR not yet tracked - clicking 'Open MR as Merge Group' button");
+                await openMrBtn.ClickAsync();
+            }
+            else
+            {
+                Log.Information("MR already tracked - clicking the filtered merge group card");
+                await _browser.Page.Locator(".merge-group-card").First.ClickAsync();
+            }
 
             // Wait for navigation to the merge group details page
             await _browser.Page.WaitForURLAsync(
