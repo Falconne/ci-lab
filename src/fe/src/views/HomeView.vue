@@ -303,6 +303,7 @@ const now = ref(Date.now())
 let pollIntervalId: ReturnType<typeof setInterval> | null = null
 let timeIntervalId: ReturnType<typeof setInterval> | null = null
 let fastPollTimeoutId: ReturnType<typeof setTimeout> | null = null
+let pollInProgress = false
 
 // --- Status logic ---
 
@@ -517,6 +518,8 @@ function formatTimeAgo(isoString: string): string {
  * Groups are updated in place; removed groups are cleaned up.
  */
 async function pollDashboard() {
+  if (pollInProgress) return
+  pollInProgress = true
   try {
     const response = await fetchBackend('/api/dashboard/refresh', {
       method: 'POST'
@@ -529,14 +532,18 @@ async function pollDashboard() {
     }
 
     if (response.status === 503) {
-      errorMessage.value = 'Database is unavailable. Please try again later.'
-      stopPolling()
+      errorMessage.value = 'Database is temporarily unavailable. Retrying...'
       return
     }
 
     if (!response.ok) {
       console.error('Poll failed with status', response.status)
       return
+    }
+
+    // Clear any previous transient error once a successful response arrives
+    if (errorMessage.value === 'Database is temporarily unavailable. Retrying...') {
+      errorMessage.value = ''
     }
 
     const data: MergeGroup[] = await response.json()
@@ -563,6 +570,8 @@ async function pollDashboard() {
     }
 
     console.error('Dashboard poll failed:', err)
+  } finally {
+    pollInProgress = false
   }
 }
 

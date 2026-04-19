@@ -339,6 +339,7 @@ const addMergeRequestLoading = ref(false)
 
 let pollIntervalId: ReturnType<typeof setInterval> | null = null
 let fastPollTimeoutId: ReturnType<typeof setTimeout> | null = null
+let pollInProgress = false
 
 const isFullyLoaded = computed<boolean>(() => {
   return activities.value.length > 0 && activities.value.every(b => b.hasMergeRequest !== null)
@@ -626,8 +627,14 @@ function getMergeGroupId(): string {
  * Existing branches are updated, new ones added, and removed branches are cleaned up.
  */
 async function pollMergeGroup() {
+  if (pollInProgress) return
+  pollInProgress = true
+
   const mergeGroupId = getMergeGroupId()
-  if (!mergeGroupId) return
+  if (!mergeGroupId) {
+    pollInProgress = false
+    return
+  }
 
   try {
     const response = await fetchBackend(`/api/merge-groups/${mergeGroupId}/refresh`, {
@@ -648,14 +655,18 @@ async function pollMergeGroup() {
     }
 
     if (response.status === 503) {
-      errorMessage.value = 'Database is unavailable. Please try again later.'
-      stopPolling()
+      errorMessage.value = 'Database is temporarily unavailable. Retrying...'
       return
     }
 
     if (!response.ok) {
       console.error('Poll failed with status', response.status)
       return
+    }
+
+    // Clear any previous transient error once a successful response arrives
+    if (errorMessage.value === 'Database is temporarily unavailable. Retrying...') {
+      errorMessage.value = ''
     }
 
     const data: MergeGroup = await response.json()
@@ -689,6 +700,8 @@ async function pollMergeGroup() {
     }
 
     console.error('Merge group poll failed:', err)
+  } finally {
+    pollInProgress = false
   }
 }
 
