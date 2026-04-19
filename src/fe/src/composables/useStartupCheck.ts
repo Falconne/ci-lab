@@ -1,3 +1,10 @@
+/**
+ * Composable for tracking the backend startup / health state.
+ *
+ * State is declared at module scope (singleton pattern) so all views
+ * share the same startup state. A single health poller keeps every
+ * route in sync with backend readiness and GitLab recovery transitions.
+ */
 import { readonly, ref } from 'vue'
 import router from '@/router'
 

@@ -1,3 +1,10 @@
+/**
+ * Composable for managing the current authenticated user.
+ *
+ * State is declared at module scope so all consumers share the same
+ * reactive refs. The loading promise is deduped so concurrent calls
+ * don't issue parallel /api/auth/me requests.
+ */
 import { readonly, ref } from 'vue'
 import { fetchBackend, isStartupRequiredError } from '@/composables/useBackendFetch'
 
