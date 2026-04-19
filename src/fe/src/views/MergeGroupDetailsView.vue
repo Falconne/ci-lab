@@ -279,37 +279,7 @@ import { onMounted, onUnmounted, ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { fetchBackend, isStartupRequiredError } from '@/composables/useBackendFetch'
 import { useAppLoading } from '@/composables/useAppLoading'
-
-interface BranchBuildJob {
-  name: string
-  status: string
-  url?: string | null
-}
-
-interface BranchWithActivity {
-  branchName: string
-  projectId: number
-  projectName: string
-  projectNameWithNamespace: string
-  hasMergeRequest: boolean | null
-  approvalsRequired: number | null
-  approvalsGiven: number | null
-  lastUpdated: string | null
-  mergeRequestTitle?: string | null
-  mergeRequestUrl?: string | null
-  projectUrl?: string | null
-  buildJobs?: BranchBuildJob[] | null
-  id: number
-}
-
-interface MergeGroup {
-  id: number
-  name: string
-  branches: BranchWithActivity[]
-  autoMerge: boolean
-  autoRebase: boolean
-  autoMergeWarning: string | null
-}
+import type { BranchWithActivity, MergeGroup } from '@/types/mergeGroup'
 
 const FAST_POLL_INTERVAL_MS = 1000
 const NORMAL_POLL_INTERVAL_MS = 5000
