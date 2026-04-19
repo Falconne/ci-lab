@@ -10,7 +10,14 @@ import '@mdi/font/css/materialdesignicons.css'
 // filenames that no longer exist. This listener catches those failures and
 // forces a clean page reload so the user gets the new version automatically.
 window.addEventListener('vite:preloadError', (event) => {
+  const lastReload = sessionStorage.getItem('mergician-chunk-reload')
+  const now = Date.now()
+  if (lastReload && now - parseInt(lastReload, 10) < 10_000) {
+    console.error('[Mergician] Chunk preload failed after recent reload — not reloading again', event)
+    return
+  }
   console.warn('[Mergician] Chunk preload failed — reloading to pick up new version', event)
+  sessionStorage.setItem('mergician-chunk-reload', now.toString())
   window.location.reload()
 })
 
