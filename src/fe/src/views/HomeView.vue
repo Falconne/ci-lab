@@ -626,6 +626,8 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+@import '@/assets/status-badges.css';
+
 /* ---- Filter row ---- */
 .filter-row {
   display: flex;
@@ -711,21 +713,6 @@ onUnmounted(() => {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.08);
 }
 
-/* Left accent bar */
-.card-accent {
-  width: 5px;
-  flex-shrink: 0;
-}
-
-.card-accent.status-ready { background: #4caf50; }
-.card-accent.status-open { background: #1976d2; }
-.card-accent.status-waiting { background: #fb8c00; }
-
-.card-body {
-  flex: 1;
-  padding: 14px 18px;
-  min-width: 0;
-}
 
 /* ---- Card header ---- */
 .card-header {
@@ -789,34 +776,6 @@ onUnmounted(() => {
   gap: 14px;
   flex-shrink: 0;
 }
-
-/* ---- Status badges ---- */
-.card-status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 0.78rem;
-  font-weight: 600;
-  padding: 2px 10px;
-  border-radius: 12px;
-  line-height: 1.4;
-}
-
-.card-status-badge .status-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.status-ready { background: #e8f5e9; color: #2e7d32; }
-.status-ready .status-dot { background: #4caf50; }
-
-.status-open { background: #e3f2fd; color: #1565c0; }
-.status-open .status-dot { background: #1976d2; }
-
-.status-waiting { background: #fff3e0; color: #e65100; }
-.status-waiting .status-dot { background: #fb8c00; }
 
 .auto-merge-badge {
   display: inline-flex;
@@ -906,31 +865,6 @@ onUnmounted(() => {
 /* FLIP move transition for reordering */
 .card-list-move {
   transition: transform 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
-}
-
-/* ---- Skeleton loading shimmer ---- */
-@keyframes shimmer {
-  0% { background-position: -200px 0; }
-  100% { background-position: 200px 0; }
-}
-
-.skeleton-shimmer {
-  display: block;
-  width: 100%;
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, #e0e0e0 25%, #f5f5f5 50%, #e0e0e0 75%);
-  background-size: 400px 100%;
-  animation: shimmer 1.5s ease-in-out infinite;
-}
-
-/* Skeleton for status badge — replaces the real badge while data is loading */
-.skeleton-badge {
-  display: inline-block;
-  width: 60px;
-  height: 20px;
-  border-radius: 12px;
-  overflow: hidden;
 }
 
 /* Skeleton for MR title area — inline with project name */
