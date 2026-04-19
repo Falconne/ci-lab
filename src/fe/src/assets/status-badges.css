@@ -17,14 +17,14 @@
   flex-shrink: 0;
 }
 
-.status-ready { background: #e8f5e9; color: #2e7d32; }
-.status-ready .status-dot { background: #4caf50; }
+.status-ready { background: rgba(var(--v-theme-success), 0.12); color: rgb(var(--v-theme-success)); }
+.status-ready .status-dot { background: rgb(var(--v-theme-success)); }
 
-.status-open { background: #e3f2fd; color: #1565c0; }
-.status-open .status-dot { background: #1976d2; }
+.status-open { background: rgba(var(--v-theme-info), 0.12); color: rgb(var(--v-theme-info)); }
+.status-open .status-dot { background: rgb(var(--v-theme-info)); }
 
-.status-waiting { background: #fff3e0; color: #e65100; }
-.status-waiting .status-dot { background: #fb8c00; }
+.status-waiting { background: rgba(var(--v-theme-warning), 0.12); color: rgb(var(--v-theme-warning)); }
+.status-waiting .status-dot { background: rgb(var(--v-theme-warning)); }
 
 .status-loading { background: #f5f5f5; color: #757575; }
 .status-loading .status-dot { background: #bdbdbd; }
@@ -35,9 +35,9 @@
   flex-shrink: 0;
 }
 
-.card-accent.status-ready { background: #4caf50; }
-.card-accent.status-open { background: #1976d2; }
-.card-accent.status-waiting { background: #fb8c00; }
+.card-accent.status-ready { background: rgb(var(--v-theme-success)); }
+.card-accent.status-open { background: rgb(var(--v-theme-info)); }
+.card-accent.status-waiting { background: rgb(var(--v-theme-warning)); }
 .card-accent.status-loading { background: #bdbdbd; }
 
 /* ---- Card body ---- */
