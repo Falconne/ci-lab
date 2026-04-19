@@ -77,13 +77,14 @@
             </v-text-field>
 
             <v-btn
-              v-if="isMrUrlFilter && filteredMergeGroups.length === 0 && !openMrLoading"
+              v-if="isMrUrlFilter && filteredMergeGroups.length === 0"
               color="primary"
               variant="flat"
               size="small"
               prepend-icon="mdi-open-in-app"
               class="ml-2 text-none open-mr-btn"
               :loading="openMrLoading"
+              :disabled="openMrLoading"
               @click="openMrAsGroup"
             >
               Open MR as Merge Group
