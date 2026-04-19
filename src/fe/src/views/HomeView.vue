@@ -503,6 +503,7 @@ async function pasteFromClipboard() {
     filterText.value = text
   } catch (err) {
     console.warn('[Mergician] Failed to read from clipboard:', err)
+    openMrError.value = 'Could not read from clipboard. Please paste manually.'
   }
 }
 
