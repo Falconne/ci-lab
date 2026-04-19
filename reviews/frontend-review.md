@@ -554,12 +554,11 @@ Same pattern for `jobStatusColor`.
 
 **Problem:** The `now` ref updates every 60 seconds (`setInterval(() => { now.value = Date.now() }, 60000)`), but `formatTimeAgo` renders at seconds granularity (e.g. "5 seconds ago"). This means a timestamp from 5 seconds ago displays as "5 seconds ago" and stays frozen for the next 55 seconds until the next tick, showing "65 seconds ago" → "1 minute ago". This creates a jarring jump.
 
-**Fix:** Either:
-1. **Lower the interval to 10–15 seconds** for more natural updates (minimal performance cost):
+**Fix:**:
+**Lower the interval to 10 seconds** for more natural updates (minimal performance cost):
    ```typescript
-   timeIntervalId = setInterval(() => { now.value = Date.now() }, 15000)
+   timeIntervalId = setInterval(() => { now.value = Date.now() }, 10000)
    ```
-2. **Or** change `formatTimeAgo` to not show seconds for very recent times (show "just now" for anything under 60s, then "1 minute ago" etc.), which matches the 60s update cadence.
 
 ---
 
