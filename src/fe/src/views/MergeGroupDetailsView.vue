@@ -365,8 +365,8 @@ async function loadSubscription() {
   try {
     const response = await fetchBackend(`/api/merge-groups/${mergeGroupId}/subscription`)
     if (response.ok) {
-      const data = await response.json()
-      isSubscribed.value = data.isSubscribed
+      const data = await response.json() as { isSubscribed?: boolean }
+      isSubscribed.value = data.isSubscribed === true
       subscriptionLoaded.value = true
     }
   } catch (err) {
@@ -385,8 +385,8 @@ async function toggleSubscription() {
   try {
     const response = await fetchBackend(`/api/merge-groups/${mergeGroupId}/subscription`, { method })
     if (response.ok) {
-      const data = await response.json()
-      isSubscribed.value = data.isSubscribed
+      const data = await response.json() as { isSubscribed?: boolean }
+      isSubscribed.value = data.isSubscribed === true
     } else {
       console.error('Failed to update subscription, status', response.status)
       errorMessage.value = 'Failed to update subscription.'

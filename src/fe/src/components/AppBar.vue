@@ -74,8 +74,8 @@ onMounted(async () => {
   try {
     const response = await fetchBackend('/api/version')
     if (response.ok) {
-      const data = await response.json()
-      backendVersion.value = data.version || 'unknown'
+      const data = await response.json() as { version?: string }
+      backendVersion.value = data.version ?? 'unknown'
     }
   } catch (versionError) {
     if (!isStartupRequiredError(versionError)) {

@@ -441,6 +441,10 @@ async function pollDashboard() {
     }
 
     const data: MergeGroup[] = await response.json()
+    if (!Array.isArray(data)) {
+      console.error('[Mergician] Unexpected dashboard response shape', data)
+      return
+    }
 
     const incomingIds = new Set<number>(data.map(g => g.id))
 
@@ -510,7 +514,11 @@ async function openMrAsGroup() {
     })
 
     if (response.ok) {
-      const data = await response.json()
+      const data = await response.json() as { mergeGroupId?: number }
+      if (!data.mergeGroupId) {
+        openMrError.value = 'Unexpected response: missing mergeGroupId'
+        return
+      }
       filterText.value = ''
       router.push(`/merge-group/${data.mergeGroupId}`)
     } else {
