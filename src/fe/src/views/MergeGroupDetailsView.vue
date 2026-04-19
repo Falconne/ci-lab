@@ -532,6 +532,9 @@ async function updateSettings(newAutoMerge: boolean, newAutoRebase: boolean) {
   const mergeGroupId = getMergeGroupId()
   if (!mergeGroupId) return
 
+  const prevAutoMerge = autoMerge.value
+  const prevAutoRebase = autoRebase.value
+
   settingsUpdating.value = true
   try {
     const response = await fetchBackend(`/api/merge-groups/${mergeGroupId}/settings`, {
@@ -543,8 +546,8 @@ async function updateSettings(newAutoMerge: boolean, newAutoRebase: boolean) {
     if (!response.ok) {
       console.error('Failed to update settings, status', response.status)
       errorMessage.value = 'Failed to update auto merge settings.'
-      autoMerge.value = !newAutoMerge
-      autoRebase.value = !newAutoRebase
+      autoMerge.value = prevAutoMerge
+      autoRebase.value = prevAutoRebase
       return
     }
 
@@ -556,6 +559,8 @@ async function updateSettings(newAutoMerge: boolean, newAutoRebase: boolean) {
     if (isStartupRequiredError(err)) return
     console.error('Failed to update settings:', err)
     errorMessage.value = 'Failed to update auto merge settings.'
+    autoMerge.value = prevAutoMerge
+    autoRebase.value = prevAutoRebase
   } finally {
     settingsUpdating.value = false
   }
