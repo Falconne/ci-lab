@@ -1,7 +1,5 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 
-declare const __APP_VERSION__: string
-
 /**
  * Periodically checks /version.json for a new build hash.
  * When the deployed version differs from the running version,
