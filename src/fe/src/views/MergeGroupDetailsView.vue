@@ -355,6 +355,7 @@ const overallStatusLabel = computed<string>(() => {
 const overallStatusClass = computed<string>(() => {
   if (overallStatusLabel.value === 'Ready') return 'status-ready'
   if (overallStatusLabel.value === 'Open') return 'status-open'
+  if (overallStatusLabel.value === 'Loading') return 'status-loading'
   return 'status-waiting'
 })
 
@@ -362,6 +363,7 @@ function itemStatusClass(item: BranchWithActivity): string {
   const label = itemStatusLabel(item)
   if (label === 'Ready') return 'status-ready'
   if (label === 'Open') return 'status-open'
+  if (label === 'Loading') return 'status-loading'
   return 'status-waiting'
 }
 
@@ -384,7 +386,10 @@ async function copyBranchName(branchName: string) {
 }
 
 function itemStatusLabel(item: BranchWithActivity): string {
-  if (!item.hasMergeRequest) {
+  if (item.hasMergeRequest === null) {
+    return 'Loading'
+  }
+  if (item.hasMergeRequest === false) {
     return 'Waiting'
   }
 
@@ -399,6 +404,7 @@ function itemStatusColor(item: BranchWithActivity): string {
   const status = itemStatusLabel(item)
   if (status === 'Ready') return 'success'
   if (status === 'Open') return 'info'
+  if (status === 'Loading') return 'grey'
   return 'warning'
 }
 
@@ -796,6 +802,9 @@ onUnmounted(() => {
 .status-waiting { background: #fff3e0; color: #e65100; }
 .status-waiting .status-dot { background: #fb8c00; }
 
+.status-loading { background: #f5f5f5; color: #757575; }
+.status-loading .status-dot { background: #bdbdbd; }
+
 /* ---- Branch card — mirrors home page merge-group-card style ---- */
 .branch-card {
   display: flex;
@@ -818,6 +827,7 @@ onUnmounted(() => {
 .card-accent.status-ready { background: #4caf50; }
 .card-accent.status-open { background: #1976d2; }
 .card-accent.status-waiting { background: #fb8c00; }
+.card-accent.status-loading { background: #bdbdbd; }
 
 .card-body {
   flex: 1;
