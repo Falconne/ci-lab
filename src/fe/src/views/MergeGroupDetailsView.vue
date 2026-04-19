@@ -186,6 +186,7 @@
                           variant="text"
                           color="grey"
                           class="copy-branch-btn"
+                          aria-label="Copy branch name"
                           @click.stop="copyBranchName(item.branchName)"
                         >
                           <v-icon size="16">mdi-content-copy</v-icon>
@@ -609,6 +610,7 @@ async function pollMergeGroup() {
 }
 
 function updateRouteTitle(name: string) {
+  document.title = `${name} — Mergician`
   const mergeGroupId = getMergeGroupId()
   if (route.query.title !== name) {
     router.replace({

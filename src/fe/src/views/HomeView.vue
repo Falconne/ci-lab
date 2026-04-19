@@ -67,6 +67,7 @@
                       variant="text"
                       color="grey"
                       class="paste-btn"
+                      aria-label="Paste from clipboard"
                       @click="pasteFromClipboard"
                     >
                       <v-icon size="18">mdi-content-paste</v-icon>
@@ -125,7 +126,11 @@
                   :key="group.id.toString()"
                   class="merge-group-card"
                   :data-merge-group-id="group.id"
+                  role="link"
+                  tabindex="0"
+                  :aria-label="`Merge group ${group.name}`"
                   @click="openMergeGroupDetails(group)"
+                  @keydown.enter="openMergeGroupDetails(group)"
                 >
                   <div class="card-accent" :class="groupStatusClass(group)" />
                   <div class="card-body">
@@ -153,6 +158,7 @@
                           target="_blank"
                           rel="noopener noreferrer"
                           title="Open in new tab"
+                          aria-label="Open in new tab"
                           @click.stop
                         >
                           <v-icon icon="mdi-open-in-new" size="24" />

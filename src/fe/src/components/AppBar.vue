@@ -1,12 +1,12 @@
 <template>
   <v-app-bar color="primary" density="comfortable">
     <v-app-bar-title>
-      <div class="d-flex align-center app-title-link" @click="goHome" data-mergician-home-link>
+      <router-link to="/" class="d-flex align-center app-title-link text-white" style="text-decoration: none;" data-mergician-home-link>
         <v-icon icon="mdi-source-merge" class="mr-2" />
         Mergician
         <v-divider vertical class="mx-4 title-divider" />
         <span class="page-title">{{ pageTitle }}</span>
-      </div>
+      </router-link>
     </v-app-bar-title>
 
     <template v-slot:append>
@@ -39,13 +39,12 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { fetchBackend, isStartupRequiredError } from '@/composables/useBackendFetch'
 import { useCurrentUser } from '@/composables/useCurrentUser'
 import { useAppLoading } from '@/composables/useAppLoading'
 
 const route = useRoute()
-const router = useRouter()
 const frontendVersion = ref(__APP_VERSION__)
 const backendVersion = ref('unknown')
 const { currentUser, loadCurrentUser, clearCurrentUser } = useCurrentUser()
@@ -98,10 +97,6 @@ async function logout() {
 
   clearCurrentUser()
   window.location.href = '/'
-}
-
-function goHome() {
-  router.push('/')
 }
 </script>
 

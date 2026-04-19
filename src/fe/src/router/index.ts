@@ -17,7 +17,17 @@ const router = createRouter({
       component: MergeGroupDetailsView,
       meta: { title: 'Merge Group' },
     },
+    {
+      path: '/:pathMatch(.*)*',
+      name: 'not-found',
+      redirect: '/',
+    },
   ],
+})
+
+router.afterEach((to) => {
+  const title = to.meta?.title as string | undefined
+  document.title = title ? `${title} — Mergician` : 'Mergician'
 })
 
 export default router
