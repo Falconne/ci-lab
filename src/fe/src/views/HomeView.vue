@@ -241,7 +241,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { fetchBackend, isStartupRequiredError } from '@/composables/useBackendFetch'
 import { useCurrentUser } from '@/composables/useCurrentUser'
-import { useAppLoading } from '@/composables/useAppLoading'
+import { usePolling } from '@/composables/usePolling'
 import type { BranchWithActivity, MergeGroup } from '@/types/mergeGroup'
 
 interface GroupPartition {
@@ -251,29 +251,21 @@ interface GroupPartition {
 
 type GroupStatus = 'ready' | 'open' | 'waiting'
 
-const FAST_POLL_INTERVAL_MS = 1000
-const NORMAL_POLL_INTERVAL_MS = 5000
-const FAST_POLL_DURATION_MS = 5000
-
 const route = useRoute()
 const router = useRouter()
 const { currentUser, loadCurrentUser } = useCurrentUser()
-const { setAppLoading } = useAppLoading()
+const { initialPhase, start: startPolling, stop: stopPolling } = usePolling(pollDashboard)
 
 const mergeGroups = ref<MergeGroup[]>([])
 const initialLoading = ref(true)
 const authenticated = computed(() => currentUser.value !== null)
-const initialPhase = ref(false)
 const errorMessage = ref('')
 const filterText = ref('')
 const openMrLoading = ref(false)
 const openMrError = ref('')
 const now = ref(Date.now())
 
-let pollIntervalId: ReturnType<typeof setInterval> | null = null
 let timeIntervalId: ReturnType<typeof setInterval> | null = null
-let fastPollTimeoutId: ReturnType<typeof setTimeout> | null = null
-let pollInProgress = false
 
 // --- Status logic ---
 
@@ -488,8 +480,6 @@ function formatTimeAgo(isoString: string): string {
  * Groups are updated in place; removed groups are cleaned up.
  */
 async function pollDashboard() {
-  if (pollInProgress) return
-  pollInProgress = true
   try {
     const response = await fetchBackend('/api/dashboard/refresh', {
       method: 'POST'
@@ -540,44 +530,7 @@ async function pollDashboard() {
     }
 
     console.error('Dashboard poll failed:', err)
-  } finally {
-    pollInProgress = false
   }
-}
-
-function startPolling() {
-  if (pollIntervalId !== null) return
-
-  // Start with fast polling (every 1s for 5 seconds)
-  initialPhase.value = true
-  setAppLoading(true)
-  pollIntervalId = setInterval(pollDashboard, FAST_POLL_INTERVAL_MS)
-
-  // After 5 seconds, switch to normal polling interval
-  fastPollTimeoutId = setTimeout(() => {
-    initialPhase.value = false
-    setAppLoading(false)
-    if (pollIntervalId !== null) {
-      clearInterval(pollIntervalId)
-      pollIntervalId = setInterval(pollDashboard, NORMAL_POLL_INTERVAL_MS)
-    }
-    fastPollTimeoutId = null
-  }, FAST_POLL_DURATION_MS)
-
-  // Fire the first poll immediately
-  pollDashboard()
-}
-
-function stopPolling() {
-  if (pollIntervalId !== null) {
-    clearInterval(pollIntervalId)
-    pollIntervalId = null
-  }
-  if (fastPollTimeoutId !== null) {
-    clearTimeout(fastPollTimeoutId)
-    fastPollTimeoutId = null
-  }
-  setAppLoading(false)
 }
 
 function openMergeGroupDetails(group: MergeGroup) {
@@ -669,7 +622,6 @@ onMounted(async () => {
 
 onUnmounted(() => {
   if (timeIntervalId) clearInterval(timeIntervalId)
-  stopPolling()
 })
 </script>
 

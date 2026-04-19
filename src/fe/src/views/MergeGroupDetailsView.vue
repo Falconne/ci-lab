@@ -275,24 +275,19 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, computed } from 'vue'
+import { onMounted, ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { fetchBackend, isStartupRequiredError } from '@/composables/useBackendFetch'
-import { useAppLoading } from '@/composables/useAppLoading'
+import { usePolling } from '@/composables/usePolling'
 import type { BranchWithActivity, MergeGroup } from '@/types/mergeGroup'
-
-const FAST_POLL_INTERVAL_MS = 1000
-const NORMAL_POLL_INTERVAL_MS = 5000
-const FAST_POLL_DURATION_MS = 5000
 
 const route = useRoute()
 const router = useRouter()
-const { setAppLoading } = useAppLoading()
+const { initialPhase, start: startPolling, stop: stopPolling } = usePolling(pollMergeGroup)
 
 const activities = ref<BranchWithActivity[]>([])
 const mergeGroupName = ref('')
 const initialLoading = ref(true)
-const initialPhase = ref(false)
 const errorMessage = ref('')
 const mergeGroupGone = ref(false)
 const autoMerge = ref(false)
@@ -306,10 +301,6 @@ const showAddMergeRequestDialog = ref(false)
 const addMergeRequestUrl = ref('')
 const addMergeRequestError = ref('')
 const addMergeRequestLoading = ref(false)
-
-let pollIntervalId: ReturnType<typeof setInterval> | null = null
-let fastPollTimeoutId: ReturnType<typeof setTimeout> | null = null
-let pollInProgress = false
 
 const isFullyLoaded = computed<boolean>(() => {
   return activities.value.length > 0 && activities.value.every(b => b.hasMergeRequest !== null)
@@ -597,14 +588,8 @@ function getMergeGroupId(): string {
  * Existing branches are updated, new ones added, and removed branches are cleaned up.
  */
 async function pollMergeGroup() {
-  if (pollInProgress) return
-  pollInProgress = true
-
   const mergeGroupId = getMergeGroupId()
-  if (!mergeGroupId) {
-    pollInProgress = false
-    return
-  }
+  if (!mergeGroupId) return
 
   try {
     const response = await fetchBackend(`/api/merge-groups/${mergeGroupId}/refresh`, {
@@ -670,46 +655,7 @@ async function pollMergeGroup() {
     }
 
     console.error('Merge group poll failed:', err)
-  } finally {
-    pollInProgress = false
   }
-}
-
-// --- Polling lifecycle ---
-
-function startPolling() {
-  if (pollIntervalId !== null) return
-
-  // Start with fast polling (every 1s for 5 seconds)
-  initialPhase.value = true
-  setAppLoading(true)
-  pollIntervalId = setInterval(pollMergeGroup, FAST_POLL_INTERVAL_MS)
-
-  // After 5 seconds, switch to normal polling interval
-  fastPollTimeoutId = setTimeout(() => {
-    initialPhase.value = false
-    setAppLoading(false)
-    if (pollIntervalId !== null) {
-      clearInterval(pollIntervalId)
-      pollIntervalId = setInterval(pollMergeGroup, NORMAL_POLL_INTERVAL_MS)
-    }
-    fastPollTimeoutId = null
-  }, FAST_POLL_DURATION_MS)
-
-  // Fire the first poll immediately
-  pollMergeGroup()
-}
-
-function stopPolling() {
-  if (pollIntervalId !== null) {
-    clearInterval(pollIntervalId)
-    pollIntervalId = null
-  }
-  if (fastPollTimeoutId !== null) {
-    clearTimeout(fastPollTimeoutId)
-    fastPollTimeoutId = null
-  }
-  setAppLoading(false)
 }
 
 function updateRouteTitle(name: string) {
@@ -738,11 +684,9 @@ onMounted(async () => {
 
   initialLoading.value = false
   startPolling()
-  loadSubscription()
-})
-
-onUnmounted(() => {
-  stopPolling()
+  loadSubscription().catch(err => {
+    console.error('[Mergician] Failed to load subscription:', err)
+  })
 })
 </script>
 
