@@ -313,12 +313,11 @@ function groupLatestTimestamp(group: MergeGroup): string | null {
   return latest
 }
 
-/**
- * Truncates a title to 222 characters, appending "..." when it was longer.
- */
+const MAX_TITLE_LENGTH = 222
+
 function truncateTitle(title: string): string {
-  if (title.length <= 222) return title
-  return title.slice(0, 222) + '...'
+  if (title.length <= MAX_TITLE_LENGTH) return title
+  return title.slice(0, MAX_TITLE_LENGTH) + '...'
 }
 
 /**
