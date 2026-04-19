@@ -218,7 +218,7 @@
                           <span v-if="isBranchLoading(item)" class="skeleton-time"><span class="skeleton-shimmer" /></span>
                           <v-tooltip v-else-if="item.lastUpdated" location="top" :text="formatDateTime(item.lastUpdated)">
                             <template v-slot:activator="{ props }">
-                              <span v-bind="props">{{ formatTimeAgo(item.lastUpdated) }}</span>
+                              <span v-bind="props">{{ formatTimeAgo(item.lastUpdated, now) }}</span>
                             </template>
                           </v-tooltip>
                           <span v-else class="text-grey">—</span>
@@ -248,6 +248,7 @@ import {
   getGroupStatus, groupStatusLabel, groupStatusClass,
   itemApprovalsText,
 } from '@/utils/statusHelpers'
+import { formatDateTime, formatTimeAgo } from '@/utils/dateFormatting'
 
 interface GroupPartition {
   title: string
@@ -407,29 +408,6 @@ const partitionedGroups = computed<GroupPartition[]>(() => {
   }
   return sections.filter(s => s.groups.length > 0)
 })
-
-/**
- * Formats an ISO datetime string to local date/time for display.
- */
-function formatDateTime(isoString: string): string {
-  if (!isoString) return ''
-  return new Date(isoString).toLocaleString()
-}
-
-function formatTimeAgo(isoString: string): string {
-  if (!isoString) return ''
-  const date = new Date(isoString)
-  const diffMs = now.value - date.getTime()
-  const diffSec = Math.floor(diffMs / 1000)
-
-  if (diffSec < 60) return diffSec === 1 ? '1 second ago' : `${diffSec} seconds ago`
-  const diffMin = Math.floor(diffSec / 60)
-  if (diffMin < 60) return diffMin === 1 ? '1 minute ago' : `${diffMin} minutes ago`
-  const diffHour = Math.floor(diffMin / 60)
-  if (diffHour < 24) return diffHour === 1 ? '1 hour ago' : `${diffHour} hours ago`
-  const diffDay = Math.floor(diffHour / 24)
-  return diffDay === 1 ? '1 day ago' : `${diffDay} days ago`
-}
 
 /**
  * Polls the backend for a full dashboard snapshot and reconciles with the displayed list.
