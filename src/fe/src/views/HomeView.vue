@@ -369,17 +369,14 @@ const filteredMergeGroups = computed<MergeGroup[]>(() => {
   )
 })
 
-function getPartitionKey(group: MergeGroup): string {
+function getPartitionKey(group: MergeGroup, todayMidnight: number): string {
   const ts = groupLatestTimestamp(group)
   if (!ts) return 'today'
-
-  const todayMidnight = new Date()
-  todayMidnight.setHours(0, 0, 0, 0)
 
   const groupDate = new Date(ts)
   groupDate.setHours(0, 0, 0, 0)
 
-  const daysAgo = Math.floor((todayMidnight.getTime() - groupDate.getTime()) / 86400000)
+  const daysAgo = Math.floor((todayMidnight - groupDate.getTime()) / 86400000)
   if (daysAgo === 0) return 'today'
   if (daysAgo === 1) return 'yesterday'
   if (daysAgo < 7) return 'last7days'
@@ -391,6 +388,10 @@ function getPartitionKey(group: MergeGroup): string {
  * Empty partitions are omitted.
  */
 const partitionedGroups = computed<GroupPartition[]>(() => {
+  const midnight = new Date()
+  midnight.setHours(0, 0, 0, 0)
+  const todayMidnight = midnight.getTime()
+
   const sections: GroupPartition[] = [
     { title: 'Today', groups: [] },
     { title: 'Yesterday', groups: [] },
@@ -404,7 +405,7 @@ const partitionedGroups = computed<GroupPartition[]>(() => {
     older: sections[3],
   }
   for (const group of filteredMergeGroups.value) {
-    keyToSection[getPartitionKey(group)].groups.push(group)
+    keyToSection[getPartitionKey(group, todayMidnight)].groups.push(group)
   }
   return sections.filter(s => s.groups.length > 0)
 })
@@ -535,7 +536,7 @@ async function openMrAsGroup() {
 }
 
 onMounted(async () => {
-  timeIntervalId = setInterval(() => { now.value = Date.now() }, 60000)
+  timeIntervalId = setInterval(() => { now.value = Date.now() }, 10_000)
 
   if (route.query.error && route.query.message) {
     errorMessage.value = route.query.message as string
