@@ -243,13 +243,16 @@ import { fetchBackend, isStartupRequiredError } from '@/composables/useBackendFe
 import { useCurrentUser } from '@/composables/useCurrentUser'
 import { usePolling } from '@/composables/usePolling'
 import type { BranchWithActivity, MergeGroup } from '@/types/mergeGroup'
+import {
+  isBranchLoading, isGroupFullyLoaded,
+  getGroupStatus, groupStatusLabel, groupStatusClass,
+  itemApprovalsText,
+} from '@/utils/statusHelpers'
 
 interface GroupPartition {
   title: string
   groups: MergeGroup[]
 }
-
-type GroupStatus = 'ready' | 'open' | 'waiting'
 
 const route = useRoute()
 const router = useRouter()
@@ -266,53 +269,6 @@ const openMrError = ref('')
 const now = ref(Date.now())
 
 let timeIntervalId: ReturnType<typeof setInterval> | null = null
-
-// --- Status logic ---
-
-/**
- * Whether a branch's detail data (MR status, approvals, build jobs) has not yet been fetched.
- */
-function isBranchLoading(item: BranchWithActivity): boolean {
-  return item.hasMergeRequest === null
-}
-
-/**
- * Whether all branches in a group have had their details resolved.
- * The group's overall status badge should only be shown when this is true.
- */
-function isGroupFullyLoaded(group: MergeGroup): boolean {
-  return group.branches.length > 0 && group.branches.every(b => b.hasMergeRequest !== null)
-}
-
-function getGroupStatus(group: MergeGroup): GroupStatus {
-  const statusPriority: GroupStatus[] = ['waiting', 'open', 'ready']
-  let worstIndex = 2 // start with 'ready' (best)
-  for (const item of group.branches) {
-    let s: GroupStatus = 'waiting'
-    if (item.hasMergeRequest) {
-      if (item.approvalsRequired != null && item.approvalsGiven != null
-        && item.approvalsGiven >= item.approvalsRequired) s = 'ready'
-      else s = 'open'
-    }
-    const idx = statusPriority.indexOf(s)
-    if (idx < worstIndex) worstIndex = idx
-  }
-  return statusPriority[worstIndex]
-}
-
-function groupStatusLabel(group: MergeGroup): string {
-  const s = getGroupStatus(group)
-  return s === 'ready' ? 'Ready' : s === 'open' ? 'Open' : 'Waiting'
-}
-
-function groupStatusClass(group: MergeGroup): string {
-  return `status-${getGroupStatus(group)}`
-}
-
-function itemApprovalsText(item: BranchWithActivity): string {
-  if (!item.hasMergeRequest || item.approvalsGiven == null || item.approvalsRequired == null) return ''
-  return `${item.approvalsGiven}/${item.approvalsRequired}`
-}
 
 function approvalIconColor(item: BranchWithActivity): string {
   if (!item.hasMergeRequest || item.approvalsGiven == null || item.approvalsRequired == null) {

@@ -280,6 +280,10 @@ import { useRoute, useRouter } from 'vue-router'
 import { fetchBackend, isStartupRequiredError } from '@/composables/useBackendFetch'
 import { usePolling } from '@/composables/usePolling'
 import type { BranchWithActivity, MergeGroup } from '@/types/mergeGroup'
+import {
+  itemStatusLabel, statusCssClass, statusChipColor,
+  itemApprovalsTextDetailed, jobStatusIcon, jobStatusColor,
+} from '@/utils/statusHelpers'
 
 const route = useRoute()
 const router = useRouter()
@@ -315,18 +319,11 @@ const overallStatusLabel = computed<string>(() => {
 })
 
 const overallStatusClass = computed<string>(() => {
-  if (overallStatusLabel.value === 'Ready') return 'status-ready'
-  if (overallStatusLabel.value === 'Open') return 'status-open'
-  if (overallStatusLabel.value === 'Loading') return 'status-loading'
-  return 'status-waiting'
+  return statusCssClass(overallStatusLabel.value as any)
 })
 
 function itemStatusClass(item: BranchWithActivity): string {
-  const label = itemStatusLabel(item)
-  if (label === 'Ready') return 'status-ready'
-  if (label === 'Open') return 'status-open'
-  if (label === 'Loading') return 'status-loading'
-  return 'status-waiting'
+  return statusCssClass(itemStatusLabel(item))
 }
 
 function branchUrl(item: BranchWithActivity): string {
@@ -347,59 +344,12 @@ async function copyBranchName(branchName: string) {
   }
 }
 
-function itemStatusLabel(item: BranchWithActivity): string {
-  if (item.hasMergeRequest === null) {
-    return 'Loading'
-  }
-  if (item.hasMergeRequest === false) {
-    return 'Waiting'
-  }
-
-  if (item.approvalsRequired != null && item.approvalsGiven != null) {
-    return item.approvalsGiven >= item.approvalsRequired ? 'Ready' : 'Open'
-  }
-
-  return 'Open'
-}
-
 function itemStatusColor(item: BranchWithActivity): string {
-  const status = itemStatusLabel(item)
-  if (status === 'Ready') return 'success'
-  if (status === 'Open') return 'info'
-  if (status === 'Loading') return 'grey'
-  return 'warning'
+  return statusChipColor(itemStatusLabel(item))
 }
 
 function itemApprovalsText(item: BranchWithActivity): string {
-  if (!item.hasMergeRequest || item.approvalsGiven == null || item.approvalsRequired == null) {
-    return 'Not available'
-  }
-
-  if (item.approvalsRequired === 0) {
-    return `${item.approvalsGiven}/${item.approvalsRequired} (No approval needed)`
-  }
-
-  return `${item.approvalsGiven}/${item.approvalsRequired}`
-}
-
-function jobStatusIcon(status: string): string {
-  const normalized = status.toLowerCase()
-  if (normalized === 'success') return 'mdi-check-circle'
-  if (normalized === 'failed' || normalized === 'failure') return 'mdi-close-circle'
-  if (normalized === 'running') return 'mdi-progress-clock'
-  if (normalized === 'pending') return 'mdi-timer-sand'
-  if (normalized === 'canceled' || normalized === 'cancelled') return 'mdi-cancel'
-  return 'mdi-help-circle'
-}
-
-function jobStatusColor(status: string): string {
-  const normalized = status.toLowerCase()
-  if (normalized === 'success') return 'success'
-  if (normalized === 'failed' || normalized === 'failure') return 'error'
-  if (normalized === 'running') return 'info'
-  if (normalized === 'pending') return 'warning'
-  if (normalized === 'canceled' || normalized === 'cancelled') return 'secondary'
-  return 'default'
+  return itemApprovalsTextDetailed(item)
 }
 
 function goBack() {
