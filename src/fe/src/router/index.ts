@@ -26,7 +26,9 @@ const router = createRouter({
 })
 
 router.afterEach((to) => {
-  const title = to.meta?.title as string | undefined
+  const queryTitle = to.query?.title as string | undefined
+  const metaTitle = to.meta?.title as string | undefined
+  const title = queryTitle || metaTitle
   document.title = title ? `${title} — Mergician` : 'Mergician'
 })
 

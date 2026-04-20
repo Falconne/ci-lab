@@ -610,7 +610,6 @@ async function pollMergeGroup() {
 }
 
 function updateRouteTitle(name: string) {
-  document.title = `${name} — Mergician`
   const mergeGroupId = getMergeGroupId()
   if (route.query.title !== name) {
     router.replace({
