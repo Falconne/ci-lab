@@ -531,7 +531,8 @@ function handleActivityEvent(data: BranchWithActivity) {
 }
 
 function getMergeGroupId(): string {
-  return route.params.mergeGroupId as string
+  const id = route.params.mergeGroupId
+  return Array.isArray(id) ? id[0] : (id ?? '')
 }
 
 /**
