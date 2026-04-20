@@ -284,6 +284,7 @@ import type { BranchWithActivity, MergeGroup } from '@/types/mergeGroup'
 import {
   itemStatusLabel, statusCssClass, statusChipColor,
   itemApprovalsTextDetailed, jobStatusIcon, jobStatusColor,
+  groupStatusLabel, groupStatusClass,
 } from '@/utils/statusHelpers'
 
 const route = useRoute()
@@ -311,17 +312,13 @@ const isFullyLoaded = computed<boolean>(() => {
   return activities.value.length > 0 && activities.value.every(b => b.hasMergeRequest !== null)
 })
 
-const overallStatusLabel = computed<string>(() => {
-  const statuses = activities.value.map(item => itemStatusLabel(item))
-  if (statuses.some(s => s === 'Waiting')) return 'Waiting'
-  if (statuses.length > 0 && statuses.every(s => s === 'Ready')) return 'Ready'
-  if (statuses.length === 0) return 'Loading'
-  return 'Open'
-})
+const overallStatusLabel = computed<string>(() =>
+  groupStatusLabel({ branches: activities.value } as MergeGroup)
+)
 
-const overallStatusClass = computed<string>(() => {
-  return statusCssClass(overallStatusLabel.value as any)
-})
+const overallStatusClass = computed<string>(() =>
+  groupStatusClass({ branches: activities.value } as MergeGroup)
+)
 
 function itemStatusClass(item: BranchWithActivity): string {
   return statusCssClass(itemStatusLabel(item))

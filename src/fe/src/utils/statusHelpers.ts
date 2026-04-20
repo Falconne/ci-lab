@@ -74,14 +74,16 @@ export function itemApprovalsTextDetailed(item: BranchWithActivity): string {
   return `${item.approvalsGiven}/${item.approvalsRequired}`
 }
 
-// --- Group-level helpers (home view) ---
+// --- Group-level helpers ---
 
-type GroupStatus = 'ready' | 'open' | 'waiting'
+type GroupStatus = 'loading' | 'ready' | 'open' | 'waiting'
 
 /**
  * Aggregate status for a merge group (worst-branch-wins).
+ * Returns 'loading' when there are no branches yet.
  */
 export function getGroupStatus(group: MergeGroup): GroupStatus {
+  if (group.branches.length === 0) return 'loading'
   const statusPriority: GroupStatus[] = ['waiting', 'open', 'ready']
   let worstIndex = 2 // start with 'ready' (best)
   for (const item of group.branches) {
@@ -96,6 +98,7 @@ export function getGroupStatus(group: MergeGroup): GroupStatus {
 }
 
 const groupStatusLabels: Record<GroupStatus, string> = {
+  loading: 'Loading',
   ready: 'Ready',
   open: 'Open',
   waiting: 'Waiting',
