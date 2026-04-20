@@ -36,6 +36,11 @@ const vuetify = createVuetify({
 })
 
 const app = createApp(App)
+
+app.config.errorHandler = (err, _instance, info) => {
+  console.error(`[Mergician] Unhandled error in ${info}:`, err)
+}
+
 app.use(router)
 app.use(vuetify)
 app.mount('#app')
