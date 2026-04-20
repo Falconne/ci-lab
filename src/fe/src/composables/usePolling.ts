@@ -12,6 +12,9 @@ interface UsePollingOptions {
  *
  * Must be called during component setup (not inside callbacks or conditionals)
  * so that the onUnmounted cleanup hook is properly registered.
+ *
+ * Uses recursive setTimeout so each poll starts only after the previous one completes,
+ * preventing poll drift and timer accumulation under load.
  */
 export function usePolling(pollFn: () => Promise<void>, options: UsePollingOptions = {}) {
   const {
@@ -23,48 +26,42 @@ export function usePolling(pollFn: () => Promise<void>, options: UsePollingOptio
   const { setAppLoading } = useAppLoading()
   const initialPhase = ref(false)
 
-  let pollIntervalId: ReturnType<typeof setInterval> | null = null
-  let fastPollTimeoutId: ReturnType<typeof setTimeout> | null = null
-  let pollInProgress = false
+  let running = false
+  let startTime = 0
 
-  async function guardedPoll() {
-    if (pollInProgress) return
-    pollInProgress = true
+  async function loop() {
+    if (!running) return
+
     try {
       await pollFn()
-    } finally {
-      pollInProgress = false
+    } catch (err) {
+      console.error('[Mergician] Unexpected error in poll loop:', err)
     }
+
+    if (!running) return
+
+    const elapsed = Date.now() - startTime
+    if (initialPhase.value && elapsed >= fastDurationMs) {
+      initialPhase.value = false
+      setAppLoading(false)
+    }
+
+    const delay = initialPhase.value ? fastIntervalMs : normalIntervalMs
+    setTimeout(loop, delay)
   }
 
   function start() {
-    if (pollIntervalId !== null) return
+    if (running) return
+    running = true
+    startTime = Date.now()
     initialPhase.value = true
     setAppLoading(true)
-    pollIntervalId = setInterval(guardedPoll, fastIntervalMs)
-
-    fastPollTimeoutId = setTimeout(() => {
-      initialPhase.value = false
-      setAppLoading(false)
-      if (pollIntervalId !== null) {
-        clearInterval(pollIntervalId)
-        pollIntervalId = setInterval(guardedPoll, normalIntervalMs)
-      }
-      fastPollTimeoutId = null
-    }, fastDurationMs)
-
-    guardedPoll()
+    loop()
   }
 
   function stop() {
-    if (pollIntervalId !== null) {
-      clearInterval(pollIntervalId)
-      pollIntervalId = null
-    }
-    if (fastPollTimeoutId !== null) {
-      clearTimeout(fastPollTimeoutId)
-      fastPollTimeoutId = null
-    }
+    running = false
+    initialPhase.value = false
     setAppLoading(false)
   }
 
@@ -72,3 +69,4 @@ export function usePolling(pollFn: () => Promise<void>, options: UsePollingOptio
 
   return { initialPhase, start, stop }
 }
+
