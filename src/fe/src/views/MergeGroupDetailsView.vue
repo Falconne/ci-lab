@@ -538,7 +538,13 @@ async function pollMergeGroup() {
 
     clearTransientError(errorMessage)
 
-    const data: MergeGroup = await response.json()
+    let data: MergeGroup
+    try {
+      data = await response.json()
+    } catch (parseError) {
+      console.error('[Mergician] Failed to parse merge group poll response as JSON:', parseError)
+      return
+    }
 
     // Update merge group name if changed
     if (data.name && data.name !== mergeGroupName.value) {

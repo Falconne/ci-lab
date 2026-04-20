@@ -440,7 +440,14 @@ async function pollDashboard() {
 
     clearTransientError(errorMessage)
 
-    const data: MergeGroup[] = await response.json()
+    let data: MergeGroup[]
+    try {
+      data = await response.json()
+    } catch (parseError) {
+      console.error('[Mergician] Failed to parse dashboard poll response as JSON:', parseError)
+      return
+    }
+
     if (!Array.isArray(data)) {
       console.error('[Mergician] Unexpected dashboard response shape', data)
       return
