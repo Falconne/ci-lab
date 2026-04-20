@@ -2,7 +2,6 @@ import { defineConfig, type Plugin } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vuetify from 'vite-plugin-vuetify'
 import { fileURLToPath, URL } from 'node:url'
-import { randomUUID } from 'node:crypto'
 import { execSync } from 'node:child_process'
 
 // Get git hash from environment (set during Docker build) or from git directly (for dev builds).
