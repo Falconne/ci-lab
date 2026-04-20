@@ -583,12 +583,12 @@ onMounted(async () => {
 .partition-header {
   font-size: 0.75rem;
   font-weight: 600;
-  color: #9e9e9e;
+  color: rgba(var(--v-theme-on-surface), 0.6);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   margin-bottom: 12px;
   padding-bottom: 6px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.08);
 }
 
 /* ---- Card container — multi-column grid ---- */
@@ -651,7 +651,7 @@ onMounted(async () => {
 }
 
 .branch-icon {
-  color: #5f6368;
+  color: rgba(var(--v-theme-on-surface), 0.6);
   margin-right: 6px;
   flex-shrink: 0;
 }
@@ -659,7 +659,7 @@ onMounted(async () => {
 .branch-name {
   font-weight: 600;
   font-size: 0.95rem;
-  color: #1a1a2e;
+  color: rgb(var(--v-theme-on-surface));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -667,7 +667,7 @@ onMounted(async () => {
 
 .item-mr-title {
   font-size: 0.85rem;
-  color: #5f6368;
+  color: rgba(var(--v-theme-on-surface), 0.6);
   margin-left: 4px;
   flex: 1;
   min-width: 0;
@@ -678,7 +678,7 @@ onMounted(async () => {
 
 .item-no-mr {
   font-size: 0.85rem;
-  color: #9e9e9e;
+  color: rgba(var(--v-theme-on-surface), 0.6);
   margin-left: 4px;
   white-space: nowrap;
 }
@@ -720,21 +720,21 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   padding: 6px 0;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid rgba(var(--v-theme-on-surface), 0.08);
   font-size: 0.85rem;
   gap: 12px;
 }
 
 .item-project {
   font-weight: 500;
-  color: #37474f;
+  color: rgb(var(--v-theme-on-surface));
   flex-shrink: 0;
   white-space: nowrap;
 }
 
 .item-approvals {
   font-size: 0.78rem;
-  color: #78909c;
+  color: rgba(var(--v-theme-on-surface), 0.6);
   font-weight: 500;
   display: inline-flex;
   align-items: center;
@@ -751,7 +751,7 @@ onMounted(async () => {
 
 .item-time {
   font-size: 0.75rem;
-  color: #9e9e9e;
+  color: rgba(var(--v-theme-on-surface), 0.6);
   white-space: nowrap;
   flex-shrink: 0;
   min-width: 70px;

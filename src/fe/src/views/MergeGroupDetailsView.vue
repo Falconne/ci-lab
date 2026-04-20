@@ -653,7 +653,7 @@ onMounted(async () => {
 }
 
 .title-icon {
-  color: #5f6368;
+  color: rgba(var(--v-theme-on-surface), 0.6);
   flex-shrink: 0;
 }
 
@@ -661,7 +661,7 @@ onMounted(async () => {
 .branch-title-text {
   font-weight: 600;
   font-size: 0.95rem;
-  color: #1a1a2e;
+  color: rgb(var(--v-theme-on-surface));
 }
 
 .branch-title-link {
@@ -689,13 +689,13 @@ onMounted(async () => {
 
 .detail-label {
   font-weight: 600;
-  color: #37474f;
+  color: rgb(var(--v-theme-on-surface));
   white-space: nowrap;
   flex-shrink: 0;
 }
 
 .detail-value {
-  color: #37474f;
+  color: rgb(var(--v-theme-on-surface));
   flex: 1;
   min-width: 0;
 }
