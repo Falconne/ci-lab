@@ -161,7 +161,7 @@
               :key="`${item.branchName}-${item.projectId}-details`"
               class="branch-card mb-4"
             >
-              <div class="card-accent" :class="itemStatusClass(item)" />
+              <div class="card-accent" :class="statusCssClass(itemStatusLabel(item))" />
               <div class="card-body">
                 <!-- Card header: title + status chip -->
                 <div class="card-header">
@@ -194,7 +194,7 @@
                       </template>
                     </v-tooltip>
                   </div>
-                  <v-chip v-if="item.hasMergeRequest !== null" size="small" :color="itemStatusColor(item)" variant="tonal" class="flex-shrink-0">
+                  <v-chip v-if="item.hasMergeRequest !== null" size="small" :color="statusChipColor(itemStatusLabel(item))" variant="tonal" class="flex-shrink-0">
                     {{ itemStatusLabel(item) }}
                   </v-chip>
                   <span v-else class="skeleton-chip"><span class="skeleton-shimmer" /></span>
@@ -205,7 +205,7 @@
                   <span class="detail-label">Approvals:</span>
                   <span class="detail-value">
                     <span v-if="item.hasMergeRequest === null" class="skeleton-detail"><span class="skeleton-shimmer" /></span>
-                    <template v-else>{{ itemApprovalsText(item) }}</template>
+                    <template v-else>{{ itemApprovalsTextDetailed(item) }}</template>
                   </span>
                 </div>
 
@@ -320,10 +320,6 @@ const overallStatusClass = computed<string>(() =>
   groupStatusClass({ branches: activities.value } as MergeGroup)
 )
 
-function itemStatusClass(item: BranchWithActivity): string {
-  return statusCssClass(itemStatusLabel(item))
-}
-
 function branchUrl(item: BranchWithActivity): string {
   if (!item.projectUrl) return ''
   return `${item.projectUrl}/-/tree/${encodeURIComponent(item.branchName)}?ref_type=heads`
@@ -340,14 +336,6 @@ async function copyBranchName(branchName: string) {
   } catch (err) {
     console.warn('[Mergician] Failed to copy branch name to clipboard:', err)
   }
-}
-
-function itemStatusColor(item: BranchWithActivity): string {
-  return statusChipColor(itemStatusLabel(item))
-}
-
-function itemApprovalsText(item: BranchWithActivity): string {
-  return itemApprovalsTextDetailed(item)
 }
 
 function goBack() {
@@ -513,20 +501,6 @@ async function dismissWarning() {
   }
 }
 
-// --- Incremental data management ---
-
-function handleActivityEvent(data: BranchWithActivity) {
-  const existingIndex = activities.value.findIndex(
-    a => a.branchName === data.branchName && a.projectId === data.projectId
-  )
-
-  if (existingIndex >= 0) {
-    activities.value[existingIndex] = data
-  } else {
-    activities.value.push(data)
-  }
-}
-
 function getMergeGroupId(): string {
   const id = route.params.mergeGroupId
   return Array.isArray(id) ? id[0] : (id ?? '')
@@ -588,14 +562,8 @@ async function pollMergeGroup() {
       autoMergeWarning.value = data.autoMergeWarning
     }
 
-    // Remove items no longer present in the response
-    const incomingIds = new Set<number>(data.branches.map(b => b.id))
-    activities.value = activities.value.filter(a => incomingIds.has(a.id))
-
-    // Update or add items from the response
-    for (const activity of data.branches) {
-      handleActivityEvent(activity)
-    }
+    // Replace activities with the full response (poll always returns the complete list)
+    activities.value = data.branches
   } catch (err) {
     if (isStartupRequiredError(err)) {
       console.info('[Mergician] Merge group polling paused while startup is in progress')
