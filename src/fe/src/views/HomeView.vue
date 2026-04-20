@@ -243,11 +243,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { fetchBackend, isStartupRequiredError } from '@/composables/useBackendFetch'
 import { useCurrentUser } from '@/composables/useCurrentUser'
 import { usePolling } from '@/composables/usePolling'
+import { useNow } from '@/composables/useNow'
 import type { BranchWithActivity, MergeGroup } from '@/types/mergeGroup'
 import {
   isBranchLoading, isGroupFullyLoaded,
@@ -273,9 +274,7 @@ const errorMessage = ref('')
 const filterText = ref('')
 const openMrLoading = ref(false)
 const openMrError = ref('')
-const now = ref(Date.now())
-
-let timeIntervalId: ReturnType<typeof setInterval> | null = null
+const now = useNow()
 
 function approvalIconColor(item: BranchWithActivity): string {
   if (!item.hasMergeRequest || item.approvalsGiven == null || item.approvalsRequired == null) {
@@ -542,8 +541,6 @@ async function openMrAsGroup() {
 }
 
 onMounted(async () => {
-  timeIntervalId = setInterval(() => { now.value = Date.now() }, 10_000)
-
   if (route.query.error && route.query.message) {
     errorMessage.value = route.query.message as string
     router.replace({ query: {} })
@@ -567,10 +564,6 @@ onMounted(async () => {
     console.error('Failed to load dashboard:', err)
     initialLoading.value = false
   }
-})
-
-onUnmounted(() => {
-  if (timeIntervalId) clearInterval(timeIntervalId)
 })
 </script>
 
