@@ -3,7 +3,7 @@
     <v-row class="mt-4">
       <!-- Back button: shown as left column on wide screens -->
       <v-col cols="auto" class="d-none d-lg-flex align-start" style="padding-top: 6px;">
-        <v-btn variant="text" prepend-icon="mdi-arrow-left" @click="goBack">
+        <v-btn variant="text" prepend-icon="mdi-arrow-left" :to="'/'">
           Back to Dashboard
         </v-btn>
       </v-col>
@@ -12,7 +12,7 @@
       <v-col cols="12" md="10" lg="9" class="mx-auto mx-lg-0">
         <!-- Back button: shown above content on narrow screens -->
         <div class="d-flex align-center mb-4 d-lg-none">
-          <v-btn variant="text" prepend-icon="mdi-arrow-left" @click="goBack">
+          <v-btn variant="text" prepend-icon="mdi-arrow-left" :to="'/'">
             Back to Dashboard
           </v-btn>
         </div>
@@ -336,10 +336,6 @@ async function copyBranchName(branchName: string) {
   } catch (err) {
     console.warn('[Mergician] Failed to copy branch name to clipboard:', err)
   }
-}
-
-function goBack() {
-  router.push('/')
 }
 
 // --- Subscription management ---
