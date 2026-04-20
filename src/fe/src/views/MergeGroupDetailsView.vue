@@ -159,7 +159,7 @@
             <div
               v-for="item in activities"
               :key="`${item.branchName}-${item.projectId}-details`"
-              class="branch-card mb-4"
+              class="branch-card status-card mb-4"
             >
               <div class="card-accent" :class="statusCssClass(itemStatusLabel(item))" />
               <div class="card-body">
@@ -622,16 +622,7 @@ onMounted(async () => {
   text-transform: none;
 }
 
-/* ---- Branch card — mirrors home page merge-group-card style ---- */
-.branch-card {
-  display: flex;
-  border-radius: 8px;
-  background: #fff;
-  border: 1.5px solid #e0e0e0;
-  border-left: none;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
-  overflow: hidden;
-}
+/* ---- Branch card — uses .status-card base, no extra modifiers needed ---- */
 
 /* ---- Card header ---- */
 .card-header {

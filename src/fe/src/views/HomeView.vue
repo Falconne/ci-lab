@@ -121,16 +121,14 @@
             >
               <div class="partition-header">{{ partition.title }}</div>
               <TransitionGroup name="card-list" tag="div" class="card-container">
-                <div
+                <a
                   v-for="group in partition.groups"
                   :key="group.id.toString()"
-                  class="merge-group-card"
+                  class="merge-group-card status-card"
                   :data-merge-group-id="group.id"
-                  role="link"
-                  tabindex="0"
                   :aria-label="`Merge group ${group.name}`"
-                  @click="openMergeGroupDetails(group)"
-                  @keydown.enter="openMergeGroupDetails(group)"
+                  :href="mergeGroupHref(group)"
+                  @click.prevent="openMergeGroupDetails(group)"
                 >
                   <div class="card-accent" :class="groupStatusClass(group)" />
                   <div class="card-body">
@@ -149,20 +147,6 @@
                           {{ groupStatusLabel(group) }}
                         </span>
                         <span v-else class="skeleton-badge"><span class="skeleton-shimmer" /></span>
-                        <v-btn
-                          icon
-                          size="x-small"
-                          variant="text"
-                          color="grey"
-                          :href="mergeGroupHref(group)"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          title="Open in new tab"
-                          aria-label="Open in new tab"
-                          @click.stop
-                        >
-                          <v-icon icon="mdi-open-in-new" size="24" />
-                        </v-btn>
                       </div>
                     </div>
                     <div class="card-items">
@@ -232,7 +216,7 @@
                       </div>
                     </div>
                   </div>
-                </div>
+                </a>
               </TransitionGroup>
             </div>
           </div>
@@ -639,15 +623,10 @@ onMounted(async () => {
 
 /* ---- Individual card ---- */
 .merge-group-card {
-  display: flex;
-  border-radius: 8px;
-  background: #fff;
-  border: 1.5px solid #e0e0e0;
-  border-left: none; /* accent bar replaces left border */
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
-  overflow: hidden;
   transition: box-shadow 0.2s ease;
   cursor: pointer;
+  text-decoration: none;
+  color: inherit;
 }
 
 .merge-group-card:hover {
