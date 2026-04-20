@@ -53,29 +53,29 @@ public class VersionAndLastUpdatedTest : IDisposable
 
         Log.Information($"Frontend version: {frontendVersionData.Version}");
 
-        // Verify the HomeView.vue source includes Last Updated column
+        // Verify the MergeGroupCard.vue source includes Last Updated column
         // (This is a code verification rather than runtime since the column is conditionally rendered based on data)
-        var homeViewPath = Path.Combine(
+        var mergeGroupCardPath = Path.Combine(
             TestConfig.RepositoryRoot,
             "src",
             "fe",
             "src",
-            "views",
-            "HomeView.vue");
+            "components",
+            "MergeGroupCard.vue");
 
-        if (!File.Exists(homeViewPath))
+        if (!File.Exists(mergeGroupCardPath))
         {
-            throw new Exception($"HomeView.vue not found at: {homeViewPath}");
+            throw new Exception($"MergeGroupCard.vue not found at: {mergeGroupCardPath}");
         }
 
-        var homeViewContent = await File.ReadAllTextAsync(homeViewPath);
-        if (!homeViewContent.Contains("lastUpdated") || !homeViewContent.Contains("formatTimeAgo"))
+        var mergeGroupCardContent = await File.ReadAllTextAsync(mergeGroupCardPath);
+        if (!mergeGroupCardContent.Contains("lastUpdated") || !mergeGroupCardContent.Contains("formatTimeAgo"))
         {
             throw new Exception(
-                "HomeView.vue does not contain lastUpdated field and formatTimeAgo rendering");
+                "MergeGroupCard.vue does not contain lastUpdated field and formatTimeAgo rendering");
         }
 
-        Log.Information("HomeView.vue confirmed to include last-updated time display");
+        Log.Information("MergeGroupCard.vue confirmed to include last-updated time display");
 
         // Verify AppBar.vue includes version display
         var appBarPath = Path.Combine(

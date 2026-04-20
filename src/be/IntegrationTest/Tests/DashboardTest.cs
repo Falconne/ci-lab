@@ -553,7 +553,7 @@ public class DashboardTest : IDisposable
                 $"Expected app bar title 'Merge Group: {branchName}', got '{pageTitle}'");
         }
 
-        var backButton = _browser.Page.Locator("button:has-text('Back to Dashboard')");
+        var backButton = _browser.Page.Locator(".v-btn:has-text('Back to Dashboard')");
         if (!await BrowserService.WaitForElement(backButton, timeoutMs: 10000))
         {
             throw new InvalidOperationException("Back to Dashboard button was not visible on details page");
