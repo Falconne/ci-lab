@@ -255,6 +255,7 @@ import {
   getGroupStatus, groupStatusLabel, groupStatusClass,
   itemApprovalsText,
 } from '@/utils/statusHelpers'
+import { handleTransientError, clearTransientError } from '@/utils/pollHelpers'
 import { formatDateTime, formatTimeAgo } from '@/utils/dateFormatting'
 
 interface GroupPartition {
@@ -430,20 +431,14 @@ async function pollDashboard() {
       return
     }
 
-    if (response.status === 503) {
-      errorMessage.value = 'Database is temporarily unavailable. Retrying...'
-      return
-    }
+    if (handleTransientError(errorMessage, response.status)) return
 
     if (!response.ok) {
       console.error('Poll failed with status', response.status)
       return
     }
 
-    // Clear any previous transient error once a successful response arrives
-    if (errorMessage.value === 'Database is temporarily unavailable. Retrying...') {
-      errorMessage.value = ''
-    }
+    clearTransientError(errorMessage)
 
     const data: MergeGroup[] = await response.json()
     if (!Array.isArray(data)) {

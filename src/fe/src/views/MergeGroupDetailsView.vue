@@ -286,6 +286,7 @@ import {
   itemApprovalsTextDetailed, jobStatusIcon, jobStatusColor,
   groupStatusLabel, groupStatusClass,
 } from '@/utils/statusHelpers'
+import { handleTransientError, clearTransientError } from '@/utils/pollHelpers'
 
 const route = useRoute()
 const router = useRouter()
@@ -528,20 +529,14 @@ async function pollMergeGroup() {
       return
     }
 
-    if (response.status === 503) {
-      errorMessage.value = 'Database is temporarily unavailable. Retrying...'
-      return
-    }
+    if (handleTransientError(errorMessage, response.status)) return
 
     if (!response.ok) {
       console.error('Poll failed with status', response.status)
       return
     }
 
-    // Clear any previous transient error once a successful response arrives
-    if (errorMessage.value === 'Database is temporarily unavailable. Retrying...') {
-      errorMessage.value = ''
-    }
+    clearTransientError(errorMessage)
 
     const data: MergeGroup = await response.json()
 
