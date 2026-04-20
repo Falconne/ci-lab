@@ -627,9 +627,7 @@ onMounted(async () => {
   display: flex;
   border-radius: 8px;
   background: #fff;
-  border-top: 1.5px solid #e0e0e0;
-  border-right: 1.5px solid #e0e0e0;
-  border-bottom: 1.5px solid #e0e0e0;
+  border: 1.5px solid #e0e0e0;
   border-left: none;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
   overflow: hidden;
