@@ -7,6 +7,12 @@ interface UsePollingOptions {
   fastDurationMs?: number
 }
 
+/**
+ * Composable for polling a backend endpoint at a fast rate initially, then a slower rate.
+ *
+ * Must be called during component setup (not inside callbacks or conditionals)
+ * so that the onUnmounted cleanup hook is properly registered.
+ */
 export function usePolling(pollFn: () => Promise<void>, options: UsePollingOptions = {}) {
   const {
     fastIntervalMs = 1000,
