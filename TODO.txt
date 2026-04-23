@@ -12,3 +12,9 @@ The tooltip for the "Auto Rebase" toggle should say "Keep rebasing out of date b
 
 Task 5)
 Change the "Filter by branch name or MR URL" to "Filter by branch name or Merge Request URL".
+
+Task 6)
+When a merge group or MR is in Waiting status, the tooltip over the status should show all the conditions it is waiting for. The status for a merge group card should show a combined result of all the MRs in the group. Within a merge group details page, the status bubble of each MR should show why that specific MR is in Waiting.
+
+Task 7)
+Make sure that if a MR needs a rebase, it is considered to be in Waiting state.
