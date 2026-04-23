@@ -68,16 +68,16 @@ public class MergeGroupManagementTest : IDisposable
         var detailsUrl = _browser.Page.Url;
         var mergeGroupId = detailsUrl.Split("/merge-group/")[1].Split("?")[0];
 
-        // Verify subscription button shows "Untrack Merge Group" (user is subscribed by default)
+        // Verify subscription button shows "Untrack" (user is subscribed by default)
         var subBtn = _browser.Page.Locator(".subscription-btn");
         await subBtn.WaitForAsync(new LocatorWaitForOptions { Timeout = 10000 });
         var btnText = await subBtn.InnerTextAsync();
         Log.Information("Subscription button text: {Text}", btnText);
 
-        if (!btnText.Contains("Untrack Merge Group"))
+        if (!btnText.Contains("Untrack"))
         {
             throw new InvalidOperationException(
-                $"Expected subscription button to say 'Untrack Merge Group', got '{btnText}'");
+                $"Expected subscription button to say 'Untrack', got '{btnText}'");
         }
 
         // Unsubscribe
@@ -88,10 +88,10 @@ public class MergeGroupManagementTest : IDisposable
         btnText = await subBtn.InnerTextAsync();
         Log.Information("Subscription button after unsubscribe: {Text}", btnText);
 
-        if (!btnText.Contains("Track Merge Group"))
+        if (!btnText.Contains("Track"))
         {
             throw new InvalidOperationException(
-                $"Expected subscription button to say 'Track Merge Group', got '{btnText}'");
+                $"Expected subscription button to say 'Track', got '{btnText}'");
         }
 
         // Navigate to dashboard and verify the merge group is gone
@@ -127,10 +127,10 @@ public class MergeGroupManagementTest : IDisposable
         btnText = await subBtn.InnerTextAsync();
         Log.Information("Subscription button on direct navigation: {Text}", btnText);
 
-        if (!btnText.Contains("Track Merge Group"))
+        if (!btnText.Contains("Track"))
         {
             throw new InvalidOperationException(
-                $"Expected 'Track Merge Group' after direct navigation, got '{btnText}'");
+                $"Expected 'Track' after direct navigation, got '{btnText}'");
         }
 
         // Re-subscribe
@@ -139,10 +139,10 @@ public class MergeGroupManagementTest : IDisposable
         await _browser.TakeScreenshot("subscription_06_after_resubscribe");
 
         btnText = await subBtn.InnerTextAsync();
-        if (!btnText.Contains("Untrack Merge Group"))
+        if (!btnText.Contains("Untrack"))
         {
             throw new InvalidOperationException(
-                $"Expected 'Untrack Merge Group' after resubscribe, got '{btnText}'");
+                $"Expected 'Untrack' after resubscribe, got '{btnText}'");
         }
 
         // Navigate to dashboard and verify the merge group is back

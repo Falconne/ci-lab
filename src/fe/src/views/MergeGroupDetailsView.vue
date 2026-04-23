@@ -61,14 +61,14 @@
                     v-if="subscriptionLoaded"
                     v-bind="tooltipProps"
                     variant="flat"
-                    :color="isSubscribed ? 'grey' : 'primary'"
+                    :color="isSubscribed ? 'brown' : 'primary'"
                     size="small"
                     :prepend-icon="isSubscribed ? 'mdi-minus' : 'mdi-plus'"
                     :loading="subscriptionUpdating"
-                    class="subscription-btn"
+                    :class="['subscription-btn', isSubscribed ? 'subscription-brown' : '']"
                     @click="toggleSubscription"
                   >
-                    {{ isSubscribed ? 'Untrack Merge Group' : 'Track Merge Group' }}
+                    {{ isSubscribed ? 'Untrack' : 'Track' }}
                   </v-btn>
                 </template>
               </v-tooltip>
@@ -625,6 +625,11 @@ onMounted(async () => {
 
 .subscription-btn {
   text-transform: none;
+}
+
+.subscription-brown {
+  background-color: #8B4513 !important; /* saddle brown */
+  color: white !important;
 }
 
 /* ---- Branch card — uses .status-card base, no extra modifiers needed ---- */
