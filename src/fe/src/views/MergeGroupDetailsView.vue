@@ -76,24 +76,36 @@
 
             <!-- Auto Merge / Auto Rebase toggles -->
             <div class="auto-merge-controls mt-3">
-              <v-switch
-                v-model="autoMerge"
-                label="Auto Merge"
-                color="primary"
-                density="compact"
-                hide-details
-                :disabled="settingsUpdating"
-                @update:model-value="onAutoMergeToggle"
-              />
-              <v-switch
-                v-model="autoRebase"
-                label="Auto Rebase"
-                color="primary"
-                density="compact"
-                hide-details
-                :disabled="settingsUpdating"
-                @update:model-value="onAutoRebaseToggle"
-              />
+              <v-tooltip :text="autoMergeTooltip" location="bottom">
+                <template #activator="{ props: tooltipProps }">
+                  <span v-bind="tooltipProps" class="d-inline-flex">
+                    <v-switch
+                      v-model="autoMerge"
+                      label="Auto Merge"
+                      color="primary"
+                      density="compact"
+                      hide-details
+                      :disabled="autoMergeDisabled"
+                      @update:model-value="onAutoMergeToggle"
+                    />
+                  </span>
+                </template>
+              </v-tooltip>
+              <v-tooltip text="Keep rebasing out of date branches" location="bottom">
+                <template #activator="{ props: tooltipProps }">
+                  <span v-bind="tooltipProps" class="d-inline-flex">
+                    <v-switch
+                      v-model="autoRebase"
+                      label="Auto Rebase"
+                      color="primary"
+                      density="compact"
+                      hide-details
+                      :disabled="settingsUpdating || !autoMerge"
+                      @update:model-value="onAutoRebaseToggle"
+                    />
+                  </span>
+                </template>
+              </v-tooltip>
             </div>
           </div>
 
@@ -180,9 +192,22 @@
                       </template>
                     </v-tooltip>
                   </div>
-                  <v-chip v-if="item.hasMergeRequest !== null" size="small" :color="statusChipColor(itemStatusLabel(item))" variant="tonal" class="flex-shrink-0">
-                    {{ itemStatusLabel(item) }}
-                  </v-chip>
+                  <template v-if="item.hasMergeRequest !== null">
+                    <v-tooltip
+                      v-if="itemStatusLabel(item) === 'Waiting'"
+                      location="top"
+                      :text="getItemWaitingReasonsText(item)"
+                    >
+                      <template #activator="{ props: tipProps }">
+                        <v-chip v-bind="tipProps" size="small" :color="statusChipColor(itemStatusLabel(item))" variant="tonal" class="flex-shrink-0">
+                          {{ itemStatusLabel(item) }}
+                        </v-chip>
+                      </template>
+                    </v-tooltip>
+                    <v-chip v-else size="small" :color="statusChipColor(itemStatusLabel(item))" variant="tonal" class="flex-shrink-0">
+                      {{ itemStatusLabel(item) }}
+                    </v-chip>
+                  </template>
                   <span v-else class="skeleton-chip"><span class="skeleton-shimmer" /></span>
                 </div>
 
@@ -290,6 +315,7 @@ import {
   itemStatusLabel, statusCssClass, statusChipColor,
   itemApprovalsTextDetailed, jobStatusIcon, jobStatusColor,
   groupStatusLabel, groupStatusClass,
+  getItemWaitingReasons,
 } from '@/utils/statusHelpers'
 import { handleTransientError, clearTransientError } from '@/utils/pollHelpers'
 
@@ -317,6 +343,64 @@ const addMergeRequestLoading = ref(false)
 const isFullyLoaded = computed<boolean>(() => {
   return activities.value.length > 0 && activities.value.every(b => b.hasMergeRequest !== null)
 })
+
+function getItemWaitingReasonsText(item: BranchWithActivity): string {
+  const reasons = getItemWaitingReasons(item)
+  return reasons.length > 0 ? reasons.join(', ') : 'Waiting'
+}
+
+// --- Merge permissions ---
+
+type MergePermissionState = 'checking' | 'can-merge' | 'blocked' | 'check-failed'
+const mergePermissionState = ref<MergePermissionState>('checking')
+const permissionBlockedProjects = ref<string[]>([])
+
+const autoMergeDisabled = computed<boolean>(() => {
+  if (settingsUpdating.value) return true
+  // Only block turning ON; always allow turning OFF to avoid trapping an enabled toggle
+  if (autoMerge.value) return false
+  return mergePermissionState.value === 'checking' || mergePermissionState.value === 'blocked'
+})
+
+const autoMergeTooltip = computed<string>(() => {
+  if (!autoMerge.value) {
+    if (mergePermissionState.value === 'checking') return 'Checking permissions...'
+    if (mergePermissionState.value === 'blocked') {
+      return `Cannot enable Auto Merge: missing merge permission in: ${permissionBlockedProjects.value.join(', ')}`
+    }
+  }
+  return 'Merge all branches together, only when all are ready'
+})
+
+async function checkMergePermissions() {
+  const mergeGroupId = getMergeGroupId()
+  if (!mergeGroupId) return
+
+  mergePermissionState.value = 'checking'
+  try {
+    const response = await fetchBackend(`/api/merge-groups/${mergeGroupId}/merge-permissions`)
+    if (!response.ok) {
+      console.error('Failed to check merge permissions, status', response.status)
+      mergePermissionState.value = 'check-failed'
+      return
+    }
+    const data = await response.json() as { canMerge: boolean; checkFailed: boolean; blockedProjects: string[] }
+    if (data.checkFailed) {
+      mergePermissionState.value = 'check-failed'
+    } else if (data.canMerge) {
+      mergePermissionState.value = 'can-merge'
+      permissionBlockedProjects.value = []
+    } else {
+      mergePermissionState.value = 'blocked'
+      permissionBlockedProjects.value = data.blockedProjects ?? []
+    }
+  } catch (err) {
+    if (isStartupRequiredError(err)) return
+    console.error('Failed to check merge permissions:', err)
+    mergePermissionState.value = 'check-failed'
+  }
+}
+
 
 const overallStatusLabel = computed<string>(() =>
   groupStatusLabel({ branches: activities.value } as MergeGroup)
@@ -413,6 +497,9 @@ async function submitAddMergeRequest() {
     if (response.ok) {
       closeAddMergeRequestDialog()
       await pollMergeGroup()
+      checkMergePermissions().catch(err => {
+        console.error('[Mergician] Failed to re-check merge permissions after adding MR:', err)
+      })
     } else {
       const data = await response.json().catch(() => null)
       addMergeRequestError.value = data?.error || `Request failed with status ${response.status}`
@@ -472,7 +559,8 @@ function onAutoMergeToggle(value: boolean | null) {
     // Enabling auto merge also enables auto rebase
     updateSettings(true, true)
   } else {
-    updateSettings(false, autoRebase.value)
+    // Disabling auto merge also disables auto rebase (rebase requires merge)
+    updateSettings(false, false)
   }
 }
 
@@ -605,6 +693,9 @@ onMounted(async () => {
   startPolling()
   loadSubscription().catch(err => {
     console.error('[Mergician] Failed to load subscription:', err)
+  })
+  checkMergePermissions().catch(err => {
+    console.error('[Mergician] Failed to check merge permissions:', err)
   })
 })
 </script>

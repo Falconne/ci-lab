@@ -66,6 +66,7 @@ try
     builder.Services.AddSingleton<AutoMergeGitLabApiService>();
     builder.Services.AddSingleton<MergeRequestLookupService>();
     builder.Services.AddSingleton<MergeGroupManagementService>();
+    builder.Services.AddSingleton<MergePermissionService>();
     builder.Services.AddSingleton<VersionService>();
 
     // Register background user activity sync service

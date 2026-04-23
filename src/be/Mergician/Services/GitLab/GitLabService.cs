@@ -423,6 +423,47 @@ public class GitLabService
     }
 
     /// <summary>
+    ///     Returns the given user's GitLab access level for the specified project.
+    ///     Returns 0 if the user is not a member of the project or any of its parent groups.
+    ///     Returns null if the check itself failed due to an unexpected error.
+    /// </summary>
+    public async Task<int?> GetUserProjectAccessLevel(
+        AccessDetailsBase accessDetails,
+        int projectId,
+        int userId,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var member = await _gitLabApiClient.Execute<GitLabProjectMember>(
+                () => accessDetails.CreateRequest(
+                    HttpMethod.Get,
+                    $"projects/{projectId}/members/all/{userId}"),
+                cancellationToken);
+
+            _logger.LogDebug(
+                "User {UserId} has access level {AccessLevel} in project {ProjectId}",
+                userId, member.AccessLevel, projectId);
+
+            return member.AccessLevel;
+        }
+        catch (GitLabUnexpectedResponseException ex)
+        {
+            if (ex.StatusCode == HttpStatusCode.NotFound)
+            {
+                _logger.LogDebug("User {UserId} is not a member of project {ProjectId}", userId, projectId);
+                return 0;
+            }
+
+            _logger.LogError(
+                "GetUserProjectAccessLevel failed with status {StatusCode} for project {ProjectId}, user {UserId}",
+                (int)ex.StatusCode, projectId, userId);
+
+            return null;
+        }
+    }
+
+    /// <summary>
     ///     Fetches open merge requests by IID in a project.
     ///     Used by MR URL lookup to find the source branch for active merge requests.
     /// </summary>

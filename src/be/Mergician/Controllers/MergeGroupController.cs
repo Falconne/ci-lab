@@ -18,17 +18,21 @@ public class MergeGroupController : ControllerBase
 
     private readonly MergeGroupManagementService _mergeGroupManagementService;
 
+    private readonly MergePermissionService _mergePermissionService;
+
     private readonly IMergeGroupRepository _mergeGroupRepository;
 
     public MergeGroupController(
         IMergeGroupRepository mergeGroupRepository,
         UserActivityBackgroundSyncService backgroundSyncService,
         MergeGroupManagementService mergeGroupManagementService,
+        MergePermissionService mergePermissionService,
         ILogger<MergeGroupController> logger)
     {
         _mergeGroupRepository = mergeGroupRepository;
         _backgroundSyncService = backgroundSyncService;
         _mergeGroupManagementService = mergeGroupManagementService;
+        _mergePermissionService = mergePermissionService;
         _logger = logger;
     }
 
@@ -240,5 +244,28 @@ public class MergeGroupController : ControllerBase
                     "Merge request not found in GitLab. Check the URL and ensure you have access to the project.")),
             _ => Ok(new FindByMergeRequestResponse(result.MergeGroupId!.Value, result.WasCreated))
         };
+    }
+
+    /// <summary>
+    ///     Checks whether the current user has merge permissions in all projects belonging to this merge group.
+    ///     Returns canMerge=true if all projects are accessible, checkFailed=true if any permission
+    ///     check failed due to an API error, and blockedProjects listing any projects where access is insufficient.
+    /// </summary>
+    [HttpGet("{mergeGroupId:int}/merge-permissions")]
+    public async Task<ActionResult<MergePermissionsResponse>> GetMergePermissions(
+        int mergeGroupId,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = HttpContext.GetGitLabUser();
+
+        _logger.LogDebug(
+            "Checking merge permissions for user {UserId} in merge group {MergeGroupId}",
+            currentUser.UserId,
+            mergeGroupId);
+
+        var result = await _mergePermissionService.CheckMergePermissions(
+            currentUser, mergeGroupId, cancellationToken);
+
+        return Ok(result);
     }
 }

@@ -9,3 +9,5 @@ public record SubscriptionResponse(bool IsSubscribed);
 public record MergeRequestUrlRequest(string MergeRequestUrl);
 
 public record FindByMergeRequestResponse(int MergeGroupId, bool Created);
+
+public record MergePermissionsResponse(bool CanMerge, bool CheckFailed, List<string> BlockedProjects);
