@@ -18,3 +18,6 @@ When a merge group or MR is in Waiting status, the tooltip over the status shoul
 
 Task 7)
 Make sure that if a MR needs a rebase, it is considered to be in Waiting state.
+
+Task 8)
+On the Dashboard page, for each Merge Group, show the build job entries along the bottom of the card, for the latest pipeline of each MR, same as in the Merge Group details page. In the dashboard cards, we don't need to group the builds by the MR/branch. Just show all the build jobs for all the branches/MRs in the merge group together at the bottom. If multiple branches have the exact same build job, only show it once.
