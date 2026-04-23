@@ -32,7 +32,7 @@ public class MergeGroupManagementService
     ///     Parses a merge request URL, looks up the MR in GitLab, and adds its source branch
     ///     to the specified merge group, subscribing the user if not already subscribed.
     /// </summary>
-    public async Task<(MergeGroup? UpdatedMergeGroup, MergeGroupManagementError? Error)> AddBranchByMergeRequestUrl(
+    public async Task<AddBranchResult> AddBranchByMergeRequestUrl(
         AccessDetailsForUser currentUser,
         int mergeGroupId,
         string mergeRequestUrl,
@@ -41,14 +41,14 @@ public class MergeGroupManagementService
         var parsed = _mergeRequestLookupService.ParseMergeRequestUrl(mergeRequestUrl);
         if (parsed == null)
         {
-            return (null, MergeGroupManagementError.InvalidUrl);
+            return new AddBranchResult(null, MergeGroupManagementError.InvalidUrl);
         }
 
         var existing = _mergeGroupRepository.GetMergeGroup(mergeGroupId);
         if (existing == null)
         {
-            _logger.LogWarning("Merge group {MergeGroupId} not found for AddBranchByMergeRequestUrl", mergeGroupId);
-            return (null, MergeGroupManagementError.MergeGroupNotFound);
+            _logger.LogInformation("Merge group {MergeGroupId} not found for AddBranchByMergeRequestUrl", mergeGroupId);
+            return new AddBranchResult(null, MergeGroupManagementError.MergeGroupNotFound);
         }
 
         var lookupResult = await _mergeRequestLookupService.LookupMergeRequest(
@@ -59,7 +59,7 @@ public class MergeGroupManagementService
 
         if (lookupResult == null)
         {
-            return (null, MergeGroupManagementError.MergeRequestNotFound);
+            return new AddBranchResult(null, MergeGroupManagementError.MergeRequestNotFound);
         }
 
         var branchRecord = _mergeGroupRepository.GetOrCreateBranchRecord(
@@ -77,14 +77,14 @@ public class MergeGroupManagementService
             mergeGroupId);
 
         var updated = _mergeGroupRepository.GetMergeGroup(mergeGroupId);
-        return (updated, null);
+        return new AddBranchResult(updated, null);
     }
 
     /// <summary>
     ///     Parses a merge request URL, looks up the MR in GitLab, then finds an existing
     ///     merge group containing that branch or creates a new one, subscribing the user.
     /// </summary>
-    public async Task<(int? MergeGroupId, bool WasCreated, MergeGroupManagementError? Error)> FindOrCreateMergeGroupByMergeRequestUrl(
+    public async Task<FindOrCreateMergeGroupResult> FindOrCreateMergeGroupByMergeRequestUrl(
         AccessDetailsForUser currentUser,
         string mergeRequestUrl,
         CancellationToken cancellationToken = default)
@@ -92,7 +92,7 @@ public class MergeGroupManagementService
         var parsed = _mergeRequestLookupService.ParseMergeRequestUrl(mergeRequestUrl);
         if (parsed == null)
         {
-            return (null, false, MergeGroupManagementError.InvalidUrl);
+            return new FindOrCreateMergeGroupResult(null, false, MergeGroupManagementError.InvalidUrl);
         }
 
         var lookupResult = await _mergeRequestLookupService.LookupMergeRequest(
@@ -103,7 +103,7 @@ public class MergeGroupManagementService
 
         if (lookupResult == null)
         {
-            return (null, false, MergeGroupManagementError.MergeRequestNotFound);
+            return new FindOrCreateMergeGroupResult(null, false, MergeGroupManagementError.MergeRequestNotFound);
         }
 
         var existingMg = _mergeGroupRepository.FindMergeGroupByBranch(
@@ -120,7 +120,7 @@ public class MergeGroupManagementService
                 existingMg.Id,
                 lookupResult.SourceBranch);
 
-            return (existingMg.Id, false, null);
+            return new FindOrCreateMergeGroupResult(existingMg.Id, false, null);
         }
 
         var mergeGroup = _mergeGroupRepository.GetOrCreateMergeGroup(lookupResult.SourceBranch);
@@ -137,6 +137,6 @@ public class MergeGroupManagementService
             mergeGroup.Id,
             lookupResult.SourceBranch);
 
-        return (mergeGroup.Id, true, null);
+        return new FindOrCreateMergeGroupResult(mergeGroup.Id, true, null);
     }
 }

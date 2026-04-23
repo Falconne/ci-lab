@@ -116,13 +116,9 @@ public class AutoMergeService : BackgroundService
             {
                 await ProcessMergeGroup(serviceUser, group, cancellationToken);
             }
-            catch (GitLabStartupRequiredException ex)
+            catch (GitLabStartupRequiredException)
             {
-                _logger.LogWarning(
-                    ex,
-                    "AutoMergeService: GitLab API failure while processing merge group {MergeGroupId} '{MergeGroupName}'",
-                    group.Id,
-                    group.Name);
+                throw;
             }
         }
     }

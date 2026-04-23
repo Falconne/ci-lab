@@ -107,7 +107,7 @@ public class MergeGroupController : ControllerBase
     ///     Clears the auto merge warning for a merge group.
     /// </summary>
     [HttpPost("{mergeGroupId:int}/settings/clear-warning")]
-    public IActionResult ClearWarning(int mergeGroupId)
+    public ActionResult ClearWarning(int mergeGroupId)
     {
         _logger.LogInformation("Clearing auto merge warning for merge group {MergeGroupId}", mergeGroupId);
         _mergeGroupRepository.UpdateAutoMergeWarning(mergeGroupId, null);

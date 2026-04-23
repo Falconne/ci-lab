@@ -4,6 +4,7 @@ using Mergician.Entities;
 using Mergician.Services.GitLab;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Options;
+using Util;
 
 namespace Mergician.Services.Authentication;
 
@@ -71,7 +72,7 @@ public class GitLabCookieAuthenticationHandler : AuthenticationHandler<Authentic
     private async Task<AuthenticateResult> AuthenticateCore()
     {
         var accessToken = Request.Cookies["gl_access_token"];
-        if (!string.IsNullOrEmpty(accessToken))
+        if (accessToken.IsNotEmpty())
         {
             var userInfo = await ValidateToken(accessToken);
             if (userInfo != null)
@@ -84,7 +85,7 @@ public class GitLabCookieAuthenticationHandler : AuthenticationHandler<Authentic
         }
 
         var refreshToken = Request.Cookies["gl_refresh_token"];
-        if (string.IsNullOrEmpty(refreshToken))
+        if (refreshToken.IsEmpty())
         {
             Logger.LogDebug("No valid access or refresh token available");
             return AuthenticateResult.NoResult();

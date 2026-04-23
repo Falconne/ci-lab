@@ -1,6 +1,7 @@
 using Mergician.Entities;
 using Mergician.Services.Authentication;
 using System.Text.RegularExpressions;
+using Util;
 
 namespace Mergician.Services.GitLab;
 
@@ -28,16 +29,16 @@ public partial class MergeRequestLookupService
     /// </summary>
     public ParsedMergeRequestUrl? ParseMergeRequestUrl(string url)
     {
-        if (string.IsNullOrWhiteSpace(url))
+        if (url.IsEmpty())
         {
-            _logger.LogWarning("Empty merge request URL provided");
+            _logger.LogInformation("Empty merge request URL provided");
             return null;
         }
 
         var match = MergeRequestUrlPattern().Match(url.Trim());
         if (!match.Success)
         {
-            _logger.LogWarning("Could not parse merge request URL: {Url}", url);
+            _logger.LogInformation("Could not parse merge request URL: {Url}", url);
             return null;
         }
 
@@ -66,7 +67,7 @@ public partial class MergeRequestLookupService
         var project = await LookupProjectByPath(accessDetails, projectPath, cancellationToken);
         if (project == null)
         {
-            _logger.LogWarning("Project not found for path: {ProjectPath}", projectPath);
+            _logger.LogInformation("Project not found for path: {ProjectPath}", projectPath);
             return null;
         }
 
@@ -78,7 +79,7 @@ public partial class MergeRequestLookupService
 
         if (mergeRequests.Count == 0)
         {
-            _logger.LogWarning(
+            _logger.LogInformation(
                 "Open merge request !{MergeRequestIid} not found in project {ProjectPath} (id={ProjectId})",
                 mergeRequestIid,
                 projectPath,

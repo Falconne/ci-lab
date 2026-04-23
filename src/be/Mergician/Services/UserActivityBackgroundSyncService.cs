@@ -152,10 +152,15 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             if (_gitLabRecoveryService.IsInGitLabRecoveryMode)
             {
                 _logger.LogInformation(
-                    "Skipping sync for user {UserId}: GitLab recovery mode is active",
+                    "Sync thread for user {UserId} pausing before backfill: GitLab recovery mode is active",
                     gitLabUserId);
 
-                return;
+                while (_gitLabRecoveryService.IsInGitLabRecoveryMode && !ct.IsCancellationRequested)
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(5), ct);
+                }
+
+                _logger.LogInformation("Sync thread for user {UserId} resuming after recovery", gitLabUserId);
             }
 
             // Phase 1: Backfill from the user's last known activity or 14 days
@@ -168,10 +173,15 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                 if (_gitLabRecoveryService.IsInGitLabRecoveryMode)
                 {
                     _logger.LogInformation(
-                        "Stopping sync thread for user {UserId}: GitLab recovery mode is active",
+                        "Sync thread for user {UserId} pausing: GitLab recovery mode is active",
                         gitLabUserId);
 
-                    break;
+                    while (_gitLabRecoveryService.IsInGitLabRecoveryMode && !ct.IsCancellationRequested)
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(5), ct);
+                    }
+
+                    _logger.LogInformation("Sync thread for user {UserId} resuming after recovery", gitLabUserId);
                 }
 
                 var accessUser = context.AccessUser;

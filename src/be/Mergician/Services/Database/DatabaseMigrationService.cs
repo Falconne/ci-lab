@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using DbUp;
 using Mergician.Entities;
 using Npgsql;
@@ -10,6 +11,8 @@ namespace Mergician.Services.Database;
 /// </summary>
 public class DatabaseMigrationService
 {
+    private static readonly Regex _validDbName = new(@"^[a-zA-Z0-9_\-]+$", RegexOptions.Compiled);
+
     private readonly ILogger<DatabaseMigrationService> _logger;
 
     private readonly DatabaseSettings _settings;
@@ -32,6 +35,12 @@ public class DatabaseMigrationService
 
     private void EnsureDatabaseExists()
     {
+        if (!_validDbName.IsMatch(_settings.Database))
+        {
+            throw new InvalidOperationException(
+                $"Database name '{_settings.Database}' contains invalid characters. Only alphanumeric, underscore, and hyphen are allowed.");
+        }
+
         _logger.LogInformation("Checking if database '{Database}' exists", _settings.Database);
 
         using var connection = new NpgsqlConnection(_settings.AdminConnectionString);

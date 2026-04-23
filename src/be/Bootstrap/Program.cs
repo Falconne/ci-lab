@@ -96,15 +96,12 @@ try
     Log.Information($"  GitLab:   {gitLabURL}");
     Log.Information($"  TeamCity: {teamcityURL}");
     Logging.LogSeparator();
-
-    return 0;
 }
 catch (Exception ex)
 {
-    // Log unexpected exceptions to the logfile before aborting
     Log.Fatal(ex, "Unexpected exception during bootstrap");
     Logging.LogSeparator();
-    return 1;
+    throw;
 }
 finally
 {

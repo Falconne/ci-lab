@@ -3,6 +3,7 @@ using Mergician.Services.Authentication;
 using Mergician.Services.GitLab;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Util;
 
 namespace Mergician.Controllers;
 
@@ -31,7 +32,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpGet("login")]
-    public IActionResult Login()
+    public ActionResult Login()
     {
         var redirectUri = GetRedirectUri();
         var state = Guid.NewGuid().ToString("N");
@@ -53,11 +54,11 @@ public class AuthController : ControllerBase
     }
 
     [HttpGet("callback")]
-    public async Task<IActionResult> Callback([FromQuery] string code, [FromQuery] string state)
+    public async Task<ActionResult> Callback([FromQuery] string code, [FromQuery] string state)
     {
         // Validate state parameter
         var savedState = Request.Cookies["oauth_state"];
-        if (string.IsNullOrEmpty(savedState) || savedState != state)
+        if (savedState.IsEmpty() || savedState != state)
         {
             _logger.LogWarning("OAuth state mismatch");
             return BadRequest("Invalid OAuth state");

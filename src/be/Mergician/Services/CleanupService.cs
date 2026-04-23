@@ -134,14 +134,15 @@ public class CleanupService : IHostedService, IDisposable
         var nowUtc = DateTimeOffset.UtcNow;
         var nowNz = TimeZoneInfo.ConvertTime(nowUtc, _nzTimeZone);
 
-        // Target 3am today or tomorrow in NZ timezone
-        var targetNz = new DateTimeOffset(nowNz.Year, nowNz.Month, nowNz.Day, 3, 0, 0, nowNz.Offset);
-        if (nowNz >= targetNz)
+        // Target 3am today or tomorrow in NZ timezone.
+        // Use ConvertTimeToUtc so DST transitions are handled correctly.
+        var todayAt3am = new DateTime(nowNz.Year, nowNz.Month, nowNz.Day, 3, 0, 0, DateTimeKind.Unspecified);
+        var targetUtc = TimeZoneInfo.ConvertTimeToUtc(todayAt3am, _nzTimeZone);
+        if (targetUtc <= nowUtc)
         {
-            targetNz = targetNz.AddDays(1);
+            targetUtc = TimeZoneInfo.ConvertTimeToUtc(todayAt3am.AddDays(1), _nzTimeZone);
         }
 
-        var targetUtc = targetNz.ToUniversalTime();
         var delay = targetUtc - nowUtc;
 
         // Safety: ensure we always wait at least 1 minute
