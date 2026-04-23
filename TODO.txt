@@ -1,0 +1,14 @@
+Task 1)
+Rename the "Untrack Merge Group" button to "Untrack" and make it brown.
+
+Task 2)
+The "Auto Merge" toggle should only be enabled for users who have permission to merge all the MRs in the merge group. If it is disabled, the tooltip should say which projects the user cannot merge in. This check only needs to be done when the user opens a Merge Group details page. While it is being done, the toggle button must be disabled with a tooltip saying "Checking permissions...".
+
+Task 3)
+The tooltip for the "Auto Merge" toggle should say "Merge all branches together, only when all are ready".
+
+Task 4)
+The tooltip for the "Auto Rebase" toggle should say "Keep rebasing out of date branches". This toggle button should only be enabled it the "Auto Merge" toggle is enabled.
+
+Task 5)
+Change the "Filter by branch name or MR URL" to "Filter by branch name or Merge Request URL".
