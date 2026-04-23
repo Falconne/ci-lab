@@ -1,1 +1,11 @@
-Implement the code review recommendations in reviews\frontend-review.md. For each individual recommendation, create a separate commit with a clear message describing the change and push as you go. At the end, delete the review file and make sure to run the integration tests to verify all still works. After all the changes are committed and pushed, perform another review of the frontend code as an expert frontend developer and write up another review document of new suggestions, if any. Stick meaningful suggestions, not trivialities. Do not shy away from major refactors if it improves the code quality.
+Task 1)
+Move the "Add Merge Request..." button to the bottom of the page, below the branch cards. Give it a tooltip: "Manually add a merge request to this group".
+
+Task 2)
+In the dashboard, there should be a larger gap between the "Today" title and the filter text box.
+
+Task 3)
+The Merge Group cards in the dashboard should be double the width they currently are.
+
+Task 4)
+The "Filter by branch" text box should be the width of one merge group card (after the double width change).
