@@ -6,7 +6,6 @@ Mergician is a tool to help developers in environments where any one product is 
 
 # Guidelines
 ## General Guidelines
-- Do not commit code at the end of an edit until explicitly asked for by the user. If the user previously asked for a commit earlier in the session, do not assume that continued automatic commits are desired.
 - When doing edits, after all the testing and rework is done, before finishing up, perform a code review and see if any clean up or improvements are warrented based on the final changes. Look for any technical debt that can me remedied, such as any duplicated functionality or code that now exists that should be consolidated. Remove any unsued variables, imports, etc that may have been left behind. If the rework is significant, redo any important tests.
   - Be careful not to make code review changes for the sake of making changes. Only do so if the code quality can be improved in a meaningful way.
 - Add logging in code whenever any significant action is performed, especially when conditional logic is executed (e.g. in branches of if/switch statements) with the intention of diagnosing the flow.
