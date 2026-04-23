@@ -545,12 +545,14 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
         int? approvalsGiven = null;
         string? mergeRequestTitle = null;
         string? mergeRequestUrl = null;
+        bool? needsRebase = null;
 
         if (hasMergeRequest)
         {
             var first = mergeRequests[0];
             mergeRequestTitle = first.Title;
             mergeRequestUrl = first.WebUrl;
+            needsRebase = first.DetailedMergeStatus == "need_rebase";
 
             var approval = await _gitLabService.GetMergeRequestApprovals(
                 accessDetails,
@@ -607,6 +609,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             approvalsRequired,
             approvalsGiven,
             buildJobs,
+            needsRebase,
             lastCommitTime);
 
         _logger.LogDebug(

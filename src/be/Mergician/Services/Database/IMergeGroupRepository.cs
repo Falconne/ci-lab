@@ -81,6 +81,7 @@ public interface IMergeGroupRepository
         int? approvalsRequired,
         int? approvalsGiven,
         List<BranchBuildJob> buildJobs,
+        bool? needsRebase = null,
         DateTimeOffset? lastCommitTime = null);
 
     /// <summary>

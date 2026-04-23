@@ -151,7 +151,8 @@ public class MergeGroupRepository : IMergeGroupRepository
                     bp.merge_request_url AS MergeRequestUrl,
                     bp.project_url AS ProjectUrl,
                     bp.approvals_required AS ApprovalsRequired,
-                    bp.approvals_given AS ApprovalsGiven
+                    bp.approvals_given AS ApprovalsGiven,
+                    bp.needs_rebase AS NeedsRebase
                 FROM users_in_merge_groups umg
                 INNER JOIN merge_group mg ON mg.id = umg.merge_group_id
                 INNER JOIN branches_in_merge_group bmg ON bmg.merge_group_id = mg.id
@@ -312,6 +313,7 @@ public class MergeGroupRepository : IMergeGroupRepository
         int? approvalsRequired,
         int? approvalsGiven,
         List<BranchBuildJob> buildJobs,
+        bool? needsRebase = null,
         DateTimeOffset? lastCommitTime = null)
     {
         using var connection = _connectionFactory.CreateConnection();
@@ -338,6 +340,7 @@ public class MergeGroupRepository : IMergeGroupRepository
                 project_url         = @ProjectUrl,
                 approvals_required  = @ApprovalsRequired,
                 approvals_given     = @ApprovalsGiven,
+                needs_rebase        = @NeedsRebase,
                 last_update_time    = COALESCE(@LastCommitTime, last_update_time)
             WHERE id = @BranchInProjectId
             """,
@@ -350,6 +353,7 @@ public class MergeGroupRepository : IMergeGroupRepository
                 ProjectUrl = projectUrl,
                 ApprovalsRequired = approvalsRequired,
                 ApprovalsGiven = approvalsGiven,
+                NeedsRebase = needsRebase,
                 LastCommitTime = utcCommitTime
             },
             transaction);
@@ -374,11 +378,12 @@ public class MergeGroupRepository : IMergeGroupRepository
         transaction.Commit();
 
         _logger.LogDebug(
-            "Updated branch {BranchInProjectId} details: hasMergeRequest={HasMergeRequest}, approvals={Given}/{Required}, {JobCount} build jobs, commitTime={CommitTime}",
+            "Updated branch {BranchInProjectId} details: hasMergeRequest={HasMergeRequest}, approvals={Given}/{Required}, needsRebase={NeedsRebase}, {JobCount} build jobs, commitTime={CommitTime}",
             branchInProjectId,
             hasMergeRequest,
             approvalsGiven,
             approvalsRequired,
+            needsRebase,
             buildJobs.Count,
             utcCommitTime);
     }
@@ -542,6 +547,7 @@ public class MergeGroupRepository : IMergeGroupRepository
                     bp.merge_request_title AS MergeRequestTitle,
                     bp.merge_request_url AS MergeRequestUrl,
                     bp.project_url AS ProjectUrl,
+                    bp.needs_rebase AS NeedsRebase,
                     bp.id AS Id
                 FROM branches_in_merge_group bmg
                 INNER JOIN branch_in_project bp ON bp.id = bmg.branch_in_project_id

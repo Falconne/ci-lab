@@ -22,6 +22,7 @@ export function isGroupFullyLoaded(group: MergeGroup): boolean {
 export function itemStatusLabel(item: BranchWithActivity): ItemStatus {
   if (item.hasMergeRequest === null) return 'Loading'
   if (item.hasMergeRequest === false) return 'Waiting'
+  if (item.needsRebase === true) return 'Waiting'
 
   if (item.approvalsRequired != null && item.approvalsGiven != null
     && item.approvalsGiven >= item.approvalsRequired) {
@@ -110,6 +111,30 @@ export function groupStatusLabel(group: MergeGroup): string {
 
 export function groupStatusClass(group: MergeGroup): string {
   return `status-${getGroupStatus(group)}`
+}
+
+/**
+ * Returns the reasons a single branch is in "Waiting" status.
+ * Returns an empty array if the branch is not waiting.
+ */
+export function getItemWaitingReasons(item: BranchWithActivity): string[] {
+  const reasons: string[] = []
+  if (item.hasMergeRequest === false) reasons.push('No merge request')
+  if (item.needsRebase === true) reasons.push('Needs rebase')
+  return reasons
+}
+
+/**
+ * Returns aggregated waiting reasons across all branches in a group (deduplicated).
+ */
+export function getGroupWaitingReasons(group: MergeGroup): string[] {
+  const seen = new Set<string>()
+  for (const item of group.branches) {
+    for (const reason of getItemWaitingReasons(item)) {
+      seen.add(reason)
+    }
+  }
+  return [...seen]
 }
 
 // --- Job-level helpers (details view) ---

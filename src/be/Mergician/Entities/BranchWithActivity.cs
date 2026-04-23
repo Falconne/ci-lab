@@ -28,6 +28,8 @@ public record BranchWithActivity : BranchInProject
 
     public string? ProjectUrl { get; init; }
 
+    public bool? NeedsRebase { get; init; }
+
     public List<BranchBuildJob>? BuildJobs { get; init; }
     // ReSharper restore UnusedMember.Global
 }

@@ -16,4 +16,7 @@ public class GitLabMergeRequest
     [JsonPropertyName("source_branch")]
     // ReSharper disable once UnusedMember.Global
     public string SourceBranch { get; set; } = "";
+
+    [JsonPropertyName("detailed_merge_status")]
+    public string DetailedMergeStatus { get; set; } = "";
 }
