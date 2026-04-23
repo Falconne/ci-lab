@@ -3,7 +3,7 @@
     <v-text-field
       :model-value="modelValue"
       prepend-inner-icon="mdi-magnify"
-      label="Filter by branch name or MR URL"
+      label="Filter by branch name or Merge Request URL"
       variant="outlined"
       density="compact"
       clearable
