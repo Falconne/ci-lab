@@ -18,10 +18,24 @@
             <v-icon icon="mdi-merge" size="x-small" />
             Auto Merge
           </span>
-          <span v-if="isGroupFullyLoaded(group)" class="card-status-badge" :class="groupStatusClass(group)">
-            <span class="status-dot" />
-            {{ groupStatusLabel(group) }}
-          </span>
+          <template v-if="isGroupFullyLoaded(group)">
+            <v-tooltip
+              v-if="groupStatusLabel(group) === 'Waiting'"
+              location="top"
+              :text="groupWaitingReasonsText"
+            >
+              <template #activator="{ props: tipProps }">
+                <span v-bind="tipProps" class="card-status-badge" :class="groupStatusClass(group)">
+                  <span class="status-dot" />
+                  {{ groupStatusLabel(group) }}
+                </span>
+              </template>
+            </v-tooltip>
+            <span v-else class="card-status-badge" :class="groupStatusClass(group)">
+              <span class="status-dot" />
+              {{ groupStatusLabel(group) }}
+            </span>
+          </template>
           <span v-else class="skeleton-badge"><span class="skeleton-shimmer" /></span>
         </div>
       </div>
@@ -91,6 +105,38 @@
           </span>
         </div>
       </div>
+      <!-- Build jobs summary across all branches -->
+      <div v-if="deduplicatedJobs.length > 0" class="card-jobs">
+        <v-tooltip
+          v-for="job in nonSuccessJobs"
+          :key="job.name"
+          location="top"
+          :text="job.name"
+        >
+          <template #activator="{ props: tipProps }">
+            <v-chip
+              v-bind="tipProps"
+              size="x-small"
+              :color="jobStatusColor(job.status)"
+              variant="tonal"
+              class="job-chip"
+            >
+              <v-icon :icon="jobStatusIcon(job.status)" size="12" class="mr-1" />
+              {{ job.name }}
+            </v-chip>
+          </template>
+        </v-tooltip>
+        <v-chip
+          v-if="successJobCount > 0"
+          size="x-small"
+          color="success"
+          variant="tonal"
+          class="job-chip"
+        >
+          <v-icon icon="mdi-check-circle" size="12" class="mr-1" />
+          {{ successJobCount }} Successful {{ successJobCount === 1 ? 'Job' : 'Jobs' }}
+        </v-chip>
+      </div>
     </div>
   </a>
 </template>
@@ -105,6 +151,9 @@ import {
   groupStatusLabel,
   groupStatusClass,
   itemApprovalsText,
+  getGroupWaitingReasons,
+  jobStatusIcon,
+  jobStatusColor,
 } from '@/utils/statusHelpers'
 import { formatDateTime, formatTimeAgo } from '@/utils/dateFormatting'
 
@@ -127,6 +176,40 @@ const mergeGroupHref = computed(() => {
   })
   return resolved.href
 })
+
+const groupWaitingReasonsText = computed(() => {
+  const reasons = getGroupWaitingReasons(props.group)
+  return reasons.length > 0 ? reasons.join(', ') : 'Waiting'
+})
+
+// Status priority for deduplication: lower index = worse
+const STATUS_PRIORITY = ['failed', 'failure', 'running', 'pending', 'canceled', 'cancelled', 'success']
+
+function jobStatusPriority(status: string): number {
+  const idx = STATUS_PRIORITY.indexOf(status.toLowerCase())
+  return idx === -1 ? STATUS_PRIORITY.length - 2 : idx
+}
+
+const deduplicatedJobs = computed(() => {
+  const jobMap = new Map<string, { name: string; status: string; url?: string | null }>()
+  for (const branch of props.group.branches) {
+    for (const job of branch.buildJobs ?? []) {
+      const existing = jobMap.get(job.name)
+      if (!existing || jobStatusPriority(job.status) < jobStatusPriority(existing.status)) {
+        jobMap.set(job.name, job)
+      }
+    }
+  }
+  return [...jobMap.values()]
+})
+
+const nonSuccessJobs = computed(() =>
+  deduplicatedJobs.value.filter(j => j.status.toLowerCase() !== 'success')
+)
+
+const successJobCount = computed(() =>
+  deduplicatedJobs.value.filter(j => j.status.toLowerCase() === 'success').length
+)
 
 const MAX_TITLE_LENGTH = 222
 
@@ -228,6 +311,23 @@ function approvalsTooltip(item: BranchWithActivity): string {
   display: flex;
   flex-direction: column;
   gap: 0;
+}
+
+/* ---- Build jobs summary ---- */
+.card-jobs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(var(--v-theme-on-surface), 0.08);
+  margin-top: 4px;
+}
+
+.job-chip {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .card-item {
