@@ -97,20 +97,6 @@
             </div>
           </div>
 
-          <!-- Action buttons -->
-          <div class="d-flex ga-2 mb-4">
-            <v-btn
-              color="primary"
-              variant="flat"
-              size="small"
-              prepend-icon="mdi-plus"
-              class="text-none"
-              @click="showAddMergeRequestDialog = true"
-            >
-              Add Merge Request...
-            </v-btn>
-          </div>
-
           <!-- Add Merge Request dialog -->
           <v-dialog v-model="showAddMergeRequestDialog" max-width="520" persistent>
             <v-card>
@@ -268,6 +254,25 @@
                 </div>
               </div>
             </div>
+          </div>
+
+          <!-- Add Merge Request button -->
+          <div class="mt-4">
+            <v-tooltip text="Manually add a merge request to this group" location="top">
+              <template #activator="{ props: tooltipProps }">
+                <v-btn
+                  v-bind="tooltipProps"
+                  color="primary"
+                  variant="flat"
+                  size="small"
+                  prepend-icon="mdi-plus"
+                  class="text-none"
+                  @click="showAddMergeRequestDialog = true"
+                >
+                  Add Merge Request...
+                </v-btn>
+              </template>
+            </v-tooltip>
           </div>
         </template>
       </v-col>
