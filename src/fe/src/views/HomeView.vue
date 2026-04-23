@@ -31,11 +31,12 @@
         </div>
 
         <div v-else>
-          <DashboardFilter
-            v-model="filterText"
-            :show-open-mr-button="isMrUrlFilter && filteredMergeGroups.length === 0"
-            class="mb-4"
-          />
+          <div class="filter-container mb-8">
+            <DashboardFilter
+              v-model="filterText"
+              :show-open-mr-button="isMrUrlFilter && filteredMergeGroups.length === 0"
+            />
+          </div>
 
           <div v-if="filteredMergeGroups.length === 0 && !isMrUrlFilter" class="text-center pa-8">
             <v-icon icon="mdi-filter-off" size="48" color="grey" class="mb-3" />
@@ -328,6 +329,17 @@ onMounted(async () => {
   border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.08);
 }
 
+/* ---- Filter container — constrained to one card width on wider screens ---- */
+.filter-container {
+  width: 100%;
+}
+
+@media (min-width: 900px) {
+  .filter-container {
+    max-width: calc(50% - 10px);
+  }
+}
+
 /* ---- Card container — multi-column grid ---- */
 .dashboard-cards {
   position: relative;
@@ -340,21 +352,9 @@ onMounted(async () => {
   position: relative;
 }
 
-@media (min-width: 600px) {
-  .card-container {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
 @media (min-width: 900px) {
   .card-container {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-
-@media (min-width: 1280px) {
-  .card-container {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 
