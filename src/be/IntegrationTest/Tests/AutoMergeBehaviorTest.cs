@@ -250,19 +250,25 @@ public class AutoMergeBehaviorTest : IDisposable
     {
         Log.Information("--- Scenario 3: Auto rebase and blocked by divergence ---");
 
-        // First, clear the failed status on project 2 from scenario 1/2
+        // Guard against a race: at the end of Scenario 2, project 1 already has "success"
+        // status. Setting project 2 to "success" would make both MRs immediately mergeable,
+        // letting AutoMergeService merge before we can create the divergence. Set project 1
+        // to "pending" first so AutoMergeService cannot merge during setup.
+        var sha1 = _gitLab.GetBranchHeadSha(projectId1, branchName);
+        _gitLab.SetCommitStatus(projectId1, sha1, "pending", PipelineName);
+        Log.Information("Set primary-1 pipeline to 'pending' to prevent premature merge during setup");
+
+        // Clear the failed status on project 2. Project 1 is "pending" so AutoMergeService
+        // cannot merge both MRs yet.
         var sha2 = _gitLab.GetBranchHeadSha(projectId2, branchName);
         _gitLab.SetCommitStatus(projectId2, sha2, "success", PipelineName);
         Log.Information("Cleared failed pipeline on secondary-1");
 
-        // Also ensure project 1 has success status
-        var sha1 = _gitLab.GetBranchHeadSha(projectId1, branchName);
-        _gitLab.SetCommitStatus(projectId1, sha1, "success", PipelineName);
-
-        // Push a commit to main on project 1 to create divergence
+        // Push a commit to main on project 1 to create divergence.
+        // Project 1 is still "pending", preventing any premature merge.
         _gitLab.PushCommitToMain(projectId1, "Divergence commit for auto rebase test");
 
-        Log.Information("Created divergence on primary-1 main, both pipelines set to success");
+        Log.Information("Created divergence on primary-1 main with primary-1 pipeline still pending");
 
         // Wait for GitLab to detect divergence on the MR. The detailed_merge_status
         // should transition from 'mergeable' to 'need_rebase' once detected.
@@ -271,6 +277,12 @@ public class AutoMergeBehaviorTest : IDisposable
 
         if (!divergenceDetected)
         {
+            // Divergence was not detected within the timeout. This can happen if AutoMergeService
+            // already processed the rebase (before we polled) — in which case the MR is still
+            // open because project 1 is "pending". It can also mean GitLab was slow to report it.
+            // Either way, the MR must be open since project 1's pipeline is "pending".
+            // Do NOT restore project 1 to "success" here — doing so would introduce the same
+            // race condition this fix was designed to prevent. Scenario 4 sets fresh success.
             Log.Warning("GitLab did not report divergence within timeout, checking MR state directly...");
             var mergeRequestCheck = _gitLab.GetMergeRequestDetail(projectId1, mergeRequestIid1);
             Log.Information(
@@ -279,19 +291,23 @@ public class AutoMergeBehaviorTest : IDisposable
                 mergeRequestCheck.DetailedMergeStatus,
                 mergeRequestCheck.DivergedCommitsCount);
 
-            // Even if not detected, the MR should be open
             AssertMergeRequestOpen(
                 mergeRequestCheck,
                 "primary-1",
-                "Scenario 3: MR should remain open while branch may be behind target");
+                "Scenario 3: MR should remain open while pipeline is pending");
 
             Log.Information("Scenario 3 PASSED (partial): MR correctly remains open");
             await _browser.TakeScreenshot("behavior_05_after_rebase");
             return;
         }
 
+        // Divergence confirmed: restore project 1 to "success". AutoMergeService will now see
+        // need_rebase (branch is diverged) and trigger a rebase rather than merging.
+        _gitLab.SetCommitStatus(projectId1, sha1, "success", PipelineName);
+        Log.Information("Divergence detected; restored primary-1 to 'success', expecting auto-rebase");
+
         // Wait for the AutoMergeService to trigger rebase
-        Log.Information("Divergence detected, waiting for auto-rebase (up to 60s)...");
+        Log.Information("Waiting for auto-rebase (up to 60s)...");
         var rebased = await WaitForRebase(projectId1, mergeRequestIid1, sha1, 60);
 
         if (rebased)
