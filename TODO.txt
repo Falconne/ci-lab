@@ -1,0 +1,21 @@
+# Refactor the status bubbles
+Make the status for the Merge Groups and Merge Requests be set on the backend rather than calculated on the frontend. Add more columns to the database that fetches the UI state to support this.
+
+Use numbers to track the state of each MR in the merge group. The numbers can be mapped to status words and colours in the frontend. We only need to track the state of each MR in the merge group, because the overall status of the merge group should be the lowest numbered state from its MRs.
+
+Use the following map of state numbers to names and colours (and the conditions for each state... if any of the mentioned conditions are true, then the MR is in that state). Lower numbered states take precedence:
+- 0: "Loading" (In the frontend use a loading spinner for this state)
+    - The other details needed to calculate a status have not been read even once yet, so we can't calculate the true status yet.
+- 1: "Blocked" (red)
+    - Any build job in the latest pipeline has failed
+    - The required approvals haven't been given
+    - The MR needs to be rebased
+- 2: "Waiting" (blue)
+    - A build job is still running.
+    - Waiting for an initiated rebase to finish.
+- 3: "Ready" (green)
+    - Ready to merge
+
+If the MR is not in Ready state, the tooltip on the status bubble should list the reasons why. The Merge Group status bubble should list an aggregate of all the reasons. These reasons should also be defined from the backend, and available as a json blob from the database against each MR row that is not Ready.
+
+The backend should use the same logic discuessed above to know if an MR is Ready for an auto merge decision. Consolidate the existing logic for that so we don't duplicate functionality.
