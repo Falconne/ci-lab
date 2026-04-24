@@ -34,16 +34,16 @@
           <div class="filter-container mb-8">
             <DashboardFilter
               v-model="filterText"
-              :show-open-mr-button="isMrUrlFilter && filteredMergeGroups.length === 0"
+              :show-open-m-r-button="isMRUrlFilter && filteredMergeGroups.length === 0"
             />
           </div>
 
-          <div v-if="filteredMergeGroups.length === 0 && !isMrUrlFilter" class="text-center pa-8">
+          <div v-if="filteredMergeGroups.length === 0 && !isMRUrlFilter" class="text-center pa-8">
             <v-icon icon="mdi-filter-off" size="48" color="grey" class="mb-3" />
             <p class="text-body-1 text-grey">No merge groups match &quot;{{ filterText }}&quot;</p>
           </div>
 
-          <div v-else-if="filteredMergeGroups.length === 0 && isMrUrlFilter" class="text-center pa-8">
+          <div v-else-if="filteredMergeGroups.length === 0 && isMRUrlFilter" class="text-center pa-8">
             <v-icon icon="mdi-magnify" size="48" color="grey" class="mb-3" />
             <p class="text-body-1 text-grey">No tracked merge group found for this MR URL</p>
           </div>
@@ -135,7 +135,7 @@ const sortedMergeGroups = computed<MergeGroup[]>(() => {
  * Returns the base MR URL (up to and including the MR number) if the given text
  * looks like a GitLab merge request URL, otherwise null.
  */
-function extractMrBaseUrl(text: string): string | null {
+function extractMRBaseUrl(text: string): string | null {
   const match = text.match(/^(https?:\/\/.+\/-\/merge_requests\/\d+)/)
   return match ? match[1] : null
 }
@@ -143,8 +143,8 @@ function extractMrBaseUrl(text: string): string | null {
 /**
  * Whether the current filter text looks like a MR URL.
  */
-const isMrUrlFilter = computed<boolean>(() => {
-  return extractMrBaseUrl(filterText.value.trim()) !== null
+const isMRUrlFilter = computed<boolean>(() => {
+  return extractMRBaseUrl(filterText.value.trim()) !== null
 })
 
 /**
@@ -155,7 +155,7 @@ const filteredMergeGroups = computed<MergeGroup[]>(() => {
   const query = filterText.value.trim()
   if (!query) return sortedMergeGroups.value
 
-  const mrBase = extractMrBaseUrl(query)
+  const mrBase = extractMRBaseUrl(query)
   if (mrBase) {
     return sortedMergeGroups.value.filter(group =>
       group.branches.some(b => b.mergeRequestUrl && b.mergeRequestUrl.startsWith(mrBase))

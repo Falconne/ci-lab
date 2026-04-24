@@ -7,7 +7,7 @@ namespace Mergician.Services;
 ///     Used by the sync service to store status in the database and by the auto-merge service
 ///     to determine readiness for merging.
 /// </summary>
-public static class MrStatusCalculator
+public static class MRStatusCalculator
 {
     /// <summary>
     ///     Computes the MR status and the list of reasons for non-Ready states.
@@ -18,7 +18,7 @@ public static class MrStatusCalculator
     /// <param name="buildJobs">Build jobs from the latest pipeline.</param>
     /// <param name="needsRebase">Whether the branch needs to be rebased.</param>
     /// <param name="rebaseInProgress">Whether a rebase is currently in progress.</param>
-    /// <returns>The status value from <see cref="MrStatus" /> and a list of reason strings.</returns>
+    /// <returns>The status value from <see cref="MRStatus" /> and a list of reason strings.</returns>
     public static (int Status, List<string> Reasons) Calculate(
         bool hasMergeRequest,
         int? approvalsRequired,
@@ -29,7 +29,7 @@ public static class MrStatusCalculator
     {
         if (!hasMergeRequest)
         {
-            return (MrStatus.Blocked, ["No merge request"]);
+            return (MRStatus.Blocked, ["No merge request"]);
         }
 
         var blockedReasons = new List<string>();
@@ -70,14 +70,14 @@ public static class MrStatusCalculator
 
         if (blockedReasons.Count > 0)
         {
-            return (MrStatus.Blocked, blockedReasons);
+            return (MRStatus.Blocked, blockedReasons);
         }
 
         if (waitingReasons.Count > 0)
         {
-            return (MrStatus.Waiting, waitingReasons);
+            return (MRStatus.Waiting, waitingReasons);
         }
 
-        return (MrStatus.Ready, []);
+        return (MRStatus.Ready, []);
     }
 }

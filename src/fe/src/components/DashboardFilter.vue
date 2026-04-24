@@ -31,29 +31,29 @@
     </v-text-field>
 
     <v-btn
-      v-if="showOpenMrButton"
+      v-if="showOpenMRButton"
       color="primary"
       variant="flat"
       size="small"
       prepend-icon="mdi-open-in-app"
       class="ml-2 text-none open-mr-btn"
-      :loading="openMrLoading"
-      :disabled="openMrLoading"
-      @click="openMrAsGroup"
+      :loading="openMRLoading"
+      :disabled="openMRLoading"
+      @click="openMRAsGroup"
     >
       Open MR as Merge Group
     </v-btn>
   </div>
 
   <v-alert
-    v-if="openMrError"
+    v-if="openMRError"
     type="error"
     variant="tonal"
     closable
     class="mt-2"
-    @click:close="openMrError = ''"
+    @click:close="openMRError = ''"
   >
-    {{ openMrError }}
+    {{ openMRError }}
   </v-alert>
 </template>
 
@@ -64,7 +64,7 @@ import { fetchBackend, isStartupRequiredError } from '@/composables/useBackendFe
 
 const props = defineProps<{
   modelValue: string
-  showOpenMrButton: boolean
+  showOpenMRButton: boolean
 }>()
 
 const emit = defineEmits<{
@@ -72,8 +72,8 @@ const emit = defineEmits<{
 }>()
 
 const router = useRouter()
-const openMrLoading = ref(false)
-const openMrError = ref('')
+const openMRLoading = ref(false)
+const openMRError = ref('')
 
 async function pasteFromClipboard() {
   try {
@@ -81,16 +81,16 @@ async function pasteFromClipboard() {
     emit('update:modelValue', text)
   } catch (err) {
     console.warn('[Mergician] Failed to read from clipboard:', err)
-    openMrError.value = 'Could not read from clipboard. Please paste manually.'
+    openMRError.value = 'Could not read from clipboard. Please paste manually.'
   }
 }
 
-async function openMrAsGroup() {
+async function openMRAsGroup() {
   const url = props.modelValue.trim()
   if (!url) return
 
-  openMrLoading.value = true
-  openMrError.value = ''
+  openMRLoading.value = true
+  openMRError.value = ''
 
   try {
     const response = await fetchBackend('/api/merge-groups/find-by-merge-request', {
@@ -102,21 +102,21 @@ async function openMrAsGroup() {
     if (response.ok) {
       const data = await response.json() as { mergeGroupId?: number }
       if (!data.mergeGroupId) {
-        openMrError.value = 'Unexpected response: missing mergeGroupId'
+        openMRError.value = 'Unexpected response: missing mergeGroupId'
         return
       }
       emit('update:modelValue', '')
       router.push(`/merge-group/${data.mergeGroupId}`)
     } else {
       const data = await response.json().catch(() => null)
-      openMrError.value = data?.error || `Request failed with status ${response.status}`
+      openMRError.value = data?.error || `Request failed with status ${response.status}`
     }
   } catch (err) {
     if (isStartupRequiredError(err)) return
     console.error('[Mergician] Open MR as merge group failed:', err)
-    openMrError.value = 'Failed to find merge request. Please try again.'
+    openMRError.value = 'Failed to find merge request. Please try again.'
   } finally {
-    openMrLoading.value = false
+    openMRLoading.value = false
   }
 }
 </script>

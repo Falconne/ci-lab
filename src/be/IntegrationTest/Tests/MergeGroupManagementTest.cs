@@ -341,11 +341,11 @@ public class MergeGroupManagementTest : IDisposable
                 null, new PageWaitForFunctionOptions { Timeout = 15000 });
             await _browser.TakeScreenshot("find_mr_03_filtered");
 
-            var openMrBtn = _browser.Page.Locator(".open-mr-btn");
-            if (await openMrBtn.IsVisibleAsync())
+            var openMRBtn = _browser.Page.Locator(".open-mr-btn");
+            if (await openMRBtn.IsVisibleAsync())
             {
                 Log.Information("MR not yet tracked - clicking 'Open MR as Merge Group' button");
-                await openMrBtn.ClickAsync();
+                await openMRBtn.ClickAsync();
             }
             else
             {

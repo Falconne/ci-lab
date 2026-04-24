@@ -4,7 +4,7 @@ namespace Mergician.Entities;
 ///     Status values for a branch's merge request. Stored as integers in the database.
 ///     Lower numbers take priority when calculating group status (Loading beats Blocked beats Ready, etc.).
 /// </summary>
-public static class MrStatus
+public static class MRStatus
 {
     /// <summary>Details not yet fetched from GitLab.</summary>
     public const int Loading = 0;

@@ -83,7 +83,7 @@ public class AutoMergeBehaviorTest : IDisposable
                 $"Auto merge test - secondary-1 ({timestamp})");
 
             Log.Information(
-                "Created MRs: project {P1} MR !{Mr1}, project {P2} MR !{Mr2}",
+                "Created MRs: project {P1} MR !{MR1}, project {P2} MR !{MR2}",
                 projectId1,
                 mergeRequestIid1,
                 projectId2,

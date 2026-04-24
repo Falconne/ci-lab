@@ -153,8 +153,8 @@ public class MergeGroupRepository : IMergeGroupRepository
                     bp.approvals_required AS ApprovalsRequired,
                     bp.approvals_given AS ApprovalsGiven,
                     bp.needs_rebase AS NeedsRebase,
-                    bp.mr_status AS MrStatus,
-                    bp.mr_status_reasons AS MrStatusReasonsJson
+                    bp.mr_status AS MRStatus,
+                    bp.mr_status_reasons AS MRStatusReasonsJson
                 FROM users_in_merge_groups umg
                 INNER JOIN merge_group mg ON mg.id = umg.merge_group_id
                 INNER JOIN branches_in_merge_group bmg ON bmg.merge_group_id = mg.id
@@ -345,8 +345,8 @@ public class MergeGroupRepository : IMergeGroupRepository
                 approvals_required  = @ApprovalsRequired,
                 approvals_given     = @ApprovalsGiven,
                 needs_rebase        = @NeedsRebase,
-                mr_status           = @MrStatus,
-                mr_status_reasons   = @MrStatusReasons,
+                mr_status           = @MRStatus,
+                mr_status_reasons   = @MRStatusReasons,
                 last_update_time    = COALESCE(@LastCommitTime, last_update_time)
             WHERE id = @BranchInProjectId
             """,
@@ -360,8 +360,8 @@ public class MergeGroupRepository : IMergeGroupRepository
                 ApprovalsRequired = approvalsRequired,
                 ApprovalsGiven = approvalsGiven,
                 NeedsRebase = needsRebase,
-                MrStatus = mrStatus,
-                MrStatusReasons = mrStatusReasons,
+                MRStatus = mrStatus,
+                MRStatusReasons = mrStatusReasons,
                 LastCommitTime = utcCommitTime
             },
             transaction);
@@ -556,8 +556,8 @@ public class MergeGroupRepository : IMergeGroupRepository
                     bp.merge_request_url AS MergeRequestUrl,
                     bp.project_url AS ProjectUrl,
                     bp.needs_rebase AS NeedsRebase,
-                    bp.mr_status AS MrStatus,
-                    bp.mr_status_reasons AS MrStatusReasonsJson,
+                    bp.mr_status AS MRStatus,
+                    bp.mr_status_reasons AS MRStatusReasonsJson,
                     bp.id AS Id
                 FROM branches_in_merge_group bmg
                 INNER JOIN branch_in_project bp ON bp.id = bmg.branch_in_project_id

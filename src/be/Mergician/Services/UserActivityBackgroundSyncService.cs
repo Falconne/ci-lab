@@ -604,7 +604,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             return;
         }
 
-        var (mrStatus, reasons) = MrStatusCalculator.Calculate(
+        var (mrStatus, reasons) = MRStatusCalculator.Calculate(
             hasMergeRequest,
             approvalsRequired,
             approvalsGiven,
@@ -615,7 +615,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
         var mrStatusReasons = reasons.Count > 0 ? JsonSerializer.Serialize(reasons) : null;
 
         _logger.LogDebug(
-            "Branch '{BranchName}' in project {ProjectId}: computed mrStatus={MrStatus}, reasons={Reasons}",
+            "Branch '{BranchName}' in project {ProjectId}: computed mrStatus={MRStatus}, reasons={Reasons}",
             branch.BranchName,
             branch.ProjectId,
             mrStatus,

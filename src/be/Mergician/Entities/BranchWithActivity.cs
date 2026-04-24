@@ -36,20 +36,22 @@ public record BranchWithActivity : BranchInProject
     public List<BranchBuildJob>? BuildJobs { get; init; }
 
     /// <summary>Backend-computed status code. 0=Loading, 1=Blocked, 2=Waiting, 3=Ready.</summary>
-    public int MrStatus { get; init; }
+    [JsonPropertyName("mrStatus")]
+    public int MRStatus { get; init; }
 
-    /// <summary>Raw JSON from the database; deserialized by <see cref="MrStatusReasons" />.</summary>
+    /// <summary>Raw JSON from the database; deserialized by <see cref="MRStatusReasons" />.</summary>
     [JsonIgnore]
-    public string? MrStatusReasonsJson { get; init; }
+    public string? MRStatusReasonsJson { get; init; }
 
     /// <summary>
     ///     Reasons the MR is not in Ready state, computed from the stored JSON.
     ///     Null when Ready or when data has not been fetched yet.
     /// </summary>
     // ReSharper disable once UnusedMember.Global
-    public IReadOnlyList<string>? MrStatusReasons =>
-        MrStatusReasonsJson.IsNotEmpty()
-            ? JsonSerializer.Deserialize<IReadOnlyList<string>>(MrStatusReasonsJson!)
+    [JsonPropertyName("mrStatusReasons")]
+    public IReadOnlyList<string>? MRStatusReasons =>
+        MRStatusReasonsJson.IsNotEmpty()
+            ? JsonSerializer.Deserialize<IReadOnlyList<string>>(MRStatusReasonsJson!)
             : null;
     // ReSharper restore UnusedMember.Global
 }

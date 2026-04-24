@@ -463,7 +463,7 @@ public class AutoMergeService : BackgroundService
         var needsRebase = autoRebaseEnabled
             && (mr.DivergedCommitsCount > 0 || mr.HasConflicts || mr.DetailedMergeStatus == "need_rebase");
 
-        var (mrStatus, calcReasons) = MrStatusCalculator.Calculate(
+        var (mrStatus, calcReasons) = MRStatusCalculator.Calculate(
             hasMergeRequest: true,
             approvalsRequired,
             approvalsGiven,
@@ -471,7 +471,7 @@ public class AutoMergeService : BackgroundService
             needsRebase,
             mr.RebaseInProgress);
 
-        if (mrStatus != MrStatus.Ready)
+        if (mrStatus != MRStatus.Ready)
         {
             foreach (var r in calcReasons)
                 reasons.Add($"{branchLabel}: {r}");
@@ -479,7 +479,7 @@ public class AutoMergeService : BackgroundService
             return false;
         }
 
-        // Check merge status from GitLab (guards against states MrStatusCalculator does not cover)
+        // Check merge status from GitLab (guards against states MRStatusCalculator does not cover)
         if (mr.DetailedMergeStatus is "not_open"
             or "blocked_status"
             or "ci_must_pass"

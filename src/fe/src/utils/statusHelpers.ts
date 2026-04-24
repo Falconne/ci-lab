@@ -47,7 +47,7 @@ export function mrStatusChipColor(status: number): string {
  * Aggregate MR status for a merge group (worst-branch-wins, lowest status code wins).
  * Returns Loading (0) when there are no branches.
  */
-export function getGroupMrStatus(group: MergeGroup): number {
+export function getGroupMRStatus(group: MergeGroup): number {
   if (group.branches.length === 0) return STATUS_LOADING
   return Math.min(...group.branches.map(b => b.mrStatus))
 }
@@ -56,14 +56,14 @@ export function getGroupMrStatus(group: MergeGroup): number {
  * Display label for the overall status of a merge group.
  */
 export function groupStatusLabel(group: MergeGroup): string {
-  return mrStatusLabel(getGroupMrStatus(group))
+  return mrStatusLabel(getGroupMRStatus(group))
 }
 
 /**
  * CSS class for the overall status of a merge group.
  */
 export function groupStatusClass(group: MergeGroup): string {
-  return mrStatusClass(getGroupMrStatus(group))
+  return mrStatusClass(getGroupMRStatus(group))
 }
 
 /**
