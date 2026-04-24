@@ -159,7 +159,7 @@
               :key="`${item.branchName}-${item.projectId}-details`"
               class="branch-card status-card mb-4"
             >
-              <div class="card-accent" :class="statusCssClass(itemStatusLabel(item))" />
+              <div class="card-accent" :class="mrStatusClass(item.mrStatus)" />
               <div class="card-body">
                 <!-- Card header: title + status chip -->
                 <div class="card-header">
@@ -192,20 +192,20 @@
                       </template>
                     </v-tooltip>
                   </div>
-                  <template v-if="item.hasMergeRequest !== null">
+                  <template v-if="item.mrStatus !== 0">
                     <v-tooltip
-                      v-if="itemStatusLabel(item) === 'Waiting'"
+                      v-if="item.mrStatus !== 3 && item.mrStatusReasons?.length"
                       location="top"
-                      :text="getItemWaitingReasonsText(item)"
+                      :text="item.mrStatusReasons!.join(', ')"
                     >
                       <template #activator="{ props: tipProps }">
-                        <v-chip v-bind="tipProps" size="small" :color="statusChipColor(itemStatusLabel(item))" variant="tonal" class="flex-shrink-0">
-                          {{ itemStatusLabel(item) }}
+                        <v-chip v-bind="tipProps" size="small" :color="mrStatusChipColor(item.mrStatus)" variant="tonal" class="flex-shrink-0">
+                          {{ mrStatusLabel(item.mrStatus) }}
                         </v-chip>
                       </template>
                     </v-tooltip>
-                    <v-chip v-else size="small" :color="statusChipColor(itemStatusLabel(item))" variant="tonal" class="flex-shrink-0">
-                      {{ itemStatusLabel(item) }}
+                    <v-chip v-else size="small" :color="mrStatusChipColor(item.mrStatus)" variant="tonal" class="flex-shrink-0">
+                      {{ mrStatusLabel(item.mrStatus) }}
                     </v-chip>
                   </template>
                   <span v-else class="skeleton-chip"><span class="skeleton-shimmer" /></span>
@@ -215,7 +215,7 @@
                 <div class="detail-row">
                   <span class="detail-label">Approvals:</span>
                   <span class="detail-value">
-                    <span v-if="item.hasMergeRequest === null" class="skeleton-detail"><span class="skeleton-shimmer" /></span>
+                    <span v-if="item.mrStatus === 0" class="skeleton-detail"><span class="skeleton-shimmer" /></span>
                     <template v-else>{{ itemApprovalsTextDetailed(item) }}</template>
                   </span>
                 </div>
@@ -273,7 +273,7 @@
                         <span v-else>{{ job.name }}</span>
                       </v-chip>
                     </div>
-                    <span v-else-if="item.hasMergeRequest != null" class="text-medium-emphasis">No jobs on latest pipeline</span>
+                    <span v-else-if="item.mrStatus !== 0" class="text-medium-emphasis">No jobs on latest pipeline</span>
                     <span v-else class="skeleton-detail"><span class="skeleton-shimmer" /></span>
                   </span>
                 </div>
@@ -312,10 +312,9 @@ import { fetchBackend, isStartupRequiredError } from '@/composables/useBackendFe
 import { usePolling } from '@/composables/usePolling'
 import type { BranchWithActivity, MergeGroup } from '@/types/mergeGroup'
 import {
-  itemStatusLabel, statusCssClass, statusChipColor,
+  mrStatusLabel, mrStatusClass, mrStatusChipColor,
   itemApprovalsTextDetailed, jobStatusIcon, jobStatusColor,
   groupStatusLabel, groupStatusClass,
-  getItemWaitingReasons,
 } from '@/utils/statusHelpers'
 import { handleTransientError, clearTransientError } from '@/utils/pollHelpers'
 
@@ -341,13 +340,8 @@ const addMergeRequestError = ref('')
 const addMergeRequestLoading = ref(false)
 
 const isFullyLoaded = computed<boolean>(() => {
-  return activities.value.length > 0 && activities.value.every(b => b.hasMergeRequest !== null)
+  return activities.value.length > 0 && activities.value.every(b => b.mrStatus !== 0)
 })
-
-function getItemWaitingReasonsText(item: BranchWithActivity): string {
-  const reasons = getItemWaitingReasons(item)
-  return reasons.length > 0 ? reasons.join(', ') : 'Waiting'
-}
 
 // --- Merge permissions ---
 

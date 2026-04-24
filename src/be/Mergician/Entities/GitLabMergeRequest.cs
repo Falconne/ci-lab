@@ -19,4 +19,7 @@ public class GitLabMergeRequest
 
     [JsonPropertyName("detailed_merge_status")]
     public string DetailedMergeStatus { get; set; } = "";
+
+    [JsonPropertyName("rebase_in_progress")]
+    public bool RebaseInProgress { get; set; }
 }

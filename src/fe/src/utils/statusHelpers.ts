@@ -1,55 +1,86 @@
 import type { BranchWithActivity, MergeGroup } from '@/types/mergeGroup'
 
-export type ItemStatus = 'Loading' | 'Waiting' | 'Open' | 'Ready'
+// Status codes: 0=Loading, 1=Blocked, 2=Waiting, 3=Ready
+const STATUS_LOADING = 0
+const STATUS_READY = 3
 
 /**
- * Whether a branch's detail data (MR status, approvals, build jobs) has not yet been fetched.
+ * Display label for a backend-computed MR status code.
  */
-export function isBranchLoading(item: BranchWithActivity): boolean {
-  return item.hasMergeRequest === null
-}
-
-/**
- * Whether all branches in a group have had their details resolved.
- */
-export function isGroupFullyLoaded(group: MergeGroup): boolean {
-  return group.branches.length > 0 && group.branches.every(b => b.hasMergeRequest !== null)
-}
-
-/**
- * Determine the display status label for a single branch.
- */
-export function itemStatusLabel(item: BranchWithActivity): ItemStatus {
-  if (item.hasMergeRequest === null) return 'Loading'
-  if (item.hasMergeRequest === false) return 'Waiting'
-  if (item.needsRebase === true) return 'Waiting'
-
-  if (item.approvalsRequired != null && item.approvalsGiven != null
-    && item.approvalsGiven >= item.approvalsRequired) {
-    return 'Ready'
+export function mrStatusLabel(status: number): string {
+  switch (status) {
+    case 0: return 'Loading'
+    case 1: return 'Blocked'
+    case 2: return 'Waiting'
+    case 3: return 'Ready'
+    default: return 'Loading'
   }
-
-  return 'Open'
 }
 
 /**
- * CSS class for a status label (e.g. 'status-ready').
+ * CSS class for a backend-computed MR status code.
  */
-export function statusCssClass(label: ItemStatus): string {
-  return `status-${label.toLowerCase()}`
-}
-
-/**
- * Vuetify color name for a branch status chip.
- */
-export function statusChipColor(label: ItemStatus): string {
-  const colors: Record<ItemStatus, string> = {
-    Ready: 'success',
-    Open: 'info',
-    Loading: 'grey',
-    Waiting: 'warning',
+export function mrStatusClass(status: number): string {
+  switch (status) {
+    case 0: return 'status-loading'
+    case 1: return 'status-blocked'
+    case 2: return 'status-waiting'
+    case 3: return 'status-ready'
+    default: return 'status-loading'
   }
-  return colors[label]
+}
+
+/**
+ * Vuetify chip color for a backend-computed MR status code.
+ */
+export function mrStatusChipColor(status: number): string {
+  switch (status) {
+    case 0: return 'grey'
+    case 1: return 'error'
+    case 2: return 'info'
+    case 3: return 'success'
+    default: return 'grey'
+  }
+}
+
+/**
+ * Aggregate MR status for a merge group (worst-branch-wins, lowest status code wins).
+ * Returns Loading (0) when there are no branches.
+ */
+export function getGroupMrStatus(group: MergeGroup): number {
+  if (group.branches.length === 0) return STATUS_LOADING
+  return Math.min(...group.branches.map(b => b.mrStatus))
+}
+
+/**
+ * Display label for the overall status of a merge group.
+ */
+export function groupStatusLabel(group: MergeGroup): string {
+  return mrStatusLabel(getGroupMrStatus(group))
+}
+
+/**
+ * CSS class for the overall status of a merge group.
+ */
+export function groupStatusClass(group: MergeGroup): string {
+  return mrStatusClass(getGroupMrStatus(group))
+}
+
+/**
+ * Collects status reasons from all non-Ready branches in a group,
+ * formatted as "ProjectName: reason".
+ */
+export function getGroupStatusReasons(group: MergeGroup): string[] {
+  const result: string[] = []
+  for (const branch of group.branches) {
+    if (branch.mrStatus === STATUS_LOADING || branch.mrStatus === STATUS_READY) continue
+    if (branch.mrStatusReasons && branch.mrStatusReasons.length > 0) {
+      for (const reason of branch.mrStatusReasons) {
+        result.push(`${branch.projectName}: ${reason}`)
+      }
+    }
+  }
+  return result
 }
 
 /**
@@ -73,68 +104,6 @@ export function itemApprovalsTextDetailed(item: BranchWithActivity): string {
     return `${item.approvalsGiven}/${item.approvalsRequired} (No approval needed)`
   }
   return `${item.approvalsGiven}/${item.approvalsRequired}`
-}
-
-// --- Group-level helpers ---
-
-type GroupStatus = 'loading' | 'ready' | 'open' | 'waiting'
-
-/**
- * Aggregate status for a merge group (worst-branch-wins).
- * Returns 'loading' when there are no branches yet.
- */
-export function getGroupStatus(group: MergeGroup): GroupStatus {
-  if (group.branches.length === 0) return 'loading'
-  const statusPriority: GroupStatus[] = ['waiting', 'open', 'ready']
-  let worstIndex = 2 // start with 'ready' (best)
-  for (const item of group.branches) {
-    const label = itemStatusLabel(item)
-    let s: GroupStatus = 'waiting'
-    if (label === 'Ready') s = 'ready'
-    else if (label === 'Open') s = 'open'
-    const idx = statusPriority.indexOf(s)
-    if (idx < worstIndex) worstIndex = idx
-  }
-  return statusPriority[worstIndex]
-}
-
-const groupStatusLabels: Record<GroupStatus, string> = {
-  loading: 'Loading',
-  ready: 'Ready',
-  open: 'Open',
-  waiting: 'Waiting',
-}
-
-export function groupStatusLabel(group: MergeGroup): string {
-  return groupStatusLabels[getGroupStatus(group)]
-}
-
-export function groupStatusClass(group: MergeGroup): string {
-  return `status-${getGroupStatus(group)}`
-}
-
-/**
- * Returns the reasons a single branch is in "Waiting" status.
- * Returns an empty array if the branch is not waiting.
- */
-export function getItemWaitingReasons(item: BranchWithActivity): string[] {
-  const reasons: string[] = []
-  if (item.hasMergeRequest === false) reasons.push('No merge request')
-  if (item.needsRebase === true) reasons.push('Needs rebase')
-  return reasons
-}
-
-/**
- * Returns aggregated waiting reasons across all branches in a group (deduplicated).
- */
-export function getGroupWaitingReasons(group: MergeGroup): string[] {
-  const seen = new Set<string>()
-  for (const item of group.branches) {
-    for (const reason of getItemWaitingReasons(item)) {
-      seen.add(reason)
-    }
-  }
-  return [...seen]
 }
 
 // --- Job-level helpers (details view) ---

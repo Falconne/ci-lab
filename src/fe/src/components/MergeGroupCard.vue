@@ -18,11 +18,11 @@
             <v-icon icon="mdi-merge" size="x-small" />
             Auto Merge
           </span>
-          <template v-if="isGroupFullyLoaded(group)">
+          <template v-if="isGroupLoaded">
             <v-tooltip
-              v-if="groupStatusLabel(group) === 'Waiting'"
+              v-if="groupStatusReasons.length > 0"
               location="top"
-              :text="groupWaitingReasonsText"
+              :text="groupStatusReasonsText"
             >
               <template #activator="{ props: tipProps }">
                 <span v-bind="tipProps" class="card-status-badge" :class="groupStatusClass(group)">
@@ -53,7 +53,7 @@
                 </span>
               </template>
             </v-tooltip>
-            <template v-if="isBranchLoading(item)">
+            <template v-if="item.mrStatus === 0">
               <span class="item-skeleton-inline"><span class="skeleton-shimmer" /></span>
             </template>
             <template v-else>
@@ -73,7 +73,7 @@
             </template>
           </span>
           <v-tooltip
-            v-if="!isBranchLoading(item) && itemApprovalsText(item)"
+            v-if="item.mrStatus !== 0 && itemApprovalsText(item)"
             location="top"
             :text="approvalsTooltip(item)"
           >
@@ -95,7 +95,7 @@
             </template>
           </v-tooltip>
           <span class="item-time">
-            <span v-if="isBranchLoading(item)" class="skeleton-time"><span class="skeleton-shimmer" /></span>
+            <span v-if="item.mrStatus === 0" class="skeleton-time"><span class="skeleton-shimmer" /></span>
             <v-tooltip v-else-if="item.lastUpdated" location="top" :text="formatDateTime(item.lastUpdated)">
               <template #activator="{ props: tipProps }">
                 <span v-bind="tipProps">{{ formatTimeAgo(item.lastUpdated, now) }}</span>
@@ -146,12 +146,10 @@ import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import type { BranchWithActivity, MergeGroup } from '@/types/mergeGroup'
 import {
-  isBranchLoading,
-  isGroupFullyLoaded,
   groupStatusLabel,
   groupStatusClass,
   itemApprovalsText,
-  getGroupWaitingReasons,
+  getGroupStatusReasons,
   jobStatusIcon,
   jobStatusColor,
 } from '@/utils/statusHelpers'
@@ -177,10 +175,13 @@ const mergeGroupHref = computed(() => {
   return resolved.href
 })
 
-const groupWaitingReasonsText = computed(() => {
-  const reasons = getGroupWaitingReasons(props.group)
-  return reasons.length > 0 ? reasons.join(', ') : 'Waiting'
-})
+const isGroupLoaded = computed(() =>
+  props.group.branches.length > 0 && props.group.branches.every(b => b.mrStatus !== 0)
+)
+
+const groupStatusReasons = computed(() => getGroupStatusReasons(props.group))
+
+const groupStatusReasonsText = computed(() => groupStatusReasons.value.join('\n'))
 
 // Status priority for deduplication: lower index = worse
 const STATUS_PRIORITY = ['failed', 'failure', 'running', 'pending', 'canceled', 'cancelled', 'success']

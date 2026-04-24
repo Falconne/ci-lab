@@ -31,11 +31,11 @@
 .status-ready { background: rgba(var(--v-theme-success), 0.12); color: rgb(var(--v-theme-success)); }
 .status-ready .status-dot { background: rgb(var(--v-theme-success)); }
 
-.status-open { background: rgba(var(--v-theme-info), 0.12); color: rgb(var(--v-theme-info)); }
-.status-open .status-dot { background: rgb(var(--v-theme-info)); }
+.status-blocked { background: rgba(var(--v-theme-error), 0.12); color: rgb(var(--v-theme-error)); }
+.status-blocked .status-dot { background: rgb(var(--v-theme-error)); }
 
-.status-waiting { background: rgba(var(--v-theme-warning), 0.12); color: rgb(var(--v-theme-warning)); }
-.status-waiting .status-dot { background: rgb(var(--v-theme-warning)); }
+.status-waiting { background: rgba(var(--v-theme-info), 0.12); color: rgb(var(--v-theme-info)); }
+.status-waiting .status-dot { background: rgb(var(--v-theme-info)); }
 
 .status-loading { background: #f5f5f5; color: #757575; }
 .status-loading .status-dot { background: #bdbdbd; }
@@ -47,8 +47,8 @@
 }
 
 .card-accent.status-ready { background: rgb(var(--v-theme-success)); }
-.card-accent.status-open { background: rgb(var(--v-theme-info)); }
-.card-accent.status-waiting { background: rgb(var(--v-theme-warning)); }
+.card-accent.status-blocked { background: rgb(var(--v-theme-error)); }
+.card-accent.status-waiting { background: rgb(var(--v-theme-info)); }
 .card-accent.status-loading { background: #bdbdbd; }
 
 /* ---- Card body ---- */

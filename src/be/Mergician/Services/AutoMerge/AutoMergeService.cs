@@ -1,4 +1,5 @@
 using Mergician.Entities;
+using Mergician.Services;
 using Mergician.Services.Authentication;
 using Mergician.Services.Database;
 using Mergician.Services.GitLab;
@@ -418,7 +419,6 @@ public class AutoMergeService : BackgroundService
         List<string> reasons,
         CancellationToken cancellationToken)
     {
-        var ready = true;
         var branchLabel = $"{branch.ProjectName}/{branch.BranchName}";
 
         // Check approvals
@@ -428,50 +428,58 @@ public class AutoMergeService : BackgroundService
             mr.Iid,
             cancellationToken);
 
-        if (approvals is { ApprovalsRequired: > 0 })
+        int? approvalsRequired = null;
+        int? approvalsGiven = null;
+        if (approvals != null)
         {
-            if (approvals.ApprovedBy.Count < approvals.ApprovalsRequired.GetValueOrDefault())
-            {
-                reasons.Add(
-                    $"{branchLabel}: needs {approvals.ApprovalsRequired - approvals.ApprovedBy.Count} more approvals");
-
-                ready = false;
-            }
+            approvalsGiven = approvals.ApprovedBy.Count;
+            approvalsRequired = Math.Max(approvals.ApprovalsRequired ?? 0, 0);
         }
 
-        // Check pipelines
+        // Fetch latest pipeline and its jobs
         var latestPipeline = await _apiService.GetLatestMergeRequestPipeline(
             serviceUser,
             branch.ProjectId,
             mr.Iid,
             cancellationToken);
 
+        List<BranchBuildJob> buildJobs = [];
         if (latestPipeline != null)
         {
+            buildJobs = await _apiService.GetPipelineJobs(
+                serviceUser,
+                branch.ProjectId,
+                latestPipeline.Id,
+                cancellationToken);
+
+            // Guard against pipeline fetch failures: if pipeline is not successful, block regardless
             if (latestPipeline.Status != "success")
             {
                 reasons.Add($"{branchLabel}: latest pipeline status is '{latestPipeline.Status}'");
-                ready = false;
+                return false;
             }
         }
 
-        // Check if branch is up to date with target (when auto rebase is enabled)
-        if (autoRebaseEnabled)
+        var needsRebase = autoRebaseEnabled
+            && (mr.DivergedCommitsCount > 0 || mr.HasConflicts || mr.DetailedMergeStatus == "need_rebase");
+
+        var (mrStatus, calcReasons) = MrStatusCalculator.Calculate(
+            hasMergeRequest: true,
+            approvalsRequired,
+            approvalsGiven,
+            buildJobs,
+            needsRebase,
+            mr.RebaseInProgress);
+
+        if (mrStatus != MrStatus.Ready)
         {
-            var needsRebase = mr.DivergedCommitsCount > 0
-                              || mr.HasConflicts
-                              || mr.DetailedMergeStatus == "need_rebase";
+            foreach (var r in calcReasons)
+                reasons.Add($"{branchLabel}: {r}");
 
-            if (needsRebase)
-            {
-                reasons.Add(
-                    $"{branchLabel}: needs rebase (diverged={mr.DivergedCommitsCount}, conflicts={mr.HasConflicts})");
-
-                ready = false;
-            }
+            return false;
         }
 
-        // Check merge status from GitLab
+        // Check merge status from GitLab (guards against states MrStatusCalculator does not cover)
         if (mr.DetailedMergeStatus is "not_open"
             or "blocked_status"
             or "ci_must_pass"
@@ -481,10 +489,10 @@ public class AutoMergeService : BackgroundService
             or "conflict")
         {
             reasons.Add($"{branchLabel}: merge status is '{mr.DetailedMergeStatus}'");
-            ready = false;
+            return false;
         }
 
-        return ready;
+        return true;
     }
 
     private async Task WaitForReady(CancellationToken cancellationToken)

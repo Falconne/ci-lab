@@ -18,6 +18,8 @@ export interface BranchWithActivity {
   projectUrl?: string | null
   needsRebase?: boolean | null
   buildJobs?: BranchBuildJob[] | null
+  mrStatus: number
+  mrStatusReasons: string[] | null
   id: number
 }
 

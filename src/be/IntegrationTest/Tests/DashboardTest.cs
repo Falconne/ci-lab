@@ -135,7 +135,7 @@ public class DashboardTest : IDisposable
                     "Test Group / secondary-3",
                     "No Merge Request");
 
-                AssertCardGroupStatus("feature/delta", "Waiting");
+                AssertCardGroupStatus("feature/delta", "Blocked");
                 Log.Information("test3 dashboard data verified");
             });
 

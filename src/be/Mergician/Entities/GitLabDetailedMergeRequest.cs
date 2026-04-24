@@ -34,4 +34,7 @@ public class GitLabDetailedMergeRequest
 
     [JsonPropertyName("project_id")]
     public int ProjectId { get; set; }
+
+    [JsonPropertyName("rebase_in_progress")]
+    public bool RebaseInProgress { get; set; }
 }

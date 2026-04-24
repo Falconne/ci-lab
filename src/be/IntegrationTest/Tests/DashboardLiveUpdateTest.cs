@@ -101,26 +101,26 @@ public class DashboardLiveUpdateTest : IDisposable
         await _browser.TakeScreenshot("live_04_branch_without_mr");
 
         // The branch may appear in a loading state (no status badge) or already showing
-        // "Waiting" if the regular poll populated data before we checked. Both are valid.
-        var isAlreadyWaiting = await BranchCardHasStatus(branchName, "Waiting");
+        // "Blocked" if the regular poll populated data before we checked. Both are valid.
+        var isAlreadyWaiting = await BranchCardHasStatus(branchName, "Blocked");
         if (isAlreadyWaiting)
         {
-            Log.Information("Branch '{BranchName}' shows 'Waiting' status immediately", branchName);
+            Log.Information("Branch '{BranchName}' shows 'Blocked' status immediately", branchName);
         }
         else
         {
             Log.Information(
-                "Branch '{BranchName}' appeared without status badge (data loading), waiting for 'Waiting' status...",
+                "Branch '{BranchName}' appeared without status badge (data loading), waiting for 'Blocked' status...",
                 branchName);
 
-            var becameWaiting = await WaitForBranchToReachStatus(branchName, "Waiting", 30);
+            var becameWaiting = await WaitForBranchToReachStatus(branchName, "Blocked", 30);
             if (!becameWaiting)
             {
                 throw new InvalidOperationException(
-                    $"Branch '{branchName}' did not reach 'Waiting' status within timeout");
+                    $"Branch '{branchName}' did not reach 'Blocked' status within timeout");
             }
 
-            Log.Information("Branch '{BranchName}' reached 'Waiting' status after loading", branchName);
+            Log.Information("Branch '{BranchName}' reached 'Blocked' status after loading", branchName);
         }
 
         // verify explicit no-MR text is shown before an MR exists
@@ -150,14 +150,14 @@ public class DashboardLiveUpdateTest : IDisposable
             "Created MR for branch '{BranchName}' with long title, waiting for dashboard update...",
             branchName);
 
-        // Wait for the status to change from "Waiting" to "Open" or "Ready"
-        var mrUpdated = await WaitForBranchStatusChange(branchName, "Waiting", 60);
+        // Wait for the status to change from "Blocked" to "Blocked" (with MR) or "Ready"
+        var mrUpdated = await WaitForBranchStatusChange(branchName, "Blocked", 60);
         await _browser.TakeScreenshot("live_05_branch_with_mr");
 
         if (!mrUpdated)
         {
             throw new InvalidOperationException(
-                $"Status did not change from 'Waiting' for branch '{branchName}' within timeout");
+                $"Status did not change from 'Blocked' for branch '{branchName}' within timeout");
         }
 
         Log.Information("MR status updated on dashboard for '{BranchName}'", branchName);

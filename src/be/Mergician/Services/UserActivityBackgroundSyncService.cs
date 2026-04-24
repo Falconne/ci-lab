@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using System.Text.Json;
+using Mergician.Entities;
 using Mergician.Entities.Database;
 using Mergician.Services.Authentication;
 using Mergician.Services.Database;
@@ -546,6 +548,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
         string? mergeRequestTitle = null;
         string? mergeRequestUrl = null;
         bool? needsRebase = null;
+        bool? rebaseInProgress = null;
 
         if (hasMergeRequest)
         {
@@ -553,6 +556,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             mergeRequestTitle = first.Title;
             mergeRequestUrl = first.WebUrl;
             needsRebase = first.DetailedMergeStatus == "need_rebase";
+            rebaseInProgress = first.RebaseInProgress;
 
             var approval = await _gitLabService.GetMergeRequestApprovals(
                 accessDetails,
@@ -600,6 +604,23 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             return;
         }
 
+        var (mrStatus, reasons) = MrStatusCalculator.Calculate(
+            hasMergeRequest,
+            approvalsRequired,
+            approvalsGiven,
+            buildJobs,
+            needsRebase,
+            rebaseInProgress);
+
+        var mrStatusReasons = reasons.Count > 0 ? JsonSerializer.Serialize(reasons) : null;
+
+        _logger.LogDebug(
+            "Branch '{BranchName}' in project {ProjectId}: computed mrStatus={MrStatus}, reasons={Reasons}",
+            branch.BranchName,
+            branch.ProjectId,
+            mrStatus,
+            mrStatusReasons);
+
         _mergeGroupRepository.UpdateBranchDetails(
             branch.Id,
             hasMergeRequest,
@@ -610,7 +631,9 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             approvalsGiven,
             buildJobs,
             needsRebase,
-            lastCommitTime);
+            lastCommitTime,
+            mrStatus,
+            mrStatusReasons);
 
         _logger.LogDebug(
             "Updated details for branch '{BranchName}' in project {ProjectId}: hasMergeRequest={HasMergeRequest}, {JobCount} jobs",

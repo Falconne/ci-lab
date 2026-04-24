@@ -81,8 +81,10 @@ public interface IMergeGroupRepository
         int? approvalsRequired,
         int? approvalsGiven,
         List<BranchBuildJob> buildJobs,
-        bool? needsRebase = null,
-        DateTimeOffset? lastCommitTime = null);
+        bool? needsRebase,
+        DateTimeOffset? lastCommitTime,
+        int mrStatus,
+        string? mrStatusReasons);
 
     /// <summary>
     ///     Updates the auto merge and auto rebase settings for a merge group.

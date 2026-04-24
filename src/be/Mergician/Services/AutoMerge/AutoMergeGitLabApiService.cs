@@ -4,6 +4,7 @@ using System.Text.Json;
 using Mergician.Entities;
 using Mergician.Services.Authentication;
 using Mergician.Services.GitLab;
+using Util;
 
 namespace Mergician.Services.AutoMerge;
 
@@ -84,6 +85,43 @@ public class AutoMergeGitLabApiService
                 mergeRequestIid);
 
             return null;
+        }
+    }
+
+    /// <summary>
+    ///     Fetches jobs for a specific pipeline.
+    /// </summary>
+    public async Task<List<BranchBuildJob>> GetPipelineJobs(
+        AccessDetailsBase accessDetails,
+        int projectId,
+        int pipelineId,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var jobs = await _gitLabApiClient.Execute<List<GitLabPipelineJob>>(
+                () =>
+                    accessDetails.CreateRequest(
+                        HttpMethod.Get,
+                        $"projects/{projectId}/pipelines/{pipelineId}/jobs?per_page=100"),
+                cancellationToken);
+
+            return jobs
+                .Select(job => new BranchBuildJob(
+                    job.Name.IsEmpty() ? "job" : job.Name,
+                    job.Status.IsEmpty() ? "unknown" : job.Status,
+                    job.WebUrl.IsEmpty() ? null : job.WebUrl))
+                .ToList();
+        }
+        catch (GitLabUnexpectedResponseException ex)
+        {
+            _logger.LogError(
+                "GetPipelineJobs failed with status {StatusCode} for project {ProjectId}, pipeline {PipelineId}",
+                (int)ex.StatusCode,
+                projectId,
+                pipelineId);
+
+            return [];
         }
     }
 
