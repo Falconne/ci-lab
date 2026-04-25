@@ -26,13 +26,19 @@ public class AccessDetailsBase
     /// <summary>
     ///     Creates an authenticated HttpRequestMessage for the given method and relative API path.
     /// </summary>
+    /// <param name="query">Relative API path, e.g. "user" or "projects/1/repository/branches"</param>
     /// <param name="method">The HTTP method (GET, POST, etc.)</param>
-    /// <param name="path">Relative API path, e.g. "user" or "projects/1/repository/branches"</param>
-    public HttpRequestMessage CreateRequest(HttpMethod method, string path)
+    public HttpRequestMessage CreateRequest(string query, HttpMethod method)
     {
-        var url = $"{_apiBaseUrl}/{path.TrimStart('/')}";
+        var url = $"{_apiBaseUrl}/{query.TrimStart('/')}";
         var request = new HttpRequestMessage(method, url);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _accessToken);
         return request;
+    }
+
+    // TODO: Use this helper method where possible over the other overload
+    public HttpRequestMessage CreateRequest(string query)
+    {
+        return CreateRequest(query, HttpMethod.Get);
     }
 }

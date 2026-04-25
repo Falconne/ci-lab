@@ -1,9 +1,9 @@
-using System.Net;
-using System.Text;
-using System.Text.Json;
 using Mergician.Entities;
 using Mergician.Services.Authentication;
 using Mergician.Services.GitLab;
+using System.Net;
+using System.Text;
+using System.Text.Json;
 using Util;
 
 namespace Mergician.Services.AutoMerge;
@@ -40,8 +40,8 @@ public class AutoMergeGitLabApiService
             return await _gitLabApiClient.Execute<GitLabDetailedMergeRequest>(
                 () =>
                     accessDetails.CreateRequest(
-                        HttpMethod.Get,
-                        $"projects/{projectId}/merge_requests/{mergeRequestIid}"),
+                        $"projects/{projectId}/merge_requests/{mergeRequestIid}",
+                        HttpMethod.Get),
                 cancellationToken);
         }
         catch (GitLabUnexpectedResponseException ex)
@@ -70,8 +70,8 @@ public class AutoMergeGitLabApiService
             var pipelines = await _gitLabApiClient.Execute<List<GitLabPipelineDetail>>(
                 () =>
                     accessDetails.CreateRequest(
-                        HttpMethod.Get,
-                        $"projects/{projectId}/merge_requests/{mergeRequestIid}/pipelines?per_page=1&sort=desc"),
+                        $"projects/{projectId}/merge_requests/{mergeRequestIid}/pipelines?per_page=1&sort=desc",
+                        HttpMethod.Get),
                 cancellationToken);
 
             return pipelines.FirstOrDefault();
@@ -102,8 +102,8 @@ public class AutoMergeGitLabApiService
             var jobs = await _gitLabApiClient.Execute<List<GitLabPipelineJob>>(
                 () =>
                     accessDetails.CreateRequest(
-                        HttpMethod.Get,
-                        $"projects/{projectId}/pipelines/{pipelineId}/jobs?per_page=100"),
+                        $"projects/{projectId}/pipelines/{pipelineId}/jobs?per_page=100",
+                        HttpMethod.Get),
                 cancellationToken);
 
             return jobs
@@ -141,8 +141,8 @@ public class AutoMergeGitLabApiService
                 () =>
                 {
                     var request = accessDetails.CreateRequest(
-                        HttpMethod.Put,
-                        $"projects/{projectId}/merge_requests/{mergeRequestIid}/rebase");
+                        $"projects/{projectId}/merge_requests/{mergeRequestIid}/rebase",
+                        HttpMethod.Put);
 
                     request.Content = new StringContent("{}", Encoding.UTF8, "application/json");
                     return request;
@@ -184,8 +184,8 @@ public class AutoMergeGitLabApiService
                 () =>
                 {
                     var request = accessDetails.CreateRequest(
-                        HttpMethod.Put,
-                        $"projects/{projectId}/merge_requests/{mergeRequestIid}/merge");
+                        $"projects/{projectId}/merge_requests/{mergeRequestIid}/merge",
+                        HttpMethod.Put);
 
                     request.Content = new StringContent("{}", Encoding.UTF8, "application/json");
                     return request;
@@ -245,8 +245,8 @@ public class AutoMergeGitLabApiService
                 () =>
                 {
                     var request = accessDetails.CreateRequest(
-                        HttpMethod.Post,
-                        $"projects/{projectId}/merge_requests/{mergeRequestIid}/notes");
+                        $"projects/{projectId}/merge_requests/{mergeRequestIid}/notes",
+                        HttpMethod.Post);
 
                     request.Content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
                     return request;
