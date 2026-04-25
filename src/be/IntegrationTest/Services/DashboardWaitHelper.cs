@@ -78,4 +78,73 @@ public static class DashboardWaitHelper
 
         return false;
     }
+
+    /// <summary>
+    ///     Waits until each specified branch shows the expected group status badge on the dashboard.
+    ///     Useful for waiting until background build jobs complete and Mergician reflects the final state.
+    /// </summary>
+    /// <param name="page">The Playwright page to poll.</param>
+    /// <param name="expectedStatuses">Map of branch name (substring) → expected status label (e.g. "Ready").</param>
+    /// <param name="timeoutSeconds">Maximum seconds to wait.</param>
+    /// <returns>True if all statuses matched within the timeout, false otherwise.</returns>
+    public static async Task<bool> WaitForGroupStatuses(
+        IPage page,
+        IReadOnlyDictionary<string, string> expectedStatuses,
+        int timeoutSeconds = 180)
+    {
+        for (var s = 0; s < timeoutSeconds; s++)
+        {
+            var allMatch = true;
+
+            foreach (var (branchName, expectedStatus) in expectedStatuses)
+            {
+                var cardElements = page.Locator(".merge-group-card");
+                var cardCount = await cardElements.CountAsync();
+                var matched = false;
+
+                for (var i = 0; i < cardCount; i++)
+                {
+                    var card = cardElements.Nth(i);
+                    var name = (await card.Locator(".branch-name").InnerTextAsync()).Trim();
+                    if (!name.Contains(branchName, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    var badge = card.Locator(".card-status-badge");
+                    var status = await badge.CountAsync() > 0
+                        ? (await badge.InnerTextAsync()).Trim()
+                        : "";
+
+                    if (status.Equals(expectedStatus, StringComparison.OrdinalIgnoreCase))
+                        matched = true;
+
+                    break;
+                }
+
+                if (!matched)
+                {
+                    allMatch = false;
+                    break;
+                }
+            }
+
+            if (allMatch)
+            {
+                Log.Information(
+                    "All expected group statuses matched after ~{Seconds}s",
+                    s);
+                return true;
+            }
+
+            if (s % 15 == 0 && s > 0)
+            {
+                Log.Information(
+                    "Waiting for expected group statuses... {Seconds}s elapsed",
+                    s);
+            }
+
+            await Task.Delay(1000);
+        }
+
+        return false;
+    }
 }

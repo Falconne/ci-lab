@@ -41,6 +41,8 @@ public class DashboardTest : IDisposable
             Path.Combine(TestConfig.ScreenshotDir, "activity"));
 
         // Test with test1 — should see feature/alpha and feature/beta
+        // Wait for builds to complete (TeamCity reports build status via external pipelines which
+        // Mergician now tracks; branches show 'Waiting' until builds finish)
         await TestUserDashboard(
             "test1",
             () =>
@@ -77,6 +79,11 @@ public class DashboardTest : IDisposable
                 AssertCardGroupStatus("feature/alpha", "Ready");
                 AssertCardGroupStatus("feature/beta", "Ready");
                 Log.Information("test1 dashboard data verified");
+            },
+            new Dictionary<string, string>
+            {
+                ["feature/alpha"] = "Ready",
+                ["feature/beta"] = "Ready"
             });
 
         await TestMergeGroupDetailsNavigationAndLinks(
@@ -118,6 +125,10 @@ public class DashboardTest : IDisposable
 
                 AssertCardGroupStatus("feature/gamma", "Ready");
                 Log.Information("test2 dashboard data verified");
+            },
+            new Dictionary<string, string>
+            {
+                ["feature/gamma"] = "Ready"
             });
 
         // Test with test3 — should see feature/delta (no MR)
@@ -145,7 +156,10 @@ public class DashboardTest : IDisposable
         Log.Information("Dashboard test passed for all users");
     }
 
-    private async Task TestUserDashboard(string username, Action verify)
+    private async Task TestUserDashboard(
+        string username,
+        Action verify,
+        IReadOnlyDictionary<string, string>? expectedGroupStatuses = null)
     {
         Log.Information("Testing dashboard for user '{Username}'...", username);
 
@@ -157,7 +171,7 @@ public class DashboardTest : IDisposable
         await LoginToMergician(username);
 
         // Navigate to the dashboard and wait for data to load via polling
-        await WaitForDashboard(username);
+        await WaitForDashboard(username, expectedGroupStatuses);
 
         // Verify expectations against the rendered UI
         verify();
@@ -226,9 +240,13 @@ public class DashboardTest : IDisposable
     /// <summary>
     ///     Navigates to the Mergician home page and waits for the dashboard data to load
     ///     via polling (cards appear and MR data is resolved through the refresh cycle).
+    ///     If <paramref name="expectedGroupStatuses"/> is provided, additionally waits until
+    ///     every listed branch shows the expected status badge (e.g. waiting for builds to finish).
     ///     Parses the rendered cards into <see cref="_parsedCards" /> for assertion.
     /// </summary>
-    private async Task WaitForDashboard(string username)
+    private async Task WaitForDashboard(
+        string username,
+        IReadOnlyDictionary<string, string>? expectedGroupStatuses = null)
     {
         await _browser.Navigate(TestConfig.MergicianUrl);
         await Task.Delay(2000);
@@ -241,6 +259,26 @@ public class DashboardTest : IDisposable
             await _browser.TakeScreenshot($"dashboard_{username}_05_load_timeout");
             throw new InvalidOperationException(
                 "Dashboard did not fully load within timeout");
+        }
+
+        // If specific group statuses are expected, wait for them (e.g. builds finishing before Ready)
+        if (expectedGroupStatuses != null)
+        {
+            Log.Information(
+                "Waiting for expected group statuses: {Statuses}",
+                string.Join(", ", expectedGroupStatuses.Select(kv => $"{kv.Key}={kv.Value}")));
+
+            var statusesReached = await DashboardWaitHelper.WaitForGroupStatuses(
+                _browser.Page,
+                expectedGroupStatuses,
+                timeoutSeconds: 180);
+
+            if (!statusesReached)
+            {
+                await _browser.TakeScreenshot($"dashboard_{username}_05_status_timeout");
+                throw new InvalidOperationException(
+                    $"Expected group statuses were not reached within timeout for user '{username}'");
+            }
         }
 
         await _browser.TakeScreenshot($"dashboard_{username}_05_load_complete");

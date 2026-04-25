@@ -20,6 +20,8 @@ public class GitLabPipelineService
 
     /// <summary>
     ///     Returns build job statuses for the latest pipeline on the branch.
+    ///     For external pipelines (e.g. TeamCity commit status publisher), commit statuses
+    ///     are fetched instead of pipeline jobs, since external pipelines have no jobs.
     /// </summary>
     public async Task<List<BranchBuildJob>> GetLatestBuildJobsForBranch(
         AccessDetailsBase accessDetails,
@@ -41,6 +43,33 @@ public class GitLabPipelineService
                 projectId);
 
             return [];
+        }
+
+        // External pipelines (e.g. from TeamCity's commit status publisher) have no jobs.
+        // Fall back to commit statuses for the pipeline's commit SHA.
+        if (latestPipeline.Source == "external")
+        {
+            _logger.LogDebug(
+                "Pipeline {PipelineId} for branch '{BranchName}' in project {ProjectId} is external; fetching commit statuses for SHA {Sha}",
+                latestPipeline.Id,
+                branchName,
+                projectId,
+                latestPipeline.Sha);
+
+            var commitStatusJobs = await GetJobsFromCommitStatuses(
+                accessDetails,
+                projectId,
+                latestPipeline.Sha,
+                cancellationToken);
+
+            _logger.LogDebug(
+                "Resolved {Count} commit status jobs for branch '{BranchName}' in project {ProjectId} (SHA {Sha})",
+                commitStatusJobs.Count,
+                branchName,
+                projectId,
+                latestPipeline.Sha);
+
+            return commitStatusJobs;
         }
 
         var buildJobs = await GetJobsFromPipeline(
@@ -87,6 +116,41 @@ public class GitLabPipelineService
 
             return null;
         }
+    }
+
+    private async Task<List<BranchBuildJob>> GetJobsFromCommitStatuses(
+        AccessDetailsBase accessDetails,
+        int projectId,
+        string sha,
+        CancellationToken cancellationToken)
+    {
+        List<GitLabCommitStatus> statuses;
+
+        try
+        {
+            var encodedSha = Uri.EscapeDataString(sha);
+            var query = $"projects/{projectId}/repository/commits/{encodedSha}/statuses?per_page=100";
+            statuses = await _gitLabApiClient.Execute<List<GitLabCommitStatus>>(
+                () => accessDetails.CreateRequest(query),
+                cancellationToken);
+        }
+        catch (GitLabUnexpectedResponseException ex)
+        {
+            _logger.LogError(
+                "GetJobsFromCommitStatuses failed with status {StatusCode} for project {ProjectId}, SHA {Sha}",
+                (int)ex.StatusCode,
+                projectId,
+                sha);
+
+            return [];
+        }
+
+        return statuses
+            .Select(s => new BranchBuildJob(
+                s.Name.IsEmpty() ? "build" : s.Name,
+                s.Status.IsEmpty() ? "unknown" : s.Status,
+                s.TargetUrl.IsEmpty() ? null : s.TargetUrl))
+            .ToList();
     }
 
     private async Task<List<BranchBuildJob>> GetJobsFromPipeline(
