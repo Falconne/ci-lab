@@ -249,33 +249,39 @@
                   </span>
                 </div>
 
-                <div class="detail-row align-start">
-                  <span class="detail-label">Build Jobs:</span>
-                  <span class="detail-value">
-                    <div v-if="item.buildJobs && item.buildJobs.length > 0" class="jobs-list">
-                      <v-chip
-                        v-for="job in item.buildJobs"
-                        :key="`${item.projectId}-${job.name}-${job.status}`"
-                        size="small"
-                        :color="jobStatusColor(job.status)"
-                        variant="outlined"
-                        :prepend-icon="jobStatusIcon(job.status)"
-                      >
-                        <a
-                          v-if="job.url"
-                          :href="job.url"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          class="job-link"
+                <div class="build-jobs-section">
+                  <span class="build-jobs-subtitle">Build Jobs</span>
+                  <div v-if="item.buildJobs && item.buildJobs.length > 0" class="jobs-list">
+                    <v-tooltip
+                      v-for="job in item.buildJobs"
+                      :key="`${item.projectId}-${job.name}-${job.status}`"
+                      location="top"
+                      :text="jobStatusLabel(job.status)"
+                    >
+                      <template #activator="{ props: tipProps }">
+                        <v-chip
+                          v-bind="tipProps"
+                          size="small"
+                          :color="jobStatusColor(job.status)"
+                          variant="outlined"
+                          :prepend-icon="jobStatusIcon(job.status)"
                         >
-                          {{ job.name }}
-                        </a>
-                        <span v-else>{{ job.name }}</span>
-                      </v-chip>
-                    </div>
-                    <span v-else-if="item.mrStatus !== 0" class="text-medium-emphasis">No jobs on latest pipeline</span>
-                    <span v-else class="skeleton-detail"><span class="skeleton-shimmer" /></span>
-                  </span>
+                          <a
+                            v-if="job.url"
+                            :href="job.url"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="job-link"
+                          >
+                            {{ job.name }}
+                          </a>
+                          <span v-else>{{ job.name }}</span>
+                        </v-chip>
+                      </template>
+                    </v-tooltip>
+                  </div>
+                  <span v-else-if="item.mrStatus !== 0" class="text-medium-emphasis">No jobs on latest pipeline</span>
+                  <span v-else class="skeleton-detail"><span class="skeleton-shimmer" /></span>
                 </div>
               </div>
             </div>
@@ -313,7 +319,7 @@ import { usePolling } from '@/composables/usePolling'
 import type { BranchWithActivity, MergeGroup } from '@/types/mergeGroup'
 import {
   mrStatusLabel, mrStatusClass, mrStatusChipColor,
-  itemApprovalsTextDetailed, jobStatusIcon, jobStatusColor,
+  itemApprovalsTextDetailed, jobStatusIcon, jobStatusColor, jobStatusLabel,
   groupStatusLabel, groupStatusClass,
 } from '@/utils/statusHelpers'
 import { handleTransientError, clearTransientError } from '@/utils/pollHelpers'
@@ -803,6 +809,22 @@ onMounted(async () => {
 }
 
 /* ---- Jobs list ---- */
+.build-jobs-section {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(var(--v-theme-on-surface), 0.1);
+}
+
+.build-jobs-subtitle {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+  margin-bottom: 8px;
+}
+
 .jobs-list {
   display: flex;
   flex-wrap: wrap;

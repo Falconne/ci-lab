@@ -107,11 +107,12 @@
       </div>
       <!-- Build jobs summary across all branches -->
       <div v-if="deduplicatedJobs.length > 0" class="card-jobs">
+        <span class="card-jobs-label">Build Jobs</span>
         <v-tooltip
           v-for="job in nonSuccessJobs"
           :key="job.name"
           location="top"
-          :text="job.name"
+          :text="`${job.name} \u2022 ${jobStatusLabel(job.status)}`"
         >
           <template #activator="{ props: tipProps }">
             <v-chip
@@ -152,6 +153,7 @@ import {
   getGroupStatusReasons,
   jobStatusIcon,
   jobStatusColor,
+  jobStatusLabel,
 } from '@/utils/statusHelpers'
 import { formatDateTime, formatTimeAgo } from '@/utils/dateFormatting'
 
@@ -318,10 +320,21 @@ function approvalsTooltip(item: BranchWithActivity): string {
 .card-jobs {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 4px;
   padding-top: 8px;
   border-top: 1px solid rgba(var(--v-theme-on-surface), 0.08);
   margin-top: 4px;
+}
+
+.card-jobs-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+  margin-right: 4px;
+  white-space: nowrap;
 }
 
 .job-chip {

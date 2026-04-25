@@ -135,3 +135,19 @@ const jobStatusColors: Record<string, string> = {
 export function jobStatusColor(status: string): string {
   return jobStatusColors[status.toLowerCase()] ?? 'default'
 }
+
+/**
+ * Human-readable label for a build job status string.
+ */
+export function jobStatusLabel(status: string): string {
+  switch (status.toLowerCase()) {
+    case 'success': return 'Success'
+    case 'failed':
+    case 'failure': return 'Failed'
+    case 'running': return 'Running'
+    case 'pending': return 'Pending'
+    case 'canceled':
+    case 'cancelled': return 'Canceled'
+    default: return status
+  }
+}
