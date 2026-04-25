@@ -52,16 +52,16 @@ public class AutoMergeToggleTest : IDisposable
                 "Expected no auto merge badges on dashboard initially");
         }
 
-        // Find a merge group card that has at least one branch without an MR.
-        // This prevents AutoMergeService from immediately merging the group when we enable
-        // auto merge, which would remove the card from the dashboard before we can verify the badge.
+        // Find a merge group card where all branches have MRs (required to enable auto merge).
+        // Groups with all MRs but unmet approval or build requirements won't be immediately
+        // auto-merged, so the badge will remain visible for verification.
         var allCards = _browser.Page.Locator(".merge-group-card");
         ILocator? targetCard = null;
         var totalCards = await allCards.CountAsync();
         for (var i = 0; i < totalCards; i++)
         {
             var card = allCards.Nth(i);
-            if (await card.Locator(".item-no-mr").CountAsync() > 0)
+            if (await card.Locator(".item-no-mr").CountAsync() == 0)
             {
                 targetCard = card;
                 break;
@@ -71,7 +71,7 @@ public class AutoMergeToggleTest : IDisposable
         if (targetCard == null)
         {
             throw new InvalidOperationException(
-                "No merge group card with branches without MRs found; cannot safely run auto merge toggle test");
+                "No merge group card with all branches having MRs found; cannot safely run auto merge toggle test");
         }
 
         await targetCard.ClickAsync();
