@@ -7,5 +7,9 @@ On the merge group details page, the auto merge toggle should only be enabled if
 Task 3)
 Add a document file with a mermaid diagram of the schema of the Mergician database.
 
+Task 4)
+When the status bubble tooltips need to display multiple lines of text, such as for multiple reasons why a status is blocked, make the tooltip a multiline display.
+
 Task 5)
 As an expert C# developer, review the backend code and create a review document wuth suggested improvements (if any). Add enough detail for a future agent to be able to implement the changes.
+
