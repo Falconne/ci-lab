@@ -22,7 +22,6 @@
             <v-tooltip
               v-if="groupStatusReasons.length > 0"
               location="top"
-              :text="groupStatusReasonsText"
             >
               <template #activator="{ props: tipProps }">
                 <span v-bind="tipProps" class="card-status-badge" :class="groupStatusClass(group)">
@@ -30,6 +29,7 @@
                   {{ groupStatusLabel(group) }}
                 </span>
               </template>
+              <span class="tooltip-multiline">{{ groupStatusReasonsText }}</span>
             </v-tooltip>
             <span v-else class="card-status-badge" :class="groupStatusClass(group)">
               <span class="status-dot" />
@@ -45,33 +45,42 @@
           :key="`${group.id}-${item.projectId}`"
           class="card-item"
         >
-          <span class="item-main">
-            <v-tooltip location="top" :text="item.projectNameWithNamespace">
-              <template #activator="{ props: tipProps }">
-                <span class="item-project" v-bind="tipProps" :title="item.projectNameWithNamespace">
-                  {{ item.projectName }}
-                </span>
-              </template>
-            </v-tooltip>
+          <v-tooltip location="top" :text="item.projectNameWithNamespace">
+            <template #activator="{ props: tipProps }">
+              <span class="item-project" v-bind="tipProps">
+                {{ item.projectName }}
+              </span>
+            </template>
+          </v-tooltip>
+
+          <span class="item-mr-area">
             <template v-if="item.mrStatus === 0">
               <span class="item-skeleton-inline"><span class="skeleton-shimmer" /></span>
             </template>
             <template v-else>
-              <span
-                v-if="item.mergeRequestTitle"
-                class="item-mr-title"
-                :title="item.mergeRequestTitle"
+              <v-tooltip
+                v-if="item.mergeRequestTitle && item.mergeRequestTitle.length > MAX_TITLE_LENGTH"
+                location="top"
+                :text="item.mergeRequestTitle"
               >
-                | {{ truncateTitle(item.mergeRequestTitle as string) }}
+                <template #activator="{ props: tipProps }">
+                  <span class="item-mr-title" v-bind="tipProps">
+                    {{ truncateTitle(item.mergeRequestTitle as string) }}
+                  </span>
+                </template>
+              </v-tooltip>
+              <span v-else-if="item.mergeRequestTitle" class="item-mr-title">
+                {{ item.mergeRequestTitle }}
               </span>
               <span
                 v-else-if="item.hasMergeRequest === false"
                 class="item-no-mr"
               >
-                | No Merge Request
+                No Merge Request
               </span>
             </template>
           </span>
+
           <v-tooltip
             v-if="item.mrStatus !== 0 && itemApprovalsText(item)"
             location="top"
@@ -81,7 +90,6 @@
               <span
                 v-bind="tipProps"
                 class="item-approvals"
-                :title="approvalsTooltip(item)"
               >
                 <v-icon
                   icon="mdi-thumb-up"
@@ -94,6 +102,8 @@
               </span>
             </template>
           </v-tooltip>
+          <span v-else class="item-approvals-placeholder" />
+
           <span class="item-time">
             <span v-if="item.mrStatus === 0" class="skeleton-time"><span class="skeleton-shimmer" /></span>
             <v-tooltip v-else-if="item.lastUpdated" location="top" :text="formatDateTime(item.lastUpdated)">
@@ -311,9 +321,24 @@ function approvalsTooltip(item: BranchWithActivity): string {
 
 /* ---- Card items (repo rows) ---- */
 .card-items {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
+  display: grid;
+  grid-template-columns: max-content 1fr auto auto;
+  gap: 0 12px;
+}
+
+.card-item {
+  display: contents;
+}
+
+.card-item > * {
+  padding: 6px 0;
+  border-top: 1px solid rgba(var(--v-theme-on-surface), 0.08);
+  font-size: 0.85rem;
+  min-width: 0;
+}
+
+.card-item:first-child > * {
+  border-top: none;
 }
 
 /* ---- Build jobs summary ---- */
@@ -344,35 +369,22 @@ function approvalsTooltip(item: BranchWithActivity): string {
   white-space: nowrap;
 }
 
-.card-item {
-  display: flex;
-  align-items: center;
-  padding: 6px 0;
-  border-top: 1px solid rgba(var(--v-theme-on-surface), 0.08);
-  font-size: 0.85rem;
-  gap: 12px;
-}
-
-.item-main {
-  display: flex;
-  align-items: center;
-  flex: 1;
-  min-width: 0;
-}
-
 .item-project {
   font-weight: 500;
   color: rgb(var(--v-theme-on-surface));
-  flex-shrink: 0;
   white-space: nowrap;
+}
+
+.item-mr-area {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .item-mr-title {
   font-size: 0.85rem;
   color: rgba(var(--v-theme-on-surface), 0.6);
-  margin-left: 4px;
-  flex: 1;
-  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -381,7 +393,6 @@ function approvalsTooltip(item: BranchWithActivity): string {
 .item-no-mr {
   font-size: 0.85rem;
   color: rgba(var(--v-theme-on-surface), 0.6);
-  margin-left: 4px;
   white-space: nowrap;
 }
 
@@ -402,13 +413,16 @@ function approvalsTooltip(item: BranchWithActivity): string {
   white-space: nowrap;
 }
 
+.item-approvals-placeholder {
+  /* empty placeholder keeps approval column in the grid */
+}
+
 .item-time {
   font-size: 0.75rem;
   color: rgba(var(--v-theme-on-surface), 0.6);
   white-space: nowrap;
-  flex-shrink: 0;
-  min-width: 70px;
   text-align: right;
+  min-width: 70px;
 }
 
 /* Skeleton for MR title area — inline with project name */
@@ -431,6 +445,10 @@ function approvalsTooltip(item: BranchWithActivity): string {
   overflow: hidden;
 }
 
+.tooltip-multiline {
+  white-space: pre-line;
+}
+
 /* ---- Responsive ---- */
 @media (max-width: 600px) {
   .card-header {
@@ -442,16 +460,6 @@ function approvalsTooltip(item: BranchWithActivity): string {
     width: 100%;
     justify-content: flex-start;
     flex-wrap: wrap;
-  }
-
-  .card-item {
-    flex-wrap: wrap;
-  }
-
-  .item-time {
-    width: 100%;
-    text-align: left;
-    margin-top: 2px;
   }
 }
 </style>

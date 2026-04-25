@@ -196,13 +196,13 @@
                     <v-tooltip
                       v-if="item.mrStatus !== 3 && item.mrStatusReasons?.length"
                       location="top"
-                      :text="item.mrStatusReasons!.join(', ')"
                     >
                       <template #activator="{ props: tipProps }">
                         <v-chip v-bind="tipProps" size="small" :color="mrStatusChipColor(item.mrStatus)" variant="tonal" class="flex-shrink-0">
                           {{ mrStatusLabel(item.mrStatus) }}
                         </v-chip>
                       </template>
+                      <span class="tooltip-multiline">{{ item.mrStatusReasons!.join('\n') }}</span>
                     </v-tooltip>
                     <v-chip v-else size="small" :color="mrStatusChipColor(item.mrStatus)" variant="tonal" class="flex-shrink-0">
                       {{ mrStatusLabel(item.mrStatus) }}
@@ -212,16 +212,19 @@
                 </div>
 
                 <!-- Detail rows -->
-                <div class="detail-row">
-                  <span class="detail-label">Approvals:</span>
+                <div class="detail-grid">
+                  <template v-if="item.lastCommitMessage">
+                    <span class="detail-label">Commit</span>
+                    <span class="detail-value">{{ item.lastCommitMessage }}</span>
+                  </template>
+
+                  <span class="detail-label">Approvals</span>
                   <span class="detail-value">
                     <span v-if="item.mrStatus === 0" class="skeleton-detail"><span class="skeleton-shimmer" /></span>
                     <template v-else>{{ itemApprovalsTextDetailed(item) }}</template>
                   </span>
-                </div>
 
-                <div class="detail-row">
-                  <span class="detail-label">Merge Request:</span>
+                  <span class="detail-label">Merge Request</span>
                   <span class="detail-value">
                     <a
                       v-if="item.mergeRequestTitle && item.mergeRequestUrl"
@@ -233,18 +236,22 @@
                       {{ item.mergeRequestTitle }}
                     </a>
                     <span v-else-if="item.mergeRequestTitle">{{ item.mergeRequestTitle }}</span>
-                    <span v-else-if="item.hasMergeRequest === false" class="text-medium-emphasis">
-                      No Merge Request
-                      <a
+                    <template v-else-if="item.hasMergeRequest === false">
+                      <v-btn
                         v-if="item.projectUrl"
+                        color="primary"
+                        variant="flat"
+                        size="small"
+                        prepend-icon="mdi-plus"
                         :href="createMergeRequestUrl(item)"
                         target="_blank"
                         rel="noopener noreferrer"
-                        class="detail-link ml-1"
+                        class="text-none"
                       >
-                        — Create
-                      </a>
-                    </span>
+                        Create Merge Request
+                      </v-btn>
+                      <span v-else class="text-medium-emphasis">No Merge Request</span>
+                    </template>
                     <span v-else class="skeleton-detail"><span class="skeleton-shimmer" /></span>
                   </span>
                 </div>
@@ -349,6 +356,11 @@ const isFullyLoaded = computed<boolean>(() => {
   return activities.value.length > 0 && activities.value.every(b => b.mrStatus !== 0)
 })
 
+const allBranchesHaveMr = computed<boolean>(() => {
+  const loaded = activities.value.filter(b => b.mrStatus !== 0)
+  return loaded.length > 0 && loaded.every(b => b.hasMergeRequest === true)
+})
+
 // --- Merge permissions ---
 
 type MergePermissionState = 'checking' | 'can-merge' | 'blocked' | 'check-failed'
@@ -359,11 +371,13 @@ const autoMergeDisabled = computed<boolean>(() => {
   if (settingsUpdating.value) return true
   // Only block turning ON; always allow turning OFF to avoid trapping an enabled toggle
   if (autoMerge.value) return false
+  if (!allBranchesHaveMr.value) return true
   return mergePermissionState.value === 'checking' || mergePermissionState.value === 'blocked'
 })
 
 const autoMergeTooltip = computed<string>(() => {
   if (!autoMerge.value) {
+    if (!allBranchesHaveMr.value) return 'All branches must have a Merge Request to enable Auto Merge'
     if (mergePermissionState.value === 'checking') return 'Checking permissions...'
     if (mergePermissionState.value === 'blocked') {
       return `Cannot enable Auto Merge: missing merge permission in: ${permissionBlockedProjects.value.join(', ')}`
@@ -774,30 +788,24 @@ onMounted(async () => {
 }
 
 /* ---- Detail rows ---- */
-.detail-row {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
+.detail-grid {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 12px;
   font-size: 0.85rem;
-  margin-bottom: 8px;
-  flex-wrap: wrap;
+  align-items: baseline;
   word-break: break-word;
-}
-
-.detail-row.align-start {
-  align-items: flex-start;
+  margin-bottom: 8px;
 }
 
 .detail-label {
   font-weight: 600;
   color: rgb(var(--v-theme-on-surface));
   white-space: nowrap;
-  flex-shrink: 0;
 }
 
 .detail-value {
   color: rgb(var(--v-theme-on-surface));
-  flex: 1;
   min-width: 0;
 }
 
@@ -806,6 +814,10 @@ onMounted(async () => {
   color: inherit;
   text-decoration: underline;
   text-underline-offset: 2px;
+}
+
+.tooltip-multiline {
+  white-space: pre-line;
 }
 
 /* ---- Jobs list ---- */

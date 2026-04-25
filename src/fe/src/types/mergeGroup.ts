@@ -17,6 +17,7 @@ export interface BranchWithActivity {
   mergeRequestUrl?: string | null
   projectUrl?: string | null
   needsRebase?: boolean | null
+  lastCommitMessage?: string | null
   buildJobs?: BranchBuildJob[] | null
   mrStatus: number
   mrStatusReasons: string[] | null
