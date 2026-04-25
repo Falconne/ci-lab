@@ -294,7 +294,7 @@
                   class="text-none"
                   @click="showAddMergeRequestDialog = true"
                 >
-                  Add Merge Request...
+                  Add Existing Merge Request...
                 </v-btn>
               </template>
             </v-tooltip>
