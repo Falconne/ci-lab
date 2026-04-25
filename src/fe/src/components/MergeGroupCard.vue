@@ -65,12 +65,12 @@
               >
                 <template #activator="{ props: tipProps }">
                   <span class="item-mr-title" v-bind="tipProps">
-                    {{ truncateTitle(item.mergeRequestTitle as string) }}
+                    | {{ truncateTitle(item.mergeRequestTitle as string) }}
                   </span>
                 </template>
               </v-tooltip>
               <span v-else-if="item.mergeRequestTitle" class="item-mr-title">
-                {{ item.mergeRequestTitle }}
+                | {{ item.mergeRequestTitle }}
               </span>
               <span
                 v-else-if="item.hasMergeRequest === false"
