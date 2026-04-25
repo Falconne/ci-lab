@@ -83,6 +83,7 @@ public interface IMergeGroupRepository
         List<BranchBuildJob> buildJobs,
         bool? needsRebase,
         DateTimeOffset? lastCommitTime,
+        string? lastCommitMessage,
         int mrStatus,
         string? mrStatusReasons);
 

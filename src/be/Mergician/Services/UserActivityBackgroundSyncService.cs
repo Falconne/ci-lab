@@ -693,6 +693,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             cancellationToken);
 
         DateTimeOffset? lastCommitTime;
+        var lastCommitMessage = branchDetails?.Commit?.Title;
         if (branchDetails?.Commit?.CommittedDate != null)
         {
             lastCommitTime = branchDetails.Commit.CommittedDate.Value.ToUniversalTime();
@@ -740,6 +741,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             buildJobs,
             needsRebase,
             lastCommitTime,
+            lastCommitMessage,
             mrStatus,
             mrStatusReasons);
 

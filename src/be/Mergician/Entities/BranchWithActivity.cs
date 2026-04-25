@@ -33,6 +33,8 @@ public record BranchWithActivity : BranchInProject
 
     public bool? NeedsRebase { get; init; }
 
+    public string? LastCommitMessage { get; init; }
+
     public List<BranchBuildJob>? BuildJobs { get; init; }
 
     /// <summary>Backend-computed status code. 0=Loading, 1=Blocked, 2=Waiting, 3=Ready.</summary>

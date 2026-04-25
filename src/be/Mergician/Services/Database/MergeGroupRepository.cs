@@ -154,7 +154,8 @@ public class MergeGroupRepository : IMergeGroupRepository
                     bp.approvals_given AS ApprovalsGiven,
                     bp.needs_rebase AS NeedsRebase,
                     bp.mr_status AS MRStatus,
-                    bp.mr_status_reasons AS MRStatusReasonsJson
+                    bp.mr_status_reasons AS MRStatusReasonsJson,
+                    bp.last_commit_message AS LastCommitMessage
                 FROM users_in_merge_groups umg
                 INNER JOIN merge_group mg ON mg.id = umg.merge_group_id
                 INNER JOIN branches_in_merge_group bmg ON bmg.merge_group_id = mg.id
@@ -322,6 +323,7 @@ public class MergeGroupRepository : IMergeGroupRepository
         List<BranchBuildJob> buildJobs,
         bool? needsRebase,
         DateTimeOffset? lastCommitTime,
+        string? lastCommitMessage,
         int mrStatus,
         string? mrStatusReasons)
     {
@@ -352,6 +354,7 @@ public class MergeGroupRepository : IMergeGroupRepository
                 needs_rebase        = @NeedsRebase,
                 mr_status           = @MRStatus,
                 mr_status_reasons   = @MRStatusReasons,
+                last_commit_message = @LastCommitMessage,
                 last_update_time    = COALESCE(@LastCommitTime, last_update_time)
             WHERE id = @BranchInProjectId
             """,
@@ -367,6 +370,7 @@ public class MergeGroupRepository : IMergeGroupRepository
                 NeedsRebase = needsRebase,
                 MRStatus = mrStatus,
                 MRStatusReasons = mrStatusReasons,
+                LastCommitMessage = lastCommitMessage,
                 LastCommitTime = utcCommitTime
             },
             transaction);
@@ -563,6 +567,7 @@ public class MergeGroupRepository : IMergeGroupRepository
                     bp.needs_rebase AS NeedsRebase,
                     bp.mr_status AS MRStatus,
                     bp.mr_status_reasons AS MRStatusReasonsJson,
+                    bp.last_commit_message AS LastCommitMessage,
                     bp.id AS Id
                 FROM branches_in_merge_group bmg
                 INNER JOIN branch_in_project bp ON bp.id = bmg.branch_in_project_id
