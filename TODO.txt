@@ -1,5 +1,5 @@
 Task 1)
-In the merge group details page, for branches without an MR, make the "Create" action a blue button in the same style  as the other buttons on the page.
+In the merge group details page, for branches without an MR, make the "Create" action a blue button in the same style as the other buttons on the page, with a plus icon. Do not show the "No Merge Request" text, the button is enough.
 
 Task 2)
 On the merge group details page, the auto merge toggle should only be enabled if all branches have MRs created.
@@ -11,5 +11,13 @@ Task 4)
 When the status bubble tooltips need to display multiple lines of text, such as for multiple reasons why a status is blocked, make the tooltip a multiline display.
 
 Task 5)
+For each branch card in the merge group details page, show the first line of the latest commit as the first entry, with the label "Commit:".
+
+Task 6)
+In the merge group details page, in the branch cards, instead of using ':' after the labels (e.g. 'Approvals:'), use a horizontal bar like in the dashboard cards. Align the labels and values in columns for better readability.
+
+Similarly, in the dashboard cards, align the repo/project labels and the corresponding MR title in columns within a card. Also, there only needs to be a tooltip for the MR title if the title has been truncated to fit the card. This tooltip needs to be the same style as the others.
+
+Task 7)
 As an expert C# developer, review the backend code and create a review document wuth suggested improvements (if any). Add enough detail for a future agent to be able to implement the changes.
 
