@@ -168,9 +168,6 @@ public class MergeGroupRepository : IMergeGroupRepository
                 splitOn: "MergeGroupName,AutoMerge,AutoRebase,AutoMergeWarning,Id")
             .ToList();
 
-        // Attach build jobs to all branch records
-        AttachBuildJobs(connection, rows.Select(t => t.Branch).ToList());
-
         // Group flat rows into MergeGroup objects
         var groupOrder = new List<int>();
         var groupNames = new Dictionary<int, string>();
@@ -193,6 +190,14 @@ public class MergeGroupRepository : IMergeGroupRepository
 
             groupBranches[tuple.MergeGroupId].Add(tuple.Branch);
         }
+
+        // Attach build jobs to the actual per-group branch lists using a single DB query,
+        // then apply the results to each group list so the updated records are used when
+        // assembling MergeGroup objects below
+        var allBranchIds = groupBranches.Values.SelectMany(b => b).Select(b => b.Id).ToArray();
+        var buildJobsMap = FetchBuildJobsMap(connection, allBranchIds);
+        foreach (var branches in groupBranches.Values)
+            ApplyBuildJobs(branches, buildJobsMap);
 
         var result = groupOrder
             .Select(id => new MergeGroup(id, groupNames[id], groupBranches[id])
@@ -582,28 +587,35 @@ public class MergeGroupRepository : IMergeGroupRepository
 
     private static void AttachBuildJobs(IDbConnection connection, List<BranchWithActivity> branches)
     {
-        if (branches.Count == 0)
-        {
-            return;
-        }
+        ApplyBuildJobs(branches, FetchBuildJobsMap(connection, branches.Select(b => b.Id).ToArray()));
+    }
 
-        var ids = branches
-            .Select(b => b.Id)
-            .Distinct()
-            .ToArray();
+    /// <summary>Fetches a map of branch ID to build jobs from the database.</summary>
+    private static Dictionary<int, List<BranchBuildJob>> FetchBuildJobsMap(
+        IDbConnection connection,
+        int[] branchIds)
+    {
+        if (branchIds.Length == 0)
+            return new Dictionary<int, List<BranchBuildJob>>();
 
-        var jobs = connection.Query<(int BranchInProjectId, string Name, string Status, string? Url)>(
+        return connection.Query<(int BranchInProjectId, string Name, string Status, string? Url)>(
                 """
                 SELECT branch_in_project_id AS BranchInProjectId, name AS Name, status AS Status, url AS Url
                 FROM branch_build_jobs
                 WHERE branch_in_project_id = ANY(@Ids)
                 """,
-                new { Ids = ids })
+                new { Ids = branchIds })
             .GroupBy(j => j.BranchInProjectId)
             .ToDictionary(
                 g => g.Key,
                 g => g.Select(j => new BranchBuildJob(j.Name, j.Status, j.Url)).ToList());
+    }
 
+    /// <summary>Applies a pre-fetched build jobs map to a list of branches.</summary>
+    private static void ApplyBuildJobs(
+        List<BranchWithActivity> branches,
+        Dictionary<int, List<BranchBuildJob>> jobs)
+    {
         for (var i = 0; i < branches.Count; i++)
         {
             var branch = branches[i];
@@ -612,5 +624,4 @@ public class MergeGroupRepository : IMergeGroupRepository
                 branches[i] = branch with { BuildJobs = branchJobs };
             }
         }
-    }
-}
+    }}
