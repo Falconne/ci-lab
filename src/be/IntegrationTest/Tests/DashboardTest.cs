@@ -624,7 +624,7 @@ public class DashboardTest : IDisposable
         }
 
         var mergeRequestRow = repoCard.Locator(".detail-row")
-            .Filter(new LocatorFilterOptions { HasTextString = "Merge Request:" })
+            .Filter(new LocatorFilterOptions { HasTextString = "Merge Request" })
             .First;
 
         var mergeRequestLink = mergeRequestRow.Locator(".detail-link").First;
@@ -706,16 +706,18 @@ public class DashboardTest : IDisposable
             }
 
             var mergeRequestRow = repoCard.Locator(".detail-row")
-                .Filter(new LocatorFilterOptions { HasTextString = "Merge Request:" })
+                .Filter(new LocatorFilterOptions { HasTextString = "Merge Request" })
                 .First;
 
             var hasMergeRequestLink = await mergeRequestRow.Locator(".detail-link").CountAsync() > 0;
+            var hasCreateMrButton = await mergeRequestRow.Locator(".v-btn").CountAsync() > 0;
             var hasNoMergeRequestText = await mergeRequestRow.Locator(".text-medium-emphasis").CountAsync() > 0;
             var noMergeRequestText = hasNoMergeRequestText
                 ? (await mergeRequestRow.Locator(".text-medium-emphasis").InnerTextAsync()).Trim()
                 : "";
 
             var isResolved = hasMergeRequestLink
+                             || hasCreateMrButton
                              || noMergeRequestText.Contains("No Merge Request", StringComparison.OrdinalIgnoreCase);
 
             // Also check that all cards have resolved (not showing "Resolving...")
@@ -726,7 +728,7 @@ public class DashboardTest : IDisposable
                 {
                     var card = cards.Nth(i);
                     var cardMergeRequestRow = card.Locator(".detail-row")
-                        .Filter(new LocatorFilterOptions { HasTextString = "Merge Request:" })
+                        .Filter(new LocatorFilterOptions { HasTextString = "Merge Request" })
                         .First;
 
                     var text = (await cardMergeRequestRow.InnerTextAsync()).Trim();

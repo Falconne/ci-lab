@@ -213,51 +213,55 @@
 
                 <!-- Detail rows -->
                 <div class="detail-grid">
-                  <template v-if="item.lastCommitMessage">
+                  <div v-if="item.lastCommitMessage" class="detail-row">
                     <span class="detail-label">Commit</span>
                     <span class="detail-value">{{ item.lastCommitMessage }}</span>
-                  </template>
+                  </div>
 
-                  <span class="detail-label">Approvals</span>
-                  <span class="detail-value">
-                    <span v-if="item.mrStatus === 0" class="skeleton-detail"><span class="skeleton-shimmer" /></span>
-                    <template v-else>{{ itemApprovalsTextDetailed(item) }}</template>
-                  </span>
+                  <div class="detail-row">
+                    <span class="detail-label">Approvals</span>
+                    <span class="detail-value">
+                      <span v-if="item.mrStatus === 0" class="skeleton-detail"><span class="skeleton-shimmer" /></span>
+                      <template v-else>{{ itemApprovalsTextDetailed(item) }}</template>
+                    </span>
+                  </div>
 
-                  <span class="detail-label">Merge Request</span>
-                  <span class="detail-value">
-                    <a
-                      v-if="item.mergeRequestTitle && item.mergeRequestUrl"
-                      :href="item.mergeRequestUrl"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      class="detail-link"
-                    >
-                      {{ item.mergeRequestTitle }}
-                    </a>
-                    <span v-else-if="item.mergeRequestTitle">{{ item.mergeRequestTitle }}</span>
-                    <template v-else-if="item.hasMergeRequest === false">
-                      <v-btn
-                        v-if="item.projectUrl"
-                        color="primary"
-                        variant="flat"
-                        size="small"
-                        prepend-icon="mdi-plus"
-                        :href="createMergeRequestUrl(item)"
+                  <div class="detail-row">
+                    <span class="detail-label">Merge Request</span>
+                    <span class="detail-value">
+                      <a
+                        v-if="item.mergeRequestTitle && item.mergeRequestUrl"
+                        :href="item.mergeRequestUrl"
                         target="_blank"
                         rel="noopener noreferrer"
-                        class="text-none"
+                        class="detail-link"
                       >
-                        Create Merge Request
-                      </v-btn>
-                      <span v-else class="text-medium-emphasis">No Merge Request</span>
-                    </template>
-                    <span v-else class="skeleton-detail"><span class="skeleton-shimmer" /></span>
-                  </span>
+                        {{ item.mergeRequestTitle }}
+                      </a>
+                      <span v-else-if="item.mergeRequestTitle">{{ item.mergeRequestTitle }}</span>
+                      <template v-else-if="item.hasMergeRequest === false">
+                        <v-btn
+                          v-if="item.projectUrl"
+                          color="primary"
+                          variant="flat"
+                          size="small"
+                          prepend-icon="mdi-plus"
+                          :href="createMergeRequestUrl(item)"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          class="text-none"
+                        >
+                          Create Merge Request
+                        </v-btn>
+                        <span v-else class="text-medium-emphasis">No Merge Request</span>
+                      </template>
+                      <span v-else class="skeleton-detail"><span class="skeleton-shimmer" /></span>
+                    </span>
+                  </div>
                 </div>
 
                 <div class="build-jobs-section">
-                  <span class="build-jobs-subtitle">Build Jobs</span>
+                  <span class="build-jobs-subtitle">Build Jobs:</span>
                   <div v-if="item.buildJobs && item.buildJobs.length > 0" class="jobs-list">
                     <v-tooltip
                       v-for="job in item.buildJobs"
@@ -796,6 +800,10 @@ onMounted(async () => {
   align-items: baseline;
   word-break: break-word;
   margin-bottom: 8px;
+}
+
+.detail-grid .detail-row {
+  display: contents;
 }
 
 .detail-label {
