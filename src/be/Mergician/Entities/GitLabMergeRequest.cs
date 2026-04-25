@@ -13,6 +13,9 @@ public class GitLabMergeRequest
     [JsonPropertyName("web_url")]
     public string WebUrl { get; set; } = "";
 
+    [JsonPropertyName("project_id")]
+    public int ProjectId { get; set; }
+
     [JsonPropertyName("source_branch")]
     // ReSharper disable once UnusedMember.Global
     public string SourceBranch { get; set; } = "";

@@ -164,16 +164,14 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                 _logger.LogInformation("Sync thread for user {UserId} resuming after recovery", gitLabUserId);
             }
 
-            // TODO: Before backfilling from activity, first check what Merge Requests exist in Gitlab
-            // that were created by this user. If any are for branches not associated with
-            // this user, then associate them first (creating any required branch and merge group entries
-            // in the DB).
+            // Phase 1: Sync branches from existing open MRs created by the user
+            await SyncExistingMergeRequests(context.AccessUser, ct);
 
-            // Phase 1: Backfill from the user's last known activity or 14 days
+            // Phase 2: Backfill from the user's last known activity or 14 days
             await BackfillUserActivity(gitLabUserId, context, ct);
 
             var firstPoll = true;
-            // Phase 2: Continuous polling loop
+            // Phase 3: Continuous polling loop
             while (!ct.IsCancellationRequested)
             {
                 if (_gitLabRecoveryService.IsInGitLabRecoveryMode)
@@ -451,6 +449,110 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                 ex,
                 "Backfill failed for user {UserId}, will continue with polling",
                 gitLabUserId);
+        }
+    }
+
+    /// <summary>
+    ///     Fetches all open merge requests created by the user from GitLab and associates
+    ///     any untracked branches with this user's merge groups. This runs before the activity
+    ///     backfill so that MRs created on machines where the user has not pushed are also discovered.
+    /// </summary>
+    private async Task SyncExistingMergeRequests(
+        AccessDetailsForUser accessDetails,
+        CancellationToken ct)
+    {
+        var userId = accessDetails.UserId;
+        _logger.LogInformation("Syncing existing open MRs for user {UserId}", userId);
+
+        try
+        {
+            var openMrs = await _gitLabService.GetOpenMergeRequestsForUser(accessDetails, userId, ct);
+
+            _logger.LogInformation(
+                "Found {Count} open MRs for user {UserId}, checking for untracked branches",
+                openMrs.Count,
+                userId);
+
+            foreach (var mr in openMrs)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                if (GitLabService.IsPossibleDefaultBranch(mr.SourceBranch))
+                {
+                    _logger.LogDebug(
+                        "Skipping default branch '{BranchName}' in project {ProjectId} from MR sync",
+                        mr.SourceBranch,
+                        mr.ProjectId);
+
+                    continue;
+                }
+
+                var project = await _gitLabService.GetProject(accessDetails, mr.ProjectId, ct);
+
+                if (project == null)
+                {
+                    _logger.LogInformation(
+                        "Project {ProjectId} not found while syncing MR for branch '{BranchName}'; skipping",
+                        mr.ProjectId,
+                        mr.SourceBranch);
+
+                    continue;
+                }
+
+                if (DeadBranchesService.IsScheduledForDeletion(project.NameWithNamespace))
+                {
+                    _logger.LogInformation(
+                        "Skipping branch '{BranchName}' in project {ProjectId} during MR sync: project/group is scheduled for deletion ('{ProjectNameWithNamespace}')",
+                        mr.SourceBranch,
+                        mr.ProjectId,
+                        project.NameWithNamespace);
+
+                    continue;
+                }
+
+                var branchRecord = _mergeGroupRepository.GetOrCreateBranchRecord(mr.SourceBranch, project);
+                var mergeGroup = _mergeGroupRepository.GetOrCreateMergeGroup(mr.SourceBranch);
+
+                var isNewToMergeGroup = mergeGroup.Branches.NotAny(b => b.Id == branchRecord.Id);
+                if (isNewToMergeGroup)
+                {
+                    _logger.LogInformation(
+                        "Branch {BranchId} not yet in merge group {MergeGroupId}, associating via MR sync",
+                        branchRecord.Id,
+                        mergeGroup.Id);
+
+                    _mergeGroupRepository.EnsureBranchInMergeGroup(mergeGroup.Id, branchRecord.Id);
+                }
+                else
+                {
+                    _logger.LogDebug(
+                        "Branch {BranchId} already in merge group {MergeGroupId}, skipping association",
+                        branchRecord.Id,
+                        mergeGroup.Id);
+                }
+
+                _mergeGroupRepository.EnsureUserInMergeGroup(userId, mergeGroup.Id);
+            }
+
+            _logger.LogInformation("MR sync completed for user {UserId}", userId);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (GitLabStartupRequiredException ex)
+        {
+            _logger.LogError(
+                ex,
+                "GitLab became unavailable during MR sync for user {UserId}; continuing with backfill",
+                userId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "MR sync failed for user {UserId}, will continue with backfill",
+                userId);
         }
     }
 
