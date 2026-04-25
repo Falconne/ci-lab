@@ -47,7 +47,7 @@
         >
           <v-tooltip location="top" :text="item.projectNameWithNamespace">
             <template #activator="{ props: tipProps }">
-              <span class="item-project" v-bind="tipProps">
+              <span class="item-project" v-bind="tipProps" :title="item.projectNameWithNamespace">
                 {{ item.projectName }}
               </span>
             </template>
@@ -90,6 +90,7 @@
               <span
                 v-bind="tipProps"
                 class="item-approvals"
+                :title="approvalsTooltip(item)"
               >
                 <v-icon
                   icon="mdi-thumb-up"
