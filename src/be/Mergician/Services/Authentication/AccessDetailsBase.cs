@@ -36,7 +36,6 @@ public class AccessDetailsBase
         return request;
     }
 
-    // TODO: Use this helper method where possible over the other overload
     public HttpRequestMessage CreateRequest(string query)
     {
         return CreateRequest(query, HttpMethod.Get);

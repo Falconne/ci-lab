@@ -117,7 +117,7 @@ public class GitLabApiClient
     {
         var serviceUser = _userFactory.GetServiceUser();
         var tokenInfo = await Execute<GitLabTokenSelfInfo>(
-            () => serviceUser.CreateRequest("personal_access_tokens/self", HttpMethod.Get),
+            () => serviceUser.CreateRequest("personal_access_tokens/self"),
             cancellationToken);
 
         var createdAt = tokenInfo.CreatedAt

@@ -40,7 +40,7 @@ public class GitLabService
         {
             return await _gitLabApiClient.Execute<GitLabUserInfo>(
                 () =>
-                    accessDetails.CreateRequest("user", HttpMethod.Get),
+                    accessDetails.CreateRequest("user"),
                 cancellationToken);
         }
         catch (GitLabUnexpectedResponseException ex)
@@ -91,8 +91,7 @@ public class GitLabService
             {
                 (pageEvents, nextPage) = await _gitLabApiClient.ExecutePaged<List<GitLabPushEvent>>(
                     () => accessDetails.CreateRequest(
-                        $"events?after={afterDate}&action=pushed&sort=desc&per_page=100&page={page}",
-                        HttpMethod.Get),
+                        $"events?after={afterDate}&action=pushed&sort=desc&per_page=100&page={page}"),
                     cancellationToken);
             }
             catch (GitLabUnexpectedResponseException ex)
@@ -175,7 +174,7 @@ public class GitLabService
         {
             project = await _gitLabApiClient.Execute<GitLabProject>(
                 () =>
-                    accessDetails.CreateRequest($"projects/{projectId}", HttpMethod.Get),
+                    accessDetails.CreateRequest($"projects/{projectId}"),
                 cancellationToken);
         }
         catch (GitLabUnexpectedResponseException ex)
@@ -227,8 +226,7 @@ public class GitLabService
         {
             return await _gitLabApiClient.Execute<GitLabBranchDetails>(
                 () => accessDetails.CreateRequest(
-                    $"projects/{projectId}/repository/branches/{encodedBranch}",
-                    HttpMethod.Get),
+                    $"projects/{projectId}/repository/branches/{encodedBranch}"),
                 cancellationToken);
         }
         catch (GitLabUnexpectedResponseException ex)
@@ -270,8 +268,7 @@ public class GitLabService
         {
             await _gitLabApiClient.Execute<GitLabBranchDetails>(
                 () => accessDetails.CreateRequest(
-                    $"projects/{projectId}/repository/branches/{encodedBranch}",
-                    HttpMethod.Get),
+                    $"projects/{projectId}/repository/branches/{encodedBranch}"),
                 cancellationToken);
 
             _logger.LogDebug("Branch '{BranchName}' exists in project {ProjectId}", branchName, projectId);
@@ -316,8 +313,7 @@ public class GitLabService
             return await _gitLabApiClient.Execute<List<GitLabMergeRequest>>(
                 () =>
                     accessDetails.CreateRequest(
-                        $"projects/{projectId}/merge_requests?source_branch={encodedBranch}&state=opened",
-                        HttpMethod.Get),
+                        $"projects/{projectId}/merge_requests?source_branch={encodedBranch}&state=opened"),
                 cancellationToken);
         }
         catch (GitLabUnexpectedResponseException ex)
@@ -345,8 +341,7 @@ public class GitLabService
         {
             return await _gitLabApiClient.Execute<GitLabApprovalState>(
                 () => accessDetails.CreateRequest(
-                    $"projects/{projectId}/merge_requests/{mergeRequestIid}/approvals",
-                    HttpMethod.Get),
+                    $"projects/{projectId}/merge_requests/{mergeRequestIid}/approvals"),
                 cancellationToken);
         }
         catch (GitLabUnexpectedResponseException ex)
@@ -385,7 +380,7 @@ public class GitLabService
         {
             var project = await _gitLabApiClient.Execute<GitLabProject>(
                 () =>
-                    accessDetails.CreateRequest($"projects/{encodedPath}", HttpMethod.Get),
+                    accessDetails.CreateRequest($"projects/{encodedPath}"),
                 cancellationToken);
 
             if (project.Name.IsEmpty() || project.NameWithNamespace.IsEmpty())
@@ -437,8 +432,7 @@ public class GitLabService
         {
             var member = await _gitLabApiClient.Execute<GitLabProjectMember>(
                 () => accessDetails.CreateRequest(
-                    $"projects/{projectId}/members/all/{userId}",
-                    HttpMethod.Get),
+                    $"projects/{projectId}/members/all/{userId}"),
                 cancellationToken);
 
             _logger.LogDebug(
@@ -482,8 +476,7 @@ public class GitLabService
             return await _gitLabApiClient.Execute<List<GitLabMergeRequest>>(
                 () =>
                     accessDetails.CreateRequest(
-                        $"projects/{projectId}/merge_requests?iids[]={mrIid}&state=opened",
-                        HttpMethod.Get),
+                        $"projects/{projectId}/merge_requests?iids[]={mrIid}&state=opened"),
                 cancellationToken);
         }
         catch (GitLabUnexpectedResponseException ex)
@@ -496,5 +489,76 @@ public class GitLabService
 
             return [];
         }
+    }
+
+    /// <summary>
+    ///     Fetches all open merge requests authored by the given user, across all projects.
+    ///     Uses the GitLab /merge_requests endpoint with author_id filter and handles pagination.
+    /// </summary>
+    public async Task<List<GitLabMergeRequest>> GetOpenMergeRequestsForUser(
+        AccessDetailsBase accessDetails,
+        int userId,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new List<GitLabMergeRequest>();
+        var page = 1;
+
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            List<GitLabMergeRequest> pageItems;
+            string? nextPage;
+
+            try
+            {
+                (pageItems, nextPage) = await _gitLabApiClient.ExecutePaged<List<GitLabMergeRequest>>(
+                    () => accessDetails.CreateRequest(
+                        $"merge_requests?author_id={userId}&state=opened&per_page=100&page={page}"),
+                    cancellationToken);
+            }
+            catch (GitLabUnexpectedResponseException ex)
+            {
+                _logger.LogError(
+                    "GetOpenMergeRequestsForUser failed on page {Page} with status {StatusCode} for user {UserId}",
+                    page,
+                    (int)ex.StatusCode,
+                    userId);
+
+                break;
+            }
+
+            result.AddRange(pageItems);
+
+            _logger.LogDebug(
+                "Fetched {Count} open MRs from page {Page} for user {UserId}",
+                pageItems.Count,
+                page,
+                userId);
+
+            if (nextPage.IsEmpty())
+            {
+                break;
+            }
+
+            if (int.TryParse(nextPage, out page) && page > 0)
+            {
+                continue;
+            }
+
+            _logger.LogError(
+                "Unexpected X-Next-Page header value '{NextPage}' when fetching open MRs for user {UserId}",
+                nextPage,
+                userId);
+
+            break;
+        }
+
+        _logger.LogInformation(
+            "Fetched {Count} total open MRs for user {UserId}",
+            result.Count,
+            userId);
+
+        return result;
     }
 }

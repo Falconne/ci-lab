@@ -40,8 +40,7 @@ public class AutoMergeGitLabApiService
             return await _gitLabApiClient.Execute<GitLabDetailedMergeRequest>(
                 () =>
                     accessDetails.CreateRequest(
-                        $"projects/{projectId}/merge_requests/{mergeRequestIid}",
-                        HttpMethod.Get),
+                        $"projects/{projectId}/merge_requests/{mergeRequestIid}"),
                 cancellationToken);
         }
         catch (GitLabUnexpectedResponseException ex)
@@ -70,8 +69,7 @@ public class AutoMergeGitLabApiService
             var pipelines = await _gitLabApiClient.Execute<List<GitLabPipelineDetail>>(
                 () =>
                     accessDetails.CreateRequest(
-                        $"projects/{projectId}/merge_requests/{mergeRequestIid}/pipelines?per_page=1&sort=desc",
-                        HttpMethod.Get),
+                        $"projects/{projectId}/merge_requests/{mergeRequestIid}/pipelines?per_page=1&sort=desc"),
                 cancellationToken);
 
             return pipelines.FirstOrDefault();
@@ -102,8 +100,7 @@ public class AutoMergeGitLabApiService
             var jobs = await _gitLabApiClient.Execute<List<GitLabPipelineJob>>(
                 () =>
                     accessDetails.CreateRequest(
-                        $"projects/{projectId}/pipelines/{pipelineId}/jobs?per_page=100",
-                        HttpMethod.Get),
+                        $"projects/{projectId}/pipelines/{pipelineId}/jobs?per_page=100"),
                 cancellationToken);
 
             return jobs

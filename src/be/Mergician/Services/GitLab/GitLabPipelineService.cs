@@ -100,8 +100,7 @@ public class GitLabPipelineService
         {
             var pipelines = await _gitLabApiClient.Execute<List<GitLabPipeline>>(
                 () => accessDetails.CreateRequest(
-                    $"projects/{projectId}/pipelines?ref={encodedBranch}&order_by=updated_at&sort=desc&per_page=1",
-                    HttpMethod.Get),
+                    $"projects/{projectId}/pipelines?ref={encodedBranch}&order_by=updated_at&sort=desc&per_page=1"),
                 cancellationToken);
 
             return pipelines.FirstOrDefault();
