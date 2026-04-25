@@ -1,0 +1,5 @@
+Task 1)
+In the merge group details page, for branches without an MR, make the "Create" action a blue button in the same style  as the other buttons on the page.
+
+Task 2)
+On the merge group details page, the auto merge toggle should only be enabled if all branches have MRs created.
