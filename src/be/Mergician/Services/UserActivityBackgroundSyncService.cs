@@ -1,10 +1,9 @@
-using System.Collections.Concurrent;
-using System.Text.Json;
-using Mergician.Entities;
 using Mergician.Entities.Database;
 using Mergician.Services.Authentication;
 using Mergician.Services.Database;
 using Mergician.Services.GitLab;
+using System.Collections.Concurrent;
+using System.Text.Json;
 using Util;
 
 namespace Mergician.Services;
@@ -165,6 +164,11 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                 _logger.LogInformation("Sync thread for user {UserId} resuming after recovery", gitLabUserId);
             }
 
+            // TODO: Before backfilling from activity, first check what Merge Requests exist in Gitlab
+            // that were created by this user. If any are for branches not associated with
+            // this user, then associate them first (creating any required branch and merge group entries
+            // in the DB).
+
             // Phase 1: Backfill from the user's last known activity or 14 days
             await BackfillUserActivity(gitLabUserId, context, ct);
 
@@ -183,7 +187,9 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                         await Task.Delay(TimeSpan.FromSeconds(5), ct);
                     }
 
-                    _logger.LogInformation("Sync thread for user {UserId} resuming after recovery", gitLabUserId);
+                    _logger.LogInformation(
+                        "Sync thread for user {UserId} resuming after recovery",
+                        gitLabUserId);
                 }
 
                 var accessUser = context.AccessUser;

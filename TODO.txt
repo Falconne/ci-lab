@@ -3,3 +3,9 @@ In the merge group details page, for branches without an MR, make the "Create" a
 
 Task 2)
 On the merge group details page, the auto merge toggle should only be enabled if all branches have MRs created.
+
+Task 3)
+Add a document file with a mermaid diagram of the schema of the Mergician database.
+
+Task 5)
+As an expert C# developer, review the backend code and create a review document wuth suggested improvements (if any). Add enough detail for a future agent to be able to implement the changes.
