@@ -20,7 +20,7 @@ if (branchLookup.IsUnavailable)
 }
 ```
 
-**Fix:** Return `false` (or re-throw) on `Unavailable` so the cleanup step is skipped until the API is responsive again.
+**Fix:** Return `false` on `Unavailable` so the cleanup step is skipped until the API is responsive again.
 
 ---
 
@@ -109,7 +109,7 @@ public bool IsRunning => SyncTask is { IsCompleted: false };
 
 `SyncTask` is assigned inside a `lock(context.StartLock)` block (`UserActivityBackgroundSyncService.cs`, line 142) but read outside that lock by the fast-path check at line 122. `Task` is a reference type and reference reads are atomic on x64, but the write is not guaranteed to be visible to other threads without a memory barrier. The double-checked-lock pattern requires the field to be `volatile` to be correct per the C# memory model.
 
-**Fix:** Mark `SyncTask` as `volatile`, or fold the fast-path check inside the `lock` (the current fast path saves only a lock acquisition).
+**Fix:** Fold the fast-path check inside the `lock` (the current fast path saves only a lock acquisition).
 
 ---
 
@@ -129,7 +129,7 @@ For each branch in a merge group, the 5-second loop performs:
 
 For a merge group with 10 branches, that is up to 50 sequential GitLab API calls per cycle, plus 5 more calls per branch for rebase checks. All these calls are sequential within each branch (no parallelism within `ProcessMergeGroup`).
 
-**Fix:** Fetch MR details in parallel across branches using `Task.WhenAll`. Cache approval and pipeline data per cycle if the same project/MR appears in multiple groups. Consider coalescing the `GetMergeRequests` + `GetDetailedMergeRequest` calls using the existing `GetMergeRequestsByIid` path.
+**Fix:** Fetch MR details in parallel across branches using `Task.WhenAll`. Consider coalescing the `GetMergeRequests` + `GetDetailedMergeRequest` calls using the existing `GetMergeRequestsByIid` path. Consult Gitlab docs to find out if there is a way to get more of this info in a single request, even if it means fetching more data than needed.
 
 ---
 
@@ -216,16 +216,6 @@ If the merge group is deleted between call 1 and call 2 (e.g., all its branches 
 
 ---
 
-### 3.3 `AutoMergeService.IsBranchReadyToMerge` — No pipeline treated as ready
-
-**File:** `Services/AutoMerge/AutoMergeService.cs`, lines 440–461
-
-If `latestPipeline == null` (the MR has never triggered a pipeline), `buildJobs` is empty and `MRStatusCalculator` sees no build failures, so the branch can be auto-merged with no CI signal at all. This may be desirable for projects without CI, but projects that have CI and simply have a pending pipeline would also pass through here if the pipeline fetch fails silently (returns null on API error).
-
-**Fix:** If the project is expected to have pipelines (configurable per merge group, or inferred from the branch's history), treat a missing pipeline as `Waiting` rather than `Ready`.
-
----
-
 ### 3.4 `CleanupService` — Hard-coded New Zealand timezone violates "generic product" requirement
 
 **File:** `Services/CleanupService.cs`, lines 13–16, 132–155
@@ -237,7 +227,7 @@ private static readonly TimeZoneInfo _nzTimeZone =
 
 The cleanup job is hard-coded to run at 3 AM NZST. This bakes in an assumption that all deployments are in New Zealand, violating the instruction that Mergician must work generically against any GitLab server. On a Linux container that does not have the `Pacific/Auckland` timezone data, `FindSystemTimeZoneById` will throw at startup.
 
-**Fix:** Make the schedule UTC-based (e.g., 3 AM UTC) or expose a `CleanupScheduleUtcHour` configuration setting. Remove the NZST hard-coding.
+**Fix:** Make the schedule UTC-based and default it to the UTC time that would correspond to 3am NZST. Later we will add configuration capability.
 
 ---
 
