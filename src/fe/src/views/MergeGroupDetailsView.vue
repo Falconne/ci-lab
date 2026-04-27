@@ -45,7 +45,6 @@
           <!-- Summary: merge group name + overall status -->
           <div class="merge-group-header mb-5">
             <div class="d-flex align-center flex-wrap ga-3">
-              <v-icon icon="mdi-source-merge" size="small" color="primary" />
               <span class="text-h6 font-weight-bold">{{ mergeGroupName }}</span>
               <v-tooltip
                 v-if="isFullyLoaded && overallStatusReasons.length > 0"
@@ -176,7 +175,6 @@
                 <!-- Card header: title + status chip -->
                 <div class="card-header">
                   <div class="branch-card-title">
-                    <v-icon icon="mdi-source-repository" size="small" class="title-icon" />
                     <a
                       v-if="item.projectUrl"
                       class="branch-title-link"
@@ -791,11 +789,6 @@ onMounted(async () => {
 .branch-card:hover .copy-branch-btn,
 .copy-branch-btn:hover {
   opacity: 1;
-}
-
-.title-icon {
-  color: rgba(var(--v-theme-on-surface), 0.6);
-  flex-shrink: 0;
 }
 
 .branch-title-link,

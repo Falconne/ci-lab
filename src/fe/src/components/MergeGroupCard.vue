@@ -10,7 +10,6 @@
     <div class="card-body">
       <div class="card-header">
         <div class="branch-info">
-          <v-icon icon="mdi-source-branch" size="small" class="branch-icon" />
           <span class="branch-name">{{ group.name }}</span>
         </div>
         <div class="card-header-right">
@@ -286,12 +285,6 @@ function approvalsTooltip(item: BranchWithActivity): string {
   display: flex;
   align-items: center;
   min-width: 0;
-}
-
-.branch-icon {
-  color: rgba(var(--v-theme-on-surface), 0.6);
-  margin-right: 6px;
-  flex-shrink: 0;
 }
 
 .branch-name {
