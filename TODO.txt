@@ -11,3 +11,14 @@ If the title is too long to fit the card, truncate to fit and add a short fadeou
 
 Task 4)
 If an MR title is too long to fit the card width in the dashboard page, instead of truncating with "...", truncate and add a short fadeout at the end.
+
+Task 5)
+When build jobs are collected by the background processing thread, when checking the current pipeline, ensure any obsolete build jobs in the Mergician database that are not part of the new pipeline are removed (if this logic is not already present).
+
+Task 6)
+For the branch status bubbles, Blocked should be used for:
+- Failed build jobs exist in current pipeline
+- There are conflicts that prevent auto merge from happening
+- No MR exists
+
+Otherwise, all other conditions that are currently read as Blocked should be changed to "Waiting". The status bubble should still show why the status is waiting, like it does for blocked. In priority terms for merge group status, Waiting is lower priority than Blocked, but higher priority that others.
