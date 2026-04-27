@@ -52,16 +52,20 @@ public class AutoMergeToggleTest : IDisposable
                 "Expected no auto merge badges on dashboard initially");
         }
 
-        // Find a merge group card where all branches have MRs (required to enable auto merge).
-        // Groups with all MRs but unmet approval or build requirements won't be immediately
-        // auto-merged, so the badge will remain visible for verification.
+        // Find a merge group card that:
+        //   1. Has all branches with MRs (no .item-no-mr) so the auto-merge toggle is enabled.
+        //   2. Is currently blocked (.card-status-badge.status-blocked) so enabling auto-merge
+        //      won't immediately merge the group, which would remove it from the dashboard
+        //      before we can verify the auto-merge badge appears.
         var allCards = _browser.Page.Locator(".merge-group-card");
         ILocator? targetCard = null;
         var totalCards = await allCards.CountAsync();
         for (var i = 0; i < totalCards; i++)
         {
             var card = allCards.Nth(i);
-            if (await card.Locator(".item-no-mr").CountAsync() == 0)
+            var isBlocked = await card.Locator(".card-status-badge.status-blocked").CountAsync() > 0;
+            var hasNoMrBranch = await card.Locator(".item-no-mr").CountAsync() > 0;
+            if (isBlocked && !hasNoMrBranch)
             {
                 targetCard = card;
                 break;
@@ -71,7 +75,7 @@ public class AutoMergeToggleTest : IDisposable
         if (targetCard == null)
         {
             throw new InvalidOperationException(
-                "No merge group card with all branches having MRs found; cannot safely run auto merge toggle test");
+                "No blocked merge group card with all branches having MRs found; cannot safely run auto merge toggle test");
         }
 
         await targetCard.ClickAsync();
@@ -86,6 +90,22 @@ public class AutoMergeToggleTest : IDisposable
         var autoMergeSwitch = _browser.Page.Locator(".auto-merge-controls .v-switch").First;
         await autoMergeSwitch.WaitForAsync(new LocatorWaitForOptions { Timeout = 10000 });
         var switchInput = autoMergeSwitch.Locator("input[type='checkbox']");
+
+        // Wait for the toggle to become enabled (permission check can take a moment)
+        Log.Information("Waiting for auto merge toggle to become enabled...");
+        var enabledDeadline = DateTime.UtcNow.AddSeconds(15);
+        while (DateTime.UtcNow < enabledDeadline)
+        {
+            if (await switchInput.IsEnabledAsync()) break;
+            await Task.Delay(300);
+        }
+
+        if (!await switchInput.IsEnabledAsync())
+        {
+            throw new InvalidOperationException(
+                "Auto merge toggle never became enabled (permissions check did not resolve)");
+        }
+
         var isChecked = await switchInput.IsCheckedAsync();
         Log.Information("Auto merge toggle initial state: {State}", isChecked);
 
