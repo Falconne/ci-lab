@@ -599,6 +599,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
         bool? needsRebase = null;
         bool? rebaseInProgress = null;
         var isDraft = false;
+        var hasConflicts = false;
 
         if (hasMergeRequest)
         {
@@ -608,6 +609,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             needsRebase = first.DetailedMergeStatus == "need_rebase";
             rebaseInProgress = first.RebaseInProgress;
             isDraft = first.Draft || first.WorkInProgress;
+            hasConflicts = first.HasConflicts;
 
             var approval = await _gitLabService.GetMergeRequestApprovals(
                 accessDetails,
@@ -664,7 +666,8 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             approvalsGiven,
             buildJobs,
             needsRebase,
-            rebaseInProgress);
+            rebaseInProgress,
+            hasConflicts);
 
         var mrStatusReasons = reasons.Count > 0 ? JsonSerializer.Serialize(reasons) : null;
 

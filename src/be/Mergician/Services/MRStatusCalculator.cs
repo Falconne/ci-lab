@@ -19,6 +19,7 @@ public static class MRStatusCalculator
     /// <param name="buildJobs">Build jobs from the latest pipeline.</param>
     /// <param name="needsRebase">Whether the branch needs to be rebased.</param>
     /// <param name="rebaseInProgress">Whether a rebase is currently in progress.</param>
+    /// <param name="hasConflicts">Whether the branch has merge conflicts.</param>
     /// <returns>The status value from <see cref="MRStatus" /> and a list of reason strings.</returns>
     public static (int Status, List<string> Reasons) Calculate(
         bool hasMergeRequest,
@@ -27,16 +28,12 @@ public static class MRStatusCalculator
         int? approvalsGiven,
         IReadOnlyList<BranchBuildJob> buildJobs,
         bool? needsRebase,
-        bool? rebaseInProgress)
+        bool? rebaseInProgress,
+        bool hasConflicts = false)
     {
         if (!hasMergeRequest)
         {
             return (MRStatus.Blocked, ["No merge request"]);
-        }
-
-        if (isDraft)
-        {
-            return (MRStatus.Blocked, ["Draft merge request"]);
         }
 
         var blockedReasons = new List<string>();
@@ -55,19 +52,29 @@ public static class MRStatusCalculator
             }
         }
 
+        if (hasConflicts)
+        {
+            blockedReasons.Add("Has merge conflicts");
+        }
+
+        if (isDraft)
+        {
+            waitingReasons.Add("Draft merge request");
+        }
+
         if (approvalsRequired > 0)
         {
             var given = approvalsGiven ?? 0;
             if (given < approvalsRequired.Value)
             {
                 var needed = approvalsRequired.Value - given;
-                blockedReasons.Add($"Needs {needed} more approval{(needed == 1 ? "" : "s")}");
+                waitingReasons.Add($"Needs {needed} more approval{(needed == 1 ? "" : "s")}");
             }
         }
 
         if (needsRebase == true)
         {
-            blockedReasons.Add("Needs rebase");
+            waitingReasons.Add("Needs rebase");
         }
 
         if (rebaseInProgress == true)

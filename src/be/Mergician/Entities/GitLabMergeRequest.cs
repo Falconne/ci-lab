@@ -31,4 +31,7 @@ public class GitLabMergeRequest
 
     [JsonPropertyName("work_in_progress")]
     public bool WorkInProgress { get; set; }
+
+    [JsonPropertyName("has_conflicts")]
+    public bool HasConflicts { get; set; }
 }
