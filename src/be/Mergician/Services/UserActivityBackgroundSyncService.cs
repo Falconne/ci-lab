@@ -217,10 +217,8 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
 
                     lastPollTime = nextPollTimeFrom;
 
-                    // Check for deleted branches and clean up DB records
-                    await CleanupDeletedBranches(accessUser, ct);
-
-                    // Refresh MR, approval, and build status for all tracked branches
+                    // Refresh MR, approval, and build status for all tracked branches.
+                    // Also removes branches that are no longer present in GitLab.
                     await RefreshAllBranchDetails(accessUser, ct);
                 }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -261,31 +259,6 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             _logger.LogInformation(
                 "Background sync thread stopped for user {UserId}",
                 gitLabUserId);
-        }
-    }
-
-    /// <summary>
-    ///     Checks all tracked branches for a user and removes any that have been deleted from GitLab.
-    /// </summary>
-    private async Task CleanupDeletedBranches(
-        AccessDetailsForUser accessDetails,
-        CancellationToken cancellationToken)
-    {
-        var userId = accessDetails.UserId;
-        var userGroups = _mergeGroupRepository.GetMergeGroupsForUser(userId);
-        var userBranches = userGroups.SelectMany(g => g.Branches).ToList();
-        _logger.LogDebug(
-            "Checking {Count} tracked branches for user {UserId} for deletion",
-            userBranches.Count,
-            userId);
-
-        foreach (var branch in userBranches)
-        {
-            await _deadBranchesService.RemoveBranchIfGone(
-                branch.BranchName,
-                branch.ProjectId,
-                branch.Id,
-                cancellationToken);
         }
     }
 
@@ -703,10 +676,11 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
         else
         {
             _logger.LogInformation(
-                "No last commit found for '{BranchName}' in project {ProjectId}: assuming branch is gone",
+                "Branch '{BranchName}' in project {ProjectId} not found or has no commit; removing from database",
                 branch.BranchName,
                 branch.ProjectId);
 
+            _deadBranchesService.RemoveBranchAndCleanup(branch.Id);
             return;
         }
 

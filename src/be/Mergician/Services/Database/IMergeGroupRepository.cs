@@ -53,6 +53,12 @@ public interface IMergeGroupRepository
     void RemoveMergeGroup(int mergeGroupId);
 
     /// <summary>
+    ///     Removes all merge groups that have no branches. More efficient than calling
+    ///     <see cref="GetEmptyMergeGroups" /> and <see cref="RemoveMergeGroup" /> in a loop.
+    /// </summary>
+    void CleanupEmptyMergeGroups();
+
+    /// <summary>
     ///     Returns merge groups that have no branches left.
     /// </summary>
     List<MergeGroupBase> GetEmptyMergeGroups();

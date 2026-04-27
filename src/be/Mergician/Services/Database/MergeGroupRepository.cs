@@ -283,6 +283,28 @@ public class MergeGroupRepository : IMergeGroupRepository
         _logger.LogInformation("Removed merge group {MergeGroupId} and all its associations", mergeGroupId);
     }
 
+    public void CleanupEmptyMergeGroups()
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        connection.Open();
+
+        var deletedGroups = connection.Query<MergeGroupBase>(
+                """
+                DELETE FROM merge_group
+                WHERE id NOT IN (SELECT DISTINCT merge_group_id FROM branches_in_merge_group)
+                RETURNING id AS Id, name AS Name, auto_merge AS AutoMerge, auto_rebase AS AutoRebase, auto_merge_warning AS AutoMergeWarning
+                """)
+            .ToList();
+
+        foreach (var group in deletedGroups)
+        {
+            _logger.LogInformation(
+                "Removed empty merge group {MergeGroupId} '{Name}'",
+                group.Id,
+                group.Name);
+        }
+    }
+
     public List<MergeGroupBase> GetEmptyMergeGroups()
     {
         using var connection = _connectionFactory.CreateConnection();
@@ -446,11 +468,7 @@ public class MergeGroupRepository : IMergeGroupRepository
                 """)
             .ToList();
 
-        var result = new List<MergeGroup>();
-        foreach (var record in records)
-        {
-            result.Add(GetBranchesFor(connection, record));
-        }
+        var result = GetBranchesForGroups(connection, records);
 
         _logger.LogDebug(
             "Retrieved {Count} merge groups with auto settings enabled",
@@ -556,10 +574,29 @@ public class MergeGroupRepository : IMergeGroupRepository
 
     private MergeGroup GetBranchesFor(IDbConnection connection, MergeGroupBase record)
     {
-        // query only branch details; merge group id/name already known
-        var branches = connection.Query<BranchWithActivity>(
+        return GetBranchesForGroups(connection, [record])[0];
+    }
+
+    /// <summary>
+    ///     Fetches branches and build jobs for multiple merge groups in two queries (no N+1).
+    ///     Preserves the ordering of <paramref name="records" />.
+    /// </summary>
+    private static List<MergeGroup> GetBranchesForGroups(
+        IDbConnection connection,
+        IReadOnlyList<MergeGroupBase> records)
+    {
+        if (records.Count == 0)
+            return [];
+
+        var groupIds = records.Select(r => r.Id).ToArray();
+
+        // Single query for all branches across all groups; MergeGroupId is the first column
+        // so Dapper's two-type multi-map can split on "Id" to produce (int, BranchWithActivity).
+        var rows = connection.Query<int, BranchWithActivity, (int MergeGroupId, BranchWithActivity Branch)>(
                 """
                 SELECT
+                    bmg.merge_group_id AS MergeGroupId,
+                    bp.id AS Id,
                     bp.branch_name AS BranchName,
                     bp.project_id AS ProjectId,
                     bp.project_name AS ProjectName,
@@ -574,32 +611,34 @@ public class MergeGroupRepository : IMergeGroupRepository
                     bp.needs_rebase AS NeedsRebase,
                     bp.mr_status AS MRStatus,
                     bp.mr_status_reasons AS MRStatusReasonsJson,
-                    bp.last_commit_message AS LastCommitMessage,
-                    bp.id AS Id
+                    bp.last_commit_message AS LastCommitMessage
                 FROM branches_in_merge_group bmg
                 INNER JOIN branch_in_project bp ON bp.id = bmg.branch_in_project_id
-                WHERE bmg.merge_group_id = @MergeGroupId
+                WHERE bmg.merge_group_id = ANY(@GroupIds)
                 ORDER BY bp.project_name, bp.branch_name
                 """,
-                new { MergeGroupId = record.Id })
+                (groupId, branch) => (groupId, branch),
+                new { GroupIds = groupIds },
+                splitOn: "Id")
             .ToList();
 
-        AttachBuildJobs(connection, branches);
+        var branchesByGroup = rows
+            .GroupBy(r => r.MergeGroupId)
+            .ToDictionary(g => g.Key, g => g.Select(r => r.Branch).ToList());
 
-        return new MergeGroup(
-            record.Id,
-            record.Name,
-            branches)
-        {
-            AutoMerge = record.AutoMerge,
-            AutoRebase = record.AutoRebase,
-            AutoMergeWarning = record.AutoMergeWarning
-        };
-    }
+        var allBranches = branchesByGroup.Values.SelectMany(b => b).ToList();
+        var buildJobsMap = FetchBuildJobsMap(connection, allBranches.Select(b => b.Id).ToArray());
+        foreach (var branchList in branchesByGroup.Values)
+            ApplyBuildJobs(branchList, buildJobsMap);
 
-    private static void AttachBuildJobs(IDbConnection connection, List<BranchWithActivity> branches)
-    {
-        ApplyBuildJobs(branches, FetchBuildJobsMap(connection, branches.Select(b => b.Id).ToArray()));
+        return records
+            .Select(r => new MergeGroup(r.Id, r.Name, branchesByGroup.GetValueOrDefault(r.Id, []))
+            {
+                AutoMerge = r.AutoMerge,
+                AutoRebase = r.AutoRebase,
+                AutoMergeWarning = r.AutoMergeWarning
+            })
+            .ToList();
     }
 
     /// <summary>Fetches a map of branch ID to build jobs from the database.</summary>

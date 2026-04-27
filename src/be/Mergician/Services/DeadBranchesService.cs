@@ -138,16 +138,6 @@ public class DeadBranchesService
     public void RemoveBranchAndCleanup(int branchInProjectId)
     {
         _mergeGroupRepository.RemoveBranch(branchInProjectId);
-
-        var emptyGroups = _mergeGroupRepository.GetEmptyMergeGroups();
-        foreach (var group in emptyGroups)
-        {
-            _logger.LogInformation(
-                "Removing empty merge group {MergeGroupId} '{Name}'",
-                group.Id,
-                group.Name);
-
-            _mergeGroupRepository.RemoveMergeGroup(group.Id);
-        }
+        _mergeGroupRepository.CleanupEmptyMergeGroups();
     }
 }

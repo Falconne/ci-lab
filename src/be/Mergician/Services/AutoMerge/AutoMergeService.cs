@@ -136,42 +136,49 @@ public class AutoMergeService : BackgroundService
             group.AutoMerge,
             group.AutoRebase);
 
-        // Get detailed MR info for all branches that have MRs
-        var branchMergeRequestDetails =
-            new List<(BranchWithActivity Branch, GitLabDetailedMergeRequest MergeRequest)>();
-
-        foreach (var branch in group.Branches)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            // Find open MRs for this branch
-            var mergeRequests = await _gitLabService.GetMergeRequests(
-                serviceUser,
-                branch.ProjectId,
-                branch.BranchName,
-                cancellationToken);
-
-            if (mergeRequests.Count == 0)
+        // Fetch open MRs for all branches in parallel, then fetch detailed info for those that have one.
+        var mrFetchTasks = group.Branches.Select(async branch =>
             {
-                _logger.LogDebug(
-                    "AutoMergeService: branch '{BranchName}' in project {ProjectId} has no open MR, skipping",
+                var mrs = await _gitLabService.GetMergeRequests(
+                    serviceUser,
+                    branch.ProjectId,
                     branch.BranchName,
-                    branch.ProjectId);
+                    cancellationToken);
 
-                continue;
-            }
+                if (mrs.Count == 0)
+                {
+                    _logger.LogDebug(
+                        "AutoMergeService: branch '{BranchName}' in project {ProjectId} has no open MR, skipping",
+                        branch.BranchName,
+                        branch.ProjectId);
+                }
 
-            var detailedMergeRequest = await _apiService.GetDetailedMergeRequest(
-                serviceUser,
-                branch.ProjectId,
-                mergeRequests[0].Iid,
-                cancellationToken);
+                return (branch, mrs);
+            })
+            .ToList();
 
-            if (detailedMergeRequest != null)
+        var branchMrPairs = await Task.WhenAll(mrFetchTasks);
+
+        var detailFetchTasks = branchMrPairs
+            .Where(x => x.mrs.Count > 0)
+            .Select(async x =>
             {
-                branchMergeRequestDetails.Add((branch, detailedMergeRequest));
-            }
-        }
+                var detailed = await _apiService.GetDetailedMergeRequest(
+                    serviceUser,
+                    x.branch.ProjectId,
+                    x.mrs[0].Iid,
+                    cancellationToken);
+
+                return (x.branch, detailed);
+            })
+            .ToList();
+
+        var detailResults = await Task.WhenAll(detailFetchTasks);
+
+        var branchMergeRequestDetails = detailResults
+            .Where(x => x.detailed != null)
+            .Select(x => (Branch: x.branch, MergeRequest: x.detailed!))
+            .ToList();
 
         // Step 1: Auto Rebase - rebase branches that are behind their target
         if (group.AutoRebase)

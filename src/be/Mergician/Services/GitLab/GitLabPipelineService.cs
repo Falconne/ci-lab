@@ -158,14 +158,34 @@ public class GitLabPipelineService
         int pipelineId,
         CancellationToken cancellationToken)
     {
-        List<GitLabPipelineJob> jobs;
+        var allJobs = new List<GitLabPipelineJob>();
+        string? nextPage;
+        var page = 1;
 
         try
         {
-            var query = $"projects/{projectId}/pipelines/{pipelineId}/jobs?per_page=100";
-            jobs = await _gitLabApiClient.Execute<List<GitLabPipelineJob>>(
-                () => accessDetails.CreateRequest(query),
-                cancellationToken);
+            do
+            {
+                List<GitLabPipelineJob> pageJobs;
+                (pageJobs, nextPage) = await _gitLabApiClient.ExecutePaged<List<GitLabPipelineJob>>(
+                    () => accessDetails.CreateRequest(
+                        $"projects/{projectId}/pipelines/{pipelineId}/jobs?per_page=100&page={page}"),
+                    cancellationToken);
+
+                allJobs.AddRange(pageJobs);
+
+                if (nextPage.IsEmpty())
+                    break;
+
+                if (!int.TryParse(nextPage, out page) || page <= 0)
+                {
+                    _logger.LogWarning(
+                        "Unexpected next page token '{NextPage}' while fetching jobs for pipeline {PipelineId}; stopping pagination",
+                        nextPage,
+                        pipelineId);
+                    break;
+                }
+            } while (true);
         }
         catch (GitLabUnexpectedResponseException ex)
         {
@@ -178,7 +198,7 @@ public class GitLabPipelineService
             return [];
         }
 
-        return jobs
+        return allJobs
             .Select(job => new BranchBuildJob(
                 job.Name.IsEmpty() ? "job" : job.Name,
                 job.Status.IsEmpty() ? "unknown" : job.Status,
