@@ -54,18 +54,20 @@ public class AutoMergeToggleTest : IDisposable
 
         // Find a merge group card that:
         //   1. Has all branches with MRs (no .item-no-mr) so the auto-merge toggle is enabled.
-        //   2. Is currently blocked (.card-status-badge.status-blocked) so enabling auto-merge
-        //      won't immediately merge the group, which would remove it from the dashboard
-        //      before we can verify the auto-merge badge appears.
+        //   2. Is currently blocked or waiting so enabling auto-merge won't immediately merge
+        //      the group (which would remove it from the dashboard before we can verify the
+        //      auto-merge badge). Draft MRs (Waiting) and unapproved MRs are both safe.
         var allCards = _browser.Page.Locator(".merge-group-card");
         ILocator? targetCard = null;
         var totalCards = await allCards.CountAsync();
         for (var i = 0; i < totalCards; i++)
         {
             var card = allCards.Nth(i);
-            var isBlocked = await card.Locator(".card-status-badge.status-blocked").CountAsync() > 0;
+            var isBlockedOrWaiting =
+                await card.Locator(".card-status-badge.status-blocked").CountAsync() > 0 ||
+                await card.Locator(".card-status-badge.status-waiting").CountAsync() > 0;
             var hasNoMrBranch = await card.Locator(".item-no-mr").CountAsync() > 0;
-            if (isBlocked && !hasNoMrBranch)
+            if (isBlockedOrWaiting && !hasNoMrBranch)
             {
                 targetCard = card;
                 break;
@@ -75,7 +77,7 @@ public class AutoMergeToggleTest : IDisposable
         if (targetCard == null)
         {
             throw new InvalidOperationException(
-                "No blocked merge group card with all branches having MRs found; cannot safely run auto merge toggle test");
+                "No blocked/waiting merge group card with all branches having MRs found; cannot safely run auto merge toggle test");
         }
 
         await targetCard.ClickAsync();

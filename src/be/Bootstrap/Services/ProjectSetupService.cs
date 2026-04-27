@@ -856,8 +856,10 @@ public class ProjectSetupService
         await CreateBranchWithCommit(ProjectId("secondary-3"), "feature/delta", "test3");
 
         // ── test1: feature/epsilon in secondary-4, with draft MR ──
-        // Draft MRs are permanently Blocked in Mergician, providing a stable blocked group
+        // Draft MRs show as Waiting in Mergician, providing a stable group
         // with all branches having MRs for the auto-merge toggle test.
+        // Auto-merge won't immediately execute on a draft MR, so this group
+        // stays on the dashboard long enough to verify the auto-merge badge.
         await CreateBranchWithCommit(ProjectId("secondary-4"), "feature/epsilon", "test1");
         await _gitlabService.CreateMergeRequest(
             ProjectId("secondary-4"),
