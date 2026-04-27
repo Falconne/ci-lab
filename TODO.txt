@@ -1,0 +1,5 @@
+Task 1)
+Make the "Add existing Merge Request" button on the Merge Group Details page a more subtle blue, so it doesn't attract as much attention.
+
+Task 2)
+Make the Untrack button background black and right align it (to the right edge of the branch cards).
