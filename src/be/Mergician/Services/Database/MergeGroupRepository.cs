@@ -322,7 +322,6 @@ public class MergeGroupRepository : IMergeGroupRepository
                 """
                 INSERT INTO branch_build_jobs (branch_in_project_id, name, status, url)
                 VALUES (@BranchInProjectId, @Name, @Status, @Url)
-                ON CONFLICT (branch_in_project_id, name) DO UPDATE SET status = EXCLUDED.status, url = EXCLUDED.url
                 """,
                 update.BuildJobs.Select(j => new { BranchInProjectId = branchInProjectId, j.Name, j.Status, j.Url }),
                 transaction);
