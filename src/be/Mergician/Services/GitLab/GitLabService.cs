@@ -25,10 +25,18 @@ public class GitLabService
     }
 
     /// <summary>
-    ///     Returns true if the branch name is a common default branch name.
+    ///     Returns true if the branch name matches the project's actual default branch or any
+    ///     common fallback names (main, master, develop). The <paramref name="projectDefaultBranch" />
+    ///     parameter should come from <see cref="GitLabProject.DefaultBranch" /> for accurate detection.
     /// </summary>
-    public static bool IsPossibleDefaultBranch(string branchName)
+    public static bool IsPossibleDefaultBranch(string branchName, string? projectDefaultBranch = null)
     {
+        if (!projectDefaultBranch.IsEmpty()
+            && string.Equals(branchName, projectDefaultBranch, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
         return branchName is "main" or "master" or "develop";
     }
 

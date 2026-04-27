@@ -4,6 +4,24 @@ using Mergician.Entities.Database;
 namespace Mergician.Services.Database;
 
 /// <summary>
+///     Encapsulates all activity data to persist for a branch in one call.
+///     Passed to <see cref="IMergeGroupRepository.UpdateBranchDetails" />.
+/// </summary>
+public record BranchDetailsUpdate(
+    bool HasMergeRequest,
+    string? MergeRequestTitle,
+    string? MergeRequestUrl,
+    string? ProjectUrl,
+    int? ApprovalsRequired,
+    int? ApprovalsGiven,
+    List<BranchBuildJob> BuildJobs,
+    bool? NeedsRebase,
+    DateTimeOffset? LastCommitTime,
+    string? LastCommitMessage,
+    int MrStatus,
+    string? MrStatusReasons);
+
+/// <summary>
 ///     Repository interface for merge-group and branch database operations.
 /// </summary>
 public interface IMergeGroupRepository
@@ -78,20 +96,7 @@ public interface IMergeGroupRepository
     ///     Persists the resolved activity details (MR data, approvals, build jobs) for a branch.
     ///     Replaces any previously stored build jobs for this branch atomically.
     /// </summary>
-    void UpdateBranchDetails(
-        int branchInProjectId,
-        bool hasMergeRequest,
-        string? mergeRequestTitle,
-        string? mergeRequestUrl,
-        string? projectUrl,
-        int? approvalsRequired,
-        int? approvalsGiven,
-        List<BranchBuildJob> buildJobs,
-        bool? needsRebase,
-        DateTimeOffset? lastCommitTime,
-        string? lastCommitMessage,
-        int mrStatus,
-        string? mrStatusReasons);
+    void UpdateBranchDetails(int branchInProjectId, BranchDetailsUpdate update);
 
     /// <summary>
     ///     Updates the auto merge and auto rebase settings for a merge group.

@@ -15,18 +15,18 @@ public class CleanupService : IHostedService, IDisposable
 
     private readonly ILogger<CleanupService> _logger;
 
-    private readonly IServiceProvider _serviceProvider;
+    private readonly IMergeGroupRepository _mergeGroupRepository;
 
     private CancellationToken _stoppingToken;
 
     private Timer? _timer;
 
     public CleanupService(
-        IServiceProvider serviceProvider,
+        IMergeGroupRepository mergeGroupRepository,
         DeadBranchesService deadBranchesService,
         ILogger<CleanupService> logger)
     {
-        _serviceProvider = serviceProvider;
+        _mergeGroupRepository = mergeGroupRepository;
         _deadBranchesService = deadBranchesService;
         _logger = logger;
     }
@@ -94,10 +94,7 @@ public class CleanupService : IHostedService, IDisposable
     {
         _logger.LogInformation("CleanupService starting cleanup run");
 
-        using var scope = _serviceProvider.CreateScope();
-        var mergeGroupRepository = scope.ServiceProvider.GetRequiredService<IMergeGroupRepository>();
-
-        var allBranches = mergeGroupRepository.GetAllBranches();
+        var allBranches = _mergeGroupRepository.GetAllBranches();
         _logger.LogInformation("CleanupService checking {Count} tracked branches", allBranches.Count);
 
         var removedCount = 0;

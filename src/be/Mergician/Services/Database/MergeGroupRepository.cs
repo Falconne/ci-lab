@@ -135,91 +135,22 @@ public class MergeGroupRepository : IMergeGroupRepository
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();
 
-        // query branches along with their merge group info; map using Dapper multi-mapping
-        var rows = connection
-            .Query<int, string, bool, bool, string?, BranchWithActivity, (int MergeGroupId, string
-                MergeGroupName,
-                bool AutoMerge, bool AutoRebase, string? AutoMergeWarning, BranchWithActivity Branch)>(
+        var records = connection.Query<MergeGroupBase>(
                 """
-                SELECT
-                    mg.id AS MergeGroupId,
-                    mg.name AS MergeGroupName,
-                    mg.auto_merge AS AutoMerge,
-                    mg.auto_rebase AS AutoRebase,
-                    mg.auto_merge_warning AS AutoMergeWarning,
-                    bp.id AS Id,
-                    bp.branch_name AS BranchName,
-                    bp.project_id AS ProjectId,
-                    bp.project_name AS ProjectName,
-                    bp.project_name_with_namespace AS ProjectNameWithNamespace,
-                    bp.last_update_time AS LastUpdated,
-                    bp.has_merge_request AS HasMergeRequest,
-                    bp.merge_request_title AS MergeRequestTitle,
-                    bp.merge_request_url AS MergeRequestUrl,
-                    bp.project_url AS ProjectUrl,
-                    bp.approvals_required AS ApprovalsRequired,
-                    bp.approvals_given AS ApprovalsGiven,
-                    bp.needs_rebase AS NeedsRebase,
-                    bp.mr_status AS MRStatus,
-                    bp.mr_status_reasons AS MRStatusReasonsJson,
-                    bp.last_commit_message AS LastCommitMessage
+                SELECT mg.id AS Id, mg.name AS Name, mg.auto_merge AS AutoMerge, mg.auto_rebase AS AutoRebase, mg.auto_merge_warning AS AutoMergeWarning
                 FROM users_in_merge_groups umg
                 INNER JOIN merge_group mg ON mg.id = umg.merge_group_id
-                INNER JOIN branches_in_merge_group bmg ON bmg.merge_group_id = mg.id
-                INNER JOIN branch_in_project bp ON bp.id = bmg.branch_in_project_id
                 WHERE umg.gitlab_user_id = @GitlabUserId
-                ORDER BY bp.project_name, bp.branch_name
                 """,
-                (mgId, mgName, autoMerge, autoRebase, autoMergeWarning, branch) =>
-                    (mgId, mgName, autoMerge, autoRebase, autoMergeWarning, branch),
-                new { GitlabUserId = gitlabUserId },
-                splitOn: "MergeGroupName,AutoMerge,AutoRebase,AutoMergeWarning,Id")
+                new { GitlabUserId = gitlabUserId })
             .ToList();
 
-        // Group flat rows into MergeGroup objects
-        var groupOrder = new List<int>();
-        var groupNames = new Dictionary<int, string>();
-        var groupAutoMerge = new Dictionary<int, bool>();
-        var groupAutoRebase = new Dictionary<int, bool>();
-        var groupAutoMergeWarning = new Dictionary<int, string?>();
-        var groupBranches = new Dictionary<int, List<BranchWithActivity>>();
-
-        foreach (var tuple in rows)
-        {
-            if (!groupBranches.ContainsKey(tuple.MergeGroupId))
-            {
-                groupOrder.Add(tuple.MergeGroupId);
-                groupNames[tuple.MergeGroupId] = tuple.MergeGroupName;
-                groupAutoMerge[tuple.MergeGroupId] = tuple.AutoMerge;
-                groupAutoRebase[tuple.MergeGroupId] = tuple.AutoRebase;
-                groupAutoMergeWarning[tuple.MergeGroupId] = tuple.AutoMergeWarning;
-                groupBranches[tuple.MergeGroupId] = new List<BranchWithActivity>();
-            }
-
-            groupBranches[tuple.MergeGroupId].Add(tuple.Branch);
-        }
-
-        // Attach build jobs to the actual per-group branch lists using a single DB query,
-        // then apply the results to each group list so the updated records are used when
-        // assembling MergeGroup objects below
-        var allBranchIds = groupBranches.Values.SelectMany(b => b).Select(b => b.Id).ToArray();
-        var buildJobsMap = FetchBuildJobsMap(connection, allBranchIds);
-        foreach (var branches in groupBranches.Values)
-            ApplyBuildJobs(branches, buildJobsMap);
-
-        var result = groupOrder
-            .Select(id => new MergeGroup(id, groupNames[id], groupBranches[id])
-            {
-                AutoMerge = groupAutoMerge[id],
-                AutoRebase = groupAutoRebase[id],
-                AutoMergeWarning = groupAutoMergeWarning[id]
-            })
-            .ToList();
+        var result = GetBranchesForGroups(connection, records);
 
         _logger.LogDebug(
             "Retrieved {GroupCount} merge groups with {BranchCount} branches for user {UserId}",
             result.Count,
-            rows.Count,
+            result.Sum(g => g.Branches.Count),
             gitlabUserId);
 
         return result;
@@ -341,20 +272,7 @@ public class MergeGroupRepository : IMergeGroupRepository
             .ToList();
     }
 
-    public void UpdateBranchDetails(
-        int branchInProjectId,
-        bool hasMergeRequest,
-        string? mergeRequestTitle,
-        string? mergeRequestUrl,
-        string? projectUrl,
-        int? approvalsRequired,
-        int? approvalsGiven,
-        List<BranchBuildJob> buildJobs,
-        bool? needsRebase,
-        DateTimeOffset? lastCommitTime,
-        string? lastCommitMessage,
-        int mrStatus,
-        string? mrStatusReasons)
+    public void UpdateBranchDetails(int branchInProjectId, BranchDetailsUpdate update)
     {
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();
@@ -363,10 +281,10 @@ public class MergeGroupRepository : IMergeGroupRepository
 
         // If a commit time is provided, convert to UTC and include it in the update
         DateTimeOffset? utcCommitTime = null;
-        if (lastCommitTime.HasValue)
+        if (update.LastCommitTime.HasValue)
         {
             utcCommitTime = UtcTimestamp.EnsureUtc(
-                lastCommitTime.Value,
+                update.LastCommitTime.Value,
                 () => $"MergeGroupRepository.UpdateBranchDetails branch {branchInProjectId}",
                 _logger);
         }
@@ -390,16 +308,16 @@ public class MergeGroupRepository : IMergeGroupRepository
             new
             {
                 BranchInProjectId = branchInProjectId,
-                HasMergeRequest = hasMergeRequest,
-                MergeRequestTitle = mergeRequestTitle,
-                MergeRequestUrl = mergeRequestUrl,
-                ProjectUrl = projectUrl,
-                ApprovalsRequired = approvalsRequired,
-                ApprovalsGiven = approvalsGiven,
-                NeedsRebase = needsRebase,
-                MRStatus = mrStatus,
-                MRStatusReasons = mrStatusReasons,
-                LastCommitMessage = lastCommitMessage,
+                update.HasMergeRequest,
+                update.MergeRequestTitle,
+                update.MergeRequestUrl,
+                update.ProjectUrl,
+                update.ApprovalsRequired,
+                update.ApprovalsGiven,
+                update.NeedsRebase,
+                MRStatus = update.MrStatus,
+                MRStatusReasons = update.MrStatusReasons,
+                update.LastCommitMessage,
                 LastCommitTime = utcCommitTime
             },
             transaction);
@@ -409,7 +327,7 @@ public class MergeGroupRepository : IMergeGroupRepository
             new { Id = branchInProjectId },
             transaction);
 
-        if (buildJobs.Count > 0)
+        if (update.BuildJobs.Count > 0)
         {
             connection.Execute(
                 """
@@ -417,7 +335,7 @@ public class MergeGroupRepository : IMergeGroupRepository
                 VALUES (@BranchInProjectId, @Name, @Status, @Url)
                 ON CONFLICT (branch_in_project_id, name) DO UPDATE SET status = EXCLUDED.status, url = EXCLUDED.url
                 """,
-                buildJobs.Select(j => new { BranchInProjectId = branchInProjectId, j.Name, j.Status, j.Url }),
+                update.BuildJobs.Select(j => new { BranchInProjectId = branchInProjectId, j.Name, j.Status, j.Url }),
                 transaction);
         }
 
@@ -426,11 +344,11 @@ public class MergeGroupRepository : IMergeGroupRepository
         _logger.LogDebug(
             "Updated branch {BranchInProjectId} details: hasMergeRequest={HasMergeRequest}, approvals={Given}/{Required}, needsRebase={NeedsRebase}, {JobCount} build jobs, commitTime={CommitTime}",
             branchInProjectId,
-            hasMergeRequest,
-            approvalsGiven,
-            approvalsRequired,
-            needsRebase,
-            buildJobs.Count,
+            update.HasMergeRequest,
+            update.ApprovalsGiven,
+            update.ApprovalsRequired,
+            update.NeedsRebase,
+            update.BuildJobs.Count,
             utcCommitTime);
     }
 
