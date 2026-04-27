@@ -1,0 +1,13 @@
+Task 1)
+In the merge group details page cards, move the "Merge Request" entry to the first row.
+
+Task 2)
+In all the card headers, remove the icon. Also remove it from before the merge group name in the merge group details page.
+
+Task 3)
+If a merge group has only one MR in it, make the header title of the card in the dashboard page and the title in the merge group details page the same as the MR title. In those cases, make the branch name (the current inferred title) a smaller subtitle under the MR title (still within the card header).
+
+If the title is too long to fit the card, truncate to fit and add a short fadeout at the end to indicate this. 
+
+Task 4)
+If an MR title is too long to fit the card width in the dashboard page, instead of truncating with "...", truncate and add a short fadeout at the end.
