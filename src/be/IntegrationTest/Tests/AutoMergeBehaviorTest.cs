@@ -675,7 +675,7 @@ public class AutoMergeBehaviorTest : IDisposable
             var count = await cards.CountAsync();
             for (var j = 0; j < count; j++)
             {
-                var name = (await cards.Nth(j).Locator(".branch-name").InnerTextAsync()).Trim();
+                var name = (await cards.Nth(j).Locator(".branch-name, .branch-subtitle").First.InnerTextAsync()).Trim();
                 if (name.Contains(branchName, StringComparison.OrdinalIgnoreCase))
                 {
                     Log.Information(
@@ -711,7 +711,7 @@ public class AutoMergeBehaviorTest : IDisposable
 
             for (var j = 0; j < count; j++)
             {
-                var name = (await cards.Nth(j).Locator(".branch-name").InnerTextAsync()).Trim();
+                var name = (await cards.Nth(j).Locator(".branch-name, .branch-subtitle").First.InnerTextAsync()).Trim();
                 if (name.Contains(branchName, StringComparison.OrdinalIgnoreCase))
                 {
                     found = true;
@@ -754,7 +754,7 @@ public class AutoMergeBehaviorTest : IDisposable
 
         for (var i = 0; i < count; i++)
         {
-            var name = (await cards.Nth(i).Locator(".branch-name").InnerTextAsync()).Trim();
+            var name = (await cards.Nth(i).Locator(".branch-name, .branch-subtitle").First.InnerTextAsync()).Trim();
             if (name.Contains(branchName, StringComparison.OrdinalIgnoreCase))
             {
                 await cards.Nth(i).ClickAsync();

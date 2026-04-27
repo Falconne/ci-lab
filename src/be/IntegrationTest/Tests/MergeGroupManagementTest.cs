@@ -53,7 +53,7 @@ public class MergeGroupManagementTest : IDisposable
 
         // Click the first merge group card to go to details
         var firstCard = _browser.Page.Locator(".merge-group-card").First;
-        var mergeGroupName = await firstCard.Locator(".branch-name").InnerTextAsync();
+        var mergeGroupName = await firstCard.Locator(".branch-name, .branch-subtitle").First.InnerTextAsync();
         Log.Information("Selected merge group: {Name}", mergeGroupName);
 
         await firstCard.ClickAsync();

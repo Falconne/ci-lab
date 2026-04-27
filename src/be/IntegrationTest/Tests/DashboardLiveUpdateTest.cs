@@ -383,7 +383,7 @@ public class DashboardLiveUpdateTest : IDisposable
 
     private async Task<bool> IsBranchOnDashboard(string branchName)
     {
-        var branchElements = _browser.Page.Locator(".merge-group-card .branch-name");
+        var branchElements = _browser.Page.Locator(".merge-group-card .branch-name, .merge-group-card .branch-subtitle");
         var count = await branchElements.CountAsync();
 
         for (var i = 0; i < count; i++)
@@ -409,7 +409,7 @@ public class DashboardLiveUpdateTest : IDisposable
         for (var i = 0; i < cardCount; i++)
         {
             var card = cards.Nth(i);
-            var name = (await card.Locator(".branch-name").InnerTextAsync()).Trim();
+            var name = (await card.Locator(".branch-name, .branch-subtitle").First.InnerTextAsync()).Trim();
             if (!name.Contains(branchName))
             {
                 continue;

@@ -192,7 +192,7 @@ public class ManualJobFilterTest : IDisposable
             var count = await cards.CountAsync();
             for (var j = 0; j < count; j++)
             {
-                var name = (await cards.Nth(j).Locator(".branch-name").InnerTextAsync()).Trim();
+                var name = (await cards.Nth(j).Locator(".branch-name, .branch-subtitle").First.InnerTextAsync()).Trim();
                 if (name.Contains(branchName, StringComparison.OrdinalIgnoreCase))
                 {
                     Log.Information(
