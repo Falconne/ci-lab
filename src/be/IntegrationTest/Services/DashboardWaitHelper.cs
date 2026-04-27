@@ -105,7 +105,7 @@ public static class DashboardWaitHelper
                 for (var i = 0; i < cardCount; i++)
                 {
                     var card = cardElements.Nth(i);
-                    var name = (await card.Locator(".branch-name").InnerTextAsync()).Trim();
+                    var name = (await card.Locator(".branch-name, .branch-subtitle").First.InnerTextAsync()).Trim();
                     if (!name.Contains(branchName, StringComparison.OrdinalIgnoreCase))
                         continue;
 

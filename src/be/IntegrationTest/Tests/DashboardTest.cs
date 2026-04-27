@@ -335,7 +335,7 @@ public class DashboardTest : IDisposable
         {
             var card = cardElements.Nth(i);
 
-            var branchName = (await card.Locator(".branch-name").InnerTextAsync()).Trim();
+            var branchName = (await card.Locator(".branch-name, .branch-subtitle").First.InnerTextAsync()).Trim();
             var groupStatusBadge = card.Locator(".card-status-badge");
             var groupStatus = await groupStatusBadge.CountAsync() > 0
                 ? (await groupStatusBadge.InnerTextAsync()).Trim()
