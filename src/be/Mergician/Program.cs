@@ -50,9 +50,16 @@ try
 
     // Register HttpClient factory and GitLab services
     builder.Services.AddHttpClient("GitLabOAuth")
-        .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+        .ConfigurePrimaryHttpMessageHandler(() =>
         {
-            ServerCertificateCustomValidationCallback = (_, _, _, _) => true
+            var handler = new HttpClientHandler();
+            if (mergicianSettings.GitLab.AllowInsecureSsl)
+            {
+                // TLS validation disabled via config — for self-signed certs in dev/internal environments only
+                handler.ServerCertificateCustomValidationCallback = (_, _, _, _) => true;
+            }
+
+            return handler;
         });
 
     builder.Services.AddHttpContextAccessor();

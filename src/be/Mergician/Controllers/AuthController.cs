@@ -46,6 +46,7 @@ public class AuthController : ControllerBase
                 HttpOnly = true,
                 SameSite = SameSiteMode.Lax,
                 MaxAge = TimeSpan.FromMinutes(10),
+                Path = "/api/auth/callback",
                 Secure = useSecureCookies
             });
 
@@ -68,6 +69,7 @@ public class AuthController : ControllerBase
                 new CookieOptions
                 {
                     SameSite = SameSiteMode.Lax,
+                    Path = "/api/auth/callback",
                     Secure = CookieSecurity.ShouldUseSecureCookies(Request)
                 });
 
@@ -88,6 +90,7 @@ public class AuthController : ControllerBase
             new CookieOptions
             {
                 SameSite = SameSiteMode.Lax,
+                Path = "/api/auth/callback",
                 Secure = CookieSecurity.ShouldUseSecureCookies(Request)
             });
 

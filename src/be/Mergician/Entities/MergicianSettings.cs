@@ -19,6 +19,13 @@ public class GitLabSettings
 
     public string ServiceToken { get; set; } = "";
 
+    /// <summary>
+    ///     When true, TLS certificate validation is disabled for all GitLab API calls.
+    ///     Only enable for development or internal environments with self-signed certificates.
+    ///     Never set this in production with a publicly trusted certificate.
+    /// </summary>
+    public bool AllowInsecureSsl { get; set; }
+
     public OAuthSettings OAuth { get; set; } = new();
 
     /// <summary>
