@@ -366,9 +366,6 @@ function approvalsTooltip(item: BranchWithActivity): string {
 }
 
 .job-chip {
-  max-width: 160px;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
