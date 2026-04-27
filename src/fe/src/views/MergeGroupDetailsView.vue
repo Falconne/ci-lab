@@ -45,7 +45,11 @@
           <!-- Summary: merge group name + overall status -->
           <div class="merge-group-header mb-5">
             <div class="d-flex align-center flex-wrap ga-3">
-              <span class="text-h6 font-weight-bold">{{ mergeGroupName }}</span>
+              <div v-if="singleMrTitle" class="header-title-block">
+                <span class="header-mr-title">{{ singleMrTitle }}</span>
+                <span class="header-mr-subtitle">{{ mergeGroupName }}</span>
+              </div>
+              <span v-else class="text-h6 font-weight-bold">{{ mergeGroupName }}</span>
               <v-tooltip
                 v-if="isFullyLoaded && overallStatusReasons.length > 0"
                 location="bottom"
@@ -368,6 +372,13 @@ const addMergeRequestLoading = ref(false)
 
 const isFullyLoaded = computed<boolean>(() => {
   return activities.value.length > 0 && activities.value.every(b => b.mrStatus !== 0)
+})
+
+const singleMrTitle = computed<string | null>(() => {
+  if (activities.value.length !== 1) return null
+  const branch = activities.value[0]
+  if (branch.mrStatus === 0) return null
+  return branch.mergeRequestTitle ?? null
 })
 
 const allBranchesHaveMr = computed<boolean>(() => {
@@ -742,6 +753,31 @@ onMounted(async () => {
 /* ---- Merge group header ---- */
 .merge-group-header {
   padding: 2px 0 6px;
+}
+
+.header-title-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  overflow: hidden;
+  flex: 1;
+}
+
+.header-mr-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  width: 100%;
+  -webkit-mask-image: linear-gradient(to right, black calc(100% - 60px), transparent 100%);
+  mask-image: linear-gradient(to right, black calc(100% - 60px), transparent 100%);
+}
+
+.header-mr-subtitle {
+  font-size: 0.8rem;
+  color: rgba(var(--v-theme-on-surface), 0.55);
+  white-space: nowrap;
 }
 
 .auto-merge-controls {

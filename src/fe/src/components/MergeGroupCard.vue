@@ -9,8 +9,10 @@
     <div class="card-accent" :class="groupStatusClass(group)" />
     <div class="card-body">
       <div class="card-header">
-        <div class="branch-info">
-          <span class="branch-name">{{ group.name }}</span>
+        <div class="branch-info" :class="{ 'branch-info--single-mr': singleMrTitle }">
+          <span v-if="singleMrTitle" class="mr-header-title">{{ singleMrTitle }}</span>
+          <span v-else class="branch-name">{{ group.name }}</span>
+          <span v-if="singleMrTitle" class="branch-subtitle">{{ group.name }}</span>
         </div>
         <div class="card-header-right">
           <span v-if="group.autoMerge" class="auto-merge-badge">
@@ -191,6 +193,13 @@ const isGroupLoaded = computed(() =>
   props.group.branches.length > 0 && props.group.branches.every(b => b.mrStatus !== 0)
 )
 
+const singleMrTitle = computed<string | null>(() => {
+  if (props.group.branches.length !== 1) return null
+  const branch = props.group.branches[0]
+  if (branch.mrStatus === 0) return null
+  return branch.mergeRequestTitle ?? null
+})
+
 const groupStatusReasons = computed(() => getGroupStatusReasons(props.group))
 
 const groupStatusReasonsText = computed(() => groupStatusReasons.value.join('\n'))
@@ -285,6 +294,30 @@ function approvalsTooltip(item: BranchWithActivity): string {
   display: flex;
   align-items: center;
   min-width: 0;
+  overflow: hidden;
+}
+
+.branch-info--single-mr {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.mr-header-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: rgb(var(--v-theme-on-surface));
+  white-space: nowrap;
+  overflow: hidden;
+  width: 100%;
+  -webkit-mask-image: linear-gradient(to right, black calc(100% - 40px), transparent 100%);
+  mask-image: linear-gradient(to right, black calc(100% - 40px), transparent 100%);
+}
+
+.branch-subtitle {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: rgba(var(--v-theme-on-surface), 0.55);
+  white-space: nowrap;
 }
 
 .branch-name {
