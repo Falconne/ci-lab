@@ -60,7 +60,7 @@ The Bootstrapper sets up the initial data needed for Mergician to run, so make s
 - Mergician is accessible at `http://localhost:5000` after startup (ASP.NET Core serves both API and frontend).
 
 ## Integration Tests
-Run the Integration tests project and ensure it is passing. Always use the `scripts/integration-test.sh` script to run it correctly.
+Run the Integration tests project and ensure it is passing. Always use the `scripts/integration-test.sh` script to run it correctly. The tests take a long time to run, so use a timeout of at least 20 minutes.
 
 ## Common Issues & Debugging
 - **Stale tokens after docker prune/restart**: If you see "401 Unauthorized" errors for GitLab or TeamCity tokens during bootstrap, the `.env` file may have stale tokens from a previous GitLab/TeamCity instance. The `cilab-start.sh` script automatically cleans these, but if running docker compose manually, remove the GITLAB_TOKEN and TEAMCITY_TOKEN lines from `.env` before starting.
