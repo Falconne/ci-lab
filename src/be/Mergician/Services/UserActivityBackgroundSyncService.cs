@@ -350,28 +350,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             }
 
             var branchRecord = _mergeGroupRepository.GetOrCreateBranchRecord(pushEvent.BranchName, project);
-
-            var mergeGroup = _mergeGroupRepository.GetOrCreateMergeGroup(pushEvent.BranchName);
-            var isNewToMergeGroup = mergeGroup.Branches.NotAny(b => b.Id == branchRecord.Id);
-
-            if (isNewToMergeGroup)
-            {
-                _logger.LogInformation(
-                    "Branch {BranchId} not yet in merge group {MergeGroupId}, associating",
-                    branchRecord.Id,
-                    mergeGroup.Id);
-
-                _mergeGroupRepository.EnsureBranchInMergeGroup(mergeGroup.Id, branchRecord.Id);
-            }
-            else
-            {
-                _logger.LogDebug(
-                    "Branch {BranchId} already in merge group {MergeGroupId}, skipping association",
-                    branchRecord.Id,
-                    mergeGroup.Id);
-            }
-
-            _mergeGroupRepository.EnsureUserInMergeGroup(userId, mergeGroup.Id);
+            EnsureBranchTracked(branchRecord, pushEvent.BranchName, userId);
 
             _logger.LogDebug(
                 "Stored branch '{BranchName}' in project {ProjectId} for user {UserId}",
@@ -479,27 +458,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                 }
 
                 var branchRecord = _mergeGroupRepository.GetOrCreateBranchRecord(mr.SourceBranch, project);
-                var mergeGroup = _mergeGroupRepository.GetOrCreateMergeGroup(mr.SourceBranch);
-
-                var isNewToMergeGroup = mergeGroup.Branches.NotAny(b => b.Id == branchRecord.Id);
-                if (isNewToMergeGroup)
-                {
-                    _logger.LogInformation(
-                        "Branch {BranchId} not yet in merge group {MergeGroupId}, associating via MR sync",
-                        branchRecord.Id,
-                        mergeGroup.Id);
-
-                    _mergeGroupRepository.EnsureBranchInMergeGroup(mergeGroup.Id, branchRecord.Id);
-                }
-                else
-                {
-                    _logger.LogDebug(
-                        "Branch {BranchId} already in merge group {MergeGroupId}, skipping association",
-                        branchRecord.Id,
-                        mergeGroup.Id);
-                }
-
-                _mergeGroupRepository.EnsureUserInMergeGroup(userId, mergeGroup.Id);
+                EnsureBranchTracked(branchRecord, mr.SourceBranch, userId);
             }
 
             _logger.LogInformation("MR sync completed for user {UserId}", userId);
@@ -724,5 +683,34 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             branch.ProjectId,
             hasMergeRequest,
             buildJobs.Count);
+    }
+
+    /// <summary>
+    ///     Ensures a branch record is associated with its merge group and that the user
+    ///     is a member of that group. Shared by push-event and MR-sync paths.
+    /// </summary>
+    private void EnsureBranchTracked(BranchInProject branchRecord, string branchName, int userId)
+    {
+        var mergeGroup = _mergeGroupRepository.GetOrCreateMergeGroup(branchName);
+        var isNewToMergeGroup = mergeGroup.Branches.NotAny(b => b.Id == branchRecord.Id);
+
+        if (isNewToMergeGroup)
+        {
+            _logger.LogInformation(
+                "Branch {BranchId} not yet in merge group {MergeGroupId}, associating",
+                branchRecord.Id,
+                mergeGroup.Id);
+
+            _mergeGroupRepository.EnsureBranchInMergeGroup(mergeGroup.Id, branchRecord.Id);
+        }
+        else
+        {
+            _logger.LogDebug(
+                "Branch {BranchId} already in merge group {MergeGroupId}, skipping association",
+                branchRecord.Id,
+                mergeGroup.Id);
+        }
+
+        _mergeGroupRepository.EnsureUserInMergeGroup(userId, mergeGroup.Id);
     }
 }

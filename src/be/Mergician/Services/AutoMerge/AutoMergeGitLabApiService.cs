@@ -18,11 +18,15 @@ public class AutoMergeGitLabApiService
 
     private readonly ILogger<AutoMergeGitLabApiService> _logger;
 
+    private readonly GitLabPipelineService _pipelineService;
+
     public AutoMergeGitLabApiService(
         GitLabApiClient gitLabApiClient,
+        GitLabPipelineService pipelineService,
         ILogger<AutoMergeGitLabApiService> logger)
     {
         _gitLabApiClient = gitLabApiClient;
+        _pipelineService = pipelineService;
         _logger = logger;
     }
 
@@ -87,39 +91,15 @@ public class AutoMergeGitLabApiService
     }
 
     /// <summary>
-    ///     Fetches jobs for a specific pipeline.
+    ///     Fetches jobs for a specific pipeline. Delegates to <see cref="GitLabPipelineService" />.
     /// </summary>
-    public async Task<List<BranchBuildJob>> GetPipelineJobs(
+    public Task<List<BranchBuildJob>> GetPipelineJobs(
         AccessDetailsBase accessDetails,
         int projectId,
         int pipelineId,
         CancellationToken cancellationToken = default)
     {
-        try
-        {
-            var jobs = await _gitLabApiClient.Execute<List<GitLabPipelineJob>>(
-                () =>
-                    accessDetails.CreateRequest(
-                        $"projects/{projectId}/pipelines/{pipelineId}/jobs?per_page=100"),
-                cancellationToken);
-
-            return jobs
-                .Select(job => new BranchBuildJob(
-                    job.Name.IsEmpty() ? "job" : job.Name,
-                    job.Status.IsEmpty() ? "unknown" : job.Status,
-                    job.WebUrl.IsEmpty() ? null : job.WebUrl))
-                .ToList();
-        }
-        catch (GitLabUnexpectedResponseException ex)
-        {
-            _logger.LogError(
-                "GetPipelineJobs failed with status {StatusCode} for project {ProjectId}, pipeline {PipelineId}",
-                (int)ex.StatusCode,
-                projectId,
-                pipelineId);
-
-            return [];
-        }
+        return _pipelineService.GetJobsFromPipeline(accessDetails, projectId, pipelineId, cancellationToken);
     }
 
     /// <summary>

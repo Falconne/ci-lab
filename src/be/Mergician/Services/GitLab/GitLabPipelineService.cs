@@ -152,7 +152,7 @@ public class GitLabPipelineService
             .ToList();
     }
 
-    private async Task<List<BranchBuildJob>> GetJobsFromPipeline(
+    public async Task<List<BranchBuildJob>> GetJobsFromPipeline(
         AccessDetailsBase accessDetails,
         int projectId,
         int pipelineId,
