@@ -225,19 +225,6 @@
 
                 <!-- Detail rows -->
                 <div class="detail-grid">
-                  <div v-if="item.lastCommitMessage" class="detail-row">
-                    <span class="detail-label">Commit</span>
-                    <span class="detail-value">{{ item.lastCommitMessage }}</span>
-                  </div>
-
-                  <div class="detail-row">
-                    <span class="detail-label">Approvals</span>
-                    <span class="detail-value">
-                      <span v-if="item.mrStatus === 0" class="skeleton-detail"><span class="skeleton-shimmer" /></span>
-                      <template v-else>{{ itemApprovalsTextDetailed(item) }}</template>
-                    </span>
-                  </div>
-
                   <div class="detail-row">
                     <span class="detail-label">Merge Request</span>
                     <span class="detail-value">
@@ -269,6 +256,19 @@
                       </template>
                       <span v-else class="skeleton-detail"><span class="skeleton-shimmer" /></span>
                     </span>
+                  </div>
+
+                  <div class="detail-row">
+                    <span class="detail-label">Approvals</span>
+                    <span class="detail-value">
+                      <span v-if="item.mrStatus === 0" class="skeleton-detail"><span class="skeleton-shimmer" /></span>
+                      <template v-else>{{ itemApprovalsTextDetailed(item) }}</template>
+                    </span>
+                  </div>
+
+                  <div v-if="item.lastCommitMessage" class="detail-row">
+                    <span class="detail-label">Commit</span>
+                    <span class="detail-value">{{ item.lastCommitMessage }}</span>
                   </div>
                 </div>
 
