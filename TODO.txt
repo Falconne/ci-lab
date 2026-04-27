@@ -1,0 +1,8 @@
+Task 1)
+Gitlab CI jobs that are marked as "skipped" should not be displayed in any card. Jobs marked as "manual" should not be displayed unless they have been run.
+
+Task 2)
+Currently if a branch contains gitlab-ci jobs, the branch card does only displays the gitlab-ci jobs and not external jobs. All cards should show both gitlab-ci jobs and external jobs for the latest commit sha.
+
+task 3)
+On the dashboard, there is limit to the width of the build job bubbles. If the build job name is too long for the bubble, it gets truncated. There should be no max length for the bubble.
