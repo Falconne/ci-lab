@@ -317,7 +317,7 @@
                 <v-btn
                   v-bind="tooltipProps"
                   color="primary"
-                  variant="flat"
+                  variant="tonal"
                   size="small"
                   prepend-icon="mdi-plus"
                   class="text-none"
