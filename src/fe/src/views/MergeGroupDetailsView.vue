@@ -47,7 +47,19 @@
             <div class="d-flex align-center flex-wrap ga-3">
               <v-icon icon="mdi-source-merge" size="small" color="primary" />
               <span class="text-h6 font-weight-bold">{{ mergeGroupName }}</span>
-              <span v-if="isFullyLoaded" class="card-status-badge" :class="overallStatusClass">
+              <v-tooltip
+                v-if="isFullyLoaded && overallStatusReasons.length > 0"
+                location="bottom"
+              >
+                <template #activator="{ props: tipProps }">
+                  <span v-bind="tipProps" class="card-status-badge" :class="overallStatusClass">
+                    <span class="status-dot" />
+                    {{ overallStatusLabel }}
+                  </span>
+                </template>
+                <span class="tooltip-multiline">{{ overallStatusReasonsText }}</span>
+              </v-tooltip>
+              <span v-else-if="isFullyLoaded" class="card-status-badge" :class="overallStatusClass">
                 <span class="status-dot" />
                 {{ overallStatusLabel }}
               </span>
@@ -251,7 +263,7 @@
                           rel="noopener noreferrer"
                           class="text-none"
                         >
-                          Create Merge Request
+                          Create
                         </v-btn>
                         <span v-else class="text-medium-emphasis">No Merge Request</span>
                       </template>
@@ -331,7 +343,7 @@ import type { BranchWithActivity, MergeGroup } from '@/types/mergeGroup'
 import {
   mrStatusLabel, mrStatusClass, mrStatusChipColor,
   itemApprovalsTextDetailed, jobStatusIcon, jobStatusColor, jobStatusLabel,
-  groupStatusLabel, groupStatusClass,
+  groupStatusLabel, groupStatusClass, getGroupStatusReasons,
 } from '@/utils/statusHelpers'
 import { handleTransientError, clearTransientError } from '@/utils/pollHelpers'
 
@@ -426,6 +438,14 @@ const overallStatusLabel = computed<string>(() =>
 
 const overallStatusClass = computed<string>(() =>
   groupStatusClass({ branches: activities.value } as MergeGroup)
+)
+
+const overallStatusReasons = computed<string[]>(() =>
+  getGroupStatusReasons({ branches: activities.value } as MergeGroup)
+)
+
+const overallStatusReasonsText = computed<string>(() =>
+  overallStatusReasons.value.join('\n')
 )
 
 function branchUrl(item: BranchWithActivity): string {

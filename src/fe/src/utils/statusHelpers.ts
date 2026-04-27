@@ -98,7 +98,7 @@ export function itemApprovalsText(item: BranchWithActivity): string {
  */
 export function itemApprovalsTextDetailed(item: BranchWithActivity): string {
   if (!item.hasMergeRequest || item.approvalsGiven == null || item.approvalsRequired == null) {
-    return 'Not available'
+    return '—'
   }
   if (item.approvalsRequired === 0) {
     return `${item.approvalsGiven}/${item.approvalsRequired} (No approval needed)`
