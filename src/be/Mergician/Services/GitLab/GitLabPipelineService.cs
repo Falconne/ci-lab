@@ -198,11 +198,36 @@ public class GitLabPipelineService
             return [];
         }
 
-        return allJobs
+        var buildJobs = allJobs
             .Select(job => new BranchBuildJob(
                 job.Name.IsEmpty() ? "job" : job.Name,
                 job.Status.IsEmpty() ? "unknown" : job.Status,
                 job.WebUrl.IsEmpty() ? null : job.WebUrl))
             .ToList();
+
+        var filtered = buildJobs
+            .Where(j => !IsHiddenJobStatus(j.Status))
+            .ToList();
+
+        var hiddenCount = buildJobs.Count - filtered.Count;
+        if (hiddenCount > 0)
+        {
+            _logger.LogDebug(
+                "Filtered out {Count} skipped/manual job(s) from pipeline {PipelineId} in project {ProjectId}",
+                hiddenCount,
+                pipelineId,
+                projectId);
+        }
+
+        return filtered;
     }
+
+    /// <summary>
+    ///     Returns true for job statuses that should never be shown in the UI.
+    ///     Skipped jobs are always hidden. Manual jobs are hidden when they have not yet been
+    ///     triggered (status == "manual"); once run they carry a real status (success, failed, etc.).
+    /// </summary>
+    private static bool IsHiddenJobStatus(string status) =>
+        status.Equals("skipped", StringComparison.OrdinalIgnoreCase) ||
+        status.Equals("manual", StringComparison.OrdinalIgnoreCase);
 }
