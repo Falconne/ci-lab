@@ -257,7 +257,7 @@ Every outbound call to GitLab — including those transmitting OAuth secrets, ac
 
 `ShouldUseSecureCookies` trusts any `X-Forwarded-Proto: https` header, even when the application is exposed directly to the internet without a reverse proxy. An attacker can send this header to force `Secure = true` on cookies — this is not dangerous on its own, but in combination with other issues it means the Secure flag cannot be relied upon as a trust signal.
 
-**Fix:** Introduce a `Mergician:TrustForwardedHeaders` configuration flag. Only read `X-Forwarded-Proto` when that flag is set, and use ASP.NET Core's `ForwardedHeadersMiddleware` (`UseForwardedHeaders`) instead of manual header inspection. This is the standard ASP.NET Core pattern for reverse proxy deployments.
+**Fix:** As this tool is intended for internal company use, this is not important. Make a note in the code about the issue and what to do if needed in the future.
 
 ---
 
@@ -295,18 +295,6 @@ public record BranchDetailsUpdate(
     int MrStatus,
     string? MrStatusReasons);
 ```
-
----
-
-### 5.2 `CacheService` — Single expiry for all entries; stale project data persists 24 hours
-
-**File:** `Services/CacheService.cs`
-
-The project cache uses a single global expiry (default 24 hours). If a GitLab project is renamed or moved to a different namespace (which affects `NameWithNamespace`, used in deletion-scheduled detection), the old name is served for up to 24 hours. This could cause `IsScheduledForDeletion` to return incorrect results.
-
-Additionally, the cache is entirely cleared when it expires — meaning a sudden burst of requests after expiry generates N simultaneous uncached API calls (cache stampede).
-
-**Fix:** Use per-entry expiry with a shorter TTL (e.g., 30 minutes), or invalidate a project's cache entry when its data changes. For the stampede issue, consider a `GetOrCreate` pattern with lazy population.
 
 ---
 
@@ -409,7 +397,7 @@ _mergeGroupRepository.EnsureUserInMergeGroup(userId, mergeGroup.Id);
 
 When a user uses "Add by MR URL" with a merged or closed MR, `GetMergeRequestsByIid` returns an empty list and the operation fails with "Merge request not found" — even though the MR exists. The error message directs the user to "check the URL and ensure you have access", which is misleading.
 
-**Fix:** Either drop the `state=opened` filter (and handle the case of a merged MR's source branch), or return a distinct error code for "MR exists but is already merged/closed" so the UI can show a clearer message.
+**Fix:** The behavior is correct because we can't use a closed or merged MR for anything. Just updated the default error message to say "Merge request not found (or no longer open)"
 
 ---
 
@@ -454,13 +442,3 @@ If the rebase hasn't completed within 5 seconds (common for large repositories),
 **Fix:** Remove the method from the interface and implementation unless there is a planned future use (in which case, document the intent with a TODO comment).
 
 ---
-
-## Summary: Top 5 Most Impactful Findings
-
-| # | Finding | Impact |
-|---|---------|--------|
-| **1** | **[4.1] TLS certificate validation disabled globally** (`Program.cs:53`) | All GitLab communication — including OAuth secrets, access tokens, and refresh tokens — is transmitted with no certificate validation. A network-level MITM attack can harvest all user credentials. |
-| **2** | **[3.1] No merge group ownership checks in controller** (`MergeGroupController.cs`) | Any authenticated user can read any merge group's data, enable auto-merge on groups they don't own, and clear warnings — a horizontal privilege escalation affecting every user. |
-| **3** | **[1.1] Transient API failure removes tracked branches** (`DeadBranchesService.cs:122`) | A brief GitLab outage causes `IsBranchGone` to return `true`, permanently deleting branch records and their merge groups from the database, with no recovery path. |
-| **4** | **[2.1] Up to 5N sequential GitLab API calls per 5-second cycle** (`AutoMergeService.cs:143`) | For merge groups with many branches, the auto-merge polling loop makes N×5 sequential API calls every 5 seconds, likely hitting the rate limiter and degrading overall application responsiveness. |
-| **5** | **[1.3] OAuth callback breaks on user-denied authorization** (`AuthController.cs:57`) | If a user clicks "Deny" on the GitLab OAuth consent screen, GitLab redirects back with `?error=access_denied` (no `code` param), and ASP.NET model binding rejects the request with a raw 400 error instead of a user-friendly redirect. |

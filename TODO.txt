@@ -1,23 +1,11 @@
 Task 1)
-In the merge group details page, for branches without an MR, make the "Create" action a blue button in the same style as the other buttons on the page, with a plus icon. Do not show the "No Merge Request" text, the button is enough.
+Implement the suggestions in docs/backend-code-review.md. Commit and push each section separately as they are implemented.
 
 Task 2)
-On the merge group details page, the auto merge toggle should only be enabled if all branches have MRs created.
+Rename the "Create Merge Request" button on the Merge Group details page to just "Create". Keep the plus icon.
 
 Task 3)
-Add a document file with a mermaid diagram of the schema of the Mergician database.
+When no MR exists, in the card on the Merge Group details page, show the approvals value as an emdash rather than "Not available".
 
 Task 4)
-When the status bubble tooltips need to display multiple lines of text, such as for multiple reasons why a status is blocked, make the tooltip a multiline display.
-
-Task 5)
-For each branch card in the merge group details page, show the first line of the latest commit as the first entry, with the label "Commit:".
-
-Task 6)
-In the merge group details page, in the branch cards, instead of using ':' after the labels (e.g. 'Approvals:'), use a horizontal bar like in the dashboard cards. Align the labels and values in columns for better readability.
-
-Similarly, in the dashboard cards, align the repo/project labels and the corresponding MR title in columns within a card. Also, there only needs to be a tooltip for the MR title if the title has been truncated to fit the card. This tooltip needs to be the same style as the others.
-
-Task 7)
-As an expert C# developer, review the backend code and create a review document wuth suggested improvements (if any). Add enough detail for a future agent to be able to implement the changes.
-
+The overall merge group status in the merge group details page should show the reason for unready status on hover, like the dashboard page.
