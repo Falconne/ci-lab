@@ -329,33 +329,23 @@ onMounted(async () => {
   border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.08);
 }
 
-/* ---- Filter container — constrained to one card width on wider screens ---- */
+/* ---- Filter container — constrained to one card width ---- */
 .filter-container {
   width: 100%;
+  max-width: 800px;
 }
 
-@media (min-width: 900px) {
-  .filter-container {
-    max-width: calc(50% - 10px);
-  }
-}
-
-/* ---- Card container — multi-column grid ---- */
+/* ---- Card container — auto-fill with fixed 800px cards ---- */
 .dashboard-cards {
   position: relative;
 }
 
 .card-container {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(auto-fill, 800px);
   gap: 20px;
   position: relative;
-}
-
-@media (min-width: 900px) {
-  .card-container {
-    grid-template-columns: repeat(2, 1fr);
-  }
+  align-items: start;
 }
 
 /* ---- TransitionGroup animations ---- */
@@ -369,7 +359,7 @@ onMounted(async () => {
 :deep(.card-list-leave-active) {
   transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
   position: absolute;
-  width: 100%;
+  width: 800px;
 }
 
 :deep(.card-list-enter-from) {
