@@ -12,7 +12,7 @@ namespace IntegrationTest.Tests;
 ///     Expected data per user (created by ProjectSetupService.SetupTestBranchData):
 ///     test1: feature/alpha (primary-1 with MR+approval, secondary-1 with MR),
 ///     feature/beta (primary-2 with MR, no approval),
-///     feature/epsilon (secondary-4 with MR, no approval, requires 1 approval → Blocked)
+///     feature/epsilon (secondary-4 with draft MR → Waiting)
 ///     test2: feature/gamma (primary-1 with MR, secondary-1 with MR+approval, secondary-2 with MR)
 ///     test3: feature/delta (secondary-3, no MR)
 ///     The UI should display the MR title next to the corresponding project entry
@@ -77,7 +77,7 @@ public class DashboardTest : IDisposable
                     "Beta changes in primary-2",
                     "Test Group / primary-2");
 
-                // secondary-4 has feature/epsilon as a draft MR, so the group is permanently Blocked
+                // secondary-4 has feature/epsilon as a draft MR, so the group is Waiting
                 AssertCardItem(
                     "feature/epsilon",
                     "secondary-4",
@@ -89,14 +89,14 @@ public class DashboardTest : IDisposable
 
                 AssertCardGroupStatus("feature/alpha", "Ready");
                 AssertCardGroupStatus("feature/beta", "Ready");
-                AssertCardGroupStatus("feature/epsilon", "Blocked");
+                AssertCardGroupStatus("feature/epsilon", "Waiting");
                 Log.Information("test1 dashboard data verified");
             },
             new Dictionary<string, string>
             {
                 ["feature/alpha"] = "Ready",
                 ["feature/beta"] = "Ready",
-                ["feature/epsilon"] = "Blocked"
+                ["feature/epsilon"] = "Waiting"
             });
 
         await TestMergeGroupDetailsNavigationAndLinks(
