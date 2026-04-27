@@ -73,11 +73,11 @@
                     v-if="subscriptionLoaded"
                     v-bind="tooltipProps"
                     variant="flat"
-                    :color="isSubscribed ? 'brown' : 'primary'"
+                    :color="isSubscribed ? '' : 'primary'"
                     size="small"
                     :prepend-icon="isSubscribed ? 'mdi-minus' : 'mdi-plus'"
                     :loading="subscriptionUpdating"
-                    :class="['subscription-btn', isSubscribed ? 'subscription-brown' : '']"
+                    :class="['subscription-btn', 'ms-auto', isSubscribed ? 'subscription-untrack' : '']"
                     @click="toggleSubscription"
                   >
                     {{ isSubscribed ? 'Untrack' : 'Track' }}
@@ -756,8 +756,8 @@ onMounted(async () => {
   text-transform: none;
 }
 
-.subscription-brown {
-  background-color: #8B4513 !important; /* saddle brown */
+.subscription-untrack {
+  background-color: #000000 !important;
   color: white !important;
 }
 
