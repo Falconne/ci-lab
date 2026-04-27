@@ -24,6 +24,9 @@ public class ProjectSetupService
 
     private readonly Dictionary<string, int> _secondaryRepos = new();
 
+    // Project ID for the GitLab CI-only test repo (no TeamCity VCS root)
+    private int _ciTestProjectId;
+
     private readonly TeamCityService _teamCityService;
 
     private readonly TeamCityVCSRootService _teamCityVCSRootService;
@@ -111,6 +114,21 @@ public class ProjectSetupService
             var username = $"test{i}";
             await _gitlabService.AddGroupMember(testGroup.Id, username);
         }
+
+        // Create a GitLab CI-only test repo for pipeline filtering tests.
+        // NOT added to _primaryRepos or _secondaryRepos so TeamCity does not generate
+        // a VCS root for it — GitLab CI is the sole pipeline source for this project.
+        const string gitlabCiYaml = """
+                                    manual-deploy:
+                                      script:
+                                        - echo "Manual deployment"
+                                      when: manual
+                                    """;
+        var ciTestProject = await _gitlabService.CreateProjectWithCIConfig(
+            "gitlab-ci-test", testGroup.Id, gitlabCiYaml);
+        _ciTestProjectId = ciTestProject.Id;
+        await _gitlabService.AddProjectMember(ciTestProject.Id, "b.builder");
+        await _gitlabService.ConfigureProjectMergeRequestSettings(ciTestProject.Id);
 
         Log.Information("GitLab test projects ready");
     }

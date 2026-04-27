@@ -279,6 +279,31 @@ try
     {
         mergeGroupManagementTest.Dispose();
     }
+
+    // Test 9: Manual GitLab CI job filtering (manual jobs must not appear as job chips)
+    var manualJobFilterTest = new ManualJobFilterTest();
+    try
+    {
+        Log.Information("");
+        Log.Information("--- Test: Manual Job Filter ---");
+        await manualJobFilterTest.Run();
+        results.Add(("Manual Job Filter", true, null));
+        Log.Information("PASS: Manual Job Filter");
+    }
+    catch (Exception ex)
+    {
+        results.Add(("Manual Job Filter", false, ex.Message));
+        Log.Error($"FAIL: Manual Job Filter - {ex.Message}");
+        allPassed = false;
+        if (abortOnFirstFailure)
+        {
+            throw;
+        }
+    }
+    finally
+    {
+        manualJobFilterTest.Dispose();
+    }
 }
 catch (Exception ex)
 {

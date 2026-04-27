@@ -376,4 +376,95 @@ public class GitLabTestHelper
             Log.Information("Closed MR !{MergeRequestIid} in project {ProjectId}", mergeRequestIid, projectId);
         }
     }
+
+    /// <summary>
+    ///     Waits for a GitLab CI pipeline (non-external source) to appear for the branch,
+    ///     and confirms the specified job is present. Returns the pipeline ID.
+    ///     Throws <see cref="TimeoutException" /> if the pipeline or job is not found within the timeout.
+    /// </summary>
+    public async Task<int> WaitForGitLabCIPipelineWithManualJob(
+        int projectId,
+        string branchName,
+        string jobName,
+        int timeoutSeconds = 60)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(timeoutSeconds);
+
+        // Step 1: Wait for a non-external (GitLab CI) pipeline to exist for the branch.
+        var pipelineId = 0;
+        while (DateTime.UtcNow < deadline)
+        {
+            var request = new RestRequest($"/api/v4/projects/{projectId}/pipelines");
+            request.AddQueryParameter("ref", branchName);
+            request.AddQueryParameter("order_by", "updated_at");
+            request.AddQueryParameter("sort", "desc");
+            request.AddQueryParameter("per_page", "5");
+
+            var response = _adminClient.Execute(request);
+            if (response.IsSuccessful && !string.IsNullOrWhiteSpace(response.Content))
+            {
+                var pipelines = JsonSerializer.Deserialize<List<GitLabPipelineInfo>>(
+                                    response.Content!, JsonOptions)
+                                ?? [];
+
+                var ciPipeline = pipelines.FirstOrDefault(p => p.Source != "external");
+                if (ciPipeline != null)
+                {
+                    pipelineId = ciPipeline.Id;
+                    Log.Information(
+                        "Found GitLab CI pipeline {PipelineId} (source={Source}) for branch '{BranchName}'",
+                        pipelineId,
+                        ciPipeline.Source,
+                        branchName);
+
+                    break;
+                }
+            }
+
+            Log.Debug(
+                "Waiting for GitLab CI pipeline for branch '{BranchName}' in project {ProjectId}...",
+                branchName,
+                projectId);
+
+            await Task.Delay(2000);
+        }
+
+        if (pipelineId == 0)
+        {
+            throw new TimeoutException(
+                $"GitLab CI pipeline did not appear for branch '{branchName}' in project {projectId} within {timeoutSeconds}s");
+        }
+
+        // Step 2: Wait for the specified job to appear in the pipeline.
+        while (DateTime.UtcNow < deadline)
+        {
+            var request = new RestRequest($"/api/v4/projects/{projectId}/pipelines/{pipelineId}/jobs");
+            var response = _adminClient.Execute(request);
+            if (response.IsSuccessful && !string.IsNullOrWhiteSpace(response.Content))
+            {
+                var jobs = JsonSerializer.Deserialize<List<GitLabPipelineJobInfo>>(
+                               response.Content!, JsonOptions)
+                           ?? [];
+
+                var targetJob = jobs.FirstOrDefault(
+                    j => j.Name.Equals(jobName, StringComparison.OrdinalIgnoreCase));
+
+                if (targetJob != null)
+                {
+                    Log.Information(
+                        "Job '{JobName}' found with status '{Status}' in pipeline {PipelineId}",
+                        jobName,
+                        targetJob.Status,
+                        pipelineId);
+
+                    return pipelineId;
+                }
+            }
+
+            Log.Debug("Waiting for job '{JobName}' in pipeline {PipelineId}...", jobName, pipelineId);
+            await Task.Delay(2000);
+        }
+
+        throw new TimeoutException(
+            $"Job '{jobName}' did not appear in pipeline {pipelineId} within {timeoutSeconds}s");    }
 }

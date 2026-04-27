@@ -351,6 +351,25 @@ public class GitLabService : IDisposable
         return await CreateAndPopulateProject(projectName, namespaceId);
     }
 
+    /// <summary>
+    ///     Creates a project with a .gitlab-ci.yml in the initial commit.
+    ///     Used for testing GitLab CI pipeline behaviour without TeamCity.
+    /// </summary>
+    public async Task<GitLabProject> CreateProjectWithCIConfig(
+        string projectName,
+        int? namespaceId,
+        string gitlabCiContent)
+    {
+        return await CreateAndPopulateProject(
+            projectName,
+            namespaceId,
+            async tempDir =>
+            {
+                var ciYamlPath = Path.Combine(tempDir, ".gitlab-ci.yml");
+                await File.WriteAllTextAsync(ciYamlPath, gitlabCiContent);
+            });
+    }
+
     private async Task<bool> CheckProjectHasCommits(int projectId)
     {
         var request = new RestRequest($"projects/{projectId}/repository/commits");

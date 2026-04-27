@@ -29,3 +29,12 @@ public record GitLabBranchCommit(
 public record GitLabBranchInfo(
     [property: JsonPropertyName("name")] string Name,
     [property: JsonPropertyName("commit")] GitLabBranchCommit Commit);
+
+public record GitLabPipelineInfo(
+    [property: JsonPropertyName("id")] int Id,
+    [property: JsonPropertyName("source")] string Source);
+
+public record GitLabPipelineJobInfo(
+    [property: JsonPropertyName("id")] int Id,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("status")] string Status);

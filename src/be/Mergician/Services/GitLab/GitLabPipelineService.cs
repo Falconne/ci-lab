@@ -162,12 +162,28 @@ public class GitLabPipelineService
             return [];
         }
 
-        return statuses
+        var commitJobs = statuses
             .Select(s => new BranchBuildJob(
                 s.Name.IsEmpty() ? "build" : s.Name,
                 s.Status.IsEmpty() ? "unknown" : s.Status,
                 s.TargetUrl.IsEmpty() ? null : s.TargetUrl))
             .ToList();
+
+        var filteredCommitJobs = commitJobs
+            .Where(j => !IsHiddenJobStatus(j.Status))
+            .ToList();
+
+        var hiddenCommitCount = commitJobs.Count - filteredCommitJobs.Count;
+        if (hiddenCommitCount > 0)
+        {
+            _logger.LogDebug(
+                "Filtered out {Count} skipped/manual commit status(es) for SHA {Sha} in project {ProjectId}",
+                hiddenCommitCount,
+                sha,
+                projectId);
+        }
+
+        return filteredCommitJobs;
     }
 
     public async Task<List<BranchBuildJob>> GetJobsFromPipeline(
