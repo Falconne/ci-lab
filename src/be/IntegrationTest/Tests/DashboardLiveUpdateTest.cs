@@ -168,7 +168,7 @@ public class DashboardLiveUpdateTest : IDisposable
             throw new InvalidOperationException("No-MR text should disappear after MR creation");
         }
 
-        // now check the MR title element is present and has been truncated within the item
+        // now check the MR title element is present with the full title (CSS fadeout, no JS truncation)
         var titleEl = card.Locator(".item-mr-title");
         if (await titleEl.CountAsync() == 0)
         {
@@ -178,18 +178,19 @@ public class DashboardLiveUpdateTest : IDisposable
 
         var titleText = (await titleEl.InnerTextAsync()).Trim();
         // titleText includes the leading vertical separator and space we render in the template.
-        if (!titleText.StartsWith("| ") || !titleText.EndsWith("...") || titleText.Length != 227)
+        // With CSS fadeout (Task 4), the full title is present in the DOM — no JS truncation.
+        if (!titleText.StartsWith("| "))
         {
             throw new InvalidOperationException(
-                $"MR title was not truncated correctly, got '{titleText}' (len={titleText.Length})");
+                $"MR title missing expected '| ' prefix, got '{titleText}' (len={titleText.Length})");
         }
 
-        // ensure the core content corresponds to truncated string of longTitle
-        var core = titleText.Substring(2); // strip dash+space
-        if (core.Length != 225 || !core.EndsWith("..."))
+        // ensure the full long title content is present (CSS handles visual fadeout, not JS)
+        var core = titleText[2..]; // strip "| " prefix
+        if (core != longTitle)
         {
             throw new InvalidOperationException(
-                $"Unexpected core MR title after stripping prefix: '{core}'");
+                $"MR title should contain full long title, got core='{core}' (len={core.Length}), expected len={longTitle.Length}");
         }
     }
 
