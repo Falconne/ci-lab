@@ -43,7 +43,11 @@ public partial class MergeRequestLookupService
         }
 
         var projectPath = match.Groups["projectPath"].Value;
-        var mergeRequestIid = int.Parse(match.Groups["mergeRequestIid"].Value);
+        if (!int.TryParse(match.Groups["mergeRequestIid"].Value, out var mergeRequestIid))
+        {
+            _logger.LogInformation("Could not parse merge request IID as integer from URL: {Url}", url);
+            return null;
+        }
 
         _logger.LogDebug("Parsed MR URL: projectPath={ProjectPath}, mergeRequestIid={MergeRequestIid}", projectPath, mergeRequestIid);
         return new ParsedMergeRequestUrl(projectPath, mergeRequestIid);

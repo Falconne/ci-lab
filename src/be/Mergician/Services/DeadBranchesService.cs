@@ -122,11 +122,11 @@ public class DeadBranchesService
         if (branchLookup.IsUnavailable)
         {
             _logger.LogError(
-                "'{BranchName}' in project {ProjectId} is unavailable in Gitlab API",
+                "'{BranchName}' in project {ProjectId} is unavailable in Gitlab API; treating as still present",
                 branchName,
                 projectId);
 
-            return true;
+            return false;
         }
 
         return false;

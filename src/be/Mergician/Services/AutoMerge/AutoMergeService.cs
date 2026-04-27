@@ -343,17 +343,31 @@ public class AutoMergeService : BackgroundService
             branchMergeRequestDetails.Count,
             group.Name);
 
-        // Merge all branches in parallel
+        // Merge all branches in parallel; catch per-task so a single failure doesn't prevent
+        // collecting results from the other tasks.
         var mergeTasks = branchMergeRequestDetails.Select(async item =>
             {
                 var (branch, mr) = item;
-                var result = await _apiService.Merge(
-                    serviceUser,
-                    branch.ProjectId,
-                    mr.Iid,
-                    cancellationToken);
+                try
+                {
+                    var mergeResult = await _apiService.Merge(
+                        serviceUser,
+                        branch.ProjectId,
+                        mr.Iid,
+                        cancellationToken);
 
-                return (branch, mr, result);
+                    return (branch, mr, result: mergeResult);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _logger.LogError(
+                        ex,
+                        "AutoMergeService: merge threw an exception for branch '{BranchName}' in project {ProjectName}",
+                        branch.BranchName,
+                        branch.ProjectName);
+
+                    return (branch, mr, result: (GitLabMergeResponse?)null);
+                }
             })
             .ToList();
 

@@ -70,10 +70,17 @@ public class MergeGroupRepository : IMergeGroupRepository
             INSERT INTO merge_group (name)
             VALUES (@Name)
             ON CONFLICT ON CONSTRAINT uq_merge_group_name
-            DO UPDATE SET name = EXCLUDED.name
+            DO NOTHING
             RETURNING id AS Id, name AS Name, auto_merge AS AutoMerge, auto_rebase AS AutoRebase, auto_merge_warning AS AutoMergeWarning
             """,
-            new { Name = name });
+            new { Name = name })
+            ?? connection.QueryFirstOrDefault<MergeGroupBase>(
+                """
+                SELECT id AS Id, name AS Name, auto_merge AS AutoMerge, auto_rebase AS AutoRebase, auto_merge_warning AS AutoMergeWarning
+                FROM merge_group
+                WHERE name = @Name
+                """,
+                new { Name = name });
 
         if (record == null)
         {

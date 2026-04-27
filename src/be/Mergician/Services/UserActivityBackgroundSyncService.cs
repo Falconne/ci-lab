@@ -119,16 +119,11 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
         var context = _userContexts.GetOrAdd(userId, _ => new UserSyncContext(accessDetails));
         context.UpdateActivity(accessDetails);
 
-        if (context.IsRunning)
-        {
-            _logger.LogDebug("Sync thread already running for user {UserId}", userId);
-            return;
-        }
-
         lock (context.StartLock)
         {
             if (context.IsRunning)
             {
+                _logger.LogDebug("Sync thread already running for user {UserId}", userId);
                 return;
             }
 

@@ -54,11 +54,30 @@ public class AuthController : ControllerBase
     }
 
     [HttpGet("callback")]
-    public async Task<ActionResult> Callback([FromQuery] string code, [FromQuery] string state)
+    public async Task<ActionResult> Callback(
+        [FromQuery] string? code,
+        [FromQuery] string? state,
+        [FromQuery] string? error)
     {
+        // Handle OAuth denial or other provider-side errors before checking state
+        if (!error.IsEmpty())
+        {
+            _logger.LogWarning("OAuth provider returned error: {Error}", error);
+            Response.Cookies.Delete(
+                "oauth_state",
+                new CookieOptions
+                {
+                    SameSite = SameSiteMode.Lax,
+                    Secure = CookieSecurity.ShouldUseSecureCookies(Request)
+                });
+
+            return Redirect(
+                $"/?error=auth_denied&message={Uri.EscapeDataString("Authorization was denied.")}");
+        }
+
         // Validate state parameter
         var savedState = Request.Cookies["oauth_state"];
-        if (savedState.IsEmpty() || savedState != state)
+        if (savedState.IsEmpty() || state.IsEmpty() || savedState != state)
         {
             _logger.LogWarning("OAuth state mismatch");
             return BadRequest("Invalid OAuth state");
@@ -73,6 +92,12 @@ public class AuthController : ControllerBase
             });
 
         var redirectUri = GetRedirectUri();
+
+        if (code.IsEmpty())
+        {
+            _logger.LogWarning("OAuth callback received without a code parameter");
+            return BadRequest("Missing authorization code");
+        }
 
         GitLabOAuthTokenResponse? tokenResponse;
         try
