@@ -60,19 +60,16 @@
             </template>
             <template v-else>
               <v-tooltip
-                v-if="item.mergeRequestTitle && item.mergeRequestTitle.length > MAX_TITLE_LENGTH"
+                v-if="item.mergeRequestTitle"
                 location="top"
                 :text="item.mergeRequestTitle"
               >
                 <template #activator="{ props: tipProps }">
                   <span class="item-mr-title" v-bind="tipProps">
-                    | {{ truncateTitle(item.mergeRequestTitle as string) }}
+                    | {{ item.mergeRequestTitle }}
                   </span>
                 </template>
               </v-tooltip>
-              <span v-else-if="item.mergeRequestTitle" class="item-mr-title">
-                | {{ item.mergeRequestTitle }}
-              </span>
               <span
                 v-else-if="item.hasMergeRequest === false"
                 class="item-no-mr"
@@ -232,13 +229,6 @@ const nonSuccessJobs = computed(() =>
 const successJobCount = computed(() =>
   deduplicatedJobs.value.filter(j => j.status.toLowerCase() === 'success').length
 )
-
-const MAX_TITLE_LENGTH = 222
-
-function truncateTitle(title: string): string {
-  if (title.length <= MAX_TITLE_LENGTH) return title
-  return title.slice(0, MAX_TITLE_LENGTH) + '...'
-}
 
 function approvalIconColor(item: BranchWithActivity): string {
   if (!item.hasMergeRequest || item.approvalsGiven == null || item.approvalsRequired == null) {
@@ -413,7 +403,8 @@ function approvalsTooltip(item: BranchWithActivity): string {
   color: rgba(var(--v-theme-on-surface), 0.6);
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
+  -webkit-mask-image: linear-gradient(to right, black calc(100% - 40px), transparent 100%);
+  mask-image: linear-gradient(to right, black calc(100% - 40px), transparent 100%);
 }
 
 .item-no-mr {
