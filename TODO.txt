@@ -1,6 +1,8 @@
 Task 1)
 Implement the suggestions in docs/backend-code-review.md. Commit and push each section separately as they are implemented.
 
+Only all sections are completed, delete the review file and commit that too.
+
 Task 2)
 Rename the "Create Merge Request" button on the Merge Group details page to just "Create". Keep the plus icon.
 
