@@ -159,7 +159,7 @@ public class GitLabService
             break;
         }
 
-        _logger.LogInformation(
+        _logger.LogDebug(
             "Streamed {Count} unique branch push events since {Since}",
             yieldedCount,
             sinceUtc);
