@@ -275,7 +275,9 @@ function approvalsTooltip(item: BranchWithActivity): string {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 10px;
+  margin: -14px -18px 10px -18px;
+  padding: 10px 18px;
+  background: #E8EEF8;
   flex-wrap: wrap;
   gap: 8px;
 }
