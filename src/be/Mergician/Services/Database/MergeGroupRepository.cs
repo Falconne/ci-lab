@@ -434,12 +434,12 @@ public class MergeGroupRepository : IMergeGroupRepository
             utcCommitTime);
     }
 
-    public void UpdateAutoMergeSettings(int mergeGroupId, bool autoMerge, bool autoRebase)
+    public int UpdateAutoMergeSettings(int mergeGroupId, bool autoMerge, bool autoRebase)
     {
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();
 
-        connection.Execute(
+        var rowsAffected = connection.Execute(
             """
             UPDATE merge_group
             SET auto_merge = @AutoMerge,
@@ -453,6 +453,8 @@ public class MergeGroupRepository : IMergeGroupRepository
             mergeGroupId,
             autoMerge,
             autoRebase);
+
+        return rowsAffected;
     }
 
     public List<MergeGroup> GetMergeGroupsWithAutoSettings()

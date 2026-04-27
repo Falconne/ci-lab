@@ -57,6 +57,15 @@ public class MergeGroupController : ControllerBase
             userId,
             mergeGroupId);
 
+        if (!_mergeGroupRepository.IsUserInMergeGroup(userId, mergeGroupId))
+        {
+            _logger.LogWarning(
+                "User {UserId} attempted to refresh merge group {MergeGroupId} they do not belong to",
+                userId,
+                mergeGroupId);
+            return Forbid();
+        }
+
         var result = _mergeGroupRepository.GetMergeGroup(mergeGroupId);
 
         if (result == null)
@@ -91,13 +100,20 @@ public class MergeGroupController : ControllerBase
             request.AutoMerge,
             request.AutoRebase);
 
-        var existing = _mergeGroupRepository.GetMergeGroup(mergeGroupId);
-        if (existing == null)
+        if (!_mergeGroupRepository.IsUserInMergeGroup(currentUser.UserId, mergeGroupId))
+        {
+            _logger.LogWarning(
+                "User {UserId} attempted to update settings for merge group {MergeGroupId} they do not belong to",
+                currentUser.UserId,
+                mergeGroupId);
+            return Forbid();
+        }
+
+        var rowsAffected = _mergeGroupRepository.UpdateAutoMergeSettings(mergeGroupId, request.AutoMerge, request.AutoRebase);
+        if (rowsAffected == 0)
         {
             return NotFound(new ErrorResponse("Merge group not found"));
         }
-
-        _mergeGroupRepository.UpdateAutoMergeSettings(mergeGroupId, request.AutoMerge, request.AutoRebase);
 
         // Clear any existing warning when settings change
         _mergeGroupRepository.UpdateAutoMergeWarning(mergeGroupId, null);
@@ -113,7 +129,21 @@ public class MergeGroupController : ControllerBase
     [HttpPost("{mergeGroupId:int}/settings/clear-warning")]
     public ActionResult ClearWarning(int mergeGroupId)
     {
-        _logger.LogInformation("Clearing auto merge warning for merge group {MergeGroupId}", mergeGroupId);
+        var currentUser = HttpContext.GetGitLabUser();
+
+        if (!_mergeGroupRepository.IsUserInMergeGroup(currentUser.UserId, mergeGroupId))
+        {
+            _logger.LogWarning(
+                "User {UserId} attempted to clear warning for merge group {MergeGroupId} they do not belong to",
+                currentUser.UserId,
+                mergeGroupId);
+            return Forbid();
+        }
+
+        _logger.LogInformation(
+            "User {UserId} clearing auto merge warning for merge group {MergeGroupId}",
+            currentUser.UserId,
+            mergeGroupId);
         _mergeGroupRepository.UpdateAutoMergeWarning(mergeGroupId, null);
         return NoContent();
     }

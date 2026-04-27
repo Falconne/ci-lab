@@ -5,16 +5,12 @@ namespace Mergician.Services;
 
 /// <summary>
 ///     Background service that periodically checks for deleted branches
-///     and removes them from the database. Runs once daily at 3am NZST (New Zealand Standard Time).
+///     and removes them from the database. Runs once daily at 15:00 UTC
+///     (equivalent to 3am NZST / 4am NZDT).
 ///     Uses the GitLab service user token for API access.
 /// </summary>
 public class CleanupService : IHostedService, IDisposable
 {
-    // NZST is UTC+12, NZDT is UTC+13
-    // TimeZoneInfo handles DST automatically
-    private static readonly TimeZoneInfo _nzTimeZone =
-        TimeZoneInfo.FindSystemTimeZoneById("Pacific/Auckland");
-
     private readonly DeadBranchesService _deadBranchesService;
 
     private readonly ILogger<CleanupService> _logger;
@@ -43,7 +39,7 @@ public class CleanupService : IHostedService, IDisposable
     public Task StartAsync(CancellationToken cancellationToken)
     {
         _stoppingToken = cancellationToken;
-        _logger.LogInformation("CleanupService started. Will run daily at 3am NZST");
+        _logger.LogInformation("CleanupService started. Will run daily at 15:00 UTC");
         ScheduleNextRun();
         return Task.CompletedTask;
     }
@@ -57,8 +53,8 @@ public class CleanupService : IHostedService, IDisposable
 
     private void ScheduleNextRun()
     {
-        var delay = CalculateDelayUntilNext3amNZ();
-        _logger.LogInformation("CleanupService sleeping for {Delay} until next 3am NZST run", delay);
+        var delay = CalculateDelayUntilNext15UtcHour();
+        _logger.LogInformation("CleanupService sleeping for {Delay} until next 15:00 UTC run", delay);
         _timer?.Dispose();
         _timer = new Timer(
             async _ => await RunAndReschedule(),
@@ -128,22 +124,13 @@ public class CleanupService : IHostedService, IDisposable
         _logger.LogInformation("CleanupService completed: removed {RemovedBranches} branches", removedCount);
     }
 
-    // ReSharper disable once InconsistentNaming
-    private static TimeSpan CalculateDelayUntilNext3amNZ()
+    private static TimeSpan CalculateDelayUntilNext15UtcHour()
     {
         var nowUtc = DateTimeOffset.UtcNow;
-        var nowNz = TimeZoneInfo.ConvertTime(nowUtc, _nzTimeZone);
+        var targetToday = new DateTimeOffset(nowUtc.Year, nowUtc.Month, nowUtc.Day, 15, 0, 0, TimeSpan.Zero);
+        var target = targetToday <= nowUtc ? targetToday.AddDays(1) : targetToday;
 
-        // Target 3am today or tomorrow in NZ timezone.
-        // Use ConvertTimeToUtc so DST transitions are handled correctly.
-        var todayAt3am = new DateTime(nowNz.Year, nowNz.Month, nowNz.Day, 3, 0, 0, DateTimeKind.Unspecified);
-        var targetUtc = TimeZoneInfo.ConvertTimeToUtc(todayAt3am, _nzTimeZone);
-        if (targetUtc <= nowUtc)
-        {
-            targetUtc = TimeZoneInfo.ConvertTimeToUtc(todayAt3am.AddDays(1), _nzTimeZone);
-        }
-
-        var delay = targetUtc - nowUtc;
+        var delay = target - nowUtc;
 
         // Safety: ensure we always wait at least 1 minute
         if (delay < TimeSpan.FromMinutes(1))
