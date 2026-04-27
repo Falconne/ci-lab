@@ -17,7 +17,9 @@ public class AutoMergeService : BackgroundService
 {
     private static readonly TimeSpan _pollInterval = TimeSpan.FromSeconds(5);
 
-    private static readonly TimeSpan _rebaseCheckDelay = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan _rebaseCheckInterval = TimeSpan.FromSeconds(2);
+
+    private static readonly TimeSpan _rebaseCheckTimeout = TimeSpan.FromSeconds(30);
 
     private readonly AutoMergeGitLabApiService _apiService;
 
@@ -241,14 +243,44 @@ public class AutoMergeService : BackgroundService
                 continue;
             }
 
-            // Wait briefly for GitLab to process the rebase, then check for conflicts
-            await Task.Delay(_rebaseCheckDelay, cancellationToken);
+            // Poll until GitLab finishes the rebase (or timeout), then check for conflicts
+            var rebaseDeadline = DateTimeOffset.UtcNow + _rebaseCheckTimeout;
+            GitLabDetailedMergeRequest? updatedMergeRequest = null;
 
-            var updatedMergeRequest = await _apiService.GetDetailedMergeRequest(
-                serviceUser,
-                branch.ProjectId,
-                mr.Iid,
-                cancellationToken);
+            while (DateTimeOffset.UtcNow < rebaseDeadline)
+            {
+                updatedMergeRequest = await _apiService.GetDetailedMergeRequest(
+                    serviceUser,
+                    branch.ProjectId,
+                    mr.Iid,
+                    cancellationToken);
+
+                if (updatedMergeRequest is not { RebaseInProgress: true })
+                {
+                    _logger.LogDebug(
+                        "AutoMergeService: rebase completed for branch '{BranchName}' in project {ProjectId}",
+                        branch.BranchName,
+                        branch.ProjectId);
+                    break;
+                }
+
+                _logger.LogDebug(
+                    "AutoMergeService: rebase still in progress for branch '{BranchName}' in project {ProjectId}, waiting...",
+                    branch.BranchName,
+                    branch.ProjectId);
+
+                await Task.Delay(_rebaseCheckInterval, cancellationToken);
+            }
+
+            if (updatedMergeRequest is { RebaseInProgress: true })
+            {
+                _logger.LogWarning(
+                    "AutoMergeService: rebase timed out after {TimeoutSeconds}s for branch '{BranchName}' in project {ProjectId}, will retry next cycle",
+                    _rebaseCheckTimeout.TotalSeconds,
+                    branch.BranchName,
+                    branch.ProjectId);
+                continue;
+            }
 
             if (updatedMergeRequest is not { HasConflicts: true })
             {

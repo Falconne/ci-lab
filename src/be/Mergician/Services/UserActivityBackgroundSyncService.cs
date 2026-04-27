@@ -1,3 +1,4 @@
+using Mergician.Entities;
 using Mergician.Entities.Database;
 using Mergician.Services.Authentication;
 using Mergician.Services.Database;
@@ -537,6 +538,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
     /// <summary>
     ///     Fetches MR, approval, and build job details from GitLab for the given branch
     ///     and persists them in the database. Silently skips if project info is unavailable.
+    ///     On 401 (expired token), skips the update rather than persisting stale "no MR" data.
     /// </summary>
     private async Task RefreshBranchDetails(
         AccessDetailsForUser accessDetails,
@@ -571,11 +573,23 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             return;
         }
 
-        var mergeRequests = await _gitLabService.GetMergeRequests(
-            accessDetails,
-            branch.ProjectId,
-            branch.BranchName,
-            cancellationToken);
+        List<GitLabMergeRequest> mergeRequests;
+        try
+        {
+            mergeRequests = await _gitLabService.GetMergeRequests(
+                accessDetails,
+                branch.ProjectId,
+                branch.BranchName,
+                cancellationToken);
+        }
+        catch (GitLabUnexpectedResponseException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            _logger.LogWarning(
+                "Skipping branch '{BranchName}' in project {ProjectId}: received 401 (token may be expired)",
+                branch.BranchName,
+                branch.ProjectId);
+            return;
+        }
 
         var hasMergeRequest = mergeRequests.Count > 0;
         int? approvalsRequired = null;

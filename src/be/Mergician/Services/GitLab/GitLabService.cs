@@ -324,6 +324,10 @@ public class GitLabService
                         $"projects/{projectId}/merge_requests?source_branch={encodedBranch}&state=opened"),
                 cancellationToken);
         }
+        catch (GitLabUnexpectedResponseException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            throw;
+        }
         catch (GitLabUnexpectedResponseException ex)
         {
             _logger.LogError(

@@ -234,6 +234,8 @@ public class MergeGroupController : ControllerBase
 
         return result.Error switch
         {
+            null => Ok(result.UpdatedMergeGroup),
+
             MergeGroupManagementError.InvalidUrl => BadRequest(
                 new ErrorResponse(
                     "Invalid merge request URL. Expected format: https://gitlab.example.com/group/project/-/merge_requests/123")),
@@ -243,9 +245,9 @@ public class MergeGroupController : ControllerBase
 
             MergeGroupManagementError.MergeRequestNotFound => NotFound(
                 new ErrorResponse(
-                    "Merge request not found in GitLab. Check the URL and ensure you have access to the project.")),
+                    "Merge request not found (or no longer open). Check the URL and ensure you have access to the project.")),
 
-            _ => Ok(result.UpdatedMergeGroup!)
+            _ => StatusCode(500, new ErrorResponse("Unexpected error"))
         };
     }
 
@@ -271,7 +273,7 @@ public class MergeGroupController : ControllerBase
                     "Invalid merge request URL. Expected format: https://gitlab.example.com/group/project/-/merge_requests/123")),
             MergeGroupManagementError.MergeRequestNotFound => NotFound(
                 new ErrorResponse(
-                    "Merge request not found in GitLab. Check the URL and ensure you have access to the project.")),
+                    "Merge request not found (or no longer open). Check the URL and ensure you have access to the project.")),
             _ => Ok(new FindByMergeRequestResponse(result.MergeGroupId!.Value, result.WasCreated))
         };
     }
