@@ -85,7 +85,25 @@ public class GitLabPipelineService
             branchName,
             projectId);
 
-        return buildJobs;
+        // Also fetch external commit statuses (e.g. from TeamCity's commit status publisher)
+        // for the same SHA so both GitLab CI and external build results are shown together.
+        var externalJobs = await GetJobsFromCommitStatuses(
+            accessDetails,
+            projectId,
+            latestPipeline.Sha,
+            cancellationToken);
+
+        if (externalJobs.Count > 0)
+        {
+            _logger.LogDebug(
+                "Resolved {Count} external commit status job(s) for branch '{BranchName}' in project {ProjectId} (SHA {Sha}); combining with CI jobs",
+                externalJobs.Count,
+                branchName,
+                projectId,
+                latestPipeline.Sha);
+        }
+
+        return [..buildJobs, ..externalJobs];
     }
 
     private async Task<GitLabPipeline?> GetLatestPipeline(
