@@ -13,6 +13,7 @@ public static class MRStatusCalculator
     ///     Computes the MR status and the list of reasons for non-Ready states.
     /// </summary>
     /// <param name="hasMergeRequest">Whether the branch has an open merge request.</param>
+    /// <param name="isDraft">Whether the merge request is a draft/WIP (not ready to merge).</param>
     /// <param name="approvalsRequired">Number of required approvals, or null if unknown.</param>
     /// <param name="approvalsGiven">Number of approvals given, or null if unknown.</param>
     /// <param name="buildJobs">Build jobs from the latest pipeline.</param>
@@ -21,6 +22,7 @@ public static class MRStatusCalculator
     /// <returns>The status value from <see cref="MRStatus" /> and a list of reason strings.</returns>
     public static (int Status, List<string> Reasons) Calculate(
         bool hasMergeRequest,
+        bool isDraft,
         int? approvalsRequired,
         int? approvalsGiven,
         IReadOnlyList<BranchBuildJob> buildJobs,
@@ -30,6 +32,11 @@ public static class MRStatusCalculator
         if (!hasMergeRequest)
         {
             return (MRStatus.Blocked, ["No merge request"]);
+        }
+
+        if (isDraft)
+        {
+            return (MRStatus.Blocked, ["Draft merge request"]);
         }
 
         var blockedReasons = new List<string>();

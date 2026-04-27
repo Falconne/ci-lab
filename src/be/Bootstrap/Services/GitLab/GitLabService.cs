@@ -811,15 +811,18 @@ public class GitLabService : IDisposable
 
     /// <summary>
     ///     Creates a merge request. Returns it if created, or returns the existing one if already open.
+    ///     If <paramref name="draft" /> is true, the MR title is prefixed with "Draft: " and the MR
+    ///     is created (or updated) as draft to keep it permanently blocked.
     /// </summary>
     public async Task<GitLabMergeRequest> CreateMergeRequest(
         int projectId,
         string sourceBranch,
         string targetBranch,
         string title,
-        string userToken)
+        string userToken,
+        bool draft = false)
     {
-        Log.Information($"Creating MR '{title}' in project {projectId}: {sourceBranch} -> {targetBranch}");
+        Log.Information($"Creating MR '{title}' in project {projectId}: {sourceBranch} -> {targetBranch} (draft={draft})");
 
         // Use a user-scoped client to create MR as that user
         using var userClient = CreateUserClient(userToken);
@@ -835,24 +838,57 @@ public class GitLabService : IDisposable
         if (searchResponse is { IsSuccessful: true, Data: not null } && searchResponse.Data.Length > 0)
         {
             Log.Information($"MR already exists for {sourceBranch} -> {targetBranch} in project {projectId}");
-            return searchResponse.Data[0];
+            var existing = searchResponse.Data[0];
+
+            if (draft && !existing.Draft && !existing.WorkInProgress)
+            {
+                Log.Information($"Existing MR !{existing.Iid} is not draft; updating to draft");
+                await SetMergeRequestDraft(projectId, existing.Iid, userToken, isDraft: true);
+            }
+
+            return existing;
         }
 
+        var effectiveTitle = draft ? $"Draft: {title}" : title;
         var createRequest = new RestRequest($"projects/{projectId}/merge_requests", Method.Post)
-            .AddJsonBody(new { source_branch = sourceBranch, target_branch = targetBranch, title });
+            .AddJsonBody(new { source_branch = sourceBranch, target_branch = targetBranch, title = effectiveTitle, draft });
 
         var createResponse = await userClient.ExecutePostAsync<GitLabMergeRequest>(createRequest);
 
         if (createResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created
             && createResponse.Data is not null)
         {
-            Log.Information($"MR '{title}' created in project {projectId} (IID: {createResponse.Data.Iid})");
+            Log.Information($"MR '{effectiveTitle}' created in project {projectId} (IID: {createResponse.Data.Iid})");
             return createResponse.Data;
         }
 
         Log.Error($"Failed to create MR: {(int)createResponse.StatusCode} - {createResponse.Content}");
         throw new InvalidOperationException(
             $"Failed to create MR '{title}': {(int)createResponse.StatusCode} - {createResponse.Content}");
+    }
+
+    /// <summary>
+    ///     Sets the draft state of an existing merge request.
+    /// </summary>
+    public async Task SetMergeRequestDraft(int projectId, int mergeRequestIid, string userToken, bool isDraft)
+    {
+        Log.Information($"Setting MR !{mergeRequestIid} in project {projectId} draft={isDraft}");
+
+        using var userClient = CreateUserClient(userToken);
+        var updateRequest = new RestRequest($"projects/{projectId}/merge_requests/{mergeRequestIid}", Method.Put)
+            .AddJsonBody(new { draft = isDraft });
+
+        var updateResponse = await userClient.ExecuteAsync(updateRequest);
+
+        if (updateResponse.StatusCode is HttpStatusCode.OK)
+        {
+            Log.Information($"MR !{mergeRequestIid} draft state set to {isDraft}");
+            return;
+        }
+
+        Log.Error($"Failed to set MR draft state: {(int)updateResponse.StatusCode} - {updateResponse.Content}");
+        throw new InvalidOperationException(
+            $"Failed to set MR !{mergeRequestIid} draft={isDraft}: {(int)updateResponse.StatusCode} - {updateResponse.Content}");
     }
 
     /// <summary>

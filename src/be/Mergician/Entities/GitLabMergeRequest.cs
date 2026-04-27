@@ -25,4 +25,10 @@ public class GitLabMergeRequest
 
     [JsonPropertyName("rebase_in_progress")]
     public bool RebaseInProgress { get; set; }
+
+    [JsonPropertyName("draft")]
+    public bool Draft { get; set; }
+
+    [JsonPropertyName("work_in_progress")]
+    public bool WorkInProgress { get; set; }
 }

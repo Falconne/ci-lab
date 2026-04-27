@@ -465,6 +465,7 @@ public class AutoMergeService : BackgroundService
 
         var (mrStatus, calcReasons) = MRStatusCalculator.Calculate(
             hasMergeRequest: true,
+            isDraft: false, // Draft status is handled separately via detailed_merge_status check below
             approvalsRequired,
             approvalsGiven,
             buildJobs,

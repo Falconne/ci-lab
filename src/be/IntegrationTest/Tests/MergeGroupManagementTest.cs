@@ -223,8 +223,8 @@ public class MergeGroupManagementTest : IDisposable
             var initialBranchCount = await _browser.Page.Locator(".branch-card").CountAsync();
             Log.Information("Initial branch count: {Count}", initialBranchCount);
 
-            // Click "Add Merge Request..."
-            var addMergeRequestBtn = _browser.Page.Locator("button:has-text('Add Merge Request')");
+            // Click "Add Existing Merge Request..."
+            var addMergeRequestBtn = _browser.Page.Locator("button:has-text('Add Existing Merge Request')");
             await addMergeRequestBtn.WaitForAsync(new LocatorWaitForOptions { Timeout = 10000 });
             await addMergeRequestBtn.ClickAsync();
             await Task.Delay(1000);

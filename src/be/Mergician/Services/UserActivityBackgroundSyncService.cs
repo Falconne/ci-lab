@@ -657,6 +657,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
         string? mergeRequestUrl = null;
         bool? needsRebase = null;
         bool? rebaseInProgress = null;
+        var isDraft = false;
 
         if (hasMergeRequest)
         {
@@ -665,6 +666,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             mergeRequestUrl = first.WebUrl;
             needsRebase = first.DetailedMergeStatus == "need_rebase";
             rebaseInProgress = first.RebaseInProgress;
+            isDraft = first.Draft || first.WorkInProgress;
 
             var approval = await _gitLabService.GetMergeRequestApprovals(
                 accessDetails,
@@ -715,6 +717,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
 
         var (mrStatus, reasons) = MRStatusCalculator.Calculate(
             hasMergeRequest,
+            isDraft,
             approvalsRequired,
             approvalsGiven,
             buildJobs,

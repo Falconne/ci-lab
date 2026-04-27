@@ -837,6 +837,18 @@ public class ProjectSetupService
         // ── test3: feature/delta in secondary-3, no MR ──
         await CreateBranchWithCommit(ProjectId("secondary-3"), "feature/delta", "test3");
 
+        // ── test1: feature/epsilon in secondary-4, with draft MR ──
+        // Draft MRs are permanently Blocked in Mergician, providing a stable blocked group
+        // with all branches having MRs for the auto-merge toggle test.
+        await CreateBranchWithCommit(ProjectId("secondary-4"), "feature/epsilon", "test1");
+        await _gitlabService.CreateMergeRequest(
+            ProjectId("secondary-4"),
+            "feature/epsilon",
+            "main",
+            "Epsilon changes in secondary-4",
+            test1Token,
+            draft: true);
+
         Log.Information("Test branch data setup complete!");
     }
 

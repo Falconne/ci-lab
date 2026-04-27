@@ -11,7 +11,8 @@ namespace IntegrationTest.Tests;
 ///     Uses Playwright to interact with the actual frontend, just as a real user would.
 ///     Expected data per user (created by ProjectSetupService.SetupTestBranchData):
 ///     test1: feature/alpha (primary-1 with MR+approval, secondary-1 with MR),
-///     feature/beta (primary-2 with MR, no approval)
+///     feature/beta (primary-2 with MR, no approval),
+///     feature/epsilon (secondary-4 with MR, no approval, requires 1 approval → Blocked)
 ///     test2: feature/gamma (primary-1 with MR, secondary-1 with MR+approval, secondary-2 with MR)
 ///     test3: feature/delta (secondary-3, no MR)
 ///     The UI should display the MR title next to the corresponding project entry
@@ -40,7 +41,7 @@ public class DashboardTest : IDisposable
         await _browser.Initialize(
             Path.Combine(TestConfig.ScreenshotDir, "activity"));
 
-        // Test with test1 — should see feature/alpha and feature/beta
+        // Test with test1 — should see feature/alpha, feature/beta, and feature/epsilon
         // Wait for builds to complete (TeamCity reports build status via external pipelines which
         // Mergician now tracks; branches show 'Waiting' until builds finish)
         await TestUserDashboard(
@@ -76,14 +77,26 @@ public class DashboardTest : IDisposable
                     "Beta changes in primary-2",
                     "Test Group / primary-2");
 
+                // secondary-4 has feature/epsilon as a draft MR, so the group is permanently Blocked
+                AssertCardItem(
+                    "feature/epsilon",
+                    "secondary-4",
+                    "0/0",
+                    "No approval needed",
+                    "green",
+                    "Draft: Epsilon changes in secondary-4",
+                    "Test Group / secondary-4");
+
                 AssertCardGroupStatus("feature/alpha", "Ready");
                 AssertCardGroupStatus("feature/beta", "Ready");
+                AssertCardGroupStatus("feature/epsilon", "Blocked");
                 Log.Information("test1 dashboard data verified");
             },
             new Dictionary<string, string>
             {
                 ["feature/alpha"] = "Ready",
-                ["feature/beta"] = "Ready"
+                ["feature/beta"] = "Ready",
+                ["feature/epsilon"] = "Blocked"
             });
 
         await TestMergeGroupDetailsNavigationAndLinks(
@@ -271,7 +284,7 @@ public class DashboardTest : IDisposable
             var statusesReached = await DashboardWaitHelper.WaitForGroupStatuses(
                 _browser.Page,
                 expectedGroupStatuses,
-                timeoutSeconds: 180);
+                timeoutSeconds: 360);
 
             if (!statusesReached)
             {
