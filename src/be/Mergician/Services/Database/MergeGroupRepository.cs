@@ -261,17 +261,6 @@ public class MergeGroupRepository : IMergeGroupRepository
             .ToList();
     }
 
-    public List<int> GetMergeGroupIdsForBranch(int branchInProjectId)
-    {
-        using var connection = _connectionFactory.CreateConnection();
-        connection.Open();
-
-        return connection.Query<int>(
-                "SELECT merge_group_id FROM branches_in_merge_group WHERE branch_in_project_id = @Id",
-                new { Id = branchInProjectId })
-            .ToList();
-    }
-
     public void UpdateBranchDetails(int branchInProjectId, BranchDetailsUpdate update)
     {
         using var connection = _connectionFactory.CreateConnection();

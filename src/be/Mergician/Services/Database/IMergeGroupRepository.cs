@@ -88,11 +88,6 @@ public interface IMergeGroupRepository
     List<BranchInProject> GetAllBranches();
 
     /// <summary>
-    ///     Returns the merge group IDs that a branch belongs to.
-    /// </summary>
-    List<int> GetMergeGroupIdsForBranch(int branchInProjectId);
-
-    /// <summary>
     ///     Persists the resolved activity details (MR data, approvals, build jobs) for a branch.
     ///     Replaces any previously stored build jobs for this branch atomically.
     /// </summary>
