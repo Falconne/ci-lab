@@ -103,7 +103,25 @@ public class GitLabPipelineService
                 latestPipeline.Sha);
         }
 
-        return [..buildJobs, ..externalJobs];
+        // Deduplicate by name (case-insensitive): CI pipeline jobs take priority over external commit statuses.
+        var ciJobNames = buildJobs
+            .Select(j => j.Name)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var dedupedExternalJobs = externalJobs
+            .Where(j => !ciJobNames.Contains(j.Name))
+            .ToList();
+
+        if (dedupedExternalJobs.Count < externalJobs.Count)
+        {
+            _logger.LogDebug(
+                "Deduplicated {Removed} external job(s) with names already present in CI pipeline for branch '{BranchName}' in project {ProjectId}",
+                externalJobs.Count - dedupedExternalJobs.Count,
+                branchName,
+                projectId);
+        }
+
+        return [..buildJobs, ..dedupedExternalJobs];
     }
 
     private async Task<GitLabPipeline?> GetLatestPipeline(
