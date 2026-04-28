@@ -178,7 +178,43 @@
               <div class="card-body">
                 <!-- Card header: title + status chip -->
                 <div class="card-header">
-                  <div class="branch-card-title">
+                  <div v-if="item.mergeRequestTitle" class="branch-card-title branch-card-title--with-mr">
+                    <a
+                      v-if="item.mergeRequestUrl"
+                      class="mr-title-link"
+                      :href="item.mergeRequestUrl"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >{{ item.mergeRequestTitle }}</a>
+                    <span v-else class="mr-title-text">{{ item.mergeRequestTitle }}</span>
+                    <div class="branch-subtitle-row">
+                      <a
+                        v-if="item.projectUrl"
+                        class="branch-subtitle-link"
+                        :href="branchUrl(item)"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >{{ item.projectName }} | {{ item.branchName }}</a>
+                      <span v-else class="branch-subtitle-text">{{ item.projectName }} | {{ item.branchName }}</span>
+                      <v-tooltip text="Copy branch name" location="top">
+                        <template #activator="{ props: tooltipProps }">
+                          <v-btn
+                            v-bind="tooltipProps"
+                            icon
+                            size="x-small"
+                            variant="text"
+                            color="grey"
+                            class="copy-branch-btn"
+                            aria-label="Copy branch name"
+                            @click.stop="copyBranchName(item.branchName)"
+                          >
+                            <v-icon size="16">mdi-content-copy</v-icon>
+                          </v-btn>
+                        </template>
+                      </v-tooltip>
+                    </div>
+                  </div>
+                  <div v-else class="branch-card-title">
                     <a
                       v-if="item.projectUrl"
                       class="branch-title-link"
@@ -227,20 +263,11 @@
 
                 <!-- Detail rows -->
                 <div class="detail-grid">
-                  <div class="detail-row">
+                  <!-- MR title row: hidden when already shown as card header -->
+                  <div v-if="!item.mergeRequestTitle" class="detail-row">
                     <span class="detail-label">Merge Request</span>
                     <span class="detail-value">
-                      <a
-                        v-if="item.mergeRequestTitle && item.mergeRequestUrl"
-                        :href="item.mergeRequestUrl"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="detail-link"
-                      >
-                        {{ item.mergeRequestTitle }}
-                      </a>
-                      <span v-else-if="item.mergeRequestTitle">{{ item.mergeRequestTitle }}</span>
-                      <template v-else-if="item.hasMergeRequest === false">
+                      <template v-if="item.hasMergeRequest === false">
                         <v-btn
                           v-if="item.projectUrl"
                           color="primary"
@@ -840,6 +867,45 @@ onMounted(async () => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.branch-card-title--with-mr {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.mr-title-link,
+.mr-title-text {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: rgb(var(--v-theme-on-surface));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mr-title-link {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.branch-subtitle-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.branch-subtitle-link,
+.branch-subtitle-text {
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: rgba(var(--v-theme-on-surface), 0.55);
+}
+
+.branch-subtitle-link {
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 /* ---- Detail rows ---- */

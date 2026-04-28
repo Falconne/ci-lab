@@ -554,19 +554,36 @@ public class DashboardTest
             throw new InvalidOperationException($"Could not find details card for repo '{repoContains}'");
         }
 
-        var repoLink = repoCard.Locator(".branch-title-link").First;
+        // Branch link is `.branch-title-link` normally, or `.branch-subtitle-link` when MR title is in header.
+        var repoLink = repoCard.Locator(".branch-title-link, .branch-subtitle-link").First;
         var repoHref = await repoLink.GetAttributeAsync("href") ?? "";
         if (string.IsNullOrWhiteSpace(repoHref))
         {
             throw new InvalidOperationException($"Repo link href was empty for repo '{repoContains}'");
         }
 
-        var mergeRequestRow = repoCard.Locator(".detail-row")
-            .Filter(new LocatorFilterOptions { HasTextString = "Merge Request" })
-            .First;
+        // MR title is now shown as the primary link in the card header (`.mr-title-link`)
+        // when the branch has an MR. The old `.detail-row` for "Merge Request" is hidden in that case.
+        var mrTitleLink = repoCard.Locator(".mr-title-link").First;
+        var hasMrTitleLink = await mrTitleLink.CountAsync() > 0;
 
-        var mergeRequestLink = mergeRequestRow.Locator(".detail-link").First;
-        var mergeRequestText = (await mergeRequestLink.InnerTextAsync()).Trim();
+        string mergeRequestText;
+        if (hasMrTitleLink)
+        {
+            mergeRequestText = (await mrTitleLink.InnerTextAsync()).Trim();
+        }
+        else
+        {
+            // Fallback: no MR title in header — check legacy detail row (skeleton/no-MR state)
+            var mergeRequestRow = repoCard.Locator(".detail-row")
+                .Filter(new LocatorFilterOptions { HasTextString = "Merge Request" })
+                .First;
+            var legacyLink = mergeRequestRow.Locator(".detail-link").First;
+            mergeRequestText = await legacyLink.CountAsync() > 0
+                ? (await legacyLink.InnerTextAsync()).Trim()
+                : "";
+        }
+
         if (!mergeRequestText.Contains(expectedMergeRequestTitle, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException(
@@ -643,37 +660,63 @@ public class DashboardTest
                 continue;
             }
 
-            var mergeRequestRow = repoCard.Locator(".detail-row")
-                .Filter(new LocatorFilterOptions { HasTextString = "Merge Request" })
-                .First;
+            // MR title is now rendered as the primary header link when available.
+            var hasMrTitleInHeader = await repoCard.Locator(".mr-title-link").CountAsync() > 0
+                                     || await repoCard.Locator(".mr-title-text").CountAsync() > 0;
 
-            var hasMergeRequestLink = await mergeRequestRow.Locator(".detail-link").CountAsync() > 0;
-            var hasCreateMrButton = await mergeRequestRow.Locator(".v-btn").CountAsync() > 0;
-            var hasNoMergeRequestText = await mergeRequestRow.Locator(".text-medium-emphasis").CountAsync() > 0;
-            var noMergeRequestText = hasNoMergeRequestText
-                ? (await mergeRequestRow.Locator(".text-medium-emphasis").InnerTextAsync()).Trim()
-                : "";
+            bool isResolved;
+            if (hasMrTitleInHeader)
+            {
+                // Header contains MR title — the detail row for "Merge Request" is intentionally hidden.
+                isResolved = true;
+            }
+            else
+            {
+                var mergeRequestRow = repoCard.Locator(".detail-row")
+                    .Filter(new LocatorFilterOptions { HasTextString = "Merge Request" })
+                    .First;
 
-            var isResolved = hasMergeRequestLink
+                var hasMergeRequestLink = await mergeRequestRow.Locator(".detail-link").CountAsync() > 0;
+                var hasCreateMrButton = await mergeRequestRow.Locator(".v-btn").CountAsync() > 0;
+                var hasNoMergeRequestText = await mergeRequestRow.Locator(".text-medium-emphasis").CountAsync() > 0;
+                var noMergeRequestText = hasNoMergeRequestText
+                    ? (await mergeRequestRow.Locator(".text-medium-emphasis").InnerTextAsync()).Trim()
+                    : "";
+
+                isResolved = hasMergeRequestLink
                              || hasCreateMrButton
                              || noMergeRequestText.Contains("No Merge Request", StringComparison.OrdinalIgnoreCase);
+            }
 
-            // Also check that all cards have resolved (not showing "Resolving...")
+            // Also check that all cards have resolved (not showing skeleton/loading state)
             var allResolved = isResolved;
             if (allResolved)
             {
                 for (var i = 0; i < cardCount; i++)
                 {
                     var card = cards.Nth(i);
+
+                    // A card is still loading if the MR title area shows a skeleton, or if the
+                    // legacy "Merge Request" detail row (shown when there's no MR) contains "Resolving...".
+                    var cardHasMrTitle = await card.Locator(".mr-title-link, .mr-title-text").CountAsync() > 0;
+                    if (cardHasMrTitle)
+                    {
+                        // MR title present in header — resolved.
+                        continue;
+                    }
+
                     var cardMergeRequestRow = card.Locator(".detail-row")
                         .Filter(new LocatorFilterOptions { HasTextString = "Merge Request" })
                         .First;
 
-                    var text = (await cardMergeRequestRow.InnerTextAsync()).Trim();
-                    if (text.Contains("Resolving...", StringComparison.OrdinalIgnoreCase))
+                    if (await cardMergeRequestRow.CountAsync() > 0)
                     {
-                        allResolved = false;
-                        break;
+                        var text = (await cardMergeRequestRow.InnerTextAsync()).Trim();
+                        if (text.Contains("Resolving...", StringComparison.OrdinalIgnoreCase))
+                        {
+                            allResolved = false;
+                            break;
+                        }
                     }
                 }
             }
