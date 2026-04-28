@@ -3,6 +3,7 @@ using Mergician.Services;
 using Mergician.Services.Authentication;
 using Mergician.Services.Database;
 using Mergician.Services.GitLab;
+using System.Collections.Concurrent;
 using Util;
 
 namespace Mergician.Services.AutoMerge;
@@ -21,6 +22,12 @@ public class AutoMergeService : BackgroundService
 
     private static readonly TimeSpan _rebaseCheckTimeout = TimeSpan.FromSeconds(30);
 
+    private static readonly TimeSpan _mergePermissionRetryInterval = TimeSpan.FromMinutes(5);
+
+    private static readonly TimeSpan _mergeBackoffInitial = TimeSpan.FromSeconds(20);
+
+    private static readonly TimeSpan _mergeBackoffMax = TimeSpan.FromMinutes(5);
+
     private readonly AutoMergeGitLabApiService _apiService;
 
     private readonly DeadBranchesService _deadBranchesService;
@@ -38,6 +45,9 @@ public class AutoMergeService : BackgroundService
     private readonly MergicianSettings _settings;
 
     private readonly GitLabUserFactory _userFactory;
+
+    /// <summary>Per-group retry state: tracks next allowed merge attempt time and current backoff.</summary>
+    private readonly ConcurrentDictionary<int, MergeGroupRetryState> _mergeGroupRetryState = new();
 
     public AutoMergeService(
         AutoMergeGitLabApiService apiService,
@@ -59,6 +69,21 @@ public class AutoMergeService : BackgroundService
         _mergeGroupRepository = mergeGroupRepository;
         _settings = settings;
         _logger = logger;
+    }
+
+    /// <summary>
+    ///     Clears the in-memory retry state for the given merge group, allowing the next
+    ///     auto merge attempt to proceed immediately. Called when the user dismisses a warning
+    ///     or changes auto merge settings.
+    /// </summary>
+    public void ResetRetryState(int mergeGroupId)
+    {
+        if (_mergeGroupRetryState.TryRemove(mergeGroupId, out _))
+        {
+            _logger.LogInformation(
+                "AutoMergeService: cleared retry state for merge group {MergeGroupId}",
+                mergeGroupId);
+        }
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -377,6 +402,18 @@ public class AutoMergeService : BackgroundService
             return;
         }
 
+        // Check retry window — skip the merge attempt if we are still in a backoff period.
+        if (_mergeGroupRetryState.TryGetValue(group.Id, out var retryState)
+            && DateTimeOffset.UtcNow < retryState.RetryAfter)
+        {
+            _logger.LogDebug(
+                "AutoMergeService: skipping merge for group '{MergeGroupName}', in retry backoff until {RetryAfter}",
+                group.Name,
+                retryState.RetryAfter);
+
+            return;
+        }
+
         _logger.LogInformation(
             "AutoMergeService: all {Count} branches in merge group '{MergeGroupName}' are ready, initiating merge",
             branchMergeRequestDetails.Count,
@@ -405,19 +442,62 @@ public class AutoMergeService : BackgroundService
                         branch.BranchName,
                         branch.ProjectName);
 
-                    return (branch, mr, result: (GitLabMergeResponse?)null);
+                    return (branch, mr, result: MergeAttemptResult.Failed());
                 }
             })
             .ToList();
 
         var results = await Task.WhenAll(mergeTasks);
 
-        var succeeded = results.Where(r => r.result != null).ToList();
-        var failed = results.Where(r => r.result == null).ToList();
+        var succeeded = results.Where(r => r.result.Success).ToList();
+        var failed = results.Where(r => !r.result.Success).ToList();
+
+        // Persist per-branch merge errors and clear them for succeeded branches.
+        foreach (var (branch, _, _) in succeeded)
+            _mergeGroupRepository.SetMergeError(branch.Id, null);
+
+        foreach (var (branch, _, result) in failed)
+        {
+            var errorMsg = result.IsPermissionDenied
+                ? "Auto merge failed: insufficient permissions"
+                : "Auto merge failed";
+            _mergeGroupRepository.SetMergeError(branch.Id, errorMsg);
+        }
+
+        // Update retry state based on failure type.
+        if (failed.Count > 0)
+        {
+            var permissionDenied = failed.Any(f => f.result.IsPermissionDenied);
+            TimeSpan nextBackoff;
+
+            if (permissionDenied)
+            {
+                nextBackoff = _mergePermissionRetryInterval;
+            }
+            else
+            {
+                var hasPriorState = _mergeGroupRetryState.TryGetValue(group.Id, out var current);
+                // Reset exponential backoff when transitioning away from a permission-denied failure.
+                var currentBackoff = hasPriorState && !current!.IsPermissionDenied ? current.Backoff : TimeSpan.Zero;
+
+                nextBackoff = currentBackoff == TimeSpan.Zero
+                    ? _mergeBackoffInitial
+                    : TimeSpan.FromSeconds(
+                        Math.Min(currentBackoff.TotalSeconds * 2, _mergeBackoffMax.TotalSeconds));
+            }
+
+            _mergeGroupRetryState[group.Id] = new MergeGroupRetryState(DateTimeOffset.UtcNow + nextBackoff, nextBackoff, permissionDenied);
+
+            _logger.LogInformation(
+                "AutoMergeService: merge group '{MergeGroupName}' scheduled for retry in {Backoff}s (permissionDenied={PermissionDenied})",
+                group.Name,
+                nextBackoff.TotalSeconds,
+                permissionDenied);
+        }
 
         if (failed.Count > 0 && succeeded.Count > 0)
         {
-            // Some merged but some failed - this is the partial merge warning case
+            // Some merged but some failed — partial merge warning.
             var failedBranches = string.Join(
                 ", ",
                 failed.Select(f => $"{f.branch.ProjectName}/{f.branch.BranchName}"));
@@ -435,10 +515,18 @@ public class AutoMergeService : BackgroundService
         }
         else if (failed.Count > 0)
         {
+            // All merge attempts failed — set warning so the user sees the reason.
+            var permissionDenied = failed.Any(f => f.result.IsPermissionDenied);
+            var warning = permissionDenied
+                ? "Auto merge blocked: service account lacks merge permission. Will retry in 5 minutes."
+                : "Auto merge failed unexpectedly. Will retry with backoff.";
+
             _logger.LogWarning(
-                "AutoMergeService: all {Count} merge attempts failed for merge group '{MergeGroupName}', will retry next cycle",
-                failed.Count,
+                "AutoMergeService: {Warning} for merge group '{MergeGroupName}'",
+                warning,
                 group.Name);
+
+            _mergeGroupRepository.UpdateAutoMergeWarning(group.Id, warning);
         }
         else
         {
@@ -447,8 +535,9 @@ public class AutoMergeService : BackgroundService
                 succeeded.Count,
                 group.Name);
 
-            // Clear any previous warning on full success
+            // Clear warning and retry state on full success.
             _mergeGroupRepository.UpdateAutoMergeWarning(group.Id, null);
+            _mergeGroupRetryState.TryRemove(group.Id, out _);
         }
 
         // Remove successfully merged branches immediately so they disappear from the dashboard
@@ -564,4 +653,6 @@ public class AutoMergeService : BackgroundService
             await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
         }
     }
+
+    private record MergeGroupRetryState(DateTimeOffset RetryAfter, TimeSpan Backoff, bool IsPermissionDenied = false);
 }
