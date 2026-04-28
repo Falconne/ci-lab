@@ -10,7 +10,7 @@
     <div class="card-body">
       <div class="card-header">
         <div class="branch-info" :class="{ 'branch-info--single-mr': singleMrTitle }">
-          <span v-if="singleMrTitle" class="mr-header-title">{{ singleMrTitle }}</span>
+          <span v-if="singleMrTitle" ref="mrTitleRef" class="mr-header-title" :class="{ 'mr-header-title--overflow': mrTitleOverflows }">{{ singleMrTitle }}</span>
           <span v-else class="branch-name">{{ group.name }}</span>
           <span v-if="singleMrTitle" class="branch-subtitle">{{ group.name }}</span>
         </div>
@@ -65,7 +65,12 @@
                 :text="item.mergeRequestTitle"
               >
                 <template #activator="{ props: tipProps }">
-                  <span class="item-mr-title" v-bind="tipProps">
+                  <span
+                    class="item-mr-title"
+                    v-bind="tipProps"
+                    :class="{ 'item-mr-title--overflow': itemTitleOverflows[`${group.id}-${item.projectId}`] }"
+                    :ref="(el) => setItemTitleRef(el as Element | null, `${group.id}-${item.projectId}`)"
+                  >
                     | {{ item.mergeRequestTitle }}
                   </span>
                 </template>
@@ -152,7 +157,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import type { BranchWithActivity, MergeGroup } from '@/types/mergeGroup'
 import {
@@ -176,6 +181,62 @@ const emit = defineEmits<{
 }>()
 
 const router = useRouter()
+
+// --- MR header title overflow detection (single-MR cards) ---
+const mrTitleRef = ref<HTMLElement | null>(null)
+const mrTitleOverflows = ref(false)
+let mrTitleObserver: ResizeObserver | null = null
+
+watch(mrTitleRef, (el) => {
+  mrTitleObserver?.disconnect()
+  mrTitleObserver = null
+  if (el) {
+    mrTitleOverflows.value = el.scrollWidth > el.offsetWidth
+    mrTitleObserver = new ResizeObserver(() => {
+      mrTitleOverflows.value = el.scrollWidth > el.offsetWidth
+    })
+    mrTitleObserver.observe(el)
+  } else {
+    mrTitleOverflows.value = false
+  }
+})
+
+// --- Item MR title overflow detection ---
+const itemTitleOverflows = reactive<Record<string, boolean>>({})
+const itemTitleElements = new Map<string, HTMLElement>()
+let itemTitleObserver: ResizeObserver | null = null
+
+function setItemTitleRef(el: Element | null, key: string) {
+  const existing = itemTitleElements.get(key)
+  if (existing) {
+    itemTitleObserver?.unobserve(existing)
+    itemTitleElements.delete(key)
+  }
+  if (el instanceof HTMLElement) {
+    if (!itemTitleObserver) {
+      itemTitleObserver = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          const target = entry.target as HTMLElement
+          const k = target.dataset.itemKey
+          if (k !== undefined) {
+            itemTitleOverflows[k] = target.scrollWidth > target.offsetWidth
+          }
+        }
+      })
+    }
+    el.dataset.itemKey = key
+    itemTitleElements.set(key, el)
+    itemTitleObserver.observe(el)
+    itemTitleOverflows[key] = el.scrollWidth > el.offsetWidth
+  } else {
+    delete itemTitleOverflows[key]
+  }
+}
+
+onUnmounted(() => {
+  mrTitleObserver?.disconnect()
+  itemTitleObserver?.disconnect()
+})
 
 const mergeGroupHref = computed(() => {
   const resolved = router.resolve({
@@ -299,6 +360,9 @@ function approvalsTooltip(item: BranchWithActivity): string {
   white-space: nowrap;
   overflow: hidden;
   width: 100%;
+}
+
+.mr-header-title--overflow {
   -webkit-mask-image: linear-gradient(to right, black calc(100% - 40px), transparent 100%);
   mask-image: linear-gradient(to right, black calc(100% - 40px), transparent 100%);
 }
@@ -403,6 +467,9 @@ function approvalsTooltip(item: BranchWithActivity): string {
   color: rgba(var(--v-theme-on-surface), 0.6);
   white-space: nowrap;
   overflow: hidden;
+}
+
+.item-mr-title--overflow {
   -webkit-mask-image: linear-gradient(to right, black calc(100% - 40px), transparent 100%);
   mask-image: linear-gradient(to right, black calc(100% - 40px), transparent 100%);
 }

@@ -1,8 +1,1 @@
 Task 1)
-There seems to be a big where if the Gitlab pipeline and the external jobs report the same job, they don't get deduplicated and cause primary key violations in the database. The build jobs should be de-duplicated by name, case insensitive.
-
-Task 2)
-Currently database errors do not get printed by Mergician logs due to "not wanting to expose sensitive information". This is an internal tool so security is not an issue. Update the connection string to allow printing of database errors.
-
-Task 3)
-On the dashboard, reduce the width of the cards to 600 pixels.
