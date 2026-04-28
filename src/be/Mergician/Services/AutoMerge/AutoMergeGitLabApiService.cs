@@ -147,9 +147,9 @@ public class AutoMergeGitLabApiService
 
     /// <summary>
     ///     Accepts (merges) a merge request.
-    ///     Returns the merge response, or null if the merge failed.
+    ///     Returns a <see cref="MergeAttemptResult" /> indicating success, permission failure, or other failure.
     /// </summary>
-    public async Task<GitLabMergeResponse?> Merge(
+    public async Task<MergeAttemptResult> Merge(
         AccessDetailsBase accessDetails,
         int projectId,
         int mergeRequestIid,
@@ -175,7 +175,7 @@ public class AutoMergeGitLabApiService
                 mergeRequestIid,
                 result.State);
 
-            return result;
+            return MergeAttemptResult.Succeeded(result);
         }
         catch (GitLabUnexpectedResponseException ex)
         {
@@ -191,7 +191,17 @@ public class AutoMergeGitLabApiService
                     (int)ex.StatusCode,
                     ex.ResponseBody);
 
-                return null;
+                return MergeAttemptResult.Failed();
+            }
+
+            if (ex.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _logger.LogWarning(
+                    "Merge forbidden for project {ProjectId}, MR {MergeRequestIid}: service account lacks merge permission",
+                    projectId,
+                    mergeRequestIid);
+
+                return MergeAttemptResult.Failed(isPermissionDenied: true);
             }
 
             _logger.LogError(
@@ -200,7 +210,7 @@ public class AutoMergeGitLabApiService
                 projectId,
                 mergeRequestIid);
 
-            return null;
+            return MergeAttemptResult.Failed();
         }
     }
 

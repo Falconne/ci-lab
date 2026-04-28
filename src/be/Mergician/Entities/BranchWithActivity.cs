@@ -41,6 +41,14 @@ public record BranchWithActivity : BranchInProject
     [JsonPropertyName("mrStatus")]
     public int MRStatus { get; init; }
 
+    /// <summary>
+    ///     Set when an auto merge attempt failed. Causes the branch to appear Blocked until
+    ///     the warning is dismissed or a merge succeeds. Not sent to the frontend directly;
+    ///     it overrides mrStatus in the sync service before persisting to the database.
+    /// </summary>
+    [JsonIgnore]
+    public string? MergeError { get; init; }
+
     /// <summary>Raw JSON from the database; deserialized by <see cref="MRStatusReasons" />.</summary>
     [JsonIgnore]
     public string? MRStatusReasonsJson { get; init; }

@@ -1,6 +1,7 @@
 using Mergician.Entities;
 using Mergician.Services;
 using Mergician.Services.Authentication;
+using Mergician.Services.AutoMerge;
 using Mergician.Services.Database;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -12,6 +13,8 @@ namespace Mergician.Controllers;
 [Route("api/merge-groups")]
 public class MergeGroupController : ControllerBase
 {
+    private readonly AutoMergeService _autoMergeService;
+
     private readonly UserActivityBackgroundSyncService _backgroundSyncService;
 
     private readonly ILogger<MergeGroupController> _logger;
@@ -24,12 +27,14 @@ public class MergeGroupController : ControllerBase
 
     public MergeGroupController(
         IMergeGroupRepository mergeGroupRepository,
+        AutoMergeService autoMergeService,
         UserActivityBackgroundSyncService backgroundSyncService,
         MergeGroupManagementService mergeGroupManagementService,
         MergePermissionService mergePermissionService,
         ILogger<MergeGroupController> logger)
     {
         _mergeGroupRepository = mergeGroupRepository;
+        _autoMergeService = autoMergeService;
         _backgroundSyncService = backgroundSyncService;
         _mergeGroupManagementService = mergeGroupManagementService;
         _mergePermissionService = mergePermissionService;
@@ -115,8 +120,10 @@ public class MergeGroupController : ControllerBase
             return NotFound(new ErrorResponse("Merge group not found"));
         }
 
-        // Clear any existing warning when settings change
+        // Clear any existing warning, merge errors, and retry state when settings change.
         _mergeGroupRepository.UpdateAutoMergeWarning(mergeGroupId, null);
+        _mergeGroupRepository.ClearMergeErrorsForGroup(mergeGroupId);
+        _autoMergeService.ResetRetryState(mergeGroupId);
 
         var updated = _mergeGroupRepository.GetMergeGroup(mergeGroupId);
 
@@ -145,6 +152,8 @@ public class MergeGroupController : ControllerBase
             currentUser.UserId,
             mergeGroupId);
         _mergeGroupRepository.UpdateAutoMergeWarning(mergeGroupId, null);
+        _mergeGroupRepository.ClearMergeErrorsForGroup(mergeGroupId);
+        _autoMergeService.ResetRetryState(mergeGroupId);
         return NoContent();
     }
 

@@ -519,7 +519,8 @@ public class MergeGroupRepository : IMergeGroupRepository
                     bp.needs_rebase AS NeedsRebase,
                     bp.mr_status AS MRStatus,
                     bp.mr_status_reasons AS MRStatusReasonsJson,
-                    bp.last_commit_message AS LastCommitMessage
+                    bp.last_commit_message AS LastCommitMessage,
+                    bp.merge_error AS MergeError
                 FROM branches_in_merge_group bmg
                 INNER JOIN branch_in_project bp ON bp.id = bmg.branch_in_project_id
                 WHERE bmg.merge_group_id = ANY(@GroupIds)
@@ -583,4 +584,54 @@ public class MergeGroupRepository : IMergeGroupRepository
                 branches[i] = branch with { BuildJobs = branchJobs };
             }
         }
-    }}
+    }
+
+    public void SetMergeError(int branchId, string? error)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        connection.Open();
+
+        connection.Execute(
+            """
+            UPDATE branch_in_project
+            SET merge_error = @Error
+            WHERE id = @BranchId
+            """,
+            new { BranchId = branchId, Error = error });
+
+        if (error != null)
+        {
+            _logger.LogInformation(
+                "Set merge error for branch {BranchId}: {Error}",
+                branchId,
+                error);
+        }
+        else
+        {
+            _logger.LogDebug("Cleared merge error for branch {BranchId}", branchId);
+        }
+    }
+
+    public void ClearMergeErrorsForGroup(int mergeGroupId)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        connection.Open();
+
+        var rowsAffected = connection.Execute(
+            """
+            UPDATE branch_in_project
+            SET merge_error = NULL
+            WHERE id IN (
+                SELECT branch_in_project_id
+                FROM branches_in_merge_group
+                WHERE merge_group_id = @MergeGroupId
+            )
+            """,
+            new { MergeGroupId = mergeGroupId });
+
+        _logger.LogDebug(
+            "Cleared merge errors for {Count} branches in merge group {MergeGroupId}",
+            rowsAffected,
+            mergeGroupId);
+    }
+}

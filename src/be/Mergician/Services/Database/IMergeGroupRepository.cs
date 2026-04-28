@@ -124,4 +124,16 @@ public interface IMergeGroupRepository
     ///     Returns null if no merge group tracks that branch in that project.
     /// </summary>
     MergeGroup? FindMergeGroupByBranch(string branchName, int projectId);
+
+    /// <summary>
+    ///     Sets or clears the merge error message for a specific branch.
+    ///     When set, the sync service will override the branch status to Blocked.
+    /// </summary>
+    void SetMergeError(int branchId, string? error);
+
+    /// <summary>
+    ///     Clears the merge error for all branches belonging to the specified merge group.
+    ///     Called when the user dismisses a warning or changes auto merge settings.
+    /// </summary>
+    void ClearMergeErrorsForGroup(int mergeGroupId);
 }

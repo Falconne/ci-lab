@@ -104,7 +104,8 @@ try
     builder.Services.AddHostedService<CleanupService>();
 
     // Register auto merge background service
-    builder.Services.AddHostedService<AutoMergeService>();
+    builder.Services.AddSingleton<AutoMergeService>();
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<AutoMergeService>());
 
     // Add services
     builder.Services.AddControllers();
