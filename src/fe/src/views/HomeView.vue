@@ -332,17 +332,17 @@ onMounted(async () => {
 /* ---- Filter container — constrained to one card width ---- */
 .filter-container {
   width: 100%;
-  max-width: 800px;
+  max-width: 600px;
 }
 
-/* ---- Card container — auto-fill with fixed 800px cards ---- */
+/* ---- Card container — auto-fill with fixed 600px cards ---- */
 .dashboard-cards {
   position: relative;
 }
 
 .card-container {
   display: grid;
-  grid-template-columns: repeat(auto-fill, 800px);
+  grid-template-columns: repeat(auto-fill, 600px);
   gap: 20px;
   position: relative;
   align-items: start;
@@ -359,7 +359,7 @@ onMounted(async () => {
 :deep(.card-list-leave-active) {
   transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
   position: absolute;
-  width: 800px;
+  width: 600px;
 }
 
 :deep(.card-list-enter-from) {
