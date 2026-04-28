@@ -16,12 +16,12 @@ public class DatabaseSettings
     ///     Returns a connection string for the configured database.
     /// </summary>
     public string ConnectionString =>
-        $"Host={Host};Port={Port};Username={Username};Password={Password};Database={Database}";
+        $"Host={Host};Port={Port};Username={Username};Password={Password};Database={Database};Include Error Detail=true";
 
     /// <summary>
     ///     Returns a connection string to the default 'postgres' database,
     ///     used for creating the target database if it doesn't exist.
     /// </summary>
     public string AdminConnectionString =>
-        $"Host={Host};Port={Port};Username={Username};Password={Password};Database=postgres";
+        $"Host={Host};Port={Port};Username={Username};Password={Password};Database=postgres;Include Error Detail=true";
 }
