@@ -7,13 +7,8 @@ namespace IntegrationTest.Tests;
 ///     Verifies that version endpoints are accessible and the UI includes required elements.
 ///     This is a lightweight test that doesn't require full browser authentication.
 /// </summary>
-public class VersionAndLastUpdatedTest : IDisposable
+public class VersionAndLastUpdatedTest
 {
-    public void Dispose()
-    {
-        GC.SuppressFinalize(this);
-    }
-
     public async Task Run()
     {
         Log.Information("Testing version endpoints and Last Updated column...");

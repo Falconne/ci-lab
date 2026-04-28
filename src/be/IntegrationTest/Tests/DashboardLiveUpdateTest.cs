@@ -13,22 +13,20 @@ namespace IntegrationTest.Tests;
 ///     from the database (populated by a background sync thread) and a separate
 ///     refresh cycle for MR/approval status updates.
 /// </summary>
-public class DashboardLiveUpdateTest : IDisposable
+public class DashboardLiveUpdateTest
 {
-    private readonly BrowserService _browser = new();
+    private readonly BrowserService _browser;
 
     private readonly GitLabTestHelper _gitLab = new();
 
-    public void Dispose()
+    public DashboardLiveUpdateTest(BrowserService browser)
     {
-        _browser.Dispose();
-        GC.SuppressFinalize(this);
+        _browser = browser;
     }
 
     public async Task Run()
     {
-        await _browser.Initialize(
-            Path.Combine(TestConfig.ScreenshotDir, "activity"));
+        _browser.SetScreenshotDir(Path.Combine(TestConfig.ScreenshotDir, "live-updates"));
 
         await TestNewBranchAppearsOnDashboard();
         await TestMergeRequestStatusUpdatesOnDashboard();
@@ -47,7 +45,7 @@ public class DashboardLiveUpdateTest : IDisposable
         Log.Information("Testing: new branch appears on loaded dashboard...");
 
         // Login as test1 and wait for the initial dashboard to fully load
-        await LoginAndWaitForDashboard("test1");
+        await LoginHelper.EnsureLoggedIn(_browser, "test1");
         await _browser.TakeScreenshot("live_01_initial_dashboard");
 
         // Push a new branch via GitLab API as test1
@@ -81,8 +79,8 @@ public class DashboardLiveUpdateTest : IDisposable
     {
         Log.Information("Testing: MR status updates on loaded dashboard...");
 
-        // Login as test1 and wait for the dashboard
-        await LoginAndWaitForDashboard("test1");
+        // Reuse existing test1 session — navigate to the dashboard and wait for full load
+        await LoginHelper.NavigateToDashboard(_browser);
         await _browser.TakeScreenshot("live_03_dashboard_before_mr");
 
         // Push a branch without MR first
@@ -194,67 +192,6 @@ public class DashboardLiveUpdateTest : IDisposable
         }
     }
 
-    private async Task LoginAndWaitForDashboard(string username)
-    {
-        // Clear cookies/state
-        await _browser.Page.Context.ClearCookiesAsync();
-        await Task.Delay(500);
-
-        // Login via OAuth flow
-        await _browser.Navigate($"{TestConfig.MergicianUrl}/api/auth/login");
-        await Task.Delay(2000);
-
-        var currentUrl = _browser.Page.Url;
-
-        if (currentUrl.Contains("/users/sign_in"))
-        {
-            var usernameField = _browser.Page.Locator("#user_login");
-            var passwordField = _browser.Page.Locator("#user_password");
-            var signInButton =
-                _browser.Page.Locator("input[type='submit'][name='commit'], button[type='submit']");
-
-            await BrowserService.FillFormField(usernameField, username, "username");
-            await BrowserService.FillFormField(passwordField, TestConfig.TestPassword, "password");
-            await signInButton.First.ClickAsync();
-            await _browser.Page.WaitForURLAsync(
-                url => url.Contains("/oauth/authorize") || url.Contains("localhost:5000"),
-                new PageWaitForURLOptions { Timeout = 30000 });
-
-            currentUrl = _browser.Page.Url;
-        }
-
-        if (currentUrl.Contains("/oauth/authorize"))
-        {
-            Log.Information("OAuth authorization page, submitting...");
-            await _browser.Page.EvaluateAsync(
-                """
-                (() => {
-                    const btn = document.querySelector('[data-testid="authorization-button"]');
-                    if (btn) { btn.click(); return; }
-                    const form = document.querySelector('form');
-                    if (form) { form.submit(); }
-                })()
-                """);
-
-            try
-            {
-                await _browser.Page.WaitForURLAsync(
-                    url => !url.Contains("/oauth/authorize"),
-                    new PageWaitForURLOptions { Timeout = 15000 });
-            }
-            catch
-            {
-                Log.Warning("OAuth authorize didn't redirect. URL: {Url}", _browser.Page.Url);
-            }
-        }
-
-        // Navigate to dashboard and wait for it to fully load
-        await _browser.Navigate(TestConfig.MergicianUrl);
-        await Task.Delay(2000);
-
-        await WaitForDashboardLoadComplete();
-    }
-
     /// <summary>
     ///     Verifies that when a tracked branch is deleted in GitLab, it disappears from
     ///     the already open dashboard and stays gone after a full page reload.
@@ -263,7 +200,8 @@ public class DashboardLiveUpdateTest : IDisposable
     {
         Log.Information("Testing: deleted branch disappears and stays gone after reload...");
 
-        await LoginAndWaitForDashboard("test1");
+        // Reuse existing test1 session — navigate to the dashboard and wait for full load
+        await LoginHelper.NavigateToDashboard(_browser);
         await _browser.TakeScreenshot("live_06_before_delete_branch_test");
 
         var projectId = _gitLab.GetProjectId("primary-1");

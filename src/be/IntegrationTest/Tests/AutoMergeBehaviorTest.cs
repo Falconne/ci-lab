@@ -18,7 +18,7 @@ namespace IntegrationTest.Tests;
 ///     This test waits for TeamCity to finish building before running scenarios so that
 ///     we have full control over the pipeline state via the Commit Statuses API.
 /// </summary>
-public class AutoMergeBehaviorTest : IDisposable
+public class AutoMergeBehaviorTest
 {
     /// <summary>
     ///     Pipeline name used for external commit statuses. Using a unique name
@@ -26,20 +26,18 @@ public class AutoMergeBehaviorTest : IDisposable
     /// </summary>
     private const string PipelineName = "automerge-integration-test";
 
-    private readonly BrowserService _browser = new();
+    private readonly BrowserService _browser;
 
     private readonly GitLabTestHelper _gitLab = new();
 
-    public void Dispose()
+    public AutoMergeBehaviorTest(BrowserService browser)
     {
-        _browser.Dispose();
-        GC.SuppressFinalize(this);
+        _browser = browser;
     }
 
     public async Task Run()
     {
-        await _browser.Initialize(
-            Path.Combine(TestConfig.ScreenshotDir, "auto-merge-behavior"));
+        _browser.SetScreenshotDir(Path.Combine(TestConfig.ScreenshotDir, "auto-merge-behavior"));
 
         await TestAutoMergeBehavior();
 
@@ -101,7 +99,7 @@ public class AutoMergeBehaviorTest : IDisposable
             await WaitForCiStabilization(projectId2, mergeRequestIid2, "secondary-1");
 
             // === Login and wait for Mergician to discover the branches ===
-            await LoginAndWaitForDashboard("test1");
+            await LoginHelper.EnsureLoggedIn(_browser, "test1");
             var branchAppeared = await WaitForBranchOnDashboard(branchName, 90);
             if (!branchAppeared)
             {
@@ -835,62 +833,5 @@ public class AutoMergeBehaviorTest : IDisposable
         {
             Log.Warning("Cleanup error (non-fatal): {Message}", ex.Message);
         }
-    }
-
-    private async Task LoginAndWaitForDashboard(string username)
-    {
-        await _browser.Page.Context.ClearCookiesAsync();
-        await Task.Delay(500);
-
-        await _browser.Navigate($"{TestConfig.MergicianUrl}/api/auth/login");
-        await Task.Delay(2000);
-
-        var currentUrl = _browser.Page.Url;
-
-        if (currentUrl.Contains("/users/sign_in"))
-        {
-            var usernameField = _browser.Page.Locator("#user_login");
-            var passwordField = _browser.Page.Locator("#user_password");
-            var signInButton =
-                _browser.Page.Locator("input[type='submit'][name='commit'], button[type='submit']");
-
-            await BrowserService.FillFormField(usernameField, username, "username");
-            await BrowserService.FillFormField(passwordField, TestConfig.TestPassword, "password");
-            await signInButton.First.ClickAsync();
-            await _browser.Page.WaitForURLAsync(
-                url => url.Contains("/oauth/authorize") || url.Contains("localhost:5000"),
-                new PageWaitForURLOptions { Timeout = 30000 });
-
-            currentUrl = _browser.Page.Url;
-        }
-
-        if (currentUrl.Contains("/oauth/authorize"))
-        {
-            Log.Information("OAuth authorization page, submitting...");
-            await _browser.Page.EvaluateAsync(
-                """
-                (() => {
-                    const btn = document.querySelector('[data-testid="authorization-button"]');
-                    if (btn) { btn.click(); return; }
-                    const form = document.querySelector('form');
-                    if (form) { form.submit(); }
-                })()
-                """);
-
-            try
-            {
-                await _browser.Page.WaitForURLAsync(
-                    url => !url.Contains("/oauth/authorize"),
-                    new PageWaitForURLOptions { Timeout = 15000 });
-            }
-            catch
-            {
-                Log.Warning("OAuth authorize didn't redirect. URL: {Url}", _browser.Page.Url);
-            }
-        }
-
-        await _browser.Navigate(TestConfig.MergicianUrl);
-        await Task.Delay(2000);
-        await DashboardWaitHelper.WaitForDashboardReady(_browser.Page);
     }
 }

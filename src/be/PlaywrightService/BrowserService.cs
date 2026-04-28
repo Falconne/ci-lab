@@ -80,6 +80,20 @@ public class BrowserService : IDisposable
         }
     }
 
+    public void SetScreenshotDir(string screenshotDirectory)
+    {
+        _screenshotDir = screenshotDirectory;
+        _screenshotCounter = 0;
+
+        if (Directory.Exists(_screenshotDir))
+        {
+            Directory.Delete(_screenshotDir, true);
+        }
+
+        Directory.CreateDirectory(_screenshotDir);
+        Log.Information("Screenshot directory set to: {Dir}", _screenshotDir);
+    }
+
     public async Task Navigate(string url, WaitUntilState waitUntil = WaitUntilState.NetworkIdle)
     {
         Log.Information($"Navigating to {url}");

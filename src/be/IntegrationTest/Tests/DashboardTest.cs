@@ -19,9 +19,9 @@ namespace IntegrationTest.Tests;
 ///     within the branch card when an MR exists.
 ///     When no MR exists, the UI shows 'No Merge Request' in the MR title area.
 /// </summary>
-public class DashboardTest : IDisposable
+public class DashboardTest
 {
-    private readonly BrowserService _browser = new();
+    private readonly BrowserService _browser;
 
     /// <summary>
     ///     Cached card data from the dashboard, populated by WaitForDashboard.
@@ -30,16 +30,14 @@ public class DashboardTest : IDisposable
     /// </summary>
     private List<ParsedCard> _parsedCards = [];
 
-    public void Dispose()
+    public DashboardTest(BrowserService browser)
     {
-        _browser.Dispose();
-        GC.SuppressFinalize(this);
+        _browser = browser;
     }
 
     public async Task Run()
     {
-        await _browser.Initialize(
-            Path.Combine(TestConfig.ScreenshotDir, "activity"));
+        _browser.SetScreenshotDir(Path.Combine(TestConfig.ScreenshotDir, "dashboard"));
 
         // Test with test1 — should see feature/alpha, feature/beta, and feature/epsilon
         // Wait for builds to complete (TeamCity reports build status via external pipelines which
@@ -104,6 +102,9 @@ public class DashboardTest : IDisposable
             "primary-1",
             "Alpha changes in primary-1");
 
+        // Responsive layout test runs here while still logged in as test1 (richest card set)
+        await TestResponsiveLayout();
+
         // Test with test2 — should see feature/gamma
         await TestUserDashboard(
             "test2",
@@ -163,9 +164,6 @@ public class DashboardTest : IDisposable
                 Log.Information("test3 dashboard data verified");
             });
 
-        // Test responsive layout at mobile viewport
-        await TestResponsiveLayout();
-
         Log.Information("Dashboard test passed for all users");
     }
 
@@ -176,100 +174,31 @@ public class DashboardTest : IDisposable
     {
         Log.Information("Testing dashboard for user '{Username}'...", username);
 
-        // Clear all cookies/state from previous logins to ensure clean session
-        await _browser.Page.Context.ClearCookiesAsync();
-        await Task.Delay(500);
+        await LoginHelper.LoginAndWaitForDashboard(_browser, username);
 
-        // Login as this user via Mergician OAuth flow
-        await LoginToMergician(username);
-
-        // Navigate to the dashboard and wait for data to load via polling
         await WaitForDashboard(username, expectedGroupStatuses);
 
         // Verify expectations against the rendered UI
         verify();
     }
 
-    private async Task LoginToMergician(string username)
-    {
-        await _browser.Navigate($"{TestConfig.MergicianUrl}/api/auth/login");
-        await Task.Delay(2000);
-        await _browser.TakeScreenshot($"dashboard_{username}_01_login_redirect");
-
-        var currentUrl = _browser.Page.Url;
-        Log.Information("URL after login redirect: {Url}", currentUrl);
-
-        if (currentUrl.Contains("/users/sign_in"))
-        {
-            var usernameField = _browser.Page.Locator("#user_login");
-            var passwordField = _browser.Page.Locator("#user_password");
-            var signInButton =
-                _browser.Page.Locator("input[type='submit'][name='commit'], button[type='submit']");
-
-            await BrowserService.FillFormField(usernameField, username, "username");
-            await BrowserService.FillFormField(passwordField, TestConfig.TestPassword, "password");
-            await signInButton.First.ClickAsync();
-            await _browser.Page.WaitForURLAsync(
-                url => url.Contains("/oauth/authorize") || url.Contains("localhost:5000"),
-                new PageWaitForURLOptions { Timeout = 30000 });
-
-            await _browser.TakeScreenshot($"dashboard_{username}_02_after_sign_in");
-
-            currentUrl = _browser.Page.Url;
-            Log.Information("URL after sign in: {Url}", currentUrl);
-        }
-
-        // Handle OAuth authorization if needed
-        if (currentUrl.Contains("/oauth/authorize"))
-        {
-            Log.Information("OAuth authorization page, submitting...");
-            await _browser.Page.EvaluateAsync(
-                """
-                (() => {
-                    const btn = document.querySelector('[data-testid="authorization-button"]');
-                    if (btn) { btn.click(); return; }
-                    const form = document.querySelector('form');
-                    if (form) { form.submit(); }
-                })()
-                """);
-
-            try
-            {
-                await _browser.Page.WaitForURLAsync(
-                    url => !url.Contains("/oauth/authorize"),
-                    new PageWaitForURLOptions { Timeout = 15000 });
-            }
-            catch
-            {
-                Log.Warning("OAuth authorize didn't redirect. URL: {Url}", _browser.Page.Url);
-            }
-
-            await _browser.TakeScreenshot($"dashboard_{username}_03_after_authorize");
-        }
-
-        Log.Information("Logged into Mergician as {Username}", username);
-    }
-
     /// <summary>
-    ///     Navigates to the Mergician home page and waits for the dashboard data to load
-    ///     via polling (cards appear and MR data is resolved through the refresh cycle).
-    ///     If <paramref name="expectedGroupStatuses"/> is provided, additionally waits until
-    ///     every listed branch shows the expected status badge (e.g. waiting for builds to finish).
-    ///     Parses the rendered cards into <see cref="_parsedCards" /> for assertion.
+    ///     Waits for the dashboard data to load via polling (cards appear and MR data
+    ///     is resolved through the refresh cycle). If <paramref name="expectedGroupStatuses"/>
+    ///     is provided, additionally waits until every listed branch shows the expected
+    ///     status badge. Parses the rendered cards into <see cref="_parsedCards" /> for assertion.
     /// </summary>
     private async Task WaitForDashboard(
         string username,
         IReadOnlyDictionary<string, string>? expectedGroupStatuses = null)
     {
-        await _browser.Navigate(TestConfig.MergicianUrl);
-        await Task.Delay(2000);
-        await _browser.TakeScreenshot($"dashboard_{username}_04_initial_load");
+        await _browser.TakeScreenshot($"dashboard_{username}_01_initial_load");
 
         Log.Information("Waiting for dashboard data to load...");
         var loaded = await WaitForDashboardReady(120);
         if (!loaded)
         {
-            await _browser.TakeScreenshot($"dashboard_{username}_05_load_timeout");
+            await _browser.TakeScreenshot($"dashboard_{username}_02_load_timeout");
             throw new InvalidOperationException(
                 "Dashboard did not fully load within timeout");
         }
@@ -288,13 +217,13 @@ public class DashboardTest : IDisposable
 
             if (!statusesReached)
             {
-                await _browser.TakeScreenshot($"dashboard_{username}_05_status_timeout");
+                await _browser.TakeScreenshot($"dashboard_{username}_02_status_timeout");
                 throw new InvalidOperationException(
                     $"Expected group statuses were not reached within timeout for user '{username}'");
             }
         }
 
-        await _browser.TakeScreenshot($"dashboard_{username}_05_load_complete");
+        await _browser.TakeScreenshot($"dashboard_{username}_02_load_complete");
 
         // Parse the rendered dashboard cards
         _parsedCards = await ParseDashboardCards();
@@ -521,17 +450,13 @@ public class DashboardTest : IDisposable
     /// <summary>
     ///     Tests that the dashboard card layout is responsive at mobile viewport width.
     ///     Verifies that cards render properly and content is visible at small screen sizes.
+    ///     Called while already logged in as test1 (richest card set for better coverage).
     /// </summary>
     private async Task TestResponsiveLayout()
     {
         Log.Information("Testing responsive card layout...");
 
-        // Login as test1
-        await _browser.Page.Context.ClearCookiesAsync();
-        await Task.Delay(500);
-        await LoginToMergician("test1");
-
-        // Set a mobile-sized viewport
+        // Set a mobile-sized viewport and reload to apply it
         await _browser.Page.SetViewportSizeAsync(375, 812);
         await _browser.Navigate(TestConfig.MergicianUrl);
         await Task.Delay(2000);

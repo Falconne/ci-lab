@@ -1,6 +1,8 @@
 using System.Text.Json;
 using IntegrationTest;
+using IntegrationTest.Services;
 using IntegrationTest.Tests;
+using PlaywrightService;
 using Serilog;
 
 Log.Logger = new LoggerConfiguration()
@@ -23,6 +25,28 @@ var results = new List<(string Name, bool Passed, string? Error)>();
 // Abort on first failure to speed up debugging during development.
 // Change this to false to run all tests regardless of failures.
 var abortOnFirstFailure = true;
+
+async Task RunTest(string name, Func<Task> testFn)
+{
+    Log.Information("");
+    Log.Information("--- Test: {Name} ---", name);
+    try
+    {
+        await testFn();
+        results.Add((name, true, null));
+        Log.Information("PASS: {Name}", name);
+    }
+    catch (Exception ex)
+    {
+        results.Add((name, false, ex.Message));
+        Log.Error("FAIL: {Name} - {Error}", name, ex.Message);
+        allPassed = false;
+        if (abortOnFirstFailure)
+            throw;
+    }
+}
+
+using var browser = new BrowserService();
 
 try
 {
@@ -80,230 +104,31 @@ try
         Log.Information("PASS: StartupCheck");
     }
 
-    // Test 1: Authentication via GitLab OAuth
-    var authTest = new AuthenticationTest();
-    try
-    {
-        Log.Information("");
-        Log.Information("--- Test: Authentication ---");
-        await authTest.Run();
-        results.Add(("Authentication", true, null));
-        Log.Information("PASS: Authentication");
-    }
-    catch (Exception ex)
-    {
-        results.Add(("Authentication", false, ex.Message));
-        Log.Error($"FAIL: Authentication - {ex.Message}");
-        allPassed = false;
-        if (abortOnFirstFailure)
-        {
-            throw;
-        }
-    }
-    finally
-    {
-        authTest.Dispose();
-    }
+    await browser.Initialize(TestConfig.ScreenshotDir);
 
-    // Test 2: Logout clears session and shows welcome page
-    var logoutTest = new LogoutTest();
-    try
-    {
-        Log.Information("");
-        Log.Information("--- Test: Logout ---");
-        await logoutTest.Run();
-        results.Add(("Logout", true, null));
-        Log.Information("PASS: Logout");
-    }
-    catch (Exception ex)
-    {
-        results.Add(("Logout", false, ex.Message));
-        Log.Error($"FAIL: Logout - {ex.Message}");
-        allPassed = false;
-        if (abortOnFirstFailure)
-        {
-            throw;
-        }
-    }
-    finally
-    {
-        logoutTest.Dispose();
-    }
+    // Test 1: Authentication and logout via GitLab OAuth
+    await RunTest("Auth and Logout", () => new AuthAndLogoutTest(browser).Run());
 
-    // Test 3: Dashboard data verification
-    var dashboardTest = new DashboardTest();
-    try
-    {
-        Log.Information("");
-        Log.Information("--- Test: Dashboard ---");
-        await dashboardTest.Run();
-        results.Add(("Dashboard", true, null));
-        Log.Information("PASS: Dashboard");
-    }
-    catch (Exception ex)
-    {
-        results.Add(("Dashboard", false, ex.Message));
-        Log.Error($"FAIL: Dashboard - {ex.Message}");
-        allPassed = false;
-        if (abortOnFirstFailure)
-        {
-            throw;
-        }
-    }
-    finally
-    {
-        dashboardTest.Dispose();
-    }
+    // Test 2: Dashboard data verification
+    await RunTest("Dashboard", () => new DashboardTest(browser).Run());
 
-    // Test 4: Dashboard live updates (new branches and MR status changes)
-    var liveUpdateTest = new DashboardLiveUpdateTest();
-    try
-    {
-        Log.Information("");
-        Log.Information("--- Test: Dashboard Live Updates ---");
-        await liveUpdateTest.Run();
-        results.Add(("Dashboard Live Updates", true, null));
-        Log.Information("PASS: Dashboard Live Updates");
-    }
-    catch (Exception ex)
-    {
-        results.Add(("Dashboard Live Updates", false, ex.Message));
-        Log.Error($"FAIL: Dashboard Live Updates - {ex.Message}");
-        allPassed = false;
-        if (abortOnFirstFailure)
-        {
-            throw;
-        }
-    }
-    finally
-    {
-        liveUpdateTest.Dispose();
-    }
+    // Test 3: Dashboard live updates (new branches and MR status changes)
+    await RunTest("Dashboard Live Updates", () => new DashboardLiveUpdateTest(browser).Run());
 
-    // Test 5: Version display and Last Updated column
-    var versionTest = new VersionAndLastUpdatedTest();
-    try
-    {
-        Log.Information("");
-        Log.Information("--- Test: Version and Last Updated ---");
-        await versionTest.Run();
-        results.Add(("Version and Last Updated", true, null));
-        Log.Information("PASS: Version and Last Updated");
-    }
-    catch (Exception ex)
-    {
-        results.Add(("Version and Last Updated", false, ex.Message));
-        Log.Error($"FAIL: Version and Last Updated - {ex.Message}");
-        allPassed = false;
-        if (abortOnFirstFailure)
-        {
-            throw;
-        }
-    }
-    finally
-    {
-        versionTest.Dispose();
-    }
+    // Test 4: Version display and Last Updated column
+    await RunTest("Version and Last Updated", () => new VersionAndLastUpdatedTest().Run());
 
-    // Test 6: Auto merge toggle and dashboard badge
-    var autoMergeTest = new AutoMergeToggleTest();
-    try
-    {
-        Log.Information("");
-        Log.Information("--- Test: Auto Merge Toggle ---");
-        await autoMergeTest.Run();
-        results.Add(("Auto Merge Toggle", true, null));
-        Log.Information("PASS: Auto Merge Toggle");
-    }
-    catch (Exception ex)
-    {
-        results.Add(("Auto Merge Toggle", false, ex.Message));
-        Log.Error($"FAIL: Auto Merge Toggle - {ex.Message}");
-        allPassed = false;
-        if (abortOnFirstFailure)
-        {
-            throw;
-        }
-    }
-    finally
-    {
-        autoMergeTest.Dispose();
-    }
+    // Test 5: Auto merge toggle and dashboard badge
+    await RunTest("Auto Merge Toggle", () => new AutoMergeToggleTest(browser).Run());
 
-    // Test 7: Auto merge behavior (pipeline blocking, partial readiness, rebase, merge)
-    var autoMergeBehaviorTest = new AutoMergeBehaviorTest();
-    try
-    {
-        Log.Information("");
-        Log.Information("--- Test: Auto Merge Behavior ---");
-        await autoMergeBehaviorTest.Run();
-        results.Add(("Auto Merge Behavior", true, null));
-        Log.Information("PASS: Auto Merge Behavior");
-    }
-    catch (Exception ex)
-    {
-        results.Add(("Auto Merge Behavior", false, ex.Message));
-        Log.Error($"FAIL: Auto Merge Behavior - {ex.Message}");
-        allPassed = false;
-        if (abortOnFirstFailure)
-        {
-            throw;
-        }
-    }
-    finally
-    {
-        autoMergeBehaviorTest.Dispose();
-    }
+    // Test 6: Auto merge behavior (pipeline blocking, partial readiness, rebase, merge)
+    await RunTest("Auto Merge Behavior", () => new AutoMergeBehaviorTest(browser).Run());
 
-    // Test 8: Merge group management (subscribe/unsubscribe, add MR, find by MR)
-    var mergeGroupManagementTest = new MergeGroupManagementTest();
-    try
-    {
-        Log.Information("");
-        Log.Information("--- Test: Merge Group Management ---");
-        await mergeGroupManagementTest.Run();
-        results.Add(("Merge Group Management", true, null));
-        Log.Information("PASS: Merge Group Management");
-    }
-    catch (Exception ex)
-    {
-        results.Add(("Merge Group Management", false, ex.Message));
-        Log.Error($"FAIL: Merge Group Management - {ex.Message}");
-        allPassed = false;
-        if (abortOnFirstFailure)
-        {
-            throw;
-        }
-    }
-    finally
-    {
-        mergeGroupManagementTest.Dispose();
-    }
+    // Test 7: Merge group management (subscribe/unsubscribe, add MR, find by MR)
+    await RunTest("Merge Group Management", () => new MergeGroupManagementTest(browser).Run());
 
-    // Test 9: Manual GitLab CI job filtering (manual jobs must not appear as job chips)
-    var manualJobFilterTest = new ManualJobFilterTest();
-    try
-    {
-        Log.Information("");
-        Log.Information("--- Test: Manual Job Filter ---");
-        await manualJobFilterTest.Run();
-        results.Add(("Manual Job Filter", true, null));
-        Log.Information("PASS: Manual Job Filter");
-    }
-    catch (Exception ex)
-    {
-        results.Add(("Manual Job Filter", false, ex.Message));
-        Log.Error($"FAIL: Manual Job Filter - {ex.Message}");
-        allPassed = false;
-        if (abortOnFirstFailure)
-        {
-            throw;
-        }
-    }
-    finally
-    {
-        manualJobFilterTest.Dispose();
-    }
+    // Test 8: Manual GitLab CI job filtering (manual jobs must not appear as job chips)
+    await RunTest("Manual Job Filter", () => new ManualJobFilterTest(browser).Run());
 }
 catch (Exception ex)
 {

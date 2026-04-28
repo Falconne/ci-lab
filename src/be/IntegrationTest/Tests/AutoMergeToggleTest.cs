@@ -10,20 +10,18 @@ namespace IntegrationTest.Tests;
 ///     and verifies the auto merge badge appears on the dashboard when enabled.
 ///     Uses Playwright to interact with the actual UI.
 /// </summary>
-public class AutoMergeToggleTest : IDisposable
+public class AutoMergeToggleTest
 {
-    private readonly BrowserService _browser = new();
+    private readonly BrowserService _browser;
 
-    public void Dispose()
+    public AutoMergeToggleTest(BrowserService browser)
     {
-        _browser.Dispose();
-        GC.SuppressFinalize(this);
+        _browser = browser;
     }
 
     public async Task Run()
     {
-        await _browser.Initialize(
-            Path.Combine(TestConfig.ScreenshotDir, "auto-merge"));
+        _browser.SetScreenshotDir(Path.Combine(TestConfig.ScreenshotDir, "auto-merge"));
 
         await TestAutoMergeToggle();
 
@@ -40,7 +38,7 @@ public class AutoMergeToggleTest : IDisposable
     {
         Log.Information("Testing: auto merge toggle and dashboard badge...");
 
-        await LoginAndWaitForDashboard("test1");
+        await LoginHelper.EnsureLoggedIn(_browser, "test1");
         await _browser.TakeScreenshot("auto_merge_01_dashboard");
 
         // Verify no auto merge badge initially
@@ -79,6 +77,9 @@ public class AutoMergeToggleTest : IDisposable
             throw new InvalidOperationException(
                 "No blocked/waiting merge group card with all branches having MRs found; cannot safely run auto merge toggle test");
         }
+
+        var targetBranchName = (await targetCard.Locator(".branch-name, .branch-subtitle").First.InnerTextAsync()).Trim();
+        Log.Information("Selected card for auto merge toggle test: '{BranchName}'", targetBranchName);
 
         await targetCard.ClickAsync();
         await _browser.Page.WaitForURLAsync(
@@ -216,62 +217,5 @@ public class AutoMergeToggleTest : IDisposable
         }
 
         Log.Information("Auto merge toggle and dashboard badge test passed");
-    }
-
-    private async Task LoginAndWaitForDashboard(string username)
-    {
-        await _browser.Page.Context.ClearCookiesAsync();
-        await Task.Delay(500);
-
-        await _browser.Navigate($"{TestConfig.MergicianUrl}/api/auth/login");
-        await Task.Delay(2000);
-
-        var currentUrl = _browser.Page.Url;
-
-        if (currentUrl.Contains("/users/sign_in"))
-        {
-            var usernameField = _browser.Page.Locator("#user_login");
-            var passwordField = _browser.Page.Locator("#user_password");
-            var signInButton =
-                _browser.Page.Locator("input[type='submit'][name='commit'], button[type='submit']");
-
-            await BrowserService.FillFormField(usernameField, username, "username");
-            await BrowserService.FillFormField(passwordField, TestConfig.TestPassword, "password");
-            await signInButton.First.ClickAsync();
-            await _browser.Page.WaitForURLAsync(
-                url => url.Contains("/oauth/authorize") || url.Contains("localhost:5000"),
-                new PageWaitForURLOptions { Timeout = 30000 });
-
-            currentUrl = _browser.Page.Url;
-        }
-
-        if (currentUrl.Contains("/oauth/authorize"))
-        {
-            Log.Information("OAuth authorization page, submitting...");
-            await _browser.Page.EvaluateAsync(
-                """
-                (() => {
-                    const btn = document.querySelector('[data-testid="authorization-button"]');
-                    if (btn) { btn.click(); return; }
-                    const form = document.querySelector('form');
-                    if (form) { form.submit(); }
-                })()
-                """);
-
-            try
-            {
-                await _browser.Page.WaitForURLAsync(
-                    url => !url.Contains("/oauth/authorize"),
-                    new PageWaitForURLOptions { Timeout = 15000 });
-            }
-            catch
-            {
-                Log.Warning("OAuth authorize didn't redirect. URL: {Url}", _browser.Page.Url);
-            }
-        }
-
-        await _browser.Navigate(TestConfig.MergicianUrl);
-        await Task.Delay(2000);
-        await DashboardWaitHelper.WaitForDashboardReady(_browser.Page);
     }
 }
