@@ -1,1 +1,4 @@
 Task 1)
+The integration tests take a lot of time. Do a critical analysis of the tests and see if any duplicated work can be reduced. If one test can check multiple conditions, then do so. This is a personal tools so unlike traditional tests, I don't need these tests to be granular. If one assert fails, I want it to stop immediately and not worry about other tests. This is only needed to validate that either everything works, to validate after AI agent changes.
+
+So see if you can refactor the tests to be as efficient as possible while testing all the functionality. You can have as many conditions being tested in one test as you want if that saves time by having subsequent checks piggy back off the setup done by earlier checks.
