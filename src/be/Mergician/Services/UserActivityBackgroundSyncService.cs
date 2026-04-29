@@ -611,16 +611,16 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             isDraft = first.Draft || first.WorkInProgress;
             hasConflicts = first.HasConflicts;
 
-            var approval = await _gitLabService.GetMergeRequestApprovals(
+            var approvalCounts = await _gitLabService.GetMergeRequestApprovalCounts(
                 accessDetails,
                 branch.ProjectId,
                 first.Iid,
                 cancellationToken);
 
-            if (approval != null)
+            if (approvalCounts != null)
             {
-                approvalsGiven = approval.ApprovedBy.Count;
-                approvalsRequired = Math.Max(approval.ApprovalsRequired ?? 0, 0);
+                approvalsRequired = approvalCounts.Value.Required;
+                approvalsGiven = approvalCounts.Value.Given;
             }
         }
 
@@ -667,7 +667,8 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             buildJobs,
             needsRebase,
             rebaseInProgress,
-            hasConflicts);
+            hasConflicts,
+            hasMergeRequest ? mergeRequests[0].DetailedMergeStatus : null);
 
         // If a previous auto merge attempt failed and GitLab otherwise considers the branch Ready,
         // force Blocked so the user sees the error until they dismiss the warning.

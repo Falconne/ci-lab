@@ -341,9 +341,12 @@ public class GitLabService
     }
 
     /// <summary>
-    ///     Gets the approval state for a merge request.
+    ///     Gets per-rule approval state for a merge request using the <c>/approval_state</c> endpoint.
+    ///     Returns aggregated (totalRequired, totalGiven) counts based only on approvals that satisfy rules.
+    ///     Falls back to the <c>/approvals</c> endpoint on 404 (feature not available on this tier).
+    ///     Returns null when the request fails for any other reason.
     /// </summary>
-    public async Task<GitLabApprovalState?> GetMergeRequestApprovals(
+    public async Task<(int Required, int Given)?> GetMergeRequestApprovalCounts(
         AccessDetailsBase accessDetails,
         int projectId,
         int mergeRequestIid,
@@ -351,27 +354,87 @@ public class GitLabService
     {
         try
         {
-            return await _gitLabApiClient.Execute<GitLabApprovalState>(
+            var approvalState = await _gitLabApiClient.Execute<GitLabApprovalStateDetails>(
+                () => accessDetails.CreateRequest(
+                    $"projects/{projectId}/merge_requests/{mergeRequestIid}/approval_state"),
+                cancellationToken);
+
+            var totalRequired = approvalState.Rules.Sum(r => r.ApprovalsRequired);
+            var totalGiven = approvalState.Rules.Sum(r => Math.Min(r.ApprovedBy.Count, r.ApprovalsRequired));
+
+            _logger.LogDebug(
+                "GetMergeRequestApprovalCounts via approval_state for project {ProjectId}, MR {MergeRequestIid}: {Given}/{Required} (from {RuleCount} rules)",
+                projectId,
+                mergeRequestIid,
+                totalGiven,
+                totalRequired,
+                approvalState.Rules.Count);
+
+            return (totalRequired, totalGiven);
+        }
+        catch (GitLabUnexpectedResponseException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+        {
+            _logger.LogInformation(
+                "GetMergeRequestApprovalCounts: /approval_state not available for project {ProjectId}, MR {MergeRequestIid} (404); falling back to /approvals",
+                projectId,
+                mergeRequestIid);
+
+            return await GetApprovalCountsFallback(accessDetails, projectId, mergeRequestIid, cancellationToken);
+        }
+        catch (GitLabUnexpectedResponseException ex)
+        {
+            _logger.LogError(
+                "GetMergeRequestApprovalCounts failed with status {StatusCode} for project {ProjectId}, MR {MergeRequestIid}",
+                (int)ex.StatusCode,
+                projectId,
+                mergeRequestIid);
+
+            return null;
+        }
+    }
+
+    private async Task<(int Required, int Given)?> GetApprovalCountsFallback(
+        AccessDetailsBase accessDetails,
+        int projectId,
+        int mergeRequestIid,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var approvals = await _gitLabApiClient.Execute<GitLabApprovalState>(
                 () => accessDetails.CreateRequest(
                     $"projects/{projectId}/merge_requests/{mergeRequestIid}/approvals"),
                 cancellationToken);
+
+            var required = Math.Max(approvals.ApprovalsRequired ?? 0, 0);
+            var given = approvals.ApprovedBy.Count;
+
+            _logger.LogDebug(
+                "GetMergeRequestApprovalCounts via /approvals fallback for project {ProjectId}, MR {MergeRequestIid}: {Given}/{Required}",
+                projectId,
+                mergeRequestIid,
+                given,
+                required);
+
+            return (required, given);
         }
         catch (GitLabUnexpectedResponseException ex)
         {
             if (ex.StatusCode == HttpStatusCode.NotFound)
             {
                 _logger.LogInformation(
-                    "GetMergeRequestApprovals is not available for project {ProjectId}, MR {MergeRequestIid} (status {StatusCode}); assuming 0 approvals required",
+                    "GetMergeRequestApprovalCounts: /approvals also not available for project {ProjectId}, MR {MergeRequestIid}; assuming 0 approvals required",
                     projectId,
-                    mergeRequestIid,
-                    (int)ex.StatusCode);
+                    mergeRequestIid);
 
-                return new GitLabApprovalState { ApprovalsRequired = 0, ApprovedBy = [] };
+                return (0, 0);
             }
 
             _logger.LogError(
-                "GetMergeRequestApprovals failed with status {StatusCode}",
-                (int)ex.StatusCode);
+                "GetMergeRequestApprovalCounts fallback failed with status {StatusCode} for project {ProjectId}, MR {MergeRequestIid}",
+                (int)ex.StatusCode,
+                projectId,
+                mergeRequestIid);
 
             return null;
         }

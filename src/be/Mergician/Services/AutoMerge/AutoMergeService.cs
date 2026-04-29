@@ -563,8 +563,8 @@ public class AutoMergeService : BackgroundService
     {
         var branchLabel = $"{branch.ProjectName}/{branch.BranchName}";
 
-        // Check approvals
-        var approvals = await _gitLabService.GetMergeRequestApprovals(
+        // Check approvals via per-rule aggregation
+        var approvalCounts = await _gitLabService.GetMergeRequestApprovalCounts(
             serviceUser,
             branch.ProjectId,
             mr.Iid,
@@ -572,10 +572,10 @@ public class AutoMergeService : BackgroundService
 
         int? approvalsRequired = null;
         int? approvalsGiven = null;
-        if (approvals != null)
+        if (approvalCounts != null)
         {
-            approvalsGiven = approvals.ApprovedBy.Count;
-            approvalsRequired = Math.Max(approvals.ApprovalsRequired ?? 0, 0);
+            approvalsRequired = approvalCounts.Value.Required;
+            approvalsGiven = approvalCounts.Value.Given;
         }
 
         // Fetch latest pipeline and its jobs
@@ -607,12 +607,14 @@ public class AutoMergeService : BackgroundService
 
         var (mrStatus, calcReasons) = MRStatusCalculator.Calculate(
             hasMergeRequest: true,
-            isDraft: false, // Draft status is handled separately via detailed_merge_status check below
+            isDraft: false, // Draft status is passed via detailedMergeStatus below
             approvalsRequired,
             approvalsGiven,
             buildJobs,
             needsRebase,
-            mr.RebaseInProgress);
+            mr.RebaseInProgress,
+            hasConflicts: mr.HasConflicts,
+            detailedMergeStatus: mr.DetailedMergeStatus);
 
         if (mrStatus != MRStatus.Ready)
         {
@@ -622,14 +624,8 @@ public class AutoMergeService : BackgroundService
             return false;
         }
 
-        // Check merge status from GitLab (guards against states MRStatusCalculator does not cover)
-        if (mr.DetailedMergeStatus is "not_open"
-            or "blocked_status"
-            or "ci_must_pass"
-            or "ci_still_running"
-            or "discussions_not_resolved"
-            or "draft_status"
-            or "conflict")
+        // Guard against MR being closed/merged between checks — not surfaced via detailed_merge_status handling.
+        if (mr.DetailedMergeStatus == "not_open")
         {
             reasons.Add($"{branchLabel}: merge status is '{mr.DetailedMergeStatus}'");
             return false;

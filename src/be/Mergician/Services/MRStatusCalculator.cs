@@ -10,6 +10,34 @@ namespace Mergician.Services;
 public static class MRStatusCalculator
 {
     /// <summary>
+    ///     GitLab <c>detailed_merge_status</c> values that we already handle through other parameters,
+    ///     or that represent transient states where GitLab is still computing the merge status.
+    ///     Any value outside this set triggers a "Blocked for unknown reason" result.
+    /// </summary>
+    private static readonly HashSet<string> _handledOrTransientMergeStatuses = new(StringComparer.OrdinalIgnoreCase)
+    {
+        // GitLab says it is mergeable — all good.
+        "mergeable",
+        // GitLab is still computing — do not treat as blocked.
+        "checking",
+        "unchecked",
+        "preparing",
+        "approvals_syncing",
+        // Handled by the needsRebase parameter.
+        "need_rebase",
+        // Handled by the hasConflicts parameter.
+        "conflict",
+        // Handled by the isDraft parameter (or via explicit check in auto-merge).
+        "draft_status",
+        // Handled by the approvalsRequired/approvalsGiven parameters.
+        "not_approved",
+        // Handled by the buildJobs parameter (failed/running jobs are already surfaced).
+        "ci_must_pass",
+        "ci_still_running",
+        "pipeline_must_succeed",
+    };
+
+    /// <summary>
     ///     Computes the MR status and the list of reasons for non-Ready states.
     /// </summary>
     /// <param name="hasMergeRequest">Whether the branch has an open merge request.</param>
@@ -20,6 +48,11 @@ public static class MRStatusCalculator
     /// <param name="needsRebase">Whether the branch needs to be rebased.</param>
     /// <param name="rebaseInProgress">Whether a rebase is currently in progress.</param>
     /// <param name="hasConflicts">Whether the branch has merge conflicts.</param>
+    /// <param name="detailedMergeStatus">
+    ///     The <c>detailed_merge_status</c> value from GitLab. When set to a value that is not
+    ///     already handled by the other parameters (and is not a transient state), the MR is
+    ///     marked Blocked with reason "Blocked for unknown reason".
+    /// </param>
     /// <returns>The status value from <see cref="MRStatus" /> and a list of reason strings.</returns>
     public static (int Status, List<string> Reasons) Calculate(
         bool hasMergeRequest,
@@ -29,7 +62,8 @@ public static class MRStatusCalculator
         IReadOnlyList<BranchBuildJob> buildJobs,
         bool? needsRebase,
         bool? rebaseInProgress,
-        bool hasConflicts = false)
+        bool hasConflicts = false,
+        string? detailedMergeStatus = null)
     {
         if (!hasMergeRequest)
         {
@@ -80,6 +114,15 @@ public static class MRStatusCalculator
         if (rebaseInProgress == true)
         {
             waitingReasons.Add("Rebase in progress");
+        }
+
+        // If GitLab reports a blocking state that our other checks do not already cover,
+        // mark the MR blocked so the user knows to investigate in GitLab directly.
+        if (!string.IsNullOrEmpty(detailedMergeStatus)
+            && !_handledOrTransientMergeStatuses.Contains(detailedMergeStatus)
+            && blockedReasons.Count == 0)
+        {
+            blockedReasons.Add("Blocked for unknown reason");
         }
 
         if (blockedReasons.Count > 0)
