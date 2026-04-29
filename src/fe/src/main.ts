@@ -33,6 +33,11 @@ const vuetify = createVuetify({
       },
     },
   },
+  defaults: {
+    VTooltip: {
+      openDelay: 300,
+    },
+  },
 })
 
 const app = createApp(App)

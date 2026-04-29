@@ -1,18 +1,11 @@
 <template>
-  <v-container>
+  <v-container fluid>
     <v-row class="mt-4">
-      <!-- Back button: shown as left column on wide screens -->
-      <v-col cols="auto" class="d-none d-lg-flex align-start" style="padding-top: 6px;">
-        <v-btn variant="text" prepend-icon="mdi-arrow-left" :to="'/'">
-          Back to Dashboard
-        </v-btn>
-      </v-col>
-
-      <!-- Main content column -->
-      <v-col cols="12" md="10" lg="9" class="mx-auto mx-lg-0">
-        <!-- Back button: shown above content on narrow screens -->
-        <div class="d-flex align-center mb-4 d-lg-none">
-          <v-btn variant="text" prepend-icon="mdi-arrow-left" :to="'/'">
+      <!-- Main content column: full width -->
+      <v-col cols="12">
+        <!-- Back link -->
+        <div class="mb-3">
+          <v-btn variant="text" size="small" prepend-icon="mdi-arrow-left" :to="'/'">
             Back to Dashboard
           </v-btn>
         </div>
@@ -504,6 +497,19 @@ async function copyBranchName(branchName: string) {
 
 // --- Subscription management ---
 
+async function extractBackendError(response: Response, fallback: string): Promise<string> {
+  try {
+    const data = await response.json()
+    if (data?.error) return data.error
+  } catch {
+    try {
+      const text = (await response.text()).trim()
+      if (text) return text
+    } catch { /* ignore */ }
+  }
+  return `${fallback} (status ${response.status})`
+}
+
 async function loadSubscription() {
   const mergeGroupId = getMergeGroupId()
   if (!mergeGroupId) return
@@ -534,8 +540,7 @@ async function toggleSubscription() {
       const data = await response.json() as { isSubscribed?: boolean }
       isSubscribed.value = data.isSubscribed === true
     } else {
-      console.error('Failed to update subscription, status', response.status)
-      errorMessage.value = 'Failed to update subscription.'
+      errorMessage.value = await extractBackendError(response, 'Failed to update subscription')
     }
   } catch (err) {
     if (isStartupRequiredError(err)) return
@@ -605,8 +610,7 @@ async function updateSettings(newAutoMerge: boolean, newAutoRebase: boolean) {
     })
 
     if (!response.ok) {
-      console.error('Failed to update settings, status', response.status)
-      errorMessage.value = 'Failed to update auto merge settings.'
+      errorMessage.value = await extractBackendError(response, 'Failed to update auto merge settings')
       autoMerge.value = prevAutoMerge
       autoRebase.value = prevAutoRebase
       return
