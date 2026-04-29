@@ -3,3 +3,6 @@ When showing approvals for an MR, we currently also count approvals that don't s
 
 Task 2)
 When checking if an MR is blocked, in addition to our current checks, see if there is a Gitlan API call to definitely determine if the MR is blocked. If our checks say it's not blocked, but the API says it is, then mark the MR as Blocked with the reason "Blocked for unknown reason". 
+
+Task 3)
+When showing tooltips, use a delay of 300ms.
