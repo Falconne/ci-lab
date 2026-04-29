@@ -54,9 +54,11 @@ public class AutoMergeToggleTest
         //   1. Has all branches with MRs (no .item-no-mr) so the auto-merge toggle is enabled.
         //   2. Is currently blocked or waiting so enabling auto-merge won't immediately merge
         //      the group (which would remove it from the dashboard before we can verify the
-        //      auto-merge badge). Draft MRs (Waiting) and unapproved MRs are both safe.
+        //      auto-merge badge). Draft MRs are the safest choice because the AutoMergeService
+        //      will not merge them regardless of pipeline state.
         var allCards = _browser.Page.Locator(".merge-group-card");
         ILocator? targetCard = null;
+        ILocator? fallbackCard = null;
         var totalCards = await allCards.CountAsync();
         for (var i = 0; i < totalCards; i++)
         {
@@ -65,12 +67,22 @@ public class AutoMergeToggleTest
                 await card.Locator(".card-status-badge.status-blocked").CountAsync() > 0 ||
                 await card.Locator(".card-status-badge.status-waiting").CountAsync() > 0;
             var hasNoMrBranch = await card.Locator(".item-no-mr").CountAsync() > 0;
-            if (isBlockedOrWaiting && !hasNoMrBranch)
+            if (!isBlockedOrWaiting || hasNoMrBranch)
+                continue;
+
+            // Prefer draft-MR cards: auto-merge will not execute on a draft MR, making them
+            // a stable choice that won't disappear from the dashboard during the test.
+            var hasDraftMr = await card.GetByText("Draft:").CountAsync() > 0;
+            if (hasDraftMr)
             {
                 targetCard = card;
                 break;
             }
+
+            fallbackCard ??= card;
         }
+
+        targetCard ??= fallbackCard;
 
         if (targetCard == null)
         {
