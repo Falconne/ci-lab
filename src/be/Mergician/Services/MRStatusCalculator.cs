@@ -51,7 +51,7 @@ public static class MRStatusCalculator
     /// <param name="detailedMergeStatus">
     ///     The <c>detailed_merge_status</c> value from GitLab. When set to a value that is not
     ///     already handled by the other parameters (and is not a transient state), the MR is
-    ///     marked Blocked with reason "Blocked for unknown reason".
+    ///     marked Blocked and the GitLab status value is surfaced as the reason.
     /// </param>
     /// <returns>The status value from <see cref="MRStatus" /> and a list of reason strings.</returns>
     public static (int Status, List<string> Reasons) Calculate(
@@ -117,12 +117,12 @@ public static class MRStatusCalculator
         }
 
         // If GitLab reports a blocking state that our other checks do not already cover,
-        // mark the MR blocked so the user knows to investigate in GitLab directly.
+        // surface the GitLab status as the reason so the user knows what to fix.
         if (!string.IsNullOrEmpty(detailedMergeStatus)
             && !_handledOrTransientMergeStatuses.Contains(detailedMergeStatus)
             && blockedReasons.Count == 0)
         {
-            blockedReasons.Add("Blocked for unknown reason");
+            blockedReasons.Add(FormatDetailedMergeStatus(detailedMergeStatus));
         }
 
         if (blockedReasons.Count > 0)
@@ -136,5 +136,15 @@ public static class MRStatusCalculator
         }
 
         return (MRStatus.Ready, []);
+    }
+
+    /// <summary>
+    ///     Converts a GitLab <c>detailed_merge_status</c> snake_case value into a human-readable
+    ///     blocked reason, e.g. "discussions_not_resolved" → "Discussions not resolved".
+    /// </summary>
+    private static string FormatDetailedMergeStatus(string status)
+    {
+        var readable = status.Replace('_', ' ');
+        return char.ToUpperInvariant(readable[0]) + readable[1..];
     }
 }
