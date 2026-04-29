@@ -1,5 +1,5 @@
 Task 1)
-When showing approvals for an MR, we currently also count approvals that don't satisy any rules in the MR. Those approvals won't unblock the MR so we don't care about them. See the Gitlab docs about how to determine detailed approval information, and show the aggregated numbers from all the rules, only counting approvals that satisfy any rules. 
+When showing approvals for an MR, we currently also count approvals that don't satisy any rules in the MR. Those approvals won't unblock the MR so we don't care about them. See the Gitlab docs about how to determine detailed approval information, and show the aggregated numbers from all the rules. We don't care about detailed numbers for each rule, just the total given vs needed. 
 
 Task 2)
 When checking if an MR is blocked, in addition to our current checks, see if there is a Gitlan API call to definitely determine if the MR is blocked. If our checks say it's not blocked, but the API says it is, then mark the MR as Blocked with the reason "Blocked for unknown reason". 
