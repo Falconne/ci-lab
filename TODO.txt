@@ -6,3 +6,6 @@ When checking if an MR is blocked, in addition to our current checks, see if the
 
 Task 3)
 When showing tooltips, use a delay of 300ms.
+
+Task 4)
+When showing errors in the UI, e.g. when an MR can't be auto merged, show the actual error message from the backend and not just a generic "An error occurred" message. This is an internal tool so there is no need to hide the details of the error from the user.
