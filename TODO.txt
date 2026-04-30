@@ -1,0 +1,11 @@
+Task 1)
+If an MR is in waiting for approvals, consider that a Blocked state
+
+Task 2)
+When a merge group is Untracked by a user, it can show up again in a future dashboard refresh if it's still in the user's activity history. Create a new table to record untracked branches per user (make a new repository for accessing this table rather than putting it in the merge group repository). When automatically tracking new branches for a user, make sure to check this table and ignore untracked branches. If a user manually tracks a previously untracked merge group (either from the merge group details page or from the MR search bar in the dashboard), remove those branches from the untracked table and allow them to be tracked again.
+
+Task 3)
+When a branch card title is the name of its MR, add an "external link" icon next to the title to make it obvious to the user they can travel to the MR from that link.
+
+Task 4)
+In the merge group details page, in the branch cards, the status chips should be aligned just to the right of the card title, rather than the right edge of the card.
