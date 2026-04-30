@@ -25,8 +25,11 @@ public class MergeGroupController : ControllerBase
 
     private readonly IMergeGroupRepository _mergeGroupRepository;
 
+    private readonly IUntrackedBranchRepository _untrackedBranchRepository;
+
     public MergeGroupController(
         IMergeGroupRepository mergeGroupRepository,
+        IUntrackedBranchRepository untrackedBranchRepository,
         AutoMergeService autoMergeService,
         UserActivityBackgroundSyncService backgroundSyncService,
         MergeGroupManagementService mergeGroupManagementService,
@@ -34,6 +37,7 @@ public class MergeGroupController : ControllerBase
         ILogger<MergeGroupController> logger)
     {
         _mergeGroupRepository = mergeGroupRepository;
+        _untrackedBranchRepository = untrackedBranchRepository;
         _autoMergeService = autoMergeService;
         _backgroundSyncService = backgroundSyncService;
         _mergeGroupManagementService = mergeGroupManagementService;
@@ -180,7 +184,7 @@ public class MergeGroupController : ControllerBase
     ///     Subscribes the current user to the specified merge group ("Add to my Merge Groups").
     /// </summary>
     [HttpPut("{mergeGroupId:int}/subscription")]
-    public ActionResult<SubscriptionResponse> Subscribe(int mergeGroupId)
+    public async Task<ActionResult<SubscriptionResponse>> Subscribe(int mergeGroupId)
     {
         var currentUser = HttpContext.GetGitLabUser();
 
@@ -191,11 +195,13 @@ public class MergeGroupController : ControllerBase
         }
 
         _mergeGroupRepository.EnsureUserInMergeGroup(currentUser.UserId, mergeGroupId);
+        await _untrackedBranchRepository.RemoveUntrackedBranch(currentUser.UserId, existing.Name);
 
         _logger.LogInformation(
-            "User {UserId} subscribed to merge group {MergeGroupId}",
+            "User {UserId} subscribed to merge group {MergeGroupId} (name: '{Name}')",
             currentUser.UserId,
-            mergeGroupId);
+            mergeGroupId,
+            existing.Name);
 
         return Ok(new SubscriptionResponse(true));
     }
@@ -204,7 +210,7 @@ public class MergeGroupController : ControllerBase
     ///     Unsubscribes the current user from the specified merge group ("Remove from my Merge Groups").
     /// </summary>
     [HttpDelete("{mergeGroupId:int}/subscription")]
-    public ActionResult<SubscriptionResponse> Unsubscribe(int mergeGroupId)
+    public async Task<ActionResult<SubscriptionResponse>> Unsubscribe(int mergeGroupId)
     {
         var currentUser = HttpContext.GetGitLabUser();
 
@@ -214,12 +220,14 @@ public class MergeGroupController : ControllerBase
             return NotFound(new ErrorResponse("Merge group not found"));
         }
 
+        await _untrackedBranchRepository.AddUntrackedBranch(currentUser.UserId, existing.Name);
         _mergeGroupRepository.RemoveUserFromMergeGroup(currentUser.UserId, mergeGroupId);
 
         _logger.LogInformation(
-            "User {UserId} unsubscribed from merge group {MergeGroupId}",
+            "User {UserId} unsubscribed from merge group {MergeGroupId} (name: '{Name}')",
             currentUser.UserId,
-            mergeGroupId);
+            mergeGroupId,
+            existing.Name);
 
         return Ok(new SubscriptionResponse(false));
     }

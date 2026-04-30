@@ -45,6 +45,14 @@ public interface IMergeGroupRepository
     void EnsureBranchInMergeGroup(int mergeGroupId, int branchInProjectId);
 
     /// <summary>
+    ///     Associates a user with a merge group only if the given branch name is not in the
+    ///     user's untracked list. Thread-safe: uses a conditional INSERT that checks
+    ///     <c>untracked_branches</c> atomically so the sync service cannot re-subscribe a user
+    ///     who concurrently unsubscribed.
+    /// </summary>
+    void EnsureUserInMergeGroupIfNotUntracked(int gitlabUserId, int mergeGroupId, string branchName);
+
+    /// <summary>
     ///     Associates a user with a merge group if not already associated.
     /// </summary>
     void EnsureUserInMergeGroup(int gitlabUserId, int mergeGroupId);

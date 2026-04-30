@@ -36,6 +36,8 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
 
     private readonly IMergeGroupRepository _mergeGroupRepository;
 
+    private readonly IUntrackedBranchRepository _untrackedBranchRepository;
+
     private readonly ConcurrentDictionary<int, UserSyncContext> _userContexts = new();
 
     private CancellationTokenSource? _globalCts;
@@ -45,6 +47,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
         GitLabPipelineService gitLabPipelineService,
         DeadBranchesService deadBranchesService,
         IMergeGroupRepository mergeGroupRepository,
+        IUntrackedBranchRepository untrackedBranchRepository,
         GitLabRecoveryService gitLabRecoveryService,
         ILogger<UserActivityBackgroundSyncService> logger)
     {
@@ -52,6 +55,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
         _gitLabPipelineService = gitLabPipelineService;
         _deadBranchesService = deadBranchesService;
         _mergeGroupRepository = mergeGroupRepository;
+        _untrackedBranchRepository = untrackedBranchRepository;
         _gitLabRecoveryService = gitLabRecoveryService;
         _logger = logger;
     }
@@ -278,6 +282,12 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             userId,
             since);
 
+        var untrackedBranches = await _untrackedBranchRepository.GetUntrackedBranchNames(userId);
+        _logger.LogDebug(
+            "User {UserId} has {Count} untracked branch(es) — these will be skipped during auto-tracking",
+            userId,
+            untrackedBranches.Count);
+
         var pushEvents = _gitLabService.GetPushEventsForUserSince(accessDetails, since, cancellationToken);
         var processedBranches = new HashSet<(string BranchName, int ProjectId)>();
 
@@ -351,7 +361,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             }
 
             var branchRecord = _mergeGroupRepository.GetOrCreateBranchRecord(pushEvent.BranchName, project);
-            EnsureBranchTracked(branchRecord, pushEvent.BranchName, userId);
+            EnsureBranchTracked(branchRecord, pushEvent.BranchName, userId, untrackedBranches);
 
             _logger.LogDebug(
                 "Stored branch '{BranchName}' in project {ProjectId} for user {UserId}",
@@ -414,6 +424,12 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
 
         try
         {
+            var untrackedBranches = await _untrackedBranchRepository.GetUntrackedBranchNames(userId);
+            _logger.LogDebug(
+                "User {UserId} has {Count} untracked branch(es) — these will be skipped during MR sync",
+                userId,
+                untrackedBranches.Count);
+
             var openMrs = await _gitLabService.GetOpenMergeRequestsForUser(accessDetails, userId, ct);
 
             _logger.LogInformation(
@@ -459,7 +475,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                 }
 
                 var branchRecord = _mergeGroupRepository.GetOrCreateBranchRecord(mr.SourceBranch, project);
-                EnsureBranchTracked(branchRecord, mr.SourceBranch, userId);
+                EnsureBranchTracked(branchRecord, mr.SourceBranch, userId, untrackedBranches);
             }
 
             _logger.LogInformation("MR sync completed for user {UserId}", userId);
@@ -721,8 +737,14 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
     /// <summary>
     ///     Ensures a branch record is associated with its merge group and that the user
     ///     is a member of that group. Shared by push-event and MR-sync paths.
+    ///     If the merge group name is in <paramref name="untrackedBranches"/>, the user
+    ///     subscription step is skipped (the user has explicitly opted out of tracking).
     /// </summary>
-    private void EnsureBranchTracked(BranchInProject branchRecord, string branchName, int userId)
+    private void EnsureBranchTracked(
+        BranchInProject branchRecord,
+        string branchName,
+        int userId,
+        HashSet<string> untrackedBranches)
     {
         var mergeGroup = _mergeGroupRepository.GetOrCreateMergeGroup(branchName);
         var isNewToMergeGroup = mergeGroup.Branches.NotAny(b => b.Id == branchRecord.Id);
@@ -744,6 +766,16 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                 mergeGroup.Id);
         }
 
-        _mergeGroupRepository.EnsureUserInMergeGroup(userId, mergeGroup.Id);
+        if (untrackedBranches.Contains(mergeGroup.Name))
+        {
+            _logger.LogDebug(
+                "User {UserId} has marked merge group '{MergeGroupName}' as untracked — skipping subscription",
+                userId,
+                mergeGroup.Name);
+
+            return;
+        }
+
+        _mergeGroupRepository.EnsureUserInMergeGroupIfNotUntracked(userId, mergeGroup.Id, mergeGroup.Name);
     }
 }

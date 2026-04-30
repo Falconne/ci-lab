@@ -18,12 +18,16 @@ public class MergeGroupManagementService
 
     private readonly MergeRequestLookupService _mergeRequestLookupService;
 
+    private readonly IUntrackedBranchRepository _untrackedBranchRepository;
+
     public MergeGroupManagementService(
         IMergeGroupRepository mergeGroupRepository,
+        IUntrackedBranchRepository untrackedBranchRepository,
         MergeRequestLookupService mergeRequestLookupService,
         ILogger<MergeGroupManagementService> logger)
     {
         _mergeGroupRepository = mergeGroupRepository;
+        _untrackedBranchRepository = untrackedBranchRepository;
         _mergeRequestLookupService = mergeRequestLookupService;
         _logger = logger;
     }
@@ -68,6 +72,7 @@ public class MergeGroupManagementService
 
         _mergeGroupRepository.EnsureBranchInMergeGroup(mergeGroupId, branchRecord.Id);
         _mergeGroupRepository.EnsureUserInMergeGroup(currentUser.UserId, mergeGroupId);
+        await _untrackedBranchRepository.RemoveUntrackedBranch(currentUser.UserId, lookupResult.SourceBranch);
 
         _logger.LogInformation(
             "User {UserId} added branch '{BranchName}' from project {ProjectId} to merge group {MergeGroupId} via MR URL",
@@ -113,6 +118,7 @@ public class MergeGroupManagementService
         if (existingMg != null)
         {
             _mergeGroupRepository.EnsureUserInMergeGroup(currentUser.UserId, existingMg.Id);
+            await _untrackedBranchRepository.RemoveUntrackedBranch(currentUser.UserId, lookupResult.SourceBranch);
 
             _logger.LogInformation(
                 "User {UserId} found existing merge group {MergeGroupId} for branch '{BranchName}' via MR URL",
@@ -130,6 +136,7 @@ public class MergeGroupManagementService
 
         _mergeGroupRepository.EnsureBranchInMergeGroup(mergeGroup.Id, branchRecord.Id);
         _mergeGroupRepository.EnsureUserInMergeGroup(currentUser.UserId, mergeGroup.Id);
+        await _untrackedBranchRepository.RemoveUntrackedBranch(currentUser.UserId, lookupResult.SourceBranch);
 
         _logger.LogInformation(
             "User {UserId} created merge group {MergeGroupId} for branch '{BranchName}' via MR URL",
