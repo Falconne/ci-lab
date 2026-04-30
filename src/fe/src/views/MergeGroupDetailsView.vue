@@ -832,7 +832,6 @@ onMounted(async () => {
 .card-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   margin: -14px -18px 12px -18px;
   padding: 10px 18px;
   background: #E8EEF8;
