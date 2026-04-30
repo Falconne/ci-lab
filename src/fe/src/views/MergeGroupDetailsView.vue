@@ -179,7 +179,13 @@
                         target="_blank"
                         rel="noopener noreferrer"
                       >{{ item.mergeRequestTitle }}</a>
-                      <v-icon size="14" class="mr-external-link-icon">mdi-open-in-new</v-icon>
+                      <a
+                        :href="item.mergeRequestUrl"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="mr-external-link-btn"
+                        aria-label="Open merge request"
+                      ><v-icon size="14" class="mr-external-link-icon">mdi-open-in-new</v-icon></a>
                     </div>
                     <span v-else class="mr-title-text">{{ item.mergeRequestTitle }}</span>
                     <div class="branch-subtitle-row">
@@ -880,9 +886,22 @@ onMounted(async () => {
   min-width: 0;
 }
 
-.mr-external-link-icon {
+.mr-external-link-btn {
+  display: inline-flex;
+  align-items: center;
+  color: inherit;
+  text-decoration: none;
   flex-shrink: 0;
   opacity: 0.6;
+  transition: opacity 0.15s;
+}
+
+.mr-external-link-btn:hover {
+  opacity: 1;
+}
+
+.mr-external-link-icon {
+  flex-shrink: 0;
 }
 
 .mr-title-link,
