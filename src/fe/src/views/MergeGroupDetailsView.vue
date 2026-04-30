@@ -172,13 +172,15 @@
                 <!-- Card header: title + status chip -->
                 <div class="card-header">
                   <div v-if="item.mergeRequestTitle" class="branch-card-title branch-card-title--with-mr">
-                    <a
-                      v-if="item.mergeRequestUrl"
-                      class="mr-title-link"
-                      :href="item.mergeRequestUrl"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >{{ item.mergeRequestTitle }}</a>
+                    <div v-if="item.mergeRequestUrl" class="mr-title-row">
+                      <a
+                        class="mr-title-link"
+                        :href="item.mergeRequestUrl"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >{{ item.mergeRequestTitle }}</a>
+                      <v-icon size="14" class="mr-external-link-icon">mdi-open-in-new</v-icon>
+                    </div>
                     <span v-else class="mr-title-text">{{ item.mergeRequestTitle }}</span>
                     <div class="branch-subtitle-row">
                       <a
@@ -878,6 +880,18 @@ onMounted(async () => {
   gap: 2px;
 }
 
+.mr-title-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.mr-external-link-icon {
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
 .mr-title-link,
 .mr-title-text {
   font-weight: 600;
@@ -891,6 +905,7 @@ onMounted(async () => {
 .mr-title-link {
   text-decoration: underline;
   text-underline-offset: 2px;
+  min-width: 0;
 }
 
 .branch-subtitle-row {
