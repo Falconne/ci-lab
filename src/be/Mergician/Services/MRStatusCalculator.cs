@@ -102,7 +102,7 @@ public static class MRStatusCalculator
             if (given < approvalsRequired.Value)
             {
                 var needed = approvalsRequired.Value - given;
-                waitingReasons.Add($"Needs {needed} more approval{(needed == 1 ? "" : "s")}");
+                blockedReasons.Add($"Needs {needed} more approval{(needed == 1 ? "" : "s")}");
             }
         }
 
