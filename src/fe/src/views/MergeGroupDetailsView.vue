@@ -793,18 +793,11 @@ onMounted(async () => {
   flex-direction: column;
   align-items: flex-start;
   min-width: 0;
-  overflow: hidden;
-  flex: 1;
 }
 
 .header-mr-title {
   font-size: 1.25rem;
   font-weight: 700;
-  white-space: nowrap;
-  overflow: hidden;
-  width: 100%;
-  -webkit-mask-image: linear-gradient(to right, black calc(100% - 60px), transparent 100%);
-  mask-image: linear-gradient(to right, black calc(100% - 60px), transparent 100%);
 }
 
 .header-mr-subtitle {
