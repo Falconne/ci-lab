@@ -263,8 +263,12 @@ public class MergeGroupManagementTest
                     $"Expected branch count to increase from {initialBranchCount}, got {newBranchCount}");
             }
 
-            // Verify the new branch's project name appears
-            var newBranchLink = _browser.Page.Locator(".branch-title-link, .branch-title-text")
+            // Verify the new branch's project name appears.
+            // The project name shows in .branch-title-link/.branch-title-text when there is no MR
+            // title yet, and in .branch-subtitle-link/.branch-subtitle-text once MR details have
+            // been synced. Accept either so the check is timing-independent.
+            var newBranchLink = _browser.Page
+                .Locator(".branch-title-link, .branch-title-text, .branch-subtitle-link, .branch-subtitle-text")
                 .Filter(new LocatorFilterOptions { HasTextString = "primary-1" });
 
             var linkCount = await newBranchLink.CountAsync();
