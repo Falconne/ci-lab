@@ -264,27 +264,11 @@
 
                 <!-- Detail rows -->
                 <div class="detail-grid">
-                  <!-- MR title row: hidden when already shown as card header -->
-                  <div v-if="!item.mergeRequestTitle" class="detail-row">
+                  <!-- MR skeleton row: only shown while MR existence is still unknown -->
+                  <div v-if="!item.mergeRequestTitle && item.hasMergeRequest !== false" class="detail-row">
                     <span class="detail-label">Merge Request</span>
                     <span class="detail-value">
-                      <template v-if="item.hasMergeRequest === false">
-                        <v-btn
-                          v-if="item.projectUrl"
-                          color="primary"
-                          variant="flat"
-                          size="small"
-                          prepend-icon="mdi-plus"
-                          :href="createMergeRequestUrl(item)"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          class="text-none"
-                        >
-                          Create
-                        </v-btn>
-                        <span v-else class="text-medium-emphasis">No Merge Request</span>
-                      </template>
-                      <span v-else class="skeleton-detail"><span class="skeleton-shimmer" /></span>
+                      <span class="skeleton-detail"><span class="skeleton-shimmer" /></span>
                     </span>
                   </div>
 
@@ -301,6 +285,26 @@
                     <span class="detail-value">{{ item.lastCommitMessage }}</span>
                   </div>
                 </div>
+
+                <!-- Create MR row: outside grid so no label appears to the left -->
+                <template v-if="!item.mergeRequestTitle && item.hasMergeRequest === false">
+                  <div class="create-mr-row">
+                    <v-btn
+                      v-if="item.projectUrl"
+                      color="primary"
+                      variant="flat"
+                      size="small"
+                      prepend-icon="mdi-plus"
+                      :href="createMergeRequestUrl(item)"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="text-none"
+                    >
+                      Create Merge Request
+                    </v-btn>
+                    <span v-else class="text-medium-emphasis">No Merge Request</span>
+                  </div>
+                </template>
 
                 <div class="build-jobs-section">
                   <span class="build-jobs-subtitle">Build Jobs:</span>
@@ -973,6 +977,10 @@ onMounted(async () => {
 
 .tooltip-multiline {
   white-space: pre-line;
+}
+
+.create-mr-row {
+  margin-top: 8px;
 }
 
 /* ---- Jobs list ---- */
