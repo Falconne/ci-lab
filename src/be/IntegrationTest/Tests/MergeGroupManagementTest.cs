@@ -336,10 +336,14 @@ public class MergeGroupManagementTest
 
             // Mergician auto-discovers branches quickly, so the merge group may already be on the dashboard
             // by the time we type the MR URL. Wait for either outcome:
-            //   (a) A filtered merge group card appears (MR is already tracked) → click it to navigate
-            //   (b) The "Open MR as Merge Group" button appears (MR not yet tracked) → click it to open
+            //   (a) A filtered merge group card for our specific branch appears (MR is already tracked)
+            //   (b) The "Open MR as Merge Group" button appears (MR not yet tracked)
+            // Require the specific branch name in any matching card to avoid acting on unrelated cards
+            // that may still be in the DOM during filter transitions.
+            var jsBranchName = branchName.Replace("\\", "\\\\").Replace("'", "\\'");
             await _browser.Page.WaitForFunctionAsync(
-                "() => document.querySelectorAll('.merge-group-card').length > 0 || document.querySelector('.open-mr-btn') !== null",
+                $"() => document.querySelector('.open-mr-btn') !== null || " +
+                $"Array.from(document.querySelectorAll('.merge-group-card')).some(c => c.textContent.includes('{jsBranchName}'))",
                 null, new PageWaitForFunctionOptions { Timeout = 15000 });
             await _browser.TakeScreenshot("find_mr_03_filtered");
 
@@ -352,7 +356,9 @@ public class MergeGroupManagementTest
             else
             {
                 Log.Information("MR already tracked - clicking the filtered merge group card");
-                await _browser.Page.Locator(".merge-group-card").First.ClickAsync();
+                var matchingCard = _browser.Page.Locator(".merge-group-card")
+                    .Filter(new LocatorFilterOptions { HasTextString = branchName });
+                await matchingCard.First.ClickAsync();
             }
 
             // Wait for navigation to the merge group details page
@@ -360,18 +366,14 @@ public class MergeGroupManagementTest
                 url => url.Contains("/merge-group/"),
                 new PageWaitForURLOptions { Timeout = 15000 });
 
-            await Task.Delay(3000);
+            // Wait for the merge group header to show the correct branch name, confirming we
+            // navigated to the right merge group (not another group that also contains secondary-1).
+            var groupHeader = _browser.Page.Locator(".header-mr-subtitle, .text-h6.font-weight-bold")
+                .Filter(new LocatorFilterOptions { HasTextString = branchName });
+            await groupHeader.First.WaitForAsync(new LocatorWaitForOptions { Timeout = 15000 });
             await _browser.TakeScreenshot("find_mr_04_details_page");
 
-            // Verify we're on a merge group details page
-            var currentUrl = _browser.Page.Url;
-            Log.Information("Navigated to: {Url}", currentUrl);
-
-            if (!currentUrl.Contains("/merge-group/"))
-            {
-                throw new InvalidOperationException(
-                    $"Expected to be on merge group details page, but URL is: {currentUrl}");
-            }
+            Log.Information("Navigated to: {Url}", _browser.Page.Url);
 
             // Verify the branch from the MR appears on the page
             var branchCards = _browser.Page.Locator(".branch-card");
@@ -384,8 +386,12 @@ public class MergeGroupManagementTest
                     "Expected at least one branch card on the details page");
             }
 
-            // Check that secondary-1 project is visible
-            var projectLink = _browser.Page.Locator(".branch-title-link, .branch-title-text")
+            // Check that secondary-1 project is visible.
+            // The project name shows in .branch-title-link/.branch-title-text when there is no MR
+            // title yet, and in .branch-subtitle-link/.branch-subtitle-text once MR details have
+            // been synced. Accept either so the check is timing-independent.
+            var projectLink = _browser.Page
+                .Locator(".branch-title-link, .branch-title-text, .branch-subtitle-link, .branch-subtitle-text")
                 .Filter(new LocatorFilterOptions { HasTextString = "secondary-1" });
 
             var projectLinkCount = await projectLink.CountAsync();
