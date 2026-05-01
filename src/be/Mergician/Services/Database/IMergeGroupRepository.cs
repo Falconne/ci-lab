@@ -49,13 +49,16 @@ public interface IMergeGroupRepository
     ///     user's untracked list. Thread-safe: uses a conditional INSERT that checks
     ///     <c>untracked_branches</c> atomically so the sync service cannot re-subscribe a user
     ///     who concurrently unsubscribed.
+    ///     Returns <c>true</c> if the user was newly added; <c>false</c> if they were already subscribed
+    ///     or the branch is in the untracked list.
     /// </summary>
-    void EnsureUserInMergeGroupIfNotUntracked(int gitlabUserId, int mergeGroupId, string branchName);
+    bool EnsureUserInMergeGroupIfNotUntracked(int gitlabUserId, int mergeGroupId, string branchName);
 
     /// <summary>
     ///     Associates a user with a merge group if not already associated.
+    ///     Returns <c>true</c> if the user was newly added; <c>false</c> if they were already subscribed.
     /// </summary>
-    void EnsureUserInMergeGroup(int gitlabUserId, int mergeGroupId);
+    bool EnsureUserInMergeGroup(int gitlabUserId, int mergeGroupId);
 
     /// <summary>
     ///     Returns all merge groups that the user is associated with, each containing its branches.

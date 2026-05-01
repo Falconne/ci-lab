@@ -194,14 +194,25 @@ public class MergeGroupController : ControllerBase
             return NotFound(new ErrorResponse("Merge group not found"));
         }
 
-        _mergeGroupRepository.EnsureUserInMergeGroup(currentUser.UserId, mergeGroupId);
+        var wasAdded = _mergeGroupRepository.EnsureUserInMergeGroup(currentUser.UserId, mergeGroupId);
         await _untrackedBranchRepository.RemoveUntrackedBranch(currentUser.UserId, existing.Name);
 
-        _logger.LogInformation(
-            "User {UserId} subscribed to merge group {MergeGroupId} (name: '{Name}')",
-            currentUser.UserId,
-            mergeGroupId,
-            existing.Name);
+        if (wasAdded)
+        {
+            _logger.LogInformation(
+                "User {UserId} added to tracked branches for merge group {MergeGroupId} ('{Name}') via manual subscribe",
+                currentUser.UserId,
+                mergeGroupId,
+                existing.Name);
+        }
+        else
+        {
+            _logger.LogDebug(
+                "User {UserId} re-subscribed to merge group {MergeGroupId} ('{Name}'), already tracking",
+                currentUser.UserId,
+                mergeGroupId,
+                existing.Name);
+        }
 
         return Ok(new SubscriptionResponse(true));
     }

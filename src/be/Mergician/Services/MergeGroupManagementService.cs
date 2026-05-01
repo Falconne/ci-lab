@@ -71,7 +71,7 @@ public class MergeGroupManagementService
             lookupResult.Project);
 
         _mergeGroupRepository.EnsureBranchInMergeGroup(mergeGroupId, branchRecord.Id);
-        _mergeGroupRepository.EnsureUserInMergeGroup(currentUser.UserId, mergeGroupId);
+        var wasAdded = _mergeGroupRepository.EnsureUserInMergeGroup(currentUser.UserId, mergeGroupId);
         await _untrackedBranchRepository.RemoveUntrackedBranch(currentUser.UserId, lookupResult.SourceBranch);
 
         _logger.LogInformation(
@@ -80,6 +80,14 @@ public class MergeGroupManagementService
             lookupResult.SourceBranch,
             lookupResult.Project.Id,
             mergeGroupId);
+
+        if (wasAdded)
+        {
+            _logger.LogInformation(
+                "User {UserId} added to tracked branches for merge group {MergeGroupId} via MR URL addition",
+                currentUser.UserId,
+                mergeGroupId);
+        }
 
         var updated = _mergeGroupRepository.GetMergeGroup(mergeGroupId);
         return new AddBranchResult(updated, null);
@@ -117,7 +125,7 @@ public class MergeGroupManagementService
 
         if (existingMg != null)
         {
-            _mergeGroupRepository.EnsureUserInMergeGroup(currentUser.UserId, existingMg.Id);
+            var wasAdded = _mergeGroupRepository.EnsureUserInMergeGroup(currentUser.UserId, existingMg.Id);
             await _untrackedBranchRepository.RemoveUntrackedBranch(currentUser.UserId, lookupResult.SourceBranch);
 
             _logger.LogInformation(
@@ -125,6 +133,15 @@ public class MergeGroupManagementService
                 currentUser.UserId,
                 existingMg.Id,
                 lookupResult.SourceBranch);
+
+            if (wasAdded)
+            {
+                _logger.LogInformation(
+                    "User {UserId} added to tracked branches for merge group {MergeGroupId} ('{MergeGroupName}') via MR URL lookup",
+                    currentUser.UserId,
+                    existingMg.Id,
+                    existingMg.Name);
+            }
 
             return new FindOrCreateMergeGroupResult(existingMg.Id, false, null);
         }
@@ -135,7 +152,7 @@ public class MergeGroupManagementService
             lookupResult.Project);
 
         _mergeGroupRepository.EnsureBranchInMergeGroup(mergeGroup.Id, branchRecord.Id);
-        _mergeGroupRepository.EnsureUserInMergeGroup(currentUser.UserId, mergeGroup.Id);
+        var wasAddedToNewGroup = _mergeGroupRepository.EnsureUserInMergeGroup(currentUser.UserId, mergeGroup.Id);
         await _untrackedBranchRepository.RemoveUntrackedBranch(currentUser.UserId, lookupResult.SourceBranch);
 
         _logger.LogInformation(
@@ -143,6 +160,15 @@ public class MergeGroupManagementService
             currentUser.UserId,
             mergeGroup.Id,
             lookupResult.SourceBranch);
+
+        if (wasAddedToNewGroup)
+        {
+            _logger.LogInformation(
+                "User {UserId} added to tracked branches for merge group {MergeGroupId} ('{MergeGroupName}') via MR URL lookup",
+                currentUser.UserId,
+                mergeGroup.Id,
+                mergeGroup.Name);
+        }
 
         return new FindOrCreateMergeGroupResult(mergeGroup.Id, true, null);
     }

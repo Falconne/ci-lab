@@ -111,12 +111,12 @@ public class MergeGroupRepository : IMergeGroupRepository
             mergeGroupId);
     }
 
-    public void EnsureUserInMergeGroup(int gitlabUserId, int mergeGroupId)
+    public bool EnsureUserInMergeGroup(int gitlabUserId, int mergeGroupId)
     {
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();
 
-        connection.Execute(
+        var rowsAffected = connection.Execute(
             """
             INSERT INTO users_in_merge_groups (gitlab_user_id, merge_group_id)
             VALUES (@GitlabUserId, @MergeGroupId)
@@ -124,13 +124,25 @@ public class MergeGroupRepository : IMergeGroupRepository
             """,
             new { GitlabUserId = gitlabUserId, MergeGroupId = mergeGroupId });
 
-        _logger.LogDebug(
-            "Ensured user {UserId} is in merge group {MergeGroupId}",
-            gitlabUserId,
-            mergeGroupId);
+        if (rowsAffected > 0)
+        {
+            _logger.LogDebug(
+                "User {UserId} newly added to merge group {MergeGroupId}",
+                gitlabUserId,
+                mergeGroupId);
+        }
+        else
+        {
+            _logger.LogDebug(
+                "User {UserId} already in merge group {MergeGroupId}, no change",
+                gitlabUserId,
+                mergeGroupId);
+        }
+
+        return rowsAffected > 0;
     }
 
-    public void EnsureUserInMergeGroupIfNotUntracked(int gitlabUserId, int mergeGroupId, string branchName)
+    public bool EnsureUserInMergeGroupIfNotUntracked(int gitlabUserId, int mergeGroupId, string branchName)
     {
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();
@@ -154,7 +166,7 @@ public class MergeGroupRepository : IMergeGroupRepository
         if (inserted > 0)
         {
             _logger.LogDebug(
-                "Ensured user {UserId} is in merge group {MergeGroupId} (branch '{BranchName}' not untracked)",
+                "User {UserId} newly added to merge group {MergeGroupId} (branch '{BranchName}' not untracked)",
                 gitlabUserId,
                 mergeGroupId,
                 branchName);
@@ -162,11 +174,13 @@ public class MergeGroupRepository : IMergeGroupRepository
         else
         {
             _logger.LogDebug(
-                "Skipped subscribing user {UserId} to merge group {MergeGroupId}: branch '{BranchName}' is untracked",
+                "Skipped subscribing user {UserId} to merge group {MergeGroupId}: branch '{BranchName}' is untracked or user already subscribed",
                 gitlabUserId,
                 mergeGroupId,
                 branchName);
         }
+
+        return inserted > 0;
     }
 
     public List<MergeGroup> GetMergeGroupsForUser(int gitlabUserId)

@@ -361,7 +361,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             }
 
             var branchRecord = _mergeGroupRepository.GetOrCreateBranchRecord(pushEvent.BranchName, project);
-            EnsureBranchTracked(branchRecord, pushEvent.BranchName, userId, untrackedBranches);
+            EnsureBranchTracked(branchRecord, pushEvent.BranchName, userId, untrackedBranches, "push event sync");
 
             _logger.LogDebug(
                 "Stored branch '{BranchName}' in project {ProjectId} for user {UserId}",
@@ -475,7 +475,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                 }
 
                 var branchRecord = _mergeGroupRepository.GetOrCreateBranchRecord(mr.SourceBranch, project);
-                EnsureBranchTracked(branchRecord, mr.SourceBranch, userId, untrackedBranches);
+                EnsureBranchTracked(branchRecord, mr.SourceBranch, userId, untrackedBranches, "open MR sync");
             }
 
             _logger.LogInformation("MR sync completed for user {UserId}", userId);
@@ -739,12 +739,14 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
     ///     is a member of that group. Shared by push-event and MR-sync paths.
     ///     If the merge group name is in <paramref name="untrackedBranches"/>, the user
     ///     subscription step is skipped (the user has explicitly opted out of tracking).
+    ///     Logs at Info when the user is newly added, including the provided <paramref name="reason"/>.
     /// </summary>
     private void EnsureBranchTracked(
         BranchInProject branchRecord,
         string branchName,
         int userId,
-        HashSet<string> untrackedBranches)
+        HashSet<string> untrackedBranches,
+        string reason)
     {
         var mergeGroup = _mergeGroupRepository.GetOrCreateMergeGroup(branchName);
         var isNewToMergeGroup = mergeGroup.Branches.NotAny(b => b.Id == branchRecord.Id);
@@ -776,6 +778,15 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             return;
         }
 
-        _mergeGroupRepository.EnsureUserInMergeGroupIfNotUntracked(userId, mergeGroup.Id, mergeGroup.Name);
+        var wasAdded = _mergeGroupRepository.EnsureUserInMergeGroupIfNotUntracked(userId, mergeGroup.Id, mergeGroup.Name);
+        if (wasAdded)
+        {
+            _logger.LogInformation(
+                "User {UserId} added to tracked branches for merge group {MergeGroupId} ('{MergeGroupName}') via {Reason}",
+                userId,
+                mergeGroup.Id,
+                mergeGroup.Name,
+                reason);
+        }
     }
 }
