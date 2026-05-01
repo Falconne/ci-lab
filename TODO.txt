@@ -1,2 +1,0 @@
-Task 1)
-When a branch is added to a user's tracked branches (via its merge group), whether it be via the background sync, merge request checks, or manually by the user, make sure the log reports an Info message on why it was added for which user.
