@@ -214,7 +214,9 @@ public class MergeGroupManagementTest
                 url => url.Contains("/merge-group/"),
                 new PageWaitForURLOptions { Timeout = 15000 });
 
-            await Task.Delay(2000);
+            // Wait for existing branch cards to load before capturing the baseline count
+            await _browser.Page.Locator(".branch-card").First.WaitForAsync(
+                new LocatorWaitForOptions { Timeout = 15000 });
             await _browser.TakeScreenshot("add_mr_01_details");
 
             // Count existing branches
@@ -237,24 +239,18 @@ public class MergeGroupManagementTest
             var addBtn = _browser.Page.Locator(".v-dialog .v-card-actions button:has-text('Add')");
             await addBtn.ClickAsync();
 
-            // Wait for dialog to close and data to refresh
-            await Task.Delay(3000);
+            // Wait for the dialog to close (success) or timeout (failure with error message visible)
+            await _browser.Page.WaitForFunctionAsync(
+                "() => document.querySelector('.v-dialog--active') === null",
+                null, new PageWaitForFunctionOptions { Timeout = 10000 });
             await _browser.TakeScreenshot("add_mr_04_after_add");
 
-            // Verify dialog is closed
-            var dialogCount = await _browser.Page.Locator(".v-dialog--active").CountAsync();
-            if (dialogCount > 0)
-            {
-                // Check for error message in dialog
-                var errorText =
-                    await _browser.Page.Locator(".v-dialog .v-messages__message").InnerTextAsync();
-
-                throw new InvalidOperationException(
-                    $"Dialog still open after submit. Error: {errorText}");
-            }
-
-            // Verify branch count increased
-            var newBranchCount = await _browser.Page.Locator(".branch-card").CountAsync();
+            // Poll until the branch count increases — the page refreshes asynchronously after the add
+            var newBranchCount = 0;
+            await _browser.Page.WaitForFunctionAsync(
+                $"() => document.querySelectorAll('.branch-card').length > {initialBranchCount}",
+                null, new PageWaitForFunctionOptions { Timeout = 15000 });
+            newBranchCount = await _browser.Page.Locator(".branch-card").CountAsync();
             Log.Information("Branch count after add: {Count}", newBranchCount);
 
             if (newBranchCount <= initialBranchCount)
@@ -375,8 +371,9 @@ public class MergeGroupManagementTest
 
             Log.Information("Navigated to: {Url}", _browser.Page.Url);
 
-            // Verify the branch from the MR appears on the page
+            // Wait for branch cards to appear — they are loaded asynchronously after the header renders
             var branchCards = _browser.Page.Locator(".branch-card");
+            await branchCards.First.WaitForAsync(new LocatorWaitForOptions { Timeout = 15000 });
             var cardCount = await branchCards.CountAsync();
             Log.Information("Branch cards on details page: {Count}", cardCount);
 
@@ -394,6 +391,7 @@ public class MergeGroupManagementTest
                 .Locator(".branch-title-link, .branch-title-text, .branch-subtitle-link, .branch-subtitle-text")
                 .Filter(new LocatorFilterOptions { HasTextString = "secondary-1" });
 
+            await projectLink.First.WaitForAsync(new LocatorWaitForOptions { Timeout = 15000 });
             var projectLinkCount = await projectLink.CountAsync();
             Log.Information("Branch entries with 'secondary-1': {Count}", projectLinkCount);
 
