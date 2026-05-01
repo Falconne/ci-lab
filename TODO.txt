@@ -1,10 +1,2 @@
 Task 1)
-The "Open External" icon to the right of a branch card title should also go to the MR, like the text to the left of it does.
-
-Task 2)
-In the merge group detail cards, when a MR doesn't exist. Make the button that appears say "Create Merge Request" instead of just "Create". Then remove the label "Merge Request" to the left of it, just have the button.
-
-Task 3)
-In the merge group details page, instead of displaying each branch in a card, just display the info as a regular secion of info text. Choose simple but elegant fonts and styling to display all the info for a branch. Ensure there is a clear distinction from one branch to the next.
-
-The Approvals and "Create Merge Request" (when displayed) button can all appear on one line, but the commit message shoudl be in its own line. Change the label for the latter from "Commit" to "Last Commit".
+When a branch is added to a user's tracked branches (via its merge group), whether it be via the background sync, merge request checks, or manually by the user, make sure the log reports an Info message on why it was added for which user.
