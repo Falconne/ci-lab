@@ -1,2 +1,0 @@
-Task 1)
-If a MR is blocked because it has a dependency on other MRs being merged first, detect this and display it as a proper block reason. If a pre-requisite MR is inside the same merge group, then deliberately do not mark this as blocking. Instead, when the merge group is set to auto merge, order the merging of MRs so the pre-requisite MRs are merged first.
