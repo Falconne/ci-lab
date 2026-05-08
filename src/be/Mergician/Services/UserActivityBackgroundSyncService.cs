@@ -510,41 +510,44 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
     {
         var userId = accessDetails.UserId;
         var userGroups = _mergeGroupRepository.GetMergeGroupsForUser(userId);
-        var userBranches = userGroups.SelectMany(g => g.Branches).ToList();
 
+        var totalBranches = userGroups.Sum(g => g.Branches.Count);
         _logger.LogDebug(
             "Refreshing details for {Count} branches for user {UserId}",
-            userBranches.Count,
+            totalBranches,
             userId);
 
-        foreach (var branch in userBranches)
+        foreach (var group in userGroups)
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            foreach (var branch in group.Branches)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
 
-            try
-            {
-                await RefreshBranchDetails(accessDetails, branch, cancellationToken);
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (GitLabStartupRequiredException ex)
-            {
-                _logger.LogError(
-                    ex,
-                    "GitLab became unavailable while refreshing branch details for user {UserId}; ending the current refresh cycle",
-                    userId);
+                try
+                {
+                    await RefreshBranchDetails(accessDetails, branch, group.Branches, cancellationToken);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (GitLabStartupRequiredException ex)
+                {
+                    _logger.LogError(
+                        ex,
+                        "GitLab became unavailable while refreshing branch details for user {UserId}; ending the current refresh cycle",
+                        userId);
 
-                break;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(
-                    ex,
-                    "Failed to refresh details for branch '{BranchName}' in project {ProjectId}; skipping",
-                    branch.BranchName,
-                    branch.ProjectId);
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(
+                        ex,
+                        "Failed to refresh details for branch '{BranchName}' in project {ProjectId}; skipping",
+                        branch.BranchName,
+                        branch.ProjectId);
+                }
             }
         }
 
@@ -559,6 +562,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
     private async Task RefreshBranchDetails(
         AccessDetailsForUser accessDetails,
         BranchInProject branch,
+        IReadOnlyList<BranchWithActivity> groupSiblings,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -616,6 +620,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
         bool? rebaseInProgress = null;
         var isDraft = false;
         var hasConflicts = false;
+        List<string>? blockingMrDescriptions = null;
 
         if (hasMergeRequest)
         {
@@ -637,6 +642,19 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             {
                 approvalsRequired = approvalCounts.Value.Required;
                 approvalsGiven = approvalCounts.Value.Given;
+            }
+
+            if (first.DetailedMergeStatus == "blocked_status")
+            {
+                var resolved = await ResolveBlockingMrDescriptions(
+                    accessDetails,
+                    branch,
+                    first.Iid,
+                    groupSiblings,
+                    cancellationToken);
+
+                // null means the endpoint is unavailable (GitLab CE / non-Premium); use a generic reason
+                blockingMrDescriptions = resolved ?? ["Blocked by a dependency (details unavailable on this GitLab tier)"];
             }
         }
 
@@ -684,7 +702,8 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             needsRebase,
             rebaseInProgress,
             hasConflicts,
-            hasMergeRequest ? mergeRequests[0].DetailedMergeStatus : null);
+            hasMergeRequest ? mergeRequests[0].DetailedMergeStatus : null,
+            blockingMrDescriptions);
 
         // If a previous auto merge attempt failed and GitLab otherwise considers the branch Ready,
         // force Blocked so the user sees the error until they dismiss the warning.
@@ -732,6 +751,83 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             branch.ProjectId,
             hasMergeRequest,
             buildJobs.Count);
+    }
+
+    /// <summary>
+    ///     Fetches the blocking MRs for the given MR and returns human-readable descriptions
+    ///     for those that are outside the current merge group (external blockers).
+    ///     Intra-group blocking MRs are intentionally excluded because Mergician handles merge
+    ///     ordering automatically. Returns null when the blocking MR endpoint is unavailable
+    ///     (GitLab CE / non-Premium), which signals to the caller to use a generic fallback.
+    ///     Returns an empty list when the endpoint is available but no external blockers exist.
+    /// </summary>
+    private async Task<List<string>?> ResolveBlockingMrDescriptions(
+        AccessDetailsForUser accessDetails,
+        BranchInProject branch,
+        int mrIid,
+        IReadOnlyList<BranchWithActivity> groupSiblings,
+        CancellationToken cancellationToken)
+    {
+        var blockingMrs = await _gitLabService.GetBlockingMergeRequests(
+            accessDetails,
+            branch.ProjectId,
+            mrIid,
+            cancellationToken);
+
+        if (blockingMrs == null)
+        {
+            _logger.LogDebug(
+                "Branch '{BranchName}' in project {ProjectId}: blocking MRs endpoint unavailable, using generic block reason",
+                branch.BranchName,
+                branch.ProjectId);
+
+            return null;
+        }
+
+        if (blockingMrs.Count == 0)
+        {
+            _logger.LogDebug(
+                "Branch '{BranchName}' in project {ProjectId}: blocked_status but no blocking MRs returned",
+                branch.BranchName,
+                branch.ProjectId);
+
+            return [];
+        }
+
+        var descriptions = new List<string>();
+        foreach (var blocker in blockingMrs)
+        {
+            var isIntraGroup = groupSiblings.Any(
+                s => s.ProjectId == blocker.ProjectId
+                     && string.Equals(s.BranchName, blocker.SourceBranch, StringComparison.OrdinalIgnoreCase));
+
+            if (isIntraGroup)
+            {
+                _logger.LogInformation(
+                    "Branch '{BranchName}' in project {ProjectId}: blocked by intra-group MR !{BlockerIid} '{BlockerTitle}'; Mergician handles ordering",
+                    branch.BranchName,
+                    branch.ProjectId,
+                    blocker.Iid,
+                    blocker.Title);
+
+                continue;
+            }
+
+            _logger.LogInformation(
+                "Branch '{BranchName}' in project {ProjectId}: blocked by external MR !{BlockerIid} '{BlockerTitle}'",
+                branch.BranchName,
+                branch.ProjectId,
+                blocker.Iid,
+                blocker.Title);
+
+            var description = blocker.WebUrl.IsNotEmpty()
+                ? $"Blocked by MR: {blocker.Title} ({blocker.WebUrl})"
+                : $"Blocked by MR: {blocker.Title}";
+
+            descriptions.Add(description);
+        }
+
+        return descriptions;
     }
 
     /// <summary>

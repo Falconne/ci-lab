@@ -567,6 +567,59 @@ public class GitLabService
     }
 
     /// <summary>
+    ///     Fetches the list of merge requests that are blocking the given MR from being merged.
+    ///     These are the prerequisite MRs that must be merged first.
+    ///     Returns an empty list when there are no blocking MRs or when the response is empty.
+    ///     Returns null when the endpoint is unavailable (e.g. GitLab CE or non-Premium tiers),
+    ///     in which case the caller should fall back to a generic blocked message.
+    /// </summary>
+    public async Task<List<GitLabBlockingMergeRequest>?> GetBlockingMergeRequests(
+        AccessDetailsBase accessDetails,
+        int projectId,
+        int mergeRequestIid,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var result = await _gitLabApiClient.Execute<List<GitLabBlockingMergeRequest>>(
+                () => accessDetails.CreateRequest(
+                    $"projects/{projectId}/merge_requests/{mergeRequestIid}/blocking_merge_requests"),
+                cancellationToken);
+
+            _logger.LogDebug(
+                "GetBlockingMergeRequests for project {ProjectId}, MR {MergeRequestIid}: {Count} blocking MR(s)",
+                projectId,
+                mergeRequestIid,
+                result.Count);
+
+            return result;
+        }
+        catch (GitLabUnexpectedResponseException ex) when (
+            ex.StatusCode == HttpStatusCode.NotFound
+            || ex.StatusCode == HttpStatusCode.Unauthorized
+            || ex.StatusCode == HttpStatusCode.Forbidden)
+        {
+            _logger.LogInformation(
+                "GetBlockingMergeRequests not available for project {ProjectId}, MR {MergeRequestIid} (status {StatusCode}); feature may require GitLab Premium",
+                projectId,
+                mergeRequestIid,
+                (int)ex.StatusCode);
+
+            return null;
+        }
+        catch (GitLabUnexpectedResponseException ex)
+        {
+            _logger.LogError(
+                "GetBlockingMergeRequests failed with status {StatusCode} for project {ProjectId}, MR {MergeRequestIid}",
+                (int)ex.StatusCode,
+                projectId,
+                mergeRequestIid);
+
+            return null;
+        }
+    }
+
+    /// <summary>
     ///     Fetches all open merge requests authored by the given user, across all projects.
     ///     Uses the GitLab /merge_requests endpoint with author_id filter and handles pagination.
     /// </summary>

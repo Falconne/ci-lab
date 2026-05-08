@@ -370,6 +370,14 @@ public class AutoMergeService : BackgroundService
             return;
         }
 
+        // Pre-compute which branches are only blocked due to intra-group MR dependencies.
+        // These branches should not prevent the group from proceeding; instead, prerequisites
+        // are merged first and the blocked branches will be merged in subsequent cycles.
+        var intraGroupBlockedBranchIds = await GetIntraGroupBlockedBranchIds(
+            serviceUser,
+            branchMergeRequestDetails,
+            cancellationToken);
+
         // Check each branch for readiness
         var allReady = true;
         var reasons = new List<string>();
@@ -378,11 +386,13 @@ public class AutoMergeService : BackgroundService
         {
             cancellationToken.ThrowIfCancellationRequested();
 
+            var isIntraGroupBlockedOnly = intraGroupBlockedBranchIds.Contains(branch.Id);
             var branchReady = await IsBranchReadyToMerge(
                 serviceUser,
                 branch,
                 mr,
                 group.AutoRebase,
+                isIntraGroupBlockedOnly,
                 reasons,
                 cancellationToken);
 
@@ -414,14 +424,42 @@ public class AutoMergeService : BackgroundService
             return;
         }
 
-        _logger.LogInformation(
-            "AutoMergeService: all {Count} branches in merge group '{MergeGroupName}' are ready, initiating merge",
-            branchMergeRequestDetails.Count,
-            group.Name);
+        // Only merge branches whose intra-group prerequisites have not yet been merged.
+        // Blocked branches wait for subsequent cycles once their prerequisites land.
+        var branchesToMergeNow = intraGroupBlockedBranchIds.Count > 0
+            ? branchMergeRequestDetails.Where(x => !intraGroupBlockedBranchIds.Contains(x.Branch.Id)).ToList()
+            : branchMergeRequestDetails;
 
-        // Merge all branches in parallel; catch per-task so a single failure doesn't prevent
+        if (branchesToMergeNow.Count == 0)
+        {
+            // Circular intra-group dependency — every branch is waiting on another in the group.
+            // Fall back to merging everything and let GitLab sort it out.
+            _logger.LogWarning(
+                "AutoMergeService: merge group '{MergeGroupName}' has a circular intra-group dependency; merging all branches",
+                group.Name);
+
+            branchesToMergeNow = branchMergeRequestDetails;
+        }
+        else if (intraGroupBlockedBranchIds.Count > 0)
+        {
+            _logger.LogInformation(
+                "AutoMergeService: merging {NowCount} of {TotalCount} branches in merge group '{MergeGroupName}' — {WaitingCount} branch(es) are waiting for intra-group prerequisites to merge first",
+                branchesToMergeNow.Count,
+                branchMergeRequestDetails.Count,
+                group.Name,
+                intraGroupBlockedBranchIds.Count);
+        }
+        else
+        {
+            _logger.LogInformation(
+                "AutoMergeService: all {Count} branches in merge group '{MergeGroupName}' are ready, initiating merge",
+                branchMergeRequestDetails.Count,
+                group.Name);
+        }
+
+        // Merge all eligible branches in parallel; catch per-task so a single failure doesn't prevent
         // collecting results from the other tasks.
-        var mergeTasks = branchMergeRequestDetails.Select(async item =>
+        var mergeTasks = branchesToMergeNow.Select(async item =>
             {
                 var (branch, mr) = item;
                 try
@@ -558,6 +596,7 @@ public class AutoMergeService : BackgroundService
         BranchWithActivity branch,
         GitLabDetailedMergeRequest mr,
         bool autoRebaseEnabled,
+        bool isIntraGroupBlockedOnly,
         List<string> reasons,
         CancellationToken cancellationToken)
     {
@@ -605,6 +644,21 @@ public class AutoMergeService : BackgroundService
         var needsRebase = autoRebaseEnabled
             && (mr.DivergedCommitsCount > 0 || mr.HasConflicts || mr.DetailedMergeStatus == "need_rebase");
 
+        // When this branch's blocked_status is entirely due to intra-group prerequisites,
+        // blocked_status is already in the handled set and will be ignored by MRStatusCalculator,
+        // so the branch is assessed on its other attributes only.
+        // For external blockers, the auto-merge service marks the branch as not ready directly.
+        if (!isIntraGroupBlockedOnly && mr.DetailedMergeStatus == "blocked_status")
+        {
+            _logger.LogDebug(
+                "AutoMergeService: branch '{BranchName}' in project {ProjectId} has blocked_status with external blockers; marking as not ready",
+                branch.BranchName,
+                branch.ProjectId);
+
+            reasons.Add($"{branchLabel}: blocked by an external MR dependency");
+            return false;
+        }
+
         var (mrStatus, calcReasons) = MRStatusCalculator.Calculate(
             hasMergeRequest: true,
             isDraft: mr.Draft,
@@ -632,6 +686,69 @@ public class AutoMergeService : BackgroundService
         }
 
         return true;
+    }
+
+    /// <summary>
+    ///     Returns the IDs of branches in the group whose <c>blocked_status</c> is caused exclusively
+    ///     by MR dependencies on other branches within the same group. These branches do not need to
+    ///     block the group from merging; Mergician merges their prerequisites first.
+    /// </summary>
+    private async Task<HashSet<int>> GetIntraGroupBlockedBranchIds(
+        AccessDetailsBase serviceUser,
+        List<(BranchWithActivity Branch, GitLabDetailedMergeRequest MergeRequest)> branchMergeRequestDetails,
+        CancellationToken cancellationToken)
+    {
+        var groupMrKeys = branchMergeRequestDetails
+            .Select(x => (x.Branch.ProjectId, x.MergeRequest.Iid))
+            .ToHashSet();
+
+        var result = new HashSet<int>();
+
+        foreach (var (branch, mr) in branchMergeRequestDetails)
+        {
+            if (mr.DetailedMergeStatus != "blocked_status")
+                continue;
+
+            var blockingMrs = await _gitLabService.GetBlockingMergeRequests(
+                serviceUser,
+                branch.ProjectId,
+                mr.Iid,
+                cancellationToken);
+
+            if (blockingMrs == null || blockingMrs.Count == 0)
+            {
+                _logger.LogDebug(
+                    "AutoMergeService: branch '{BranchName}' in project {ProjectId} has blocked_status but no blocking MR details available",
+                    branch.BranchName,
+                    branch.ProjectId);
+
+                continue;
+            }
+
+            var allBlockersInGroup = blockingMrs.All(b => groupMrKeys.Contains((b.ProjectId, b.Iid)));
+            if (allBlockersInGroup)
+            {
+                _logger.LogInformation(
+                    "AutoMergeService: branch '{BranchName}' in project {ProjectId} is blocked only by {Count} intra-group MR(s); will defer to a subsequent merge cycle",
+                    branch.BranchName,
+                    branch.ProjectId,
+                    blockingMrs.Count);
+
+                result.Add(branch.Id);
+            }
+            else
+            {
+                var externalBlockers = blockingMrs.Where(b => !groupMrKeys.Contains((b.ProjectId, b.Iid))).ToList();
+                _logger.LogInformation(
+                    "AutoMergeService: branch '{BranchName}' in project {ProjectId} is blocked by {Count} external MR(s): {Titles}",
+                    branch.BranchName,
+                    branch.ProjectId,
+                    externalBlockers.Count,
+                    string.Join(", ", externalBlockers.Select(b => b.Title)));
+            }
+        }
+
+        return result;
     }
 
     private async Task WaitForReady(CancellationToken cancellationToken)

@@ -35,6 +35,8 @@ public static class MRStatusCalculator
         "ci_must_pass",
         "ci_still_running",
         "pipeline_must_succeed",
+        // Handled by the blockingMrDescriptions parameter below.
+        "blocked_status",
     };
 
     /// <summary>
@@ -53,6 +55,12 @@ public static class MRStatusCalculator
     ///     already handled by the other parameters (and is not a transient state), the MR is
     ///     marked Blocked and the GitLab status value is surfaced as the reason.
     /// </param>
+    /// <param name="blockingMrDescriptions">
+    ///     Descriptions of external MRs (outside the merge group) that are blocking this MR.
+    ///     Each entry is surfaced as a blocked reason. Intra-group blockers should be excluded
+    ///     by the caller; when all blockers are intra-group this list should be empty so that
+    ///     the <c>blocked_status</c> is not treated as a block reason.
+    /// </param>
     /// <returns>The status value from <see cref="MRStatus" /> and a list of reason strings.</returns>
     public static (int Status, List<string> Reasons) Calculate(
         bool hasMergeRequest,
@@ -63,7 +71,8 @@ public static class MRStatusCalculator
         bool? needsRebase,
         bool? rebaseInProgress,
         bool hasConflicts = false,
-        string? detailedMergeStatus = null)
+        string? detailedMergeStatus = null,
+        IReadOnlyList<string>? blockingMrDescriptions = null)
     {
         if (!hasMergeRequest)
         {
@@ -114,6 +123,14 @@ public static class MRStatusCalculator
         if (rebaseInProgress == true)
         {
             waitingReasons.Add("Rebase in progress");
+        }
+
+        if (blockingMrDescriptions is { Count: > 0 })
+        {
+            foreach (var description in blockingMrDescriptions)
+            {
+                blockedReasons.Add(description);
+            }
         }
 
         // If GitLab reports a blocking state that our other checks do not already cover,
