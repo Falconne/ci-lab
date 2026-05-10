@@ -41,13 +41,16 @@ public class AutoMergeToggleTest
         await LoginHelper.EnsureLoggedIn(_browser, "test1");
         await _browser.TakeScreenshot("auto_merge_01_dashboard");
 
-        // Verify no auto merge badge initially
-        var badgeCount = await _browser.Page.Locator(".auto-merge-badge").CountAsync();
-        Log.Information("Initial auto merge badges on dashboard: {Count}", badgeCount);
-        if (badgeCount > 0)
+        // Verify no "Auto Merge Enabled" section initially
+        var autoMergeSectionCount = await _browser.Page
+            .Locator(".partition-section")
+            .Filter(new LocatorFilterOptions { HasText = "Auto Merge Enabled" })
+            .CountAsync();
+        Log.Information("Initial auto merge sections on dashboard: {Count}", autoMergeSectionCount);
+        if (autoMergeSectionCount > 0)
         {
             throw new InvalidOperationException(
-                "Expected no auto merge badges on dashboard initially");
+                "Expected no 'Auto Merge Enabled' section on dashboard initially");
         }
 
         // Find a merge group card that:
@@ -164,22 +167,24 @@ public class AutoMergeToggleTest
         await DashboardWaitHelper.WaitForDashboardReady(_browser.Page, 60);
         await _browser.TakeScreenshot("auto_merge_04_dashboard_with_badge");
 
-        badgeCount = await _browser.Page.Locator(".auto-merge-badge").CountAsync();
-        Log.Information("Auto merge badges on dashboard after enabling: {Count}", badgeCount);
+        autoMergeSectionCount = await _browser.Page
+            .Locator(".partition-section")
+            .Filter(new LocatorFilterOptions { HasText = "Auto Merge Enabled" })
+            .CountAsync();
+        Log.Information("Auto Merge Enabled section count after enabling: {Count}", autoMergeSectionCount);
 
-        if (badgeCount == 0)
+        if (autoMergeSectionCount == 0)
         {
             throw new InvalidOperationException(
-                "Expected at least one auto merge badge on dashboard after enabling auto merge");
+                "Expected an 'Auto Merge Enabled' section on the dashboard after enabling auto merge");
         }
 
-        // Navigate back to details and disable auto merge.
-        // Find the card with the auto merge badge specifically (the one we just enabled).
-        var cardWithBadge = _browser.Page
+        // Navigate back to details by finding the card for the target branch in the auto merge section
+        var cardInAutoMergeSection = _browser.Page
             .Locator(".merge-group-card")
-            .Filter(new LocatorFilterOptions { Has = _browser.Page.Locator(".auto-merge-badge") });
+            .Filter(new LocatorFilterOptions { HasText = targetBranchName });
 
-        await cardWithBadge.First.ClickAsync();
+        await cardInAutoMergeSection.First.ClickAsync();
         await _browser.Page.WaitForURLAsync(
             url => url.Contains("/merge-group/"),
             new PageWaitForURLOptions { Timeout = 15000 });
@@ -219,13 +224,16 @@ public class AutoMergeToggleTest
         await DashboardWaitHelper.WaitForDashboardReady(_browser.Page, 60);
         await _browser.TakeScreenshot("auto_merge_06_dashboard_no_badge");
 
-        badgeCount = await _browser.Page.Locator(".auto-merge-badge").CountAsync();
-        Log.Information("Auto merge badges on dashboard after disabling: {Count}", badgeCount);
+        autoMergeSectionCount = await _browser.Page
+            .Locator(".partition-section")
+            .Filter(new LocatorFilterOptions { HasText = "Auto Merge Enabled" })
+            .CountAsync();
+        Log.Information("Auto Merge Enabled section count after disabling: {Count}", autoMergeSectionCount);
 
-        if (badgeCount > 0)
+        if (autoMergeSectionCount > 0)
         {
             throw new InvalidOperationException(
-                "Expected no auto merge badges on dashboard after disabling auto merge");
+                "Expected no 'Auto Merge Enabled' section on dashboard after disabling auto merge");
         }
 
         Log.Information("Auto merge toggle and dashboard badge test passed");

@@ -70,6 +70,9 @@ public class ManualJobFilterTest
 
             await _browser.TakeScreenshot("manual_job_filter_01_branch_appeared");
 
+            // Wait for the new card's MR data to be resolved before checking pipeline job data.
+            await DashboardWaitHelper.WaitForDashboardReady(_browser.Page, 60);
+
             // Wait for Mergician's sync service to process the pipeline data.
             // The sync cycle runs every 10s; waiting 15s guarantees at least one full
             // refresh after the branch appeared, so pipeline job data is stable.
