@@ -430,14 +430,14 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                 userId,
                 untrackedBranches.Count);
 
-            var openMrs = await _gitLabService.GetOpenMergeRequestsForUser(accessDetails, userId, ct);
+            var openMRs = await _gitLabService.GetOpenMergeRequestsForUser(accessDetails, userId, ct);
 
             _logger.LogInformation(
                 "Found {Count} open MRs for user {UserId}, checking for untracked branches",
-                openMrs.Count,
+                openMRs.Count,
                 userId);
 
-            foreach (var mr in openMrs)
+            foreach (var mr in openMRs)
             {
                 ct.ThrowIfCancellationRequested();
 
@@ -620,7 +620,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
         bool? rebaseInProgress = null;
         var isDraft = false;
         var hasConflicts = false;
-        List<string>? blockingMrDescriptions = null;
+        List<string>? blockingMRDescriptions = null;
 
         if (hasMergeRequest)
         {
@@ -646,7 +646,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
 
             if (first.DetailedMergeStatus == "blocked_status")
             {
-                var resolved = await ResolveBlockingMrDescriptions(
+                var resolved = await ResolveBlockingMRDescriptions(
                     accessDetails,
                     branch,
                     first.Iid,
@@ -654,7 +654,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                     cancellationToken);
 
                 // null means the endpoint is unavailable (GitLab CE / non-Premium); use a generic reason
-                blockingMrDescriptions = resolved ?? ["Blocked by a dependency (details unavailable on this GitLab tier)"];
+                blockingMRDescriptions = resolved ?? ["Blocked by a dependency (details unavailable on this GitLab tier)"];
             }
         }
 
@@ -703,7 +703,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             rebaseInProgress,
             hasConflicts,
             hasMergeRequest ? mergeRequests[0].DetailedMergeStatus : null,
-            blockingMrDescriptions);
+            blockingMRDescriptions);
 
         // If a previous auto merge attempt failed and GitLab otherwise considers the branch Ready,
         // force Blocked so the user sees the error until they dismiss the warning.
@@ -761,20 +761,20 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
     ///     (GitLab CE / non-Premium), which signals to the caller to use a generic fallback.
     ///     Returns an empty list when the endpoint is available but no external blockers exist.
     /// </summary>
-    private async Task<List<string>?> ResolveBlockingMrDescriptions(
+    private async Task<List<string>?> ResolveBlockingMRDescriptions(
         AccessDetailsForUser accessDetails,
         BranchInProject branch,
         int mrIid,
         IReadOnlyList<BranchWithActivity> groupSiblings,
         CancellationToken cancellationToken)
     {
-        var blockingMrs = await _gitLabService.GetBlockingMergeRequests(
+        var blockingMRs = await _gitLabService.GetBlockingMergeRequests(
             accessDetails,
             branch.ProjectId,
             mrIid,
             cancellationToken);
 
-        if (blockingMrs == null)
+        if (blockingMRs == null)
         {
             _logger.LogDebug(
                 "Branch '{BranchName}' in project {ProjectId}: blocking MRs endpoint unavailable, using generic block reason",
@@ -784,7 +784,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             return null;
         }
 
-        if (blockingMrs.Count == 0)
+        if (blockingMRs.Count == 0)
         {
             _logger.LogDebug(
                 "Branch '{BranchName}' in project {ProjectId}: blocked_status but no blocking MRs returned",
@@ -795,7 +795,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
         }
 
         var descriptions = new List<string>();
-        foreach (var blocker in blockingMrs)
+        foreach (var blocker in blockingMRs)
         {
             var isIntraGroup = groupSiblings.Any(
                 s => s.ProjectId == blocker.ProjectId

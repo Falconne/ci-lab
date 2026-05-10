@@ -176,12 +176,9 @@ public class AutoMergeService : BackgroundService
             })
             .ToList();
 
-        var branchMrPairs = await Task.WhenAll(mrFetchTasks);
+        var branchMRPairs = await Task.WhenAll(mrFetchTasks);
 
-        // TODO: instead of returning a tuple of BranchWithActivity and GitlabDetailedMergeRequest, create a new
-        // type that composes both called BranchWithMergeRequest. Return null if the detailed merge request does not exist.
-        // Update the downstream code such as ProcessAutoRebase, GetIntraGroupBlockedBranchIds, etc to use this new type.
-        var detailFetchTasks = branchMrPairs
+        var detailFetchTasks = branchMRPairs
             .Where(x => x.mrs.Count > 0)
             .Select(async x =>
             {
@@ -693,7 +690,7 @@ public class AutoMergeService : BackgroundService
         List<(BranchWithActivity Branch, GitLabDetailedMergeRequest MergeRequest)> branchMergeRequestDetails,
         CancellationToken cancellationToken)
     {
-        var groupMrKeys = branchMergeRequestDetails
+        var groupMRKeys = branchMergeRequestDetails
             .Select(x => (x.Branch.ProjectId, x.MergeRequest.Iid))
             .ToHashSet();
 
@@ -704,14 +701,13 @@ public class AutoMergeService : BackgroundService
             if (mr.DetailedMergeStatus != "blocked_status")
                 continue;
 
-            // TODO: Update all variables using the abbreviation for MergeRequest that say `Mr` to say `MR` (`mr` is ok at the beginning of a variable)
-            var blockingMrs = await _gitLabService.GetBlockingMergeRequests(
+            var blockingMRs = await _gitLabService.GetBlockingMergeRequests(
                 serviceUser,
                 branch.ProjectId,
                 mr.Iid,
                 cancellationToken);
 
-            if (blockingMrs == null || blockingMrs.Count == 0)
+            if (blockingMRs == null || blockingMRs.Count == 0)
             {
                 _logger.LogDebug(
                     "AutoMergeService: branch '{BranchName}' in project {ProjectId} has blocked_status but no blocking MR details available",
@@ -721,20 +717,20 @@ public class AutoMergeService : BackgroundService
                 continue;
             }
 
-            var allBlockersInGroup = blockingMrs.All(b => groupMrKeys.Contains((b.ProjectId, b.Iid)));
+            var allBlockersInGroup = blockingMRs.All(b => groupMRKeys.Contains((b.ProjectId, b.Iid)));
             if (allBlockersInGroup)
             {
                 _logger.LogInformation(
                     "AutoMergeService: branch '{BranchName}' in project {ProjectId} is blocked only by {Count} intra-group MR(s); will defer to a subsequent merge cycle",
                     branch.BranchName,
                     branch.ProjectId,
-                    blockingMrs.Count);
+                    blockingMRs.Count);
 
                 result.Add(branch.Id);
             }
             else
             {
-                var externalBlockers = blockingMrs.Where(b => !groupMrKeys.Contains((b.ProjectId, b.Iid))).ToList();
+                var externalBlockers = blockingMRs.Where(b => !groupMRKeys.Contains((b.ProjectId, b.Iid))).ToList();
                 _logger.LogInformation(
                     "AutoMergeService: branch '{BranchName}' in project {ProjectId} is blocked by {Count} external MR(s): {Titles}",
                     branch.BranchName,
