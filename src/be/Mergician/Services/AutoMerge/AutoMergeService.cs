@@ -188,15 +188,15 @@ public class AutoMergeService : BackgroundService
                     x.mrs[0].Iid,
                     cancellationToken);
 
-                return (x.branch, mrDetail);
+                return mrDetail != null ? new BranchWithMergeRequest(x.branch, mrDetail) : null;
             })
             .ToList();
 
         var detailResults = await Task.WhenAll(detailFetchTasks);
 
         var branchMergeRequestDetails = detailResults
-            .Where(x => x.mrDetail != null)
-            .Select(x => (Branch: x.branch, MergeRequest: x.mrDetail!))
+            .Where(x => x != null)
+            .Select(x => x!)
             .ToList();
 
         // Step 1: Auto Rebase - rebase branches that are behind their target
@@ -215,7 +215,7 @@ public class AutoMergeService : BackgroundService
     private async Task ProcessAutoRebase(
         AccessDetailsBase serviceUser,
         MergeGroup group,
-        List<(BranchWithActivity Branch, GitLabDetailedMergeRequest MergeRequest)> branchMergeRequestDetails,
+        List<BranchWithMergeRequest> branchMergeRequestDetails,
         CancellationToken cancellationToken)
     {
         foreach (var (branch, mr) in branchMergeRequestDetails)
@@ -347,7 +347,7 @@ public class AutoMergeService : BackgroundService
     private async Task ProcessAutoMerge(
         AccessDetailsBase serviceUser,
         MergeGroup group,
-        List<(BranchWithActivity Branch, GitLabDetailedMergeRequest MergeRequest)> branchMergeRequestDetails,
+        List<BranchWithMergeRequest> branchMergeRequestDetails,
         CancellationToken cancellationToken)
     {
         // Check if ALL branches in the merge group have MRs
@@ -687,7 +687,7 @@ public class AutoMergeService : BackgroundService
     /// </summary>
     private async Task<HashSet<int>> GetIntraGroupBlockedBranchIds(
         AccessDetailsBase serviceUser,
-        List<(BranchWithActivity Branch, GitLabDetailedMergeRequest MergeRequest)> branchMergeRequestDetails,
+        List<BranchWithMergeRequest> branchMergeRequestDetails,
         CancellationToken cancellationToken)
     {
         var groupMRKeys = branchMergeRequestDetails
