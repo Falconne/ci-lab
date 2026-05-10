@@ -595,9 +595,7 @@ public class GitLabService
             return result;
         }
         catch (GitLabUnexpectedResponseException ex) when (
-            ex.StatusCode == HttpStatusCode.NotFound
-            || ex.StatusCode == HttpStatusCode.Unauthorized
-            || ex.StatusCode == HttpStatusCode.Forbidden)
+            ex.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
         {
             _logger.LogInformation(
                 "GetBlockingMergeRequests not available for project {ProjectId}, MR {MergeRequestIid} (status {StatusCode}); feature may require GitLab Premium",

@@ -4,7 +4,7 @@ namespace Mergician.Entities;
 
 /// <summary>
 ///     Extended merge request details including merge status and conflict information.
-///     Used by the AutoMergeService to determine if a MR is ready to be merged.
+///     Used by the AutoMergeService to determine if an MR is ready to be merged.
 /// </summary>
 public class GitLabDetailedMergeRequest
 {

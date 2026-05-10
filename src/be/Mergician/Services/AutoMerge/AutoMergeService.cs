@@ -139,15 +139,7 @@ public class AutoMergeService : BackgroundService
         foreach (var group in mergeGroups)
         {
             cancellationToken.ThrowIfCancellationRequested();
-
-            try
-            {
-                await ProcessMergeGroup(serviceUser, group, cancellationToken);
-            }
-            catch (GitLabStartupRequiredException)
-            {
-                throw;
-            }
+            await ProcessMergeGroup(serviceUser, group, cancellationToken);
         }
     }
 
@@ -186,25 +178,28 @@ public class AutoMergeService : BackgroundService
 
         var branchMrPairs = await Task.WhenAll(mrFetchTasks);
 
+        // TODO: instead of returning a tuple of BranchWithActivity and GitlabDetailedMergeRequest, create a new
+        // type that composes both called BranchWithMergeRequest. Return null if the detailed merge request does not exist.
+        // Update the downstream code such as ProcessAutoRebase, GetIntraGroupBlockedBranchIds, etc to use this new type.
         var detailFetchTasks = branchMrPairs
             .Where(x => x.mrs.Count > 0)
             .Select(async x =>
             {
-                var detailed = await _apiService.GetDetailedMergeRequest(
+                var mrDetail = await _apiService.GetDetailedMergeRequest(
                     serviceUser,
                     x.branch.ProjectId,
                     x.mrs[0].Iid,
                     cancellationToken);
 
-                return (x.branch, detailed);
+                return (x.branch, mrDetail);
             })
             .ToList();
 
         var detailResults = await Task.WhenAll(detailFetchTasks);
 
         var branchMergeRequestDetails = detailResults
-            .Where(x => x.detailed != null)
-            .Select(x => (Branch: x.branch, MergeRequest: x.detailed!))
+            .Where(x => x.mrDetail != null)
+            .Select(x => (Branch: x.branch, MergeRequest: x.mrDetail!))
             .ToList();
 
         // Step 1: Auto Rebase - rebase branches that are behind their target
@@ -709,6 +704,7 @@ public class AutoMergeService : BackgroundService
             if (mr.DetailedMergeStatus != "blocked_status")
                 continue;
 
+            // TODO: Update all variables using the abbreviation for MergeRequest that say `Mr` to say `MR` (`mr` is ok at the beginning of a variable)
             var blockingMrs = await _gitLabService.GetBlockingMergeRequests(
                 serviceUser,
                 branch.ProjectId,
