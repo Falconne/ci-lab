@@ -15,10 +15,6 @@
           <span v-if="singleMrTitle" class="branch-subtitle">{{ group.name }}</span>
         </div>
         <div class="card-header-right">
-          <span v-if="group.autoMerge" class="auto-merge-badge">
-            <v-icon icon="mdi-merge" size="x-small" />
-            Auto Merge
-          </span>
           <template v-if="isGroupLoaded">
             <v-tooltip
               v-if="groupStatusReasons.length > 0"
@@ -388,18 +384,6 @@ function approvalsTooltip(item: BranchWithActivity): string {
   align-items: center;
   gap: 14px;
   flex-shrink: 0;
-}
-
-.auto-merge-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  background: #e8eaf6;
-  color: #3949ab;
 }
 
 /* ---- Card items (repo rows) ---- */

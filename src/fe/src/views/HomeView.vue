@@ -184,30 +184,36 @@ function getPartitionKey(group: MergeGroup, todayMidnight: number): string {
 }
 
 /**
- * Splits the filtered merge groups into time-based partitions for display.
- * Empty partitions are omitted.
+ * Splits the filtered merge groups into sections for display.
+ * Auto-merge enabled groups appear first in their own section, followed by
+ * time-based partitions. Empty sections are omitted.
  */
 const partitionedGroups = computed<GroupPartition[]>(() => {
   const midnight = new Date()
   midnight.setHours(0, 0, 0, 0)
   const todayMidnight = midnight.getTime()
 
-  const sections: GroupPartition[] = [
+  const autoMergeSection: GroupPartition = { title: 'Auto Merge Enabled', groups: [] }
+  const timeSections: GroupPartition[] = [
     { title: 'Today', groups: [] },
     { title: 'Yesterday', groups: [] },
     { title: 'Last 7 Days', groups: [] },
     { title: 'Older', groups: [] },
   ]
   const keyToSection: Record<string, GroupPartition> = {
-    today: sections[0],
-    yesterday: sections[1],
-    last7days: sections[2],
-    older: sections[3],
+    today: timeSections[0],
+    yesterday: timeSections[1],
+    last7days: timeSections[2],
+    older: timeSections[3],
   }
   for (const group of filteredMergeGroups.value) {
-    keyToSection[getPartitionKey(group, todayMidnight)].groups.push(group)
+    if (group.autoMerge) {
+      autoMergeSection.groups.push(group)
+    } else {
+      keyToSection[getPartitionKey(group, todayMidnight)].groups.push(group)
+    }
   }
-  return sections.filter(s => s.groups.length > 0)
+  return [autoMergeSection, ...timeSections].filter(s => s.groups.length > 0)
 })
 
 /**
