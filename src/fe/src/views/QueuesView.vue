@@ -13,8 +13,18 @@
           {{ errorMessage }}
         </v-alert>
 
-        <!-- Queue selector -->
-        <div class="queue-selector-row mb-6">
+        <!-- No queues available -->
+        <div v-if="queuesLoaded && queueItems.length === 0" class="text-center pa-8">
+          <v-icon icon="mdi-playlist-play" size="64" color="grey" class="mb-4" />
+          <p class="text-h6 text-grey">No queues are active</p>
+          <p class="text-body-2 text-grey mt-2">
+            Queues are created automatically when merge groups are set to
+            Auto Merge + Auto Rebase with no blocking conditions.
+          </p>
+        </div>
+
+        <!-- Queue selector (only shown when multiple queues exist) -->
+        <div v-if="queueItems.length > 1" class="queue-selector-row mb-6">
           <v-autocomplete
             v-model="selectedQueueId"
             :items="queueItems"
@@ -26,7 +36,6 @@
             clearable
             hide-details
             class="queue-autocomplete"
-            :no-data-text="queuesLoaded ? 'No active queues' : 'Loading queues...'"
             @update:model-value="onQueueSelected"
           >
             <template #item="{ item, props: itemProps }">
@@ -39,16 +48,6 @@
               </v-list-item>
             </template>
           </v-autocomplete>
-        </div>
-
-        <!-- No queue selected -->
-        <div v-if="selectedQueueId == null" class="text-center pa-8">
-          <v-icon icon="mdi-playlist-play" size="64" color="grey" class="mb-4" />
-          <p class="text-h6 text-grey">Select a queue to view and manage its merge groups</p>
-          <p v-if="queuesLoaded && queueItems.length === 0" class="text-body-2 text-grey mt-2">
-            No queues are active. Queues are created automatically when merge groups are set to
-            Auto Merge + Auto Rebase with no blocking conditions.
-          </p>
         </div>
 
         <!-- Queue content -->
@@ -144,8 +143,11 @@ async function pollQueueList() {
     allQueues.value = data
     queuesLoaded.value = true
 
-    // If selected queue was merged into another queue (id no longer exists), update selection
-    if (selectedQueueId.value != null) {
+    if (selectedQueueId.value == null && data.length > 0) {
+      // Auto-select first queue on initial load
+      selectedQueueId.value = data[0].queueId
+      await loadQueueGroups(data[0].queueId)
+    } else if (selectedQueueId.value != null) {
       const stillExists = data.some(q => q.queueId === selectedQueueId.value)
       if (!stillExists && data.length > 0) {
         console.info(
