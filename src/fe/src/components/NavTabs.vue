@@ -31,6 +31,9 @@ const activeTab = computed(() => {
 
 <style scoped>
 .nav-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 10;
   border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
 }
 

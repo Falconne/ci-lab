@@ -6,8 +6,8 @@
     <!-- Normal layout shown once startup is complete -->
     <template v-else>
       <AppBar />
-      <NavTabs v-if="isAuthenticated" />
       <v-main>
+        <NavTabs v-if="isAuthenticated" />
         <router-view v-slot="{ Component, route }">
           <transition name="page-transition" mode="out-in">
             <component :is="Component" :key="route.fullPath" />
