@@ -1,0 +1,29 @@
+Task 1)
+With the current auto-merge with auto-rebase setup, this can lead to a lot of unnecessary builds in CI when a number of merge groups are queued up. For example, if we had 5 Merge Groups (A, B, C, D, E), each with just one branch all in the same repo, and all set up to auto merge and auto rebase, then when A is merged, the remaining 4 will all rebase, causing 4 builds, but the only B merges and the remaining 3 must rebase causing 3 more builds and so on, leading to a lot of unnecessary builds.
+
+It would be better if the merge groups were put into a queue and when the first one is merged, only the next in the queue is rebased. The others should not rebase untill that finishes building and is merged. At which point the next in the queue is rebased and so on.
+
+Implement this functionality, creating multiple queues as needed as Merge Groups (MG) are set to auto merge and auto rebase. Each queue can be processed independently. The dividing into groups should be based on the repo that exist in the MG. If two MGs share no repos, they can go on different queues (because this implies there will be no commin CI builds among them).
+
+When a new queue is created for an MG, the queue is keyed by all the repos in that MG. If a new MG is set to auto automerge and auto rebase, check what repos are in it. If _any_ of those repos are part of the key of an existing queue, add the MG to that queue and update the key with any repos from that MG that do not exist in that queue yet. At this point, also check the other queues. If any of them contain _any_ repos that are also in this new MG being added, then these queues need to be combined into one. Zip/Interleave the existing queues together to try and keep an almost equivalent merge order for the MGs in the queues.
+
+Similarly, once a MG with multiple repos is merged, check if the queue it was in can now be split based on MGs remaining in the queue.
+
+A MG should only be added to a queue once there are _no_ blocking conditions for it other than queued or running builds. For example, if it's waiting for approvals, or there is a merge conflict, it should not go in a queue. The queue is for MGs where all MRs are ready to merge as soon as their latest pipeline passes (or has already passed). If a pipeline fails for a MR in a MG in a queue, remove it from the queue.
+
+A MG can get back on a queue automatically when the blocking conditions are resolved.
+
+When a MG is in a queue, in its dashboard card and details page, say what position it is in its queue.
+
+Create new DB tables as needed to track the queues. Make a new ORM repository called MergeQueueRepository for this in the C# code.
+
+Task 2)
+Add a new page to view and control the queues. Do this by adding tabs to the top bar. The existing content can go in a "My Merge Groups" tab, and this should go in a "Queue" tab.
+
+There should be a combobox at the top that lists all the available queues. They should be named by the repos/projects they contain. The user should be able to filter this list by typing to filter to any name that contains the text they typed.
+
+The selected queue should be shown below as MG cards (same as on the dashboard). The user should be able to reorder MGs in any queue.
+
+From the MG details page, the text showing the position in the queue should be a link to the queue page.
+
+The currently show queue should update in real time as MGs added or removed or if the queue is combined with others. If it is split, select either of the split queues to show.
