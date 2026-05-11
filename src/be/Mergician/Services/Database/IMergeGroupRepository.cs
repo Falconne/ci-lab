@@ -147,4 +147,9 @@ public interface IMergeGroupRepository
     ///     Called when the user dismisses a warning or changes auto merge settings.
     /// </summary>
     void ClearMergeErrorsForGroup(int mergeGroupId);
+
+    /// <summary>
+    ///     Returns merge groups belonging to the specified queue, ordered by their queue position.
+    /// </summary>
+    List<MergeGroup> GetMergeGroupsForQueue(int queueId);
 }

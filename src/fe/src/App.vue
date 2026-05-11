@@ -6,6 +6,7 @@
     <!-- Normal layout shown once startup is complete -->
     <template v-else>
       <AppBar />
+      <NavTabs v-if="isAuthenticated" />
       <v-main>
         <router-view v-slot="{ Component, route }">
           <transition name="page-transition" mode="out-in">
@@ -33,14 +34,19 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import AppBar from '@/components/AppBar.vue'
+import NavTabs from '@/components/NavTabs.vue'
 import StartupOverlay from '@/components/StartupOverlay.vue'
 import { useVersionCheck } from '@/composables/useVersionCheck'
 import { useStartupCheck } from '@/composables/useStartupCheck'
+import { useCurrentUser } from '@/composables/useCurrentUser'
 
 const { updateAvailable, reload } = useVersionCheck()
 const { isReady, message, error, isGitLabRecovery, startMonitoring } = useStartupCheck()
+const { currentUser } = useCurrentUser()
+
+const isAuthenticated = computed(() => currentUser.value != null)
 
 onMounted(() => {
   void startMonitoring()

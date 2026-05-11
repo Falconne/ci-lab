@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '@/views/HomeView.vue'
 import MergeGroupDetailsView from '@/views/MergeGroupDetailsView.vue'
+import QueuesView from '@/views/QueuesView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -16,6 +17,12 @@ const router = createRouter({
       name: 'merge-group-details',
       component: MergeGroupDetailsView,
       meta: { title: 'Merge Group' },
+    },
+    {
+      path: '/queues',
+      name: 'queues',
+      component: QueuesView,
+      meta: { title: 'Queues' },
     },
     {
       path: '/:pathMatch(.*)*',

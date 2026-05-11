@@ -31,4 +31,6 @@ export interface MergeGroup {
   autoMerge: boolean
   autoRebase: boolean
   autoMergeWarning: string | null
+  queueId: number | null
+  queuePosition: number | null
 }

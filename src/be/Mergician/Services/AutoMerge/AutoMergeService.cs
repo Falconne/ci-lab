@@ -42,6 +42,10 @@ public class AutoMergeService : BackgroundService
 
     private readonly IMergeGroupRepository _mergeGroupRepository;
 
+    private readonly IMergeQueueRepository _mergeQueueRepository;
+
+    private readonly MergeQueueService _mergeQueueService;
+
     private readonly MergicianSettings _settings;
 
     private readonly GitLabUserFactory _userFactory;
@@ -57,6 +61,8 @@ public class AutoMergeService : BackgroundService
         GitLabUserFactory userFactory,
         HealthService healthService,
         IMergeGroupRepository mergeGroupRepository,
+        IMergeQueueRepository mergeQueueRepository,
+        MergeQueueService mergeQueueService,
         MergicianSettings settings,
         ILogger<AutoMergeService> logger)
     {
@@ -67,6 +73,8 @@ public class AutoMergeService : BackgroundService
         _userFactory = userFactory;
         _healthService = healthService;
         _mergeGroupRepository = mergeGroupRepository;
+        _mergeQueueRepository = mergeQueueRepository;
+        _mergeQueueService = mergeQueueService;
         _settings = settings;
         _logger = logger;
     }
@@ -199,6 +207,32 @@ public class AutoMergeService : BackgroundService
             .Select(x => x!)
             .ToList();
 
+        // Step 0: Queue management — evaluate whether this group should be in a merge queue.
+        // Compute intra-group blocked branch IDs once; they are used for both queue eligibility
+        // and for ProcessAutoMerge (passed through to avoid a duplicate API call).
+        HashSet<int> intraGroupBlockedBranchIds = [];
+        if (group.AutoMerge && group.AutoRebase)
+        {
+            intraGroupBlockedBranchIds = await GetIntraGroupBlockedBranchIds(
+                serviceUser,
+                branchMergeRequestDetails,
+                cancellationToken);
+
+            _mergeQueueService.EvaluateAndUpdateQueueMembership(group, branchMergeRequestDetails, intraGroupBlockedBranchIds);
+
+            // Re-read queue position from DB — EvaluateAndUpdateQueueMembership may have changed it.
+            var queueEntry = _mergeQueueRepository.GetQueueEntry(group.Id);
+            if (queueEntry != null && queueEntry.Position > 1)
+            {
+                _logger.LogDebug(
+                    "AutoMergeService: merge group '{MergeGroupName}' is at queue position {Position} — skipping rebase/merge this cycle",
+                    group.Name,
+                    queueEntry.Position);
+
+                return;
+            }
+        }
+
         // Step 1: Auto Rebase - rebase branches that are behind their target
         if (group.AutoRebase)
         {
@@ -208,7 +242,7 @@ public class AutoMergeService : BackgroundService
         // Step 2: Auto Merge - check if all branches are ready and merge them all
         if (group.AutoMerge)
         {
-            await ProcessAutoMerge(serviceUser, group, branchMergeRequestDetails, cancellationToken);
+            await ProcessAutoMerge(serviceUser, group, branchMergeRequestDetails, intraGroupBlockedBranchIds, cancellationToken);
         }
     }
 
@@ -348,6 +382,7 @@ public class AutoMergeService : BackgroundService
         AccessDetailsBase serviceUser,
         MergeGroup group,
         List<BranchWithMergeRequest> branchMergeRequestDetails,
+        HashSet<int> preComputedIntraGroupBlockedIds,
         CancellationToken cancellationToken)
     {
         // Check if ALL branches in the merge group have MRs
@@ -362,13 +397,11 @@ public class AutoMergeService : BackgroundService
             return;
         }
 
-        // Pre-compute which branches are only blocked due to intra-group MR dependencies.
-        // These branches should not prevent the group from proceeding; instead, prerequisites
-        // are merged first and the blocked branches will be merged in subsequent cycles.
-        var intraGroupBlockedBranchIds = await GetIntraGroupBlockedBranchIds(
-            serviceUser,
-            branchMergeRequestDetails,
-            cancellationToken);
+        // Use pre-computed intra-group blocked IDs if available (avoids duplicate API calls when
+        // queue management already computed them); otherwise compute now.
+        var intraGroupBlockedBranchIds = preComputedIntraGroupBlockedIds.Count > 0 || group.AutoRebase
+            ? preComputedIntraGroupBlockedIds
+            : await GetIntraGroupBlockedBranchIds(serviceUser, branchMergeRequestDetails, cancellationToken);
 
         // Check each branch for readiness
         var allReady = true;
@@ -572,6 +605,7 @@ public class AutoMergeService : BackgroundService
 
         // Remove successfully merged branches immediately so they disappear from the dashboard
         // without waiting for the background sync's dead-branch detection cycle.
+        var queueId = group.QueueId;
         foreach (var (branch, _, _) in succeeded)
         {
             _logger.LogDebug(
@@ -580,6 +614,13 @@ public class AutoMergeService : BackgroundService
                 branch.ProjectId);
 
             _deadBranchesService.RemoveBranchAndCleanup(branch.Id);
+        }
+
+        // After branch cleanup the queue entry for this group may have been cascade-deleted.
+        // Check if the queue can now be split into independent sub-queues.
+        if (queueId.HasValue && succeeded.Count > 0)
+        {
+            _mergeQueueRepository.CheckAndSplitQueue(queueId.Value);
         }
     }
 

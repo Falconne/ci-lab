@@ -115,6 +115,15 @@
                 </template>
               </v-tooltip>
             </div>
+
+            <!-- Queue position indicator -->
+            <div v-if="queueId != null && queuePosition != null" class="queue-position-info mt-3">
+              <v-icon icon="mdi-playlist-play" size="16" class="mr-1" />
+              Queue position:
+              <router-link :to="{ name: 'queues', query: { queueId } }" class="queue-position-link">
+                {{ queuePosition === 1 ? 'Next in queue' : `#${queuePosition} in queue` }}
+              </router-link>
+            </div>
           </div>
 
           <!-- Add Merge Request dialog -->
@@ -394,6 +403,8 @@ const autoMerge = ref(false)
 const autoRebase = ref(false)
 const autoMergeWarning = ref<string | null>(null)
 const settingsUpdating = ref(false)
+const queueId = ref<number | null>(null)
+const queuePosition = ref<number | null>(null)
 const isSubscribed = ref(false)
 const subscriptionLoaded = ref(false)
 const subscriptionUpdating = ref(false)
@@ -742,6 +753,9 @@ async function pollMergeGroup() {
       autoMergeWarning.value = data.autoMergeWarning
     }
 
+    queueId.value = data.queueId ?? null
+    queuePosition.value = data.queuePosition ?? null
+
     // Replace activities with the full response (poll always returns the complete list)
     activities.value = data.branches
   } catch (err) {
@@ -820,6 +834,24 @@ onMounted(async () => {
   display: flex;
   gap: 24px;
   flex-wrap: wrap;
+}
+
+.queue-position-info {
+  display: flex;
+  align-items: center;
+  font-size: 0.85rem;
+  color: rgba(var(--v-theme-on-surface), 0.7);
+}
+
+.queue-position-link {
+  font-weight: 600;
+  color: rgb(var(--v-theme-primary));
+  text-decoration: none;
+  margin-left: 4px;
+}
+
+.queue-position-link:hover {
+  text-decoration: underline;
 }
 
 .subscription-btn {

@@ -129,6 +129,9 @@ try
 
     // Test 8: Manual GitLab CI job filtering (manual jobs must not appear as job chips)
     await RunTest("Manual Job Filter", () => new ManualJobFilterTest(browser).Run());
+
+    // Test 9: Merge queue system (queue assignment, ordering, UI badges and page)
+    await RunTest("Merge Queue", () => new MergeQueueTest(browser).Run());
 }
 catch (Exception ex)
 {

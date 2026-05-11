@@ -45,6 +45,8 @@ try
 
     builder.Services.AddSingleton<IMergeGroupRepository, MergeGroupRepository>();
     builder.Services.AddSingleton<IUntrackedBranchRepository, UntrackedBranchRepository>();
+    builder.Services.AddSingleton<IMergeQueueRepository, MergeQueueRepository>();
+    builder.Services.AddSingleton<MergeQueueService>();
 
     // Compute GitLab API base URL once at startup from configuration
     var gitlabApiBaseUrl = $"{mergicianSettings.GitLab.ServerUrl.TrimEnd('/')}/api/v4";

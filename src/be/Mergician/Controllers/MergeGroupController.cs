@@ -21,6 +21,8 @@ public class MergeGroupController : ControllerBase
 
     private readonly MergeGroupManagementService _mergeGroupManagementService;
 
+    private readonly IMergeQueueRepository _mergeQueueRepository;
+
     private readonly MergePermissionService _mergePermissionService;
 
     private readonly IMergeGroupRepository _mergeGroupRepository;
@@ -33,6 +35,7 @@ public class MergeGroupController : ControllerBase
         AutoMergeService autoMergeService,
         UserActivityBackgroundSyncService backgroundSyncService,
         MergeGroupManagementService mergeGroupManagementService,
+        IMergeQueueRepository mergeQueueRepository,
         MergePermissionService mergePermissionService,
         ILogger<MergeGroupController> logger)
     {
@@ -41,6 +44,7 @@ public class MergeGroupController : ControllerBase
         _autoMergeService = autoMergeService;
         _backgroundSyncService = backgroundSyncService;
         _mergeGroupManagementService = mergeGroupManagementService;
+        _mergeQueueRepository = mergeQueueRepository;
         _mergePermissionService = mergePermissionService;
         _logger = logger;
     }
@@ -128,6 +132,18 @@ public class MergeGroupController : ControllerBase
         _mergeGroupRepository.UpdateAutoMergeWarning(mergeGroupId, null);
         _mergeGroupRepository.ClearMergeErrorsForGroup(mergeGroupId);
         _autoMergeService.ResetRetryState(mergeGroupId);
+
+        // Remove from queue if auto_merge or auto_rebase was turned off (queue requires both).
+        if (!request.AutoMerge || !request.AutoRebase)
+        {
+            _logger.LogInformation(
+                "MergeGroupController: removing merge group {MergeGroupId} from queue because auto_merge={AutoMerge} or auto_rebase={AutoRebase} was disabled",
+                mergeGroupId,
+                request.AutoMerge,
+                request.AutoRebase);
+
+            _mergeQueueRepository.RemoveMergeGroupFromQueue(mergeGroupId);
+        }
 
         var updated = _mergeGroupRepository.GetMergeGroup(mergeGroupId);
 

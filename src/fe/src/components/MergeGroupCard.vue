@@ -17,6 +17,23 @@
         <div class="card-header-right">
           <template v-if="isGroupLoaded">
             <v-tooltip
+              v-if="group.queueId != null && group.queuePosition != null"
+              location="top"
+              :text="`Queue position ${group.queuePosition}`"
+            >
+              <template #activator="{ props: tipProps }">
+                <a
+                  v-bind="tipProps"
+                  class="queue-position-badge"
+                  :href="queueHref"
+                  @click.stop.prevent="navigateToQueue"
+                >
+                  <v-icon icon="mdi-playlist-play" size="12" class="mr-1" />
+                  {{ queuePositionLabel }}
+                </a>
+              </template>
+            </v-tooltip>
+            <v-tooltip
               v-if="groupStatusReasons.length > 0"
               location="top"
             >
@@ -243,6 +260,22 @@ const mergeGroupHref = computed(() => {
   return resolved.href
 })
 
+const queueHref = computed(() => {
+  if (props.group.queueId == null) return ''
+  const resolved = router.resolve({ name: 'queues', query: { queueId: props.group.queueId } })
+  return resolved.href
+})
+
+const queuePositionLabel = computed(() => {
+  if (props.group.queuePosition == null) return ''
+  return props.group.queuePosition === 1 ? 'Next in queue' : `#${props.group.queuePosition} in queue`
+})
+
+function navigateToQueue() {
+  if (props.group.queueId == null) return
+  router.push({ name: 'queues', query: { queueId: props.group.queueId } })
+}
+
 const isGroupLoaded = computed(() =>
   props.group.branches.length > 0 && props.group.branches.every(b => b.mrStatus !== 0)
 )
@@ -384,6 +417,24 @@ function approvalsTooltip(item: BranchWithActivity): string {
   align-items: center;
   gap: 14px;
   flex-shrink: 0;
+}
+
+.queue-position-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: rgba(var(--v-theme-primary), 0.12);
+  color: rgb(var(--v-theme-primary));
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.queue-position-badge:hover {
+  background: rgba(var(--v-theme-primary), 0.22);
 }
 
 /* ---- Card items (repo rows) ---- */

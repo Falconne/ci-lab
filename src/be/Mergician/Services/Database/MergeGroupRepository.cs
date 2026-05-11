@@ -76,9 +76,12 @@ public class MergeGroupRepository : IMergeGroupRepository
             new { Name = name })
             ?? connection.QueryFirstOrDefault<MergeGroupBase>(
                 """
-                SELECT id AS Id, name AS Name, auto_merge AS AutoMerge, auto_rebase AS AutoRebase, auto_merge_warning AS AutoMergeWarning
-                FROM merge_group
-                WHERE name = @Name
+                SELECT mg.id AS Id, mg.name AS Name, mg.auto_merge AS AutoMerge, mg.auto_rebase AS AutoRebase,
+                       mg.auto_merge_warning AS AutoMergeWarning,
+                       mqe.queue_id AS QueueId, mqe.position AS QueuePosition
+                FROM merge_group mg
+                LEFT JOIN merge_queue_entry mqe ON mqe.merge_group_id = mg.id
+                WHERE mg.name = @Name
                 """,
                 new { Name = name });
 
@@ -190,9 +193,12 @@ public class MergeGroupRepository : IMergeGroupRepository
 
         var records = connection.Query<MergeGroupBase>(
                 """
-                SELECT mg.id AS Id, mg.name AS Name, mg.auto_merge AS AutoMerge, mg.auto_rebase AS AutoRebase, mg.auto_merge_warning AS AutoMergeWarning
+                SELECT mg.id AS Id, mg.name AS Name, mg.auto_merge AS AutoMerge, mg.auto_rebase AS AutoRebase,
+                       mg.auto_merge_warning AS AutoMergeWarning,
+                       mqe.queue_id AS QueueId, mqe.position AS QueuePosition
                 FROM users_in_merge_groups umg
                 INNER JOIN merge_group mg ON mg.id = umg.merge_group_id
+                LEFT JOIN merge_queue_entry mqe ON mqe.merge_group_id = mg.id
                 WHERE umg.gitlab_user_id = @GitlabUserId
                 """,
                 new { GitlabUserId = gitlabUserId })
@@ -216,9 +222,12 @@ public class MergeGroupRepository : IMergeGroupRepository
 
         var record = connection.QueryFirstOrDefault<MergeGroupBase>(
             """
-            SELECT id AS Id, name AS Name, auto_merge AS AutoMerge, auto_rebase AS AutoRebase, auto_merge_warning AS AutoMergeWarning
-            FROM merge_group
-            WHERE id = @MergeGroupId
+            SELECT mg.id AS Id, mg.name AS Name, mg.auto_merge AS AutoMerge, mg.auto_rebase AS AutoRebase,
+                   mg.auto_merge_warning AS AutoMergeWarning,
+                   mqe.queue_id AS QueueId, mqe.position AS QueuePosition
+            FROM merge_group mg
+            LEFT JOIN merge_queue_entry mqe ON mqe.merge_group_id = mg.id
+            WHERE mg.id = @MergeGroupId
             """,
             new { MergeGroupId = mergeGroupId });
 
@@ -423,9 +432,12 @@ public class MergeGroupRepository : IMergeGroupRepository
 
         var records = connection.Query<MergeGroupBase>(
                 """
-                SELECT id AS Id, name AS Name, auto_merge AS AutoMerge, auto_rebase AS AutoRebase, auto_merge_warning AS AutoMergeWarning
-                FROM merge_group
-                WHERE auto_merge = TRUE OR auto_rebase = TRUE
+                SELECT mg.id AS Id, mg.name AS Name, mg.auto_merge AS AutoMerge, mg.auto_rebase AS AutoRebase,
+                       mg.auto_merge_warning AS AutoMergeWarning,
+                       mqe.queue_id AS QueueId, mqe.position AS QueuePosition
+                FROM merge_group mg
+                LEFT JOIN merge_queue_entry mqe ON mqe.merge_group_id = mg.id
+                WHERE mg.auto_merge = TRUE OR mg.auto_rebase = TRUE
                 """)
             .ToList();
 
@@ -438,8 +450,35 @@ public class MergeGroupRepository : IMergeGroupRepository
         return result;
     }
 
-    public void UpdateAutoMergeWarning(int mergeGroupId, string? warning)
+    public List<MergeGroup> GetMergeGroupsForQueue(int queueId)
     {
+        using var connection = _connectionFactory.CreateConnection();
+        connection.Open();
+
+        var records = connection.Query<MergeGroupBase>(
+                """
+                SELECT mg.id AS Id, mg.name AS Name, mg.auto_merge AS AutoMerge, mg.auto_rebase AS AutoRebase,
+                       mg.auto_merge_warning AS AutoMergeWarning,
+                       mqe.queue_id AS QueueId, mqe.position AS QueuePosition
+                FROM merge_queue_entry mqe
+                INNER JOIN merge_group mg ON mg.id = mqe.merge_group_id
+                WHERE mqe.queue_id = @QueueId
+                ORDER BY mqe.position
+                """,
+                new { QueueId = queueId })
+            .ToList();
+
+        var result = GetBranchesForGroups(connection, records);
+
+        _logger.LogDebug(
+            "Retrieved {Count} merge groups for queue {QueueId}",
+            result.Count,
+            queueId);
+
+        return result;
+    }
+
+    public void UpdateAutoMergeWarning(int mergeGroupId, string? warning)    {
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();
 
@@ -505,10 +544,13 @@ public class MergeGroupRepository : IMergeGroupRepository
 
         var record = connection.QueryFirstOrDefault<MergeGroupBase>(
             """
-            SELECT mg.id AS Id, mg.name AS Name, mg.auto_merge AS AutoMerge, mg.auto_rebase AS AutoRebase, mg.auto_merge_warning AS AutoMergeWarning
+            SELECT mg.id AS Id, mg.name AS Name, mg.auto_merge AS AutoMerge, mg.auto_rebase AS AutoRebase,
+                   mg.auto_merge_warning AS AutoMergeWarning,
+                   mqe.queue_id AS QueueId, mqe.position AS QueuePosition
             FROM merge_group mg
             INNER JOIN branches_in_merge_group bmg ON bmg.merge_group_id = mg.id
             INNER JOIN branch_in_project bp ON bp.id = bmg.branch_in_project_id
+            LEFT JOIN merge_queue_entry mqe ON mqe.merge_group_id = mg.id
             WHERE bp.branch_name = @BranchName AND bp.project_id = @ProjectId
             LIMIT 1
             """,
@@ -598,7 +640,9 @@ public class MergeGroupRepository : IMergeGroupRepository
             {
                 AutoMerge = r.AutoMerge,
                 AutoRebase = r.AutoRebase,
-                AutoMergeWarning = r.AutoMergeWarning
+                AutoMergeWarning = r.AutoMergeWarning,
+                QueueId = r.QueueId,
+                QueuePosition = r.QueuePosition
             })
             .ToList();
     }
