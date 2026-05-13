@@ -6,13 +6,35 @@
     :href="mergeGroupHref"
     @click.prevent="emit('navigate', group)"
   >
-    <div class="card-accent" :class="groupStatusClass(group)" />
+    <div class="card-accent" :class="group.autoMerge ? groupStatusClass(group) : 'status-neutral'" />
     <div class="card-body">
       <div class="card-header">
         <div class="branch-info" :class="{ 'branch-info--single-mr': singleMrTitle }">
           <span v-if="singleMrTitle" ref="mrTitleRef" class="mr-header-title" :class="{ 'mr-header-title--overflow': mrTitleOverflows }">{{ singleMrTitle }}</span>
           <span v-else class="branch-name">{{ group.name }}</span>
-          <span v-if="singleMrTitle" class="branch-subtitle">{{ group.name }}</span>
+          <!-- Branch subtitle row: subtitle + inline status chip (single-MR mode only) -->
+          <div v-if="singleMrTitle" class="branch-subtitle-row">
+            <span class="branch-subtitle">{{ group.name }}</span>
+            <template v-if="group.autoMerge && isGroupLoaded">
+              <v-tooltip
+                v-if="groupStatusReasons.length > 0"
+                location="top"
+              >
+                <template #activator="{ props: tipProps }">
+                  <span v-bind="tipProps" class="card-status-badge" :class="groupStatusClass(group)">
+                    <span class="status-dot" />
+                    {{ groupStatusLabel(group) }}
+                  </span>
+                </template>
+                <span class="tooltip-multiline">{{ groupStatusReasonsText }}</span>
+              </v-tooltip>
+              <span v-else class="card-status-badge" :class="groupStatusClass(group)">
+                <span class="status-dot" />
+                {{ groupStatusLabel(group) }}
+              </span>
+            </template>
+            <span v-else-if="group.autoMerge" class="skeleton-badge"><span class="skeleton-shimmer" /></span>
+          </div>
         </div>
         <div class="card-header-right">
           <template v-if="isGroupLoaded">
@@ -33,24 +55,27 @@
                 </a>
               </template>
             </v-tooltip>
-            <v-tooltip
-              v-if="groupStatusReasons.length > 0"
-              location="top"
-            >
-              <template #activator="{ props: tipProps }">
-                <span v-bind="tipProps" class="card-status-badge" :class="groupStatusClass(group)">
-                  <span class="status-dot" />
-                  {{ groupStatusLabel(group) }}
-                </span>
-              </template>
-              <span class="tooltip-multiline">{{ groupStatusReasonsText }}</span>
-            </v-tooltip>
-            <span v-else class="card-status-badge" :class="groupStatusClass(group)">
-              <span class="status-dot" />
-              {{ groupStatusLabel(group) }}
-            </span>
+            <!-- Status chip in right area only when not in single-MR mode (which has it inline) -->
+            <template v-if="!singleMrTitle && group.autoMerge">
+              <v-tooltip
+                v-if="groupStatusReasons.length > 0"
+                location="top"
+              >
+                <template #activator="{ props: tipProps }">
+                  <span v-bind="tipProps" class="card-status-badge" :class="groupStatusClass(group)">
+                    <span class="status-dot" />
+                    {{ groupStatusLabel(group) }}
+                  </span>
+                </template>
+                <span class="tooltip-multiline">{{ groupStatusReasonsText }}</span>
+              </v-tooltip>
+              <span v-else class="card-status-badge" :class="groupStatusClass(group)">
+                <span class="status-dot" />
+                {{ groupStatusLabel(group) }}
+              </span>
+            </template>
           </template>
-          <span v-else class="skeleton-badge"><span class="skeleton-shimmer" /></span>
+          <span v-else-if="!singleMrTitle && group.autoMerge" class="skeleton-badge"><span class="skeleton-shimmer" /></span>
         </div>
       </div>
       <div class="card-items">
@@ -380,6 +405,13 @@ function approvalsTooltip(item: BranchWithActivity): string {
 .branch-info--single-mr {
   flex-direction: column;
   align-items: flex-start;
+}
+
+.branch-subtitle-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 .mr-header-title {
