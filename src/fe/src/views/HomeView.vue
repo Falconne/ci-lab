@@ -30,12 +30,43 @@
           <p class="text-body-1 text-grey">Loading dashboard...</p>
         </div>
 
-        <div v-else>
-          <div class="filter-container mb-8">
+        <div v-else class="dashboard-content">
+          <div class="dashboard-toolbar mb-6">
             <DashboardFilter
               v-model="filterText"
               :show-open-m-r-button="isMRUrlFilter && filteredMergeGroups.length === 0"
+              class="dashboard-filter"
             />
+            <div class="view-toggle">
+              <v-tooltip text="Grid View" location="top">
+                <template #activator="{ props: tipProps }">
+                  <v-btn
+                    v-bind="tipProps"
+                    icon
+                    size="small"
+                    variant="text"
+                    :color="viewMode === 'grid' ? 'primary' : undefined"
+                    @click="viewMode = 'grid'"
+                  >
+                    <v-icon>mdi-table</v-icon>
+                  </v-btn>
+                </template>
+              </v-tooltip>
+              <v-tooltip text="Card View" location="top">
+                <template #activator="{ props: tipProps }">
+                  <v-btn
+                    v-bind="tipProps"
+                    icon
+                    size="small"
+                    variant="text"
+                    :color="viewMode === 'card' ? 'primary' : undefined"
+                    @click="viewMode = 'card'"
+                  >
+                    <v-icon>mdi-view-comfy</v-icon>
+                  </v-btn>
+                </template>
+              </v-tooltip>
+            </div>
           </div>
 
           <div v-if="filteredMergeGroups.length === 0 && !isMRUrlFilter" class="text-center pa-8">
@@ -48,6 +79,15 @@
             <p class="text-body-1 text-grey">No tracked merge group found for this MR URL</p>
           </div>
 
+          <!-- Grid view -->
+          <MergeGroupGrid
+            v-else-if="viewMode === 'grid'"
+            :sections="partitionedGroups"
+            :now="now"
+            @navigate="openMergeGroupDetails"
+          />
+
+          <!-- Card view -->
           <div v-else class="dashboard-cards">
             <div
               v-for="partition in partitionedGroups"
@@ -79,11 +119,13 @@ import { fetchBackend, isStartupRequiredError } from '@/composables/useBackendFe
 import { useCurrentUser } from '@/composables/useCurrentUser'
 import { usePolling } from '@/composables/usePolling'
 import { useNow } from '@/composables/useNow'
+import { useViewMode } from '@/composables/useViewMode'
 import type { MergeGroup } from '@/types/mergeGroup'
 import { handleTransientError, clearTransientError } from '@/utils/pollHelpers'
 import WelcomePage from '@/components/WelcomePage.vue'
 import DashboardFilter from '@/components/DashboardFilter.vue'
 import MergeGroupCard from '@/components/MergeGroupCard.vue'
+import MergeGroupGrid from '@/components/MergeGroupGrid.vue'
 
 interface GroupPartition {
   title: string
@@ -101,6 +143,7 @@ const authenticated = computed(() => currentUser.value !== null)
 const errorMessage = ref('')
 const filterText = ref('')
 const now = useNow()
+const viewMode = useViewMode()
 
 /**
  * Returns the latest lastUpdated timestamp across all branches in the group, or null.
@@ -315,6 +358,30 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+/* ---- Dashboard content wrapper ---- */
+.dashboard-content {
+  width: 100%;
+}
+
+/* ---- Dashboard toolbar: filter + view toggle side by side ---- */
+.dashboard-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dashboard-filter {
+  flex: 1;
+  max-width: 600px;
+}
+
+.view-toggle {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
 /* ---- Partition sections (time-based grouping) ---- */
 .partition-section {
   margin-bottom: 28px;
@@ -333,12 +400,6 @@ onMounted(async () => {
   margin-bottom: 12px;
   padding-bottom: 6px;
   border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.08);
-}
-
-/* ---- Filter container — constrained to one card width ---- */
-.filter-container {
-  width: 100%;
-  max-width: 600px;
 }
 
 /* ---- Card container — auto-fill with fixed 600px cards ---- */

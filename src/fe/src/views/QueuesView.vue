@@ -62,11 +62,45 @@
           </div>
 
           <div v-else>
-            <p class="text-body-2 text-grey mb-4">
-              Drag to reorder. The first merge group in the queue is rebased and merged next.
-            </p>
+            <div class="queue-toolbar mb-4">
+              <p class="text-body-2 text-grey queue-drag-hint">
+                Drag to reorder. The first merge group in the queue is rebased and merged next.
+              </p>
+              <div class="view-toggle">
+                <v-tooltip text="Grid View" location="top">
+                  <template #activator="{ props: tipProps }">
+                    <v-btn
+                      v-bind="tipProps"
+                      icon
+                      size="small"
+                      variant="text"
+                      :color="viewMode === 'grid' ? 'primary' : undefined"
+                      @click="viewMode = 'grid'"
+                    >
+                      <v-icon>mdi-table</v-icon>
+                    </v-btn>
+                  </template>
+                </v-tooltip>
+                <v-tooltip text="Card View" location="top">
+                  <template #activator="{ props: tipProps }">
+                    <v-btn
+                      v-bind="tipProps"
+                      icon
+                      size="small"
+                      variant="text"
+                      :color="viewMode === 'card' ? 'primary' : undefined"
+                      @click="viewMode = 'card'"
+                    >
+                      <v-icon>mdi-view-comfy</v-icon>
+                    </v-btn>
+                  </template>
+                </v-tooltip>
+              </div>
+            </div>
 
+            <!-- Card view: draggable list -->
             <draggable
+              v-if="viewMode === 'card'"
               v-model="queueGroups"
               item-key="id"
               handle=".drag-handle"
@@ -92,6 +126,14 @@
                 </div>
               </template>
             </draggable>
+
+            <!-- Grid view -->
+            <MergeGroupGrid
+              v-else
+              :sections="[{ title: '', groups: queueGroups }]"
+              :now="now"
+              @navigate="openMergeGroupDetails"
+            />
           </div>
         </template>
       </v-col>
@@ -106,8 +148,10 @@ import draggable from 'vuedraggable'
 import { fetchBackend, isStartupRequiredError } from '@/composables/useBackendFetch'
 import { usePolling } from '@/composables/usePolling'
 import { useNow } from '@/composables/useNow'
+import { useViewMode } from '@/composables/useViewMode'
 import type { MergeGroup } from '@/types/mergeGroup'
 import MergeGroupCard from '@/components/MergeGroupCard.vue'
+import MergeGroupGrid from '@/components/MergeGroupGrid.vue'
 
 interface QueueSummary {
   queueId: number
@@ -118,6 +162,7 @@ interface QueueSummary {
 const route = useRoute()
 const router = useRouter()
 const now = useNow()
+const viewMode = useViewMode()
 
 const allQueues = ref<QueueSummary[]>([])
 const queuesLoaded = ref(false)
@@ -288,6 +333,25 @@ watch(() => route.query.queueId, (newVal) => {
 
 .queue-autocomplete {
   min-width: 300px;
+}
+
+/* ---- Queue toolbar: drag hint + view toggle ---- */
+.queue-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.queue-drag-hint {
+  flex: 1;
+  margin: 0;
+}
+
+.view-toggle {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
 }
 
 .queue-entry {
