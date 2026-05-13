@@ -169,32 +169,77 @@ public class MergeQueueTest
                 throw new InvalidOperationException("Queues navigation tab not found in app bar");
             }
 
-            // Open the queue selector autocomplete and select the queue that contains "primary"
+            // The queue selector autocomplete is only shown when multiple queues exist.
+            // When there is a single queue (as in this test), it is auto-selected and
+            // content is displayed directly without any picker.
             var queueAutocomplete = _browser.Page.Locator(".queue-autocomplete");
-            await queueAutocomplete.WaitForAsync(new LocatorWaitForOptions { Timeout = 10000 });
-            await queueAutocomplete.ClickAsync();
-            await Task.Delay(1000);
-            await _browser.TakeScreenshot("queue_06_queue_selector_open");
+            var autocompleteCount = await queueAutocomplete.CountAsync();
+            Log.Information("Queue selector autocomplete visible: {Visible}", autocompleteCount > 0);
 
-            var queueDropdownItems = _browser.Page
-                .Locator(".v-overlay--active .v-list-item")
-                .Filter(new LocatorFilterOptions { HasText = "primary" });
-            var dropdownItemCount = await queueDropdownItems.CountAsync();
-            Log.Information("Queue dropdown items containing 'primary': {Count}", dropdownItemCount);
-
-            if (dropdownItemCount == 0)
+            if (autocompleteCount > 0)
             {
-                throw new InvalidOperationException(
-                    "No queue items containing 'primary' found in the queue selector dropdown");
+                // Multiple queues exist — select the one containing "primary"
+                await queueAutocomplete.ClickAsync();
+                await Task.Delay(1000);
+                await _browser.TakeScreenshot("queue_06_queue_selector_open");
+
+                var queueDropdownItems = _browser.Page
+                    .Locator(".v-overlay--active .v-list-item")
+                    .Filter(new LocatorFilterOptions { HasText = "primary" });
+                var dropdownItemCount = await queueDropdownItems.CountAsync();
+                Log.Information("Queue dropdown items containing 'primary': {Count}", dropdownItemCount);
+
+                if (dropdownItemCount == 0)
+                {
+                    throw new InvalidOperationException(
+                        "No queue items containing 'primary' found in the queue selector dropdown");
+                }
+
+                await queueDropdownItems.First.ClickAsync();
+                await Task.Delay(2000);
+                await _browser.TakeScreenshot("queue_07_queue_selected");
+            }
+            else
+            {
+                // Single queue — auto-selected, wait for content to load
+                Log.Information("Single queue detected (auto-selected); waiting for queue content to load");
+                await _browser.TakeScreenshot("queue_06_single_queue_content");
             }
 
-            await queueDropdownItems.First.ClickAsync();
-            await Task.Delay(2000);
-            await _browser.TakeScreenshot("queue_07_queue_selected");
+            // Poll for queue toolbar to appear, which means queue data has loaded.
+            // Then switch to card view so the card-specific selectors work.
+            var queueToolbar = _browser.Page.Locator(".queue-toolbar");
+            for (var i = 0; i < 30; i++)
+            {
+                if (await queueToolbar.CountAsync() > 0)
+                {
+                    Log.Information("Queue toolbar appeared after ~{Seconds}s", i);
+                    break;
+                }
 
-            // Verify both MG cards are shown in the queue
+                if (i % 10 == 0)
+                {
+                    Log.Information("Waiting for queue toolbar... {Seconds}s", i);
+                }
+
+                await Task.Delay(1000);
+            }
+
+            if (await queueToolbar.CountAsync() == 0)
+            {
+                throw new InvalidOperationException("Queue toolbar never appeared — queue data did not load");
+            }
+
+            // Ensure card view is active (the view mode may have been changed by a prior test)
+            var cardViewBtn = _browser.Page.Locator(".view-toggle .v-btn").Nth(1);
+            await cardViewBtn.ClickAsync();
+            await Task.Delay(500);
+            Log.Information("Switched to card view");
+
+            // Poll for queue cards to appear in card view
             var queueCards = _browser.Page.Locator(".queue-card-wrapper .merge-group-card");
             var cardCount = await queueCards.CountAsync();
+            await _browser.TakeScreenshot("queue_07_queue_cards_loaded");
             Log.Information("Cards in selected queue: {Count}", cardCount);
 
             if (cardCount < 2)

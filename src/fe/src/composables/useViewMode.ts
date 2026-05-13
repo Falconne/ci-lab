@@ -12,5 +12,5 @@ watch(viewMode, (mode) => {
 })
 
 export function useViewMode() {
-  return { viewMode }
+  return viewMode
 }
