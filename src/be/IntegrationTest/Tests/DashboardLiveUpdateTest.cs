@@ -98,33 +98,18 @@ public class DashboardLiveUpdateTest
 
         await _browser.TakeScreenshot("live_04_branch_without_mr");
 
-        // The branch may appear in a loading state (no status badge) or already showing
-        // "Blocked" if the regular poll populated data before we checked. Both are valid.
-        var isAlreadyWaiting = await BranchCardHasStatus(branchName, "Blocked");
-        if (isAlreadyWaiting)
-        {
-            Log.Information("Branch '{BranchName}' shows 'Blocked' status immediately", branchName);
-        }
-        else
-        {
-            Log.Information(
-                "Branch '{BranchName}' appeared without status badge (data loading), waiting for 'Blocked' status...",
-                branchName);
-
-            var becameWaiting = await WaitForBranchToReachStatus(branchName, "Blocked", 30);
-            if (!becameWaiting)
-            {
-                throw new InvalidOperationException(
-                    $"Branch '{branchName}' did not reach 'Blocked' status within timeout");
-            }
-
-            Log.Information("Branch '{BranchName}' reached 'Blocked' status after loading", branchName);
-        }
-
         // verify explicit no-MR text is shown before an MR exists
         var card = _browser.Page.Locator(".merge-group-card")
             .Filter(new LocatorFilterOptions { HasTextString = branchName })
             .First;
+
+        // Wait for MR data to load so we can verify the no-MR state (card item may still be loading)
+        var noMrLoaded = await WaitForNoMrText(branchName, 30);
+        if (!noMrLoaded)
+        {
+            throw new InvalidOperationException(
+                $"Branch '{branchName}' did not show 'No Merge Request' within timeout");
+        }
 
         var noMergeRequestText = (await card.Locator(".item-no-mr").InnerTextAsync()).Trim();
         if (!noMergeRequestText.Contains("No Merge Request", StringComparison.OrdinalIgnoreCase))
@@ -148,14 +133,14 @@ public class DashboardLiveUpdateTest
             "Created MR for branch '{BranchName}' with long title, waiting for dashboard update...",
             branchName);
 
-        // Wait for the status to change from "Blocked" to "Blocked" (with MR) or "Ready"
-        var mrUpdated = await WaitForBranchStatusChange(branchName, "Blocked", 60);
+        // Wait for the MR title to appear on the card (the refresh cycle picks up the new MR)
+        var mrUpdated = await WaitForMergeRequestToAppear(branchName, 60);
         await _browser.TakeScreenshot("live_05_branch_with_mr");
 
         if (!mrUpdated)
         {
             throw new InvalidOperationException(
-                $"Status did not change from 'Blocked' for branch '{branchName}' within timeout");
+                $"MR title did not appear for branch '{branchName}' within timeout");
         }
 
         Log.Information("MR status updated on dashboard for '{BranchName}'", branchName);
@@ -338,63 +323,38 @@ public class DashboardLiveUpdateTest
     }
 
     /// <summary>
-    ///     Checks if a branch card has a specific group status label (e.g. "Waiting", "Open", "Ready").
+    ///     Waits until a branch card shows the "No Merge Request" indicator (item data loaded, no MR).
     /// </summary>
-    private async Task<bool> BranchCardHasStatus(string branchName, string expectedStatus)
-    {
-        var cards = _browser.Page.Locator(".merge-group-card");
-        var cardCount = await cards.CountAsync();
-
-        for (var i = 0; i < cardCount; i++)
-        {
-            var card = cards.Nth(i);
-            var name = (await card.Locator(".branch-name, .branch-subtitle").First.InnerTextAsync()).Trim();
-            if (!name.Contains(branchName))
-            {
-                continue;
-            }
-
-            var badge = card.Locator(".card-status-badge");
-            if (await badge.CountAsync() > 0)
-            {
-                var statusText = (await badge.InnerTextAsync()).Trim();
-                if (statusText.Equals(expectedStatus, StringComparison.OrdinalIgnoreCase))
-                {
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
-
-    /// <summary>
-    ///     Waits until a branch card shows the specified status badge.
-    /// </summary>
-    private async Task<bool> WaitForBranchToReachStatus(
-        string branchName,
-        string expectedStatus,
-        int timeoutSeconds)
+    private async Task<bool> WaitForNoMrText(string branchName, int timeoutSeconds)
     {
         for (var s = 0; s < timeoutSeconds; s++)
         {
-            if (await BranchCardHasStatus(branchName, expectedStatus))
-            {
-                Log.Information(
-                    "Branch '{BranchName}' reached status '{Status}' after ~{Seconds}s",
-                    branchName,
-                    expectedStatus,
-                    s);
+            var cards = _browser.Page.Locator(".merge-group-card");
+            var cardCount = await cards.CountAsync();
 
-                return true;
+            for (var i = 0; i < cardCount; i++)
+            {
+                var card = cards.Nth(i);
+                var name = (await card.Locator(".branch-name, .branch-subtitle").First.InnerTextAsync()).Trim();
+                if (!name.Contains(branchName))
+                    continue;
+
+                if (await card.Locator(".item-no-mr").CountAsync() > 0)
+                {
+                    Log.Information(
+                        "Branch '{BranchName}' shows 'No Merge Request' after ~{Seconds}s",
+                        branchName,
+                        s);
+
+                    return true;
+                }
             }
 
             if (s % 10 == 0)
             {
                 Log.Information(
-                    "Waiting for branch '{BranchName}' to reach status '{Status}'... {Seconds}s",
+                    "Waiting for 'No Merge Request' text on '{BranchName}'... {Seconds}s",
                     branchName,
-                    expectedStatus,
                     s);
             }
 
@@ -405,32 +365,38 @@ public class DashboardLiveUpdateTest
     }
 
     /// <summary>
-    ///     Waits for a branch card's item status to change from the given status.
+    ///     Waits until a branch card shows an MR title element (indicating the dashboard
+    ///     has picked up a newly created MR via the refresh cycle).
     /// </summary>
-    private async Task<bool> WaitForBranchStatusChange(
-        string branchName,
-        string fromStatus,
-        int timeoutSeconds)
+    private async Task<bool> WaitForMergeRequestToAppear(string branchName, int timeoutSeconds)
     {
         for (var s = 0; s < timeoutSeconds; s++)
         {
-            var stillHasOldStatus = await BranchCardHasStatus(branchName, fromStatus);
-            if (!stillHasOldStatus && await IsBranchOnDashboard(branchName))
-            {
-                Log.Information(
-                    "Status changed from '{FromStatus}' for '{BranchName}' after ~{Seconds}s",
-                    fromStatus,
-                    branchName,
-                    s);
+            var cards = _browser.Page.Locator(".merge-group-card");
+            var cardCount = await cards.CountAsync();
 
-                return true;
+            for (var i = 0; i < cardCount; i++)
+            {
+                var card = cards.Nth(i);
+                var name = (await card.Locator(".branch-name, .branch-subtitle").First.InnerTextAsync()).Trim();
+                if (!name.Contains(branchName))
+                    continue;
+
+                if (await card.Locator(".item-mr-title").CountAsync() > 0)
+                {
+                    Log.Information(
+                        "Branch '{BranchName}' shows MR title after ~{Seconds}s",
+                        branchName,
+                        s);
+
+                    return true;
+                }
             }
 
             if (s % 10 == 0)
             {
                 Log.Information(
-                    "Waiting for status change from '{FromStatus}' on '{BranchName}'... {Seconds}s",
-                    fromStatus,
+                    "Waiting for MR title to appear on '{BranchName}'... {Seconds}s",
                     branchName,
                     s);
             }

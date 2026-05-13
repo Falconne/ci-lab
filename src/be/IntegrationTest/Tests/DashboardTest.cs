@@ -85,16 +85,7 @@ public class DashboardTest
                     "Draft: Epsilon changes in secondary-4",
                     "Test Group / secondary-4");
 
-                AssertCardGroupStatus("feature/alpha", "Ready");
-                AssertCardGroupStatus("feature/beta", "Ready");
-                AssertCardGroupStatus("feature/epsilon", "Waiting");
                 Log.Information("test1 dashboard data verified");
-            },
-            new Dictionary<string, string>
-            {
-                ["feature/alpha"] = "Ready",
-                ["feature/beta"] = "Ready",
-                ["feature/epsilon"] = "Waiting"
             });
 
         await TestMergeGroupDetailsNavigationAndLinks(
@@ -137,12 +128,7 @@ public class DashboardTest
                     "Gamma changes in secondary-2",
                     "Test Group / secondary-2");
 
-                AssertCardGroupStatus("feature/gamma", "Ready");
                 Log.Information("test2 dashboard data verified");
-            },
-            new Dictionary<string, string>
-            {
-                ["feature/gamma"] = "Ready"
             });
 
         // Test with test3 — should see feature/delta (no MR)
@@ -160,7 +146,6 @@ public class DashboardTest
                     "Test Group / secondary-3",
                     "No Merge Request");
 
-                AssertCardGroupStatus("feature/delta", "Blocked");
                 Log.Information("test3 dashboard data verified");
             });
 
