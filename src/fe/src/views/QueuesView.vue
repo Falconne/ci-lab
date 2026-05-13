@@ -80,7 +80,7 @@
                     <v-icon icon="mdi-drag-vertical" size="20" color="grey" />
                   </div>
                   <div class="position-badge" :class="index === 0 ? 'position-first' : ''">
-                    {{ index === 0 ? '▶' : `#${index + 1}` }}
+                    {{ `#${index + 1}` }}
                   </div>
                   <div class="queue-card-wrapper">
                     <MergeGroupCard
