@@ -352,6 +352,7 @@ watch(() => route.query.queueId, (newVal) => {
   align-items: center;
   gap: 2px;
   flex-shrink: 0;
+  margin-left: auto;
 }
 
 .queue-entry {

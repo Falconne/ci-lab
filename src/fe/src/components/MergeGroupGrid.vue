@@ -10,11 +10,11 @@
         <table class="mg-grid">
           <thead>
             <tr>
-              <th class="col-mg">Branch / MR</th>
-              <th class="col-status" />
+              <th class="col-mg">Branch</th>
+              <th v-if="sectionHasAutoMerge(section)" class="col-status">Status</th>
               <th class="col-project">Project</th>
               <th class="col-mr">Merge Request</th>
-              <th class="col-approvals" />
+              <th class="col-approvals">Approvals</th>
               <th class="col-updated">Updated</th>
               <th class="col-jobs">Build Jobs</th>
             </tr>
@@ -28,14 +28,10 @@
                 :class="{ 'grid-row--sub': idx > 0 }"
                 @click="emit('navigate', group)"
               >
-                <!-- MG name / MR title: rowspan spanning all branch rows -->
+                <!-- Branch name: rowspan spanning all branch rows -->
                 <td v-if="idx === 0" :rowspan="Math.max(1, group.branches.length)" class="col-mg">
                   <div class="mg-name-cell">
-                    <div v-if="singleMrTitle(group)" class="mg-title-block">
-                      <span class="mg-mr-title">{{ singleMrTitle(group) }}</span>
-                      <span class="mg-branch-subtitle">{{ group.name }}</span>
-                    </div>
-                    <span v-else class="mg-branch-name">{{ group.name }}</span>
+                    <span class="mg-branch-name">{{ group.name }}</span>
                     <a
                       v-if="group.queueId != null && group.queuePosition != null"
                       class="queue-position-badge"
@@ -47,8 +43,8 @@
                   </div>
                 </td>
 
-                <!-- Status chip: rowspan spanning all branch rows -->
-                <td v-if="idx === 0" :rowspan="Math.max(1, group.branches.length)" class="col-status">
+                <!-- Status chip: rowspan spanning all branch rows, only in autoMerge sections -->
+                <td v-if="idx === 0 && sectionHasAutoMerge(section)" :rowspan="Math.max(1, group.branches.length)" class="col-status">
                   <template v-if="group.autoMerge && isGroupLoaded(group)">
                     <v-tooltip v-if="getGroupStatusReasons(group).length > 0" location="top">
                       <template #activator="{ props: tipProps }">
@@ -96,7 +92,6 @@
                     <v-tooltip location="top" :text="approvalsTooltip(branch)">
                       <template #activator="{ props: tipProps }">
                         <span v-bind="tipProps" class="approvals-cell">
-                          <v-icon icon="mdi-thumb-up" size="11" :color="approvalColor(branch)" />
                           {{ itemApprovalsText(branch) }}
                         </span>
                       </template>
@@ -188,11 +183,8 @@ function isGroupLoaded(group: MergeGroup): boolean {
   return group.branches.length > 0 && group.branches.every(b => b.mrStatus !== 0)
 }
 
-function singleMrTitle(group: MergeGroup): string | null {
-  if (group.branches.length !== 1) return null
-  const branch = group.branches[0]
-  if (branch.mrStatus === 0) return null
-  return branch.mergeRequestTitle ?? null
+function sectionHasAutoMerge(section: GridSection): boolean {
+  return section.groups.some(g => g.autoMerge)
 }
 
 /** Returns one row descriptor per branch, or a single null-branch row when branches haven't loaded. */
@@ -232,11 +224,6 @@ function successJobCount(group: MergeGroup): number {
 }
 
 // --- Approvals ---
-
-function approvalColor(item: BranchWithActivity): string {
-  if (!item.hasMergeRequest || item.approvalsGiven == null || item.approvalsRequired == null) return 'grey'
-  return item.approvalsGiven >= item.approvalsRequired ? 'green' : 'grey'
-}
 
 function approvalsTooltip(item: BranchWithActivity): string {
   if (!item.hasMergeRequest || item.approvalsGiven == null || item.approvalsRequired == null) return ''
@@ -349,27 +336,6 @@ thead th {
   min-width: 0;
 }
 
-.mg-title-block {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-
-.mg-mr-title {
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: rgb(var(--v-theme-on-surface));
-}
-
-.mg-branch-subtitle {
-  font-size: 0.72rem;
-  color: rgba(var(--v-theme-on-surface), 0.55);
-  white-space: nowrap;
-}
-
 .mg-branch-name {
   font-weight: 600;
   white-space: nowrap;
@@ -421,9 +387,6 @@ thead th {
 }
 
 .approvals-cell {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
   font-size: 0.78rem;
   color: rgba(var(--v-theme-on-surface), 0.6);
   white-space: nowrap;

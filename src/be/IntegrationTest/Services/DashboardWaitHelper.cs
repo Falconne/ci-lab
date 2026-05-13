@@ -26,6 +26,20 @@ public static class DashboardWaitHelper
                     Log.Information("Waiting for dashboard cards to appear... {Seconds}s", s);
                 }
 
+                // If data has loaded but no cards are visible, we may be in grid view.
+                // Switch to card view so card-based test assertions work.
+                var viewToggle = page.Locator(".view-toggle");
+                if (await viewToggle.CountAsync() > 0)
+                {
+                    var cardViewBtn = viewToggle.Locator(".v-btn").Nth(1);
+                    if (await cardViewBtn.CountAsync() > 0)
+                    {
+                        Log.Information("Grid view detected on dashboard, switching to card view");
+                        await cardViewBtn.ClickAsync();
+                        await Task.Delay(300);
+                    }
+                }
+
                 await Task.Delay(1000);
                 continue;
             }
