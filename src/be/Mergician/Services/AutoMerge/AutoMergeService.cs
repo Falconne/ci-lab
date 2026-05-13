@@ -10,13 +10,13 @@ namespace Mergician.Services.AutoMerge;
 
 /// <summary>
 ///     Background service that monitors merge groups with auto merge or auto rebase enabled.
-///     Runs a loop every 5 seconds to check and act on eligible merge groups:
+///     Runs a loop with a minimum cycle interval of 30 seconds to check and act on eligible merge groups:
 ///     - Auto Rebase: rebases branches that are behind their target branch.
 ///     - Auto Merge: merges all branches in a group when they are all ready.
 /// </summary>
 public class AutoMergeService : BackgroundService
 {
-    private static readonly TimeSpan _pollInterval = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan _minCycleInterval = TimeSpan.FromSeconds(30);
 
     private static readonly TimeSpan _rebaseCheckInterval = TimeSpan.FromSeconds(2);
 
@@ -100,6 +100,7 @@ public class AutoMergeService : BackgroundService
 
         while (!stoppingToken.IsCancellationRequested)
         {
+            var cycleStart = DateTime.UtcNow;
             try
             {
                 await ProcessAutoMergeGroups(stoppingToken);
@@ -112,13 +113,23 @@ public class AutoMergeService : BackgroundService
             {
                 _logger.LogWarning("AutoMergeService: GitLab is in startup mode, pausing until ready");
                 await WaitForReady(stoppingToken);
+                continue;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "AutoMergeService: unexpected error during processing");
             }
 
-            await Task.Delay(_pollInterval, stoppingToken);
+            var elapsed = DateTime.UtcNow - cycleStart;
+            var remaining = _minCycleInterval - elapsed;
+            if (remaining > TimeSpan.Zero)
+            {
+                _logger.LogDebug(
+                    "AutoMergeService: cycle completed in {ElapsedMs}ms, waiting {RemainingMs}ms before next cycle",
+                    (int)elapsed.TotalMilliseconds,
+                    (int)remaining.TotalMilliseconds);
+                await Task.Delay(remaining, stoppingToken);
+            }
         }
 
         _logger.LogInformation("AutoMergeService stopped");
