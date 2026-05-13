@@ -171,7 +171,7 @@ public class MergeGroupManagementTest
     ///     Tests adding a merge request to a merge group by URL.
     ///     1. Create a branch + MR in a project that the test user doesn't have on a MG yet
     ///     2. Navigate to an existing merge group
-    ///     3. Click "Add Merge Request..." and enter the MR URL
+    ///     3. Click "Add Another MR to Group..." and enter the MR URL
     ///     4. Verify the branch appears in the merge group
     /// </summary>
     private async Task TestAddMergeRequestToGroup()
@@ -223,8 +223,8 @@ public class MergeGroupManagementTest
             var initialBranchCount = await _browser.Page.Locator(".branch-card").CountAsync();
             Log.Information("Initial branch count: {Count}", initialBranchCount);
 
-            // Click "Add Existing Merge Request..."
-            var addMergeRequestBtn = _browser.Page.Locator("button:has-text('Add Existing Merge Request')");
+            // Click "Add Another MR to Group..."
+            var addMergeRequestBtn = _browser.Page.Locator("button:has-text('Add Another MR to Group')");
             await addMergeRequestBtn.WaitForAsync(new LocatorWaitForOptions { Timeout = 10000 });
             await addMergeRequestBtn.ClickAsync();
             await Task.Delay(1000);
