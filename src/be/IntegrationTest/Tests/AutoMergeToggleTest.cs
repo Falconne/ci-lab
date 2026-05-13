@@ -55,42 +55,32 @@ public class AutoMergeToggleTest
 
         // Find a merge group card that:
         //   1. Has all branches with MRs (no .item-no-mr) so the auto-merge toggle is enabled.
-        //   2. Is currently blocked or waiting so enabling auto-merge won't immediately merge
-        //      the group (which would remove it from the dashboard before we can verify the
-        //      auto-merge badge). Draft MRs are the safest choice because the AutoMergeService
-        //      will not merge them regardless of pipeline state.
+        //   2. Has a draft MR, which auto-merge will never execute on — safe to enable without
+        //      the group disappearing from the dashboard before we can verify the badge.
+        //      Status badges are only rendered when auto-merge is already on, so we use
+        //      the draft MR indicator directly rather than the badge to identify safe cards.
         var allCards = _browser.Page.Locator(".merge-group-card");
         ILocator? targetCard = null;
-        ILocator? fallbackCard = null;
         var totalCards = await allCards.CountAsync();
         for (var i = 0; i < totalCards; i++)
         {
             var card = allCards.Nth(i);
-            var isBlockedOrWaiting =
-                await card.Locator(".card-status-badge.status-blocked").CountAsync() > 0 ||
-                await card.Locator(".card-status-badge.status-waiting").CountAsync() > 0;
             var hasNoMrBranch = await card.Locator(".item-no-mr").CountAsync() > 0;
-            if (!isBlockedOrWaiting || hasNoMrBranch)
+            if (hasNoMrBranch)
                 continue;
 
-            // Prefer draft-MR cards: auto-merge will not execute on a draft MR, making them
-            // a stable choice that won't disappear from the dashboard during the test.
             var hasDraftMr = await card.GetByText("Draft:").CountAsync() > 0;
             if (hasDraftMr)
             {
                 targetCard = card;
                 break;
             }
-
-            fallbackCard ??= card;
         }
-
-        targetCard ??= fallbackCard;
 
         if (targetCard == null)
         {
             throw new InvalidOperationException(
-                "No blocked/waiting merge group card with all branches having MRs found; cannot safely run auto merge toggle test");
+                "No merge group card with a draft MR found; cannot safely run auto merge toggle test");
         }
 
         var targetBranchName = (await targetCard.Locator(".branch-name, .branch-subtitle").First.InnerTextAsync()).Trim();
