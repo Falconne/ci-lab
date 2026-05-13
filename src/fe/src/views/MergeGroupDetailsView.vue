@@ -3,11 +3,50 @@
     <v-row class="mt-4">
       <!-- Main content column: full width -->
       <v-col cols="12">
-        <!-- Back link -->
-        <div class="mb-3">
+        <!-- Top bar: back link + status chip + track/untrack button -->
+        <div class="page-top-bar mb-4">
           <v-btn variant="text" size="small" prepend-icon="mdi-arrow-left" :to="'/'">
             Back to Dashboard
           </v-btn>
+          <div v-if="!initialLoading && !mergeGroupGone" class="page-top-bar-right">
+            <v-tooltip
+              v-if="isFullyLoaded && overallStatusReasons.length > 0"
+              location="bottom"
+            >
+              <template #activator="{ props: tipProps }">
+                <span v-bind="tipProps" class="card-status-badge" :class="overallStatusClass">
+                  <span class="status-dot" />
+                  {{ overallStatusLabel }}
+                </span>
+              </template>
+              <span class="tooltip-multiline">{{ overallStatusReasonsText }}</span>
+            </v-tooltip>
+            <span v-else-if="isFullyLoaded" class="card-status-badge" :class="overallStatusClass">
+              <span class="status-dot" />
+              {{ overallStatusLabel }}
+            </span>
+            <span v-else class="skeleton-badge"><span class="skeleton-shimmer" /></span>
+            <v-tooltip
+              :text="isSubscribed ? 'Remove this merge group from my dashboard' : 'Track this merge group in my dashboard'"
+              location="bottom"
+            >
+              <template #activator="{ props: tooltipProps }">
+                <v-btn
+                  v-if="subscriptionLoaded"
+                  v-bind="tooltipProps"
+                  variant="flat"
+                  :color="isSubscribed ? '' : 'primary'"
+                  size="small"
+                  :prepend-icon="isSubscribed ? 'mdi-minus' : 'mdi-plus'"
+                  :loading="subscriptionUpdating"
+                  :class="['subscription-btn', isSubscribed ? 'subscription-untrack' : '']"
+                  @click="toggleSubscription"
+                >
+                  {{ isSubscribed ? 'Untrack' : 'Track' }}
+                </v-btn>
+              </template>
+            </v-tooltip>
+          </div>
         </div>
 
         <v-alert
@@ -35,52 +74,13 @@
         </div>
 
         <template v-else-if="!mergeGroupGone">
-          <!-- Summary: merge group name + overall status -->
+          <!-- Summary: merge group name + auto merge controls -->
           <div class="merge-group-header mb-5">
-            <div class="d-flex align-center flex-wrap ga-3">
-              <div v-if="singleMrTitle" class="header-title-block">
-                <span class="header-mr-title">{{ singleMrTitle }}</span>
-                <span class="header-mr-subtitle">{{ mergeGroupName }}</span>
-              </div>
-              <span v-else class="text-h6 font-weight-bold">{{ mergeGroupName }}</span>
-              <v-tooltip
-                v-if="isFullyLoaded && overallStatusReasons.length > 0"
-                location="bottom"
-              >
-                <template #activator="{ props: tipProps }">
-                  <span v-bind="tipProps" class="card-status-badge" :class="overallStatusClass">
-                    <span class="status-dot" />
-                    {{ overallStatusLabel }}
-                  </span>
-                </template>
-                <span class="tooltip-multiline">{{ overallStatusReasonsText }}</span>
-              </v-tooltip>
-              <span v-else-if="isFullyLoaded" class="card-status-badge" :class="overallStatusClass">
-                <span class="status-dot" />
-                {{ overallStatusLabel }}
-              </span>
-              <span v-else class="skeleton-badge"><span class="skeleton-shimmer" /></span>
-              <v-tooltip
-                :text="isSubscribed ? 'Remove this merge group from my dashboard' : 'Track this merge group in my dashboard'"
-                location="bottom"
-              >
-                <template #activator="{ props: tooltipProps }">
-                  <v-btn
-                    v-if="subscriptionLoaded"
-                    v-bind="tooltipProps"
-                    variant="flat"
-                    :color="isSubscribed ? '' : 'primary'"
-                    size="small"
-                    :prepend-icon="isSubscribed ? 'mdi-minus' : 'mdi-plus'"
-                    :loading="subscriptionUpdating"
-                    :class="['subscription-btn', 'ms-auto', isSubscribed ? 'subscription-untrack' : '']"
-                    @click="toggleSubscription"
-                  >
-                    {{ isSubscribed ? 'Untrack' : 'Track' }}
-                  </v-btn>
-                </template>
-              </v-tooltip>
+            <div v-if="singleMrTitle" class="header-title-block">
+              <span class="header-mr-title">{{ singleMrTitle }}</span>
+              <span class="header-mr-subtitle">{{ mergeGroupName }}</span>
             </div>
+            <span v-else class="header-title font-weight-bold">{{ mergeGroupName }}</span>
 
             <!-- Auto Merge / Auto Rebase toggles -->
             <div class="auto-merge-controls mt-3">
@@ -807,9 +807,27 @@ onMounted(async () => {
 <style scoped>
 @import '@/assets/status-badges.css';
 
+/* ---- Page top bar: back link + right-aligned status + track button ---- */
+.page-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.page-top-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 /* ---- Merge group header ---- */
 .merge-group-header {
   padding: 2px 0 6px;
+}
+
+.header-title {
+  font-size: 1rem;
+  color: rgb(var(--v-theme-on-surface));
 }
 
 .header-title-block {
@@ -820,7 +838,7 @@ onMounted(async () => {
 }
 
 .header-mr-title {
-  font-size: 1.25rem;
+  font-size: 1rem;
   font-weight: 700;
 }
 
