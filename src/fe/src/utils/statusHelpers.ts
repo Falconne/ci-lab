@@ -112,7 +112,7 @@ const jobStatusIcons: Record<string, string> = {
   success: 'mdi-check-circle',
   failed: 'mdi-close-circle',
   failure: 'mdi-close-circle',
-  running: 'mdi-progress-clock',
+  running: 'mdi-play-circle',
   pending: 'mdi-timer-sand',
   canceled: 'mdi-cancel',
   cancelled: 'mdi-cancel',
