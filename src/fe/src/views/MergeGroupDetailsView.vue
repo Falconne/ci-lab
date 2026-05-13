@@ -355,7 +355,7 @@
 
           <!-- Add Merge Request button -->
           <div class="mt-4">
-            <v-tooltip text="Manually add a merge request to this group" location="top">
+            <v-tooltip text="Add a merge request from a different branch to this group" location="top">
               <template #activator="{ props: tooltipProps }">
                 <v-btn
                   v-bind="tooltipProps"
@@ -366,7 +366,7 @@
                   class="text-none"
                   @click="showAddMergeRequestDialog = true"
                 >
-                  Add Existing Merge Request...
+                  Add Another MR to Group...
                 </v-btn>
               </template>
             </v-tooltip>
