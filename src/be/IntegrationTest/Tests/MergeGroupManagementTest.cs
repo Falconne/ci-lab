@@ -364,7 +364,8 @@ public class MergeGroupManagementTest
 
             // Wait for the merge group header to show the correct branch name, confirming we
             // navigated to the right merge group (not another group that also contains secondary-1).
-            var groupHeader = _browser.Page.Locator(".header-mr-subtitle, .text-h6.font-weight-bold")
+            // Branch name shows in .header-mr-subtitle (single-MR layout) or .header-title (multi/no-MR layout).
+            var groupHeader = _browser.Page.Locator(".header-mr-subtitle, .header-title")
                 .Filter(new LocatorFilterOptions { HasTextString = branchName });
             await groupHeader.First.WaitForAsync(new LocatorWaitForOptions { Timeout = 15000 });
             await _browser.TakeScreenshot("find_mr_04_details_page");
