@@ -36,7 +36,7 @@ export function mrStatusClass(status: number): string {
 export function mrStatusChipColor(status: number): string {
   switch (status) {
     case 0: return 'grey'
-    case 1: return 'error'
+    case 1: return 'warning'
     case 2: return 'info'
     case 3: return 'success'
     default: return 'grey'
