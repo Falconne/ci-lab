@@ -25,7 +25,10 @@
                 v-for="{ branch, idx } in groupRows(group)"
                 :key="`${group.id}-${branch?.projectId ?? 'loading'}`"
                 class="grid-row"
-                :class="{ 'grid-row--sub': idx > 0 }"
+                :class="{
+                  'grid-row--sub': idx > 0,
+                  'grid-row--last-in-group': idx === Math.max(0, group.branches.length - 1),
+                }"
                 @click="emit('navigate', group)"
               >
                 <!-- Branch name: rowspan spanning all branch rows -->
@@ -278,7 +281,7 @@ function navigateToQueue(group: MergeGroup) {
 .col-status { width: 90px; }
 .col-project { width: 12%; }
 .col-mr     { width: auto; }
-.col-approvals { width: 65px; }
+.col-approvals { width: 80px; }
 .col-updated { width: 85px; }
 .col-jobs   { width: 22%; }
 
@@ -314,6 +317,11 @@ thead th {
   border-top: 1px solid rgba(var(--v-theme-on-surface), 0.05);
 }
 
+/* Extra bottom padding on the last branch row of each MG group */
+.grid-row--last-in-group td {
+  padding-bottom: 14px;
+}
+
 .mg-grid td {
   padding: 8px 12px;
   vertical-align: middle;
@@ -337,7 +345,7 @@ thead th {
 }
 
 .mg-branch-name {
-  font-weight: 600;
+  font-weight: 400;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

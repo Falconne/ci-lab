@@ -372,7 +372,6 @@ onMounted(async () => {
 
 .dashboard-filter {
   flex: 1;
-  max-width: 1024px;
 }
 
 .view-toggle {
@@ -380,7 +379,6 @@ onMounted(async () => {
   align-items: center;
   gap: 2px;
   flex-shrink: 0;
-  margin-left: auto;
 }
 
 /* ---- Partition sections (time-based grouping) ---- */
