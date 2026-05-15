@@ -457,12 +457,11 @@ const autoMergeTooltip = computed<string>(() => {
 })
 
 async function checkMergePermissions() {
-  const mergeGroupId = getMergeGroupId()
-  if (!mergeGroupId) return
+  if (!mergeGroupId.value) return
 
   mergePermissionState.value = 'checking'
   try {
-    const response = await fetchBackend(`/api/merge-groups/${mergeGroupId}/merge-permissions`)
+    const response = await fetchBackend(`/api/merge-groups/${mergeGroupId.value}/merge-permissions`)
     if (!response.ok) {
       console.error('Failed to check merge permissions, status', response.status)
       mergePermissionState.value = 'check-failed'
@@ -523,11 +522,10 @@ async function copyBranchName(branchName: string) {
 // --- Subscription management ---
 
 async function loadSubscription() {
-  const mergeGroupId = getMergeGroupId()
-  if (!mergeGroupId) return
+  if (!mergeGroupId.value) return
 
   try {
-    const response = await fetchBackend(`/api/merge-groups/${mergeGroupId}/subscription`)
+    const response = await fetchBackend(`/api/merge-groups/${mergeGroupId.value}/subscription`)
     if (response.ok) {
       const data = await response.json() as { isSubscribed?: boolean }
       isSubscribed.value = data.isSubscribed === true
@@ -540,14 +538,13 @@ async function loadSubscription() {
 }
 
 async function toggleSubscription() {
-  const mergeGroupId = getMergeGroupId()
-  if (!mergeGroupId) return
+  if (!mergeGroupId.value) return
 
   subscriptionUpdating.value = true
   const method = isSubscribed.value ? 'DELETE' : 'PUT'
 
   try {
-    const response = await fetchBackend(`/api/merge-groups/${mergeGroupId}/subscription`, { method })
+    const response = await fetchBackend(`/api/merge-groups/${mergeGroupId.value}/subscription`, { method })
     if (response.ok) {
       const data = await response.json() as { isSubscribed?: boolean }
       isSubscribed.value = data.isSubscribed === true
@@ -572,14 +569,13 @@ function closeAddMergeRequestDialog() {
 }
 
 async function submitAddMergeRequest() {
-  const mergeGroupId = getMergeGroupId()
-  if (!mergeGroupId || !addMergeRequestUrl.value.trim()) return
+  if (!mergeGroupId.value || !addMergeRequestUrl.value.trim()) return
 
   addMergeRequestLoading.value = true
   addMergeRequestError.value = ''
 
   try {
-    const response = await fetchBackend(`/api/merge-groups/${mergeGroupId}/add-by-merge-request`, {
+    const response = await fetchBackend(`/api/merge-groups/${mergeGroupId.value}/add-by-merge-request`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ mergeRequestUrl: addMergeRequestUrl.value.trim() })
@@ -606,15 +602,14 @@ async function submitAddMergeRequest() {
 // --- Auto merge settings ---
 
 async function updateSettings(newAutoMerge: boolean, newAutoRebase: boolean) {
-  const mergeGroupId = getMergeGroupId()
-  if (!mergeGroupId) return
+  if (!mergeGroupId.value) return
 
   const prevAutoMerge = autoMerge.value
   const prevAutoRebase = autoRebase.value
 
   settingsUpdating.value = true
   try {
-    const response = await fetchBackend(`/api/merge-groups/${mergeGroupId}/settings`, {
+    const response = await fetchBackend(`/api/merge-groups/${mergeGroupId.value}/settings`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ autoMerge: newAutoMerge, autoRebase: newAutoRebase })
@@ -665,13 +660,12 @@ function onAutoRebaseToggle(value: boolean | null) {
 }
 
 async function dismissWarning() {
-  const mergeGroupId = getMergeGroupId()
-  if (!mergeGroupId) return
+  if (!mergeGroupId.value) return
 
   autoMergeWarning.value = null
 
   try {
-    await fetchBackend(`/api/merge-groups/${mergeGroupId}/settings/clear-warning`, {
+    await fetchBackend(`/api/merge-groups/${mergeGroupId.value}/settings/clear-warning`, {
       method: 'POST'
     })
   } catch (err) {
@@ -680,21 +674,20 @@ async function dismissWarning() {
   }
 }
 
-function getMergeGroupId(): string {
+const mergeGroupId = computed<string>(() => {
   const id = route.params.mergeGroupId
   return Array.isArray(id) ? id[0] : (id ?? '')
-}
+})
 
 /**
  * Polls the backend for a full merge group snapshot and reconciles with the displayed list.
  * Existing branches are updated, new ones added, and removed branches are cleaned up.
  */
 async function pollMergeGroup() {
-  const mergeGroupId = getMergeGroupId()
-  if (!mergeGroupId) return
+  if (!mergeGroupId.value) return
 
   try {
-    const response = await fetchBackend(`/api/merge-groups/${mergeGroupId}/refresh`, {
+    const response = await fetchBackend(`/api/merge-groups/${mergeGroupId.value}/refresh`, {
       method: 'POST'
     })
 
@@ -758,19 +751,17 @@ async function pollMergeGroup() {
 }
 
 function updateRouteTitle(name: string) {
-  const mergeGroupId = getMergeGroupId()
   if (route.query.title !== name) {
     router.replace({
       name: 'merge-group-details',
-      params: { mergeGroupId },
+      params: { mergeGroupId: mergeGroupId.value },
       query: { title: name }
     })
   }
 }
 
 onMounted(async () => {
-  const mergeGroupId = getMergeGroupId()
-  if (!mergeGroupId) {
+  if (!mergeGroupId.value) {
     errorMessage.value = 'Merge group id is missing.'
     initialLoading.value = false
     return
