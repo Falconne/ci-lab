@@ -87,6 +87,8 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             await _globalCts.CancelAsync();
         }
 
+        // No lock needed here: StopAsync is called during graceful shutdown, well after all
+        // EnsureSyncRunning calls have completed, so there is no contention on SyncTask.
         var tasks = _userContexts.Values
             .Select(c => c.SyncTask)
             .Where(t => t is { IsCompleted: false })
