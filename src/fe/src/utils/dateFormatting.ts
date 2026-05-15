@@ -3,7 +3,9 @@
  */
 export function formatDateTime(isoString: string): string {
   if (!isoString) return ''
-  return new Date(isoString).toLocaleString()
+  const date = new Date(isoString)
+  if (isNaN(date.getTime())) return ''
+  return date.toLocaleString()
 }
 
 /**
@@ -13,6 +15,7 @@ export function formatDateTime(isoString: string): string {
 export function formatTimeAgo(isoString: string, nowMs: number): string {
   if (!isoString) return ''
   const date = new Date(isoString)
+  if (isNaN(date.getTime())) return ''
   const diffMs = nowMs - date.getTime()
   const diffSec = Math.floor(diffMs / 1000)
 
