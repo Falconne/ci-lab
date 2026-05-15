@@ -180,78 +180,7 @@
               <div class="card-body">
                 <!-- Card header: title + status chip -->
                 <div class="card-header">
-                  <div v-if="item.mergeRequestTitle" class="branch-card-title branch-card-title--with-mr">
-                    <div v-if="item.mergeRequestUrl" class="mr-title-row">
-                      <a
-                        class="mr-title-link"
-                        :href="item.mergeRequestUrl"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >{{ item.mergeRequestTitle }}</a>
-                      <a
-                        :href="item.mergeRequestUrl"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="mr-external-link-btn"
-                        aria-label="Open merge request"
-                      ><v-icon size="14" class="mr-external-link-icon">mdi-open-in-new</v-icon></a>
-                    </div>
-                    <span v-else class="mr-title-text">{{ item.mergeRequestTitle }}</span>
-                    <div class="branch-subtitle-row">
-                      <a
-                        v-if="item.projectUrl"
-                        class="branch-subtitle-link"
-                        :href="branchUrl(item)"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >{{ item.projectName }} | {{ item.branchName }}</a>
-                      <span v-else class="branch-subtitle-text">{{ item.projectName }} | {{ item.branchName }}</span>
-                      <v-tooltip text="Copy branch name" location="top">
-                        <template #activator="{ props: tooltipProps }">
-                          <v-btn
-                            v-bind="tooltipProps"
-                            icon
-                            size="x-small"
-                            variant="text"
-                            color="grey"
-                            class="copy-branch-btn"
-                            aria-label="Copy branch name"
-                            @click.stop="copyBranchName(item.branchName)"
-                          >
-                            <v-icon size="16">mdi-content-copy</v-icon>
-                          </v-btn>
-                        </template>
-                      </v-tooltip>
-                    </div>
-                  </div>
-                  <div v-else class="branch-card-title">
-                    <a
-                      v-if="item.projectUrl"
-                      class="branch-title-link"
-                      :href="branchUrl(item)"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      {{ item.projectName }} | {{ item.branchName }}
-                    </a>
-                    <span v-else class="branch-title-text">{{ item.projectName }} | {{ item.branchName }}</span>
-                    <v-tooltip text="Copy branch name" location="top">
-                      <template #activator="{ props: tooltipProps }">
-                        <v-btn
-                          v-bind="tooltipProps"
-                          icon
-                          size="x-small"
-                          variant="text"
-                          color="grey"
-                          class="copy-branch-btn"
-                          aria-label="Copy branch name"
-                          @click.stop="copyBranchName(item.branchName)"
-                        >
-                          <v-icon size="16">mdi-content-copy</v-icon>
-                        </v-btn>
-                      </template>
-                    </v-tooltip>
-                  </div>
+                  <BranchCardTitle :item="item" />
                   <template v-if="item.mrStatus !== MRStatus.Loading">
                     <v-tooltip
                       v-if="item.mrStatus !== MRStatus.Ready && item.mrStatusReasons?.length"
@@ -391,6 +320,7 @@ import {
 } from '@/utils/statusHelpers'
 import { handleTransientError, clearTransientError } from '@/utils/pollHelpers'
 import { extractBackendError } from '@/utils/errorHelpers'
+import BranchCardTitle from '@/components/BranchCardTitle.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -502,22 +432,9 @@ const overallStatusReasonsText = computed<string>(() =>
   overallStatusReasons.value.join('\n')
 )
 
-function branchUrl(item: BranchWithActivity): string {
-  if (!item.projectUrl) return ''
-  return `${item.projectUrl}/-/tree/${encodeURIComponent(item.branchName)}?ref_type=heads`
-}
-
 function createMergeRequestUrl(item: BranchWithActivity): string {
   if (!item.projectUrl) return ''
   return `${item.projectUrl}/-/merge_requests/new?merge_request[source_branch]=${encodeURIComponent(item.branchName)}`
-}
-
-async function copyBranchName(branchName: string) {
-  try {
-    await navigator.clipboard.writeText(branchName)
-  } catch (err) {
-    console.warn('[Mergician] Failed to copy branch name to clipboard:', err)
-  }
 }
 
 // --- Subscription management ---
