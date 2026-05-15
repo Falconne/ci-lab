@@ -131,12 +131,12 @@ public class MergeQueueRepository : IMergeQueueRepository
 
         ResequencePositions(connection, transaction, queueId);
 
+        transaction.Commit();
+
         _logger.LogInformation(
             "MergeQueueRepository: removed merge group {MergeGroupId} from queue {QueueId}",
             mergeGroupId,
             queueId);
-
-        transaction.Commit();
 
         // Check for possible split outside the remove transaction to keep it focused.
         CheckAndSplitQueue(queueId);
