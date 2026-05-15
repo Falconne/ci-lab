@@ -405,6 +405,7 @@ const autoMerge = ref(false)
 const autoRebase = ref(false)
 const autoMergeWarning = ref<string | null>(null)
 const settingsUpdating = ref(false)
+let settingsUpdateSeq = 0
 const queueId = ref<number | null>(null)
 const queuePosition = ref<number | null>(null)
 const isSubscribed = ref(false)
@@ -608,6 +609,7 @@ async function updateSettings(newAutoMerge: boolean, newAutoRebase: boolean) {
   const prevAutoRebase = autoRebase.value
 
   settingsUpdating.value = true
+  const seq = ++settingsUpdateSeq
   try {
     const response = await fetchBackend(`/api/merge-groups/${mergeGroupId.value}/settings`, {
       method: 'PUT',
@@ -686,6 +688,7 @@ const mergeGroupId = computed<string>(() => {
 async function pollMergeGroup() {
   if (!mergeGroupId.value) return
 
+  const seq = settingsUpdateSeq
   try {
     const response = await fetchBackend(`/api/merge-groups/${mergeGroupId.value}/refresh`, {
       method: 'POST'
@@ -728,7 +731,7 @@ async function pollMergeGroup() {
     }
 
     // Sync auto merge settings from backend (only if not currently updating)
-    if (!settingsUpdating.value) {
+    if (!settingsUpdating.value && settingsUpdateSeq === seq) {
       autoMerge.value = data.autoMerge
       autoRebase.value = data.autoRebase
       autoMergeWarning.value = data.autoMergeWarning
