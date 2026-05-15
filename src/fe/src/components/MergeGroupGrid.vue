@@ -115,7 +115,7 @@
 
                 <!-- Build jobs: rowspan spanning all branch rows -->
                 <td v-if="idx === 0" :rowspan="Math.max(1, group.branches.length)" class="col-jobs">
-                  <div v-if="deduplicatedJobs(group).length > 0" class="jobs-cell">
+                  <div v-if="deduplicateJobs(group.branches).length > 0" class="jobs-cell">
                     <v-tooltip
                       v-for="job in nonSuccessJobs(group)"
                       :key="job.name"
@@ -164,6 +164,7 @@ import {
   MRStatus,
 } from '@/utils/statusHelpers'
 import { formatDateTime, formatTimeAgo } from '@/utils/dateFormatting'
+import { deduplicateJobs } from '@/utils/jobHelpers'
 
 export interface GridSection {
   title: string
@@ -199,32 +200,12 @@ function groupRows(group: MergeGroup): { branch: BranchWithActivity | null; idx:
 
 // --- Build job deduplication ---
 
-const STATUS_PRIORITY = ['failed', 'failure', 'running', 'pending', 'canceled', 'cancelled', 'success']
-
-function jobStatusPriority(status: string): number {
-  const idx = STATUS_PRIORITY.indexOf(status.toLowerCase())
-  return idx === -1 ? STATUS_PRIORITY.length - 2 : idx
-}
-
-function deduplicatedJobs(group: MergeGroup): { name: string; status: string; url?: string | null }[] {
-  const jobMap = new Map<string, { name: string; status: string; url?: string | null }>()
-  for (const branch of group.branches) {
-    for (const job of branch.buildJobs ?? []) {
-      const existing = jobMap.get(job.name)
-      if (!existing || jobStatusPriority(job.status) < jobStatusPriority(existing.status)) {
-        jobMap.set(job.name, job)
-      }
-    }
-  }
-  return [...jobMap.values()]
-}
-
 function nonSuccessJobs(group: MergeGroup) {
-  return deduplicatedJobs(group).filter(j => j.status.toLowerCase() !== 'success')
+  return deduplicateJobs(group.branches).filter(j => j.status.toLowerCase() !== 'success')
 }
 
 function successJobCount(group: MergeGroup): number {
-  return deduplicatedJobs(group).filter(j => j.status.toLowerCase() === 'success').length
+  return deduplicateJobs(group.branches).filter(j => j.status.toLowerCase() === 'success').length
 }
 
 // --- Approvals ---

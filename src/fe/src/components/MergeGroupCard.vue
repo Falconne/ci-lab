@@ -208,6 +208,7 @@ import {
   jobStatusLabel,
   MRStatus,
 } from '@/utils/statusHelpers'
+import { deduplicateJobs } from '@/utils/jobHelpers'
 import { formatDateTime, formatTimeAgo } from '@/utils/dateFormatting'
 
 const props = defineProps<{
@@ -317,26 +318,7 @@ const groupStatusReasons = computed(() => getGroupStatusReasons(props.group))
 
 const groupStatusReasonsText = computed(() => groupStatusReasons.value.join('\n'))
 
-// Status priority for deduplication: lower index = worse
-const STATUS_PRIORITY = ['failed', 'failure', 'running', 'pending', 'canceled', 'cancelled', 'success']
-
-function jobStatusPriority(status: string): number {
-  const idx = STATUS_PRIORITY.indexOf(status.toLowerCase())
-  return idx === -1 ? STATUS_PRIORITY.length - 2 : idx
-}
-
-const deduplicatedJobs = computed(() => {
-  const jobMap = new Map<string, { name: string; status: string; url?: string | null }>()
-  for (const branch of props.group.branches) {
-    for (const job of branch.buildJobs ?? []) {
-      const existing = jobMap.get(job.name)
-      if (!existing || jobStatusPriority(job.status) < jobStatusPriority(existing.status)) {
-        jobMap.set(job.name, job)
-      }
-    }
-  }
-  return [...jobMap.values()]
-})
+const deduplicatedJobs = computed(() => deduplicateJobs(props.group.branches))
 
 const nonSuccessJobs = computed(() =>
   deduplicatedJobs.value.filter(j => j.status.toLowerCase() !== 'success')
