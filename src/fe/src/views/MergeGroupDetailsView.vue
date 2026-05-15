@@ -252,9 +252,9 @@
                       </template>
                     </v-tooltip>
                   </div>
-                  <template v-if="item.mrStatus !== 0">
+                  <template v-if="item.mrStatus !== MRStatus.Loading">
                     <v-tooltip
-                      v-if="item.mrStatus !== 3 && item.mrStatusReasons?.length"
+                      v-if="item.mrStatus !== MRStatus.Ready && item.mrStatusReasons?.length"
                       location="top"
                     >
                       <template #activator="{ props: tipProps }">
@@ -284,7 +284,7 @@
                   <div class="detail-row">
                     <span class="detail-label">Approvals</span>
                     <span class="detail-value">
-                      <span v-if="item.mrStatus === 0" class="skeleton-detail"><span class="skeleton-shimmer" /></span>
+                      <span v-if="item.mrStatus === MRStatus.Loading" class="skeleton-detail"><span class="skeleton-shimmer" /></span>
                       <template v-else>{{ itemApprovalsTextDetailed(item) }}</template>
                     </span>
                   </div>
@@ -346,7 +346,7 @@
                       </template>
                     </v-tooltip>
                   </div>
-                  <span v-else-if="item.mrStatus !== 0" class="text-medium-emphasis">No jobs on latest pipeline</span>
+                  <span v-else-if="item.mrStatus !== MRStatus.Loading" class="text-medium-emphasis">No jobs on latest pipeline</span>
                   <span v-else class="skeleton-detail"><span class="skeleton-shimmer" /></span>
                 </div>
               </div>
@@ -387,6 +387,7 @@ import {
   mrStatusLabel, mrStatusClass, mrStatusChipColor,
   itemApprovalsTextDetailed, jobStatusIcon, jobStatusColor, jobStatusLabel,
   groupStatusLabel, groupStatusClass, getGroupStatusReasons,
+  MRStatus,
 } from '@/utils/statusHelpers'
 import { handleTransientError, clearTransientError } from '@/utils/pollHelpers'
 
@@ -414,18 +415,18 @@ const addMergeRequestError = ref('')
 const addMergeRequestLoading = ref(false)
 
 const isFullyLoaded = computed<boolean>(() => {
-  return activities.value.length > 0 && activities.value.every(b => b.mrStatus !== 0)
+  return activities.value.length > 0 && activities.value.every(b => b.mrStatus !== MRStatus.Loading)
 })
 
 const singleMrTitle = computed<string | null>(() => {
   if (activities.value.length !== 1) return null
   const branch = activities.value[0]
-  if (branch.mrStatus === 0) return null
+  if (branch.mrStatus === MRStatus.Loading) return null
   return branch.mergeRequestTitle ?? null
 })
 
 const allBranchesHaveMr = computed<boolean>(() => {
-  const loaded = activities.value.filter(b => b.mrStatus !== 0)
+  const loaded = activities.value.filter(b => b.mrStatus !== MRStatus.Loading)
   return loaded.length > 0 && loaded.every(b => b.hasMergeRequest === true)
 })
 

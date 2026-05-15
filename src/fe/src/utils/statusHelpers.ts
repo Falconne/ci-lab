@@ -1,19 +1,22 @@
 import type { BranchWithActivity, MergeGroup } from '@/types/mergeGroup'
 
-// Status codes: 0=Loading, 1=Blocked, 2=Waiting, 3=Ready
-const STATUS_LOADING = 0
-const STATUS_READY = 3
+export enum MRStatus {
+  Loading = 0,
+  Blocked = 1,
+  Waiting = 2,
+  Ready   = 3,
+}
 
 /**
  * Display label for a backend-computed MR status code.
  */
 export function mrStatusLabel(status: number): string {
   switch (status) {
-    case 0: return 'Loading'
-    case 1: return 'Blocked'
-    case 2: return 'Waiting'
-    case 3: return 'Ready'
-    default: return 'Loading'
+    case MRStatus.Loading: return 'Loading'
+    case MRStatus.Blocked: return 'Blocked'
+    case MRStatus.Waiting: return 'Waiting'
+    case MRStatus.Ready:   return 'Ready'
+    default:               return 'Loading'
   }
 }
 
@@ -22,11 +25,11 @@ export function mrStatusLabel(status: number): string {
  */
 export function mrStatusClass(status: number): string {
   switch (status) {
-    case 0: return 'status-loading'
-    case 1: return 'status-blocked'
-    case 2: return 'status-waiting'
-    case 3: return 'status-ready'
-    default: return 'status-loading'
+    case MRStatus.Loading: return 'status-loading'
+    case MRStatus.Blocked: return 'status-blocked'
+    case MRStatus.Waiting: return 'status-waiting'
+    case MRStatus.Ready:   return 'status-ready'
+    default:               return 'status-loading'
   }
 }
 
@@ -35,11 +38,11 @@ export function mrStatusClass(status: number): string {
  */
 export function mrStatusChipColor(status: number): string {
   switch (status) {
-    case 0: return 'grey'
-    case 1: return 'warning'
-    case 2: return 'info'
-    case 3: return 'success'
-    default: return 'grey'
+    case MRStatus.Loading: return 'grey'
+    case MRStatus.Blocked: return 'warning'
+    case MRStatus.Waiting: return 'info'
+    case MRStatus.Ready:   return 'success'
+    default:               return 'grey'
   }
 }
 
@@ -48,7 +51,7 @@ export function mrStatusChipColor(status: number): string {
  * Returns Loading (0) when there are no branches.
  */
 export function getGroupMRStatus(group: MergeGroup): number {
-  if (group.branches.length === 0) return STATUS_LOADING
+  if (group.branches.length === 0) return MRStatus.Loading
   return Math.min(...group.branches.map(b => b.mrStatus))
 }
 
@@ -73,7 +76,7 @@ export function groupStatusClass(group: MergeGroup): string {
 export function getGroupStatusReasons(group: MergeGroup): string[] {
   const result: string[] = []
   for (const branch of group.branches) {
-    if (branch.mrStatus === STATUS_LOADING || branch.mrStatus === STATUS_READY) continue
+    if (branch.mrStatus === MRStatus.Loading || branch.mrStatus === MRStatus.Ready) continue
     if (branch.mrStatusReasons && branch.mrStatusReasons.length > 0) {
       for (const reason of branch.mrStatusReasons) {
         result.push(`${branch.projectName}: ${reason}`)

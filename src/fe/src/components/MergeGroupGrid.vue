@@ -80,7 +80,7 @@
 
                 <!-- MR title (per branch) -->
                 <td class="col-mr">
-                  <span v-if="!branch || branch.mrStatus === 0" class="skeleton-inline"><span class="skeleton-shimmer" /></span>
+                  <span v-if="!branch || branch.mrStatus === MRStatus.Loading" class="skeleton-inline"><span class="skeleton-shimmer" /></span>
                   <v-tooltip v-else-if="branch.mergeRequestTitle" location="top" :text="branch.mergeRequestTitle">
                     <template #activator="{ props: tipProps }">
                       <span v-bind="tipProps" class="mr-title">{{ branch.mergeRequestTitle }}</span>
@@ -91,7 +91,7 @@
 
                 <!-- Approvals (per branch) -->
                 <td class="col-approvals">
-                  <template v-if="branch && branch.mrStatus !== 0 && itemApprovalsText(branch)">
+                  <template v-if="branch && branch.mrStatus !== MRStatus.Loading && itemApprovalsText(branch)">
                     <v-tooltip location="top" :text="approvalsTooltip(branch)">
                       <template #activator="{ props: tipProps }">
                         <span v-bind="tipProps" class="approvals-cell">
@@ -104,7 +104,7 @@
 
                 <!-- Last updated (per branch) -->
                 <td class="col-updated">
-                  <span v-if="!branch || branch.mrStatus === 0" class="skeleton-inline skeleton-inline--sm"><span class="skeleton-shimmer" /></span>
+                  <span v-if="!branch || branch.mrStatus === MRStatus.Loading" class="skeleton-inline skeleton-inline--sm"><span class="skeleton-shimmer" /></span>
                   <v-tooltip v-else-if="branch.lastUpdated" location="top" :text="formatDateTime(branch.lastUpdated)">
                     <template #activator="{ props: tipProps }">
                       <span v-bind="tipProps" class="updated-text">{{ formatTimeAgo(branch.lastUpdated, now) }}</span>
@@ -161,6 +161,7 @@ import {
   jobStatusIcon,
   jobStatusColor,
   jobStatusLabel,
+  MRStatus,
 } from '@/utils/statusHelpers'
 import { formatDateTime, formatTimeAgo } from '@/utils/dateFormatting'
 
@@ -183,7 +184,7 @@ const router = useRouter()
 // --- Helpers ---
 
 function isGroupLoaded(group: MergeGroup): boolean {
-  return group.branches.length > 0 && group.branches.every(b => b.mrStatus !== 0)
+  return group.branches.length > 0 && group.branches.every(b => b.mrStatus !== MRStatus.Loading)
 }
 
 function sectionHasAutoMerge(section: GridSection): boolean {

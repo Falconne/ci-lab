@@ -93,7 +93,7 @@
           </v-tooltip>
 
           <span class="item-mr-area">
-            <template v-if="item.mrStatus === 0">
+            <template v-if="item.mrStatus === MRStatus.Loading">
               <span class="item-skeleton-inline"><span class="skeleton-shimmer" /></span>
             </template>
             <template v-else>
@@ -123,7 +123,7 @@
           </span>
 
           <v-tooltip
-            v-if="item.mrStatus !== 0 && itemApprovalsText(item)"
+            v-if="item.mrStatus !== MRStatus.Loading && itemApprovalsText(item)"
             location="top"
             :text="approvalsTooltip(item)"
           >
@@ -147,7 +147,7 @@
           <span v-else class="item-approvals-placeholder" />
 
           <span class="item-time">
-            <span v-if="item.mrStatus === 0" class="skeleton-time"><span class="skeleton-shimmer" /></span>
+            <span v-if="item.mrStatus === MRStatus.Loading" class="skeleton-time"><span class="skeleton-shimmer" /></span>
             <v-tooltip v-else-if="item.lastUpdated" location="top" :text="formatDateTime(item.lastUpdated)">
               <template #activator="{ props: tipProps }">
                 <span v-bind="tipProps">{{ formatTimeAgo(item.lastUpdated, now) }}</span>
@@ -206,6 +206,7 @@ import {
   jobStatusIcon,
   jobStatusColor,
   jobStatusLabel,
+  MRStatus,
 } from '@/utils/statusHelpers'
 import { formatDateTime, formatTimeAgo } from '@/utils/dateFormatting'
 
@@ -302,13 +303,13 @@ function navigateToQueue() {
 }
 
 const isGroupLoaded = computed(() =>
-  props.group.branches.length > 0 && props.group.branches.every(b => b.mrStatus !== 0)
+  props.group.branches.length > 0 && props.group.branches.every(b => b.mrStatus !== MRStatus.Loading)
 )
 
 const singleMrTitle = computed<string | null>(() => {
   if (props.group.branches.length !== 1) return null
   const branch = props.group.branches[0]
-  if (branch.mrStatus === 0) return null
+  if (branch.mrStatus === MRStatus.Loading) return null
   return branch.mergeRequestTitle ?? null
 })
 
