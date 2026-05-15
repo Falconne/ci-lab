@@ -5,7 +5,7 @@ type ViewMode = 'grid' | 'card'
 const STORAGE_KEY = 'mergician-view-mode'
 
 const stored = localStorage.getItem(STORAGE_KEY)
-const viewMode = ref<ViewMode>(stored === 'card' ? 'card' : 'grid')
+const viewMode = ref<ViewMode>((stored === 'card' || stored === 'grid') ? stored : 'grid')
 
 watch(viewMode, (mode) => {
   localStorage.setItem(STORAGE_KEY, mode)
