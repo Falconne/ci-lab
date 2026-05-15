@@ -61,6 +61,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { fetchBackend, isStartupRequiredError } from '@/composables/useBackendFetch'
+import { extractBackendError } from '@/utils/errorHelpers'
 
 const props = defineProps<{
   modelValue: string
@@ -108,8 +109,7 @@ async function openMRAsGroup() {
       emit('update:modelValue', '')
       router.push(`/merge-group/${data.mergeGroupId}`)
     } else {
-      const data = await response.json().catch(() => null)
-      openMRError.value = data?.error || `Request failed with status ${response.status}`
+      openMRError.value = await extractBackendError(response, 'Failed to open merge request')
     }
   } catch (err) {
     if (isStartupRequiredError(err)) return

@@ -390,6 +390,7 @@ import {
   MRStatus,
 } from '@/utils/statusHelpers'
 import { handleTransientError, clearTransientError } from '@/utils/pollHelpers'
+import { extractBackendError } from '@/utils/errorHelpers'
 
 const route = useRoute()
 const router = useRouter()
@@ -521,19 +522,6 @@ async function copyBranchName(branchName: string) {
 
 // --- Subscription management ---
 
-async function extractBackendError(response: Response, fallback: string): Promise<string> {
-  try {
-    const data = await response.json()
-    if (data?.error) return data.error
-  } catch {
-    try {
-      const text = (await response.text()).trim()
-      if (text) return text
-    } catch { /* ignore */ }
-  }
-  return `${fallback} (status ${response.status})`
-}
-
 async function loadSubscription() {
   const mergeGroupId = getMergeGroupId()
   if (!mergeGroupId) return
@@ -604,8 +592,7 @@ async function submitAddMergeRequest() {
         console.error('[Mergician] Failed to re-check merge permissions after adding MR:', err)
       })
     } else {
-      const data = await response.json().catch(() => null)
-      addMergeRequestError.value = data?.error || `Request failed with status ${response.status}`
+      addMergeRequestError.value = await extractBackendError(response, 'Failed to add merge request')
     }
   } catch (err) {
     if (isStartupRequiredError(err)) return
