@@ -46,13 +46,11 @@ public class MergeQueueRepository : IMergeQueueRepository
     {
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();
-        using var transaction = connection.BeginTransaction();
 
         // No-op if the group is already in a queue.
         var existing = connection.QueryFirstOrDefault<int?>(
             "SELECT queue_id FROM merge_queue_entry WHERE merge_group_id = @MergeGroupId",
-            new { MergeGroupId = mergeGroupId },
-            transaction);
+            new { MergeGroupId = mergeGroupId });
 
         if (existing != null)
         {
@@ -64,6 +62,7 @@ public class MergeQueueRepository : IMergeQueueRepository
             return;
         }
 
+        using var transaction = connection.BeginTransaction();
         // Find all queues whose project sets intersect with the new group's projects.
         var intersectingQueueIds = FindIntersectingQueueIds(connection, transaction, projectIds);
 
@@ -108,12 +107,10 @@ public class MergeQueueRepository : IMergeQueueRepository
     {
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();
-        using var transaction = connection.BeginTransaction();
 
         var entry = connection.QueryFirstOrDefault<(int QueueId, int Position)>(
             "SELECT queue_id AS QueueId, position AS Position FROM merge_queue_entry WHERE merge_group_id = @MergeGroupId",
-            new { MergeGroupId = mergeGroupId },
-            transaction);
+            new { MergeGroupId = mergeGroupId });
 
         if (entry == default)
         {
@@ -126,6 +123,7 @@ public class MergeQueueRepository : IMergeQueueRepository
 
         var queueId = entry.QueueId;
 
+        using var transaction = connection.BeginTransaction();
         connection.Execute(
             "DELETE FROM merge_queue_entry WHERE merge_group_id = @MergeGroupId",
             new { MergeGroupId = mergeGroupId },
