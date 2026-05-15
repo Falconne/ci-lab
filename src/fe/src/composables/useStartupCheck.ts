@@ -84,6 +84,7 @@ function applyStatus(status: HealthStatus, options: EnterStartupOptions = {}) {
     if (router.currentRoute.value.name !== 'home') {
       void router.replace({ name: 'home' }).catch((navigationError) => {
         console.warn('[Mergician] Failed to navigate back to the dashboard during restart', navigationError)
+        window.location.href = '/'
       })
     }
   }
