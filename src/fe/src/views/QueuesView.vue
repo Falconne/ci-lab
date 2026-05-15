@@ -271,6 +271,7 @@ function onQueueSelected(queueId: number | null) {
 }
 
 async function onDragEnd() {
+  if (!queueGroups.value.length) return
   if (selectedQueueId.value == null) return
   const orderedIds = queueGroups.value.map(g => g.id)
   reorderPending.value = true
