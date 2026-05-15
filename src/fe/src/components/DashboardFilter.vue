@@ -81,7 +81,7 @@ async function pasteFromClipboard() {
     emit('update:modelValue', text)
   } catch (err) {
     console.warn('[Mergician] Failed to read from clipboard:', err)
-    openMRError.value = 'Could not read from clipboard. Please paste manually.'
+    openMRError.value = 'Clipboard access was denied. Please type or paste the URL directly into the field.'
   }
 }
 
