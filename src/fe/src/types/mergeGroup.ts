@@ -1,7 +1,7 @@
 export interface BranchBuildJob {
   name: string
   status: string
-  url?: string | null
+  url: string | null
 }
 
 export interface BranchWithActivity {
@@ -13,12 +13,12 @@ export interface BranchWithActivity {
   approvalsRequired: number | null
   approvalsGiven: number | null
   lastUpdated: string | null
-  mergeRequestTitle?: string | null
-  mergeRequestUrl?: string | null
-  projectUrl?: string | null
-  needsRebase?: boolean | null
-  lastCommitMessage?: string | null
-  buildJobs?: BranchBuildJob[] | null
+  mergeRequestTitle: string | null
+  mergeRequestUrl: string | null
+  projectUrl: string | null
+  needsRebase: boolean | null
+  lastCommitMessage: string | null
+  buildJobs: BranchBuildJob[] | null
   mrStatus: number
   mrStatusReasons: string[] | null
   id: number
