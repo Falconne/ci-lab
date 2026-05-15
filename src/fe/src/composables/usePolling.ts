@@ -27,10 +27,11 @@ export function usePolling(pollFn: () => Promise<void>, options: UsePollingOptio
   const initialPhase = ref(false)
 
   let running = false
+  let active = true
   let startTime = 0
 
   async function loop() {
-    if (!running) return
+    if (!running || !active) return
 
     try {
       await pollFn()
@@ -38,7 +39,7 @@ export function usePolling(pollFn: () => Promise<void>, options: UsePollingOptio
       console.error('[Mergician] Unexpected error in poll loop:', err)
     }
 
-    if (!running) return
+    if (!running || !active) return
 
     const elapsed = Date.now() - startTime
     if (initialPhase.value && elapsed >= fastDurationMs) {
@@ -65,7 +66,10 @@ export function usePolling(pollFn: () => Promise<void>, options: UsePollingOptio
     setAppLoading(false)
   }
 
-  onUnmounted(stop)
+  onUnmounted(() => {
+    active = false
+    stop()
+  })
 
   return { initialPhase, start, stop }
 }
