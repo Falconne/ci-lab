@@ -1,4 +1,4 @@
-import type { BranchWithActivity, MergeGroup } from '@/types/mergeGroup'
+import type { BranchWithActivity } from '@/types/mergeGroup'
 
 export enum MRStatus {
   Loading = 0,
@@ -50,32 +50,32 @@ export function mrStatusChipColor(status: number): string {
  * Aggregate MR status for a merge group (worst-branch-wins, lowest status code wins).
  * Returns Loading (0) when there are no branches.
  */
-export function getGroupMRStatus(group: MergeGroup): number {
-  if (group.branches.length === 0) return MRStatus.Loading
-  return Math.min(...group.branches.map(b => b.mrStatus))
+export function getGroupMRStatus(branches: BranchWithActivity[]): number {
+  if (branches.length === 0) return MRStatus.Loading
+  return Math.min(...branches.map(b => b.mrStatus))
 }
 
 /**
  * Display label for the overall status of a merge group.
  */
-export function groupStatusLabel(group: MergeGroup): string {
-  return mrStatusLabel(getGroupMRStatus(group))
+export function groupStatusLabel(branches: BranchWithActivity[]): string {
+  return mrStatusLabel(getGroupMRStatus(branches))
 }
 
 /**
  * CSS class for the overall status of a merge group.
  */
-export function groupStatusClass(group: MergeGroup): string {
-  return mrStatusClass(getGroupMRStatus(group))
+export function groupStatusClass(branches: BranchWithActivity[]): string {
+  return mrStatusClass(getGroupMRStatus(branches))
 }
 
 /**
  * Collects status reasons from all non-Ready branches in a group,
  * formatted as "ProjectName: reason".
  */
-export function getGroupStatusReasons(group: MergeGroup): string[] {
+export function getGroupStatusReasons(branches: BranchWithActivity[]): string[] {
   const result: string[] = []
-  for (const branch of group.branches) {
+  for (const branch of branches) {
     if (branch.mrStatus === MRStatus.Loading || branch.mrStatus === MRStatus.Ready) continue
     if (branch.mrStatusReasons && branch.mrStatusReasons.length > 0) {
       for (const reason of branch.mrStatusReasons) {

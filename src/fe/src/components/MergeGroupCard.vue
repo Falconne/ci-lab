@@ -6,7 +6,7 @@
     :href="mergeGroupHref"
     @click.prevent="emit('navigate', group)"
   >
-    <div class="card-accent" :class="group.autoMerge ? groupStatusClass(group) : 'status-neutral'" />
+    <div class="card-accent" :class="group.autoMerge ? groupStatusClass(group.branches) : 'status-neutral'" />
     <div class="card-body">
       <div class="card-header">
         <div class="branch-info" :class="{ 'branch-info--single-mr': singleMrTitle }">
@@ -21,16 +21,16 @@
                 location="top"
               >
                 <template #activator="{ props: tipProps }">
-                  <span v-bind="tipProps" class="card-status-badge" :class="groupStatusClass(group)">
+                  <span v-bind="tipProps" class="card-status-badge" :class="groupStatusClass(group.branches)">
                     <span class="status-dot" />
-                    {{ groupStatusLabel(group) }}
+                    {{ groupStatusLabel(group.branches) }}
                   </span>
                 </template>
                 <span class="tooltip-multiline">{{ groupStatusReasonsText }}</span>
               </v-tooltip>
-              <span v-else class="card-status-badge" :class="groupStatusClass(group)">
+              <span v-else class="card-status-badge" :class="groupStatusClass(group.branches)">
                 <span class="status-dot" />
-                {{ groupStatusLabel(group) }}
+                {{ groupStatusLabel(group.branches) }}
               </span>
             </template>
             <span v-else-if="group.autoMerge" class="skeleton-badge"><span class="skeleton-shimmer" /></span>
@@ -62,16 +62,16 @@
                 location="top"
               >
                 <template #activator="{ props: tipProps }">
-                  <span v-bind="tipProps" class="card-status-badge" :class="groupStatusClass(group)">
+                  <span v-bind="tipProps" class="card-status-badge" :class="groupStatusClass(group.branches)">
                     <span class="status-dot" />
-                    {{ groupStatusLabel(group) }}
+                    {{ groupStatusLabel(group.branches) }}
                   </span>
                 </template>
                 <span class="tooltip-multiline">{{ groupStatusReasonsText }}</span>
               </v-tooltip>
-              <span v-else class="card-status-badge" :class="groupStatusClass(group)">
+              <span v-else class="card-status-badge" :class="groupStatusClass(group.branches)">
                 <span class="status-dot" />
-                {{ groupStatusLabel(group) }}
+                {{ groupStatusLabel(group.branches) }}
               </span>
             </template>
           </template>
@@ -314,7 +314,7 @@ const singleMrTitle = computed<string | null>(() => {
   return branch.mergeRequestTitle ?? null
 })
 
-const groupStatusReasons = computed(() => getGroupStatusReasons(props.group))
+const groupStatusReasons = computed(() => getGroupStatusReasons(props.group.branches))
 
 const groupStatusReasonsText = computed(() => groupStatusReasons.value.join('\n'))
 

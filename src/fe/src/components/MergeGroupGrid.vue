@@ -49,18 +49,18 @@
                 <!-- Status chip: rowspan spanning all branch rows, only in autoMerge sections -->
                 <td v-if="idx === 0 && sectionHasAutoMerge(section)" :rowspan="Math.max(1, group.branches.length)" class="col-status">
                   <template v-if="group.autoMerge && isGroupLoaded(group)">
-                    <v-tooltip v-if="getGroupStatusReasons(group).length > 0" location="top">
+                    <v-tooltip v-if="getGroupStatusReasons(group.branches).length > 0" location="top">
                       <template #activator="{ props: tipProps }">
-                        <span v-bind="tipProps" class="card-status-badge" :class="groupStatusClass(group)">
+                        <span v-bind="tipProps" class="card-status-badge" :class="groupStatusClass(group.branches)">
                           <span class="status-dot" />
-                          {{ groupStatusLabel(group) }}
+                          {{ groupStatusLabel(group.branches) }}
                         </span>
                       </template>
-                      <span class="tooltip-multiline">{{ getGroupStatusReasons(group).join('\n') }}</span>
+                      <span class="tooltip-multiline">{{ getGroupStatusReasons(group.branches).join('\n') }}</span>
                     </v-tooltip>
-                    <span v-else class="card-status-badge" :class="groupStatusClass(group)">
+                    <span v-else class="card-status-badge" :class="groupStatusClass(group.branches)">
                       <span class="status-dot" />
-                      {{ groupStatusLabel(group) }}
+                      {{ groupStatusLabel(group.branches) }}
                     </span>
                   </template>
                   <span v-else-if="group.autoMerge" class="skeleton-badge"><span class="skeleton-shimmer" /></span>

@@ -487,15 +487,15 @@ async function checkMergePermissions() {
 
 
 const overallStatusLabel = computed<string>(() =>
-  groupStatusLabel({ branches: activities.value } as MergeGroup)
+  groupStatusLabel(activities.value)
 )
 
 const overallStatusClass = computed<string>(() =>
-  groupStatusClass({ branches: activities.value } as MergeGroup)
+  groupStatusClass(activities.value)
 )
 
 const overallStatusReasons = computed<string[]>(() =>
-  getGroupStatusReasons({ branches: activities.value } as MergeGroup)
+  getGroupStatusReasons(activities.value)
 )
 
 const overallStatusReasonsText = computed<string>(() =>
