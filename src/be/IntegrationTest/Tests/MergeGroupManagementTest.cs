@@ -49,12 +49,12 @@ public class MergeGroupManagementTest
         await LoginHelper.EnsureLoggedIn(_browser, "test1");
         await _browser.TakeScreenshot("subscription_01_dashboard");
 
-        // Click the first merge group card to go to details
-        var firstCard = _browser.Page.Locator(".merge-group-card").First;
-        var mergeGroupName = await firstCard.Locator(".branch-name, .branch-subtitle").First.InnerTextAsync();
+        // Click the first merge group row to go to details
+        var firstRow = _browser.Page.Locator(".grid-row[data-mg-name]").First;
+        var mergeGroupName = (await firstRow.GetAttributeAsync("data-mg-name") ?? "").Trim();
         Log.Information("Selected merge group: {Name}", mergeGroupName);
 
-        await firstCard.ClickAsync();
+        await firstRow.ClickAsync();
         await _browser.Page.WaitForURLAsync(
             url => url.Contains("/merge-group/"),
             new PageWaitForURLOptions { Timeout = 15000 });
@@ -100,12 +100,11 @@ public class MergeGroupManagementTest
         await DashboardWaitHelper.WaitForDashboardReady(_browser.Page, 30);
         await _browser.TakeScreenshot("subscription_04_dashboard_after_unsubscribe");
 
-        var matchingCards = _browser.Page.Locator(".merge-group-card")
-            .Filter(new LocatorFilterOptions { HasTextString = mergeGroupName });
+        var matchingRows = _browser.Page.Locator($"[data-mg-name='{mergeGroupName}']");
 
-        var matchCount = await matchingCards.CountAsync();
+        var matchCount = await matchingRows.CountAsync();
         Log.Information(
-            "Merge group '{Name}' cards on dashboard after unsubscribe: {Count}",
+            "Merge group '{Name}' rows on dashboard after unsubscribe: {Count}",
             mergeGroupName,
             matchCount);
 
@@ -149,12 +148,11 @@ public class MergeGroupManagementTest
         await DashboardWaitHelper.WaitForDashboardReady(_browser.Page, 60);
         await _browser.TakeScreenshot("subscription_07_dashboard_after_resubscribe");
 
-        matchingCards = _browser.Page.Locator(".merge-group-card")
-            .Filter(new LocatorFilterOptions { HasTextString = mergeGroupName });
+        matchingRows = _browser.Page.Locator($"[data-mg-name='{mergeGroupName}']");
 
-        matchCount = await matchingCards.CountAsync();
+        matchCount = await matchingRows.CountAsync();
         Log.Information(
-            "Merge group '{Name}' cards on dashboard after resubscribe: {Count}",
+            "Merge group '{Name}' rows on dashboard after resubscribe: {Count}",
             mergeGroupName,
             matchCount);
 

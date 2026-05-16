@@ -669,20 +669,15 @@ public class AutoMergeBehaviorTest
     {
         for (var i = 0; i < timeoutSeconds; i++)
         {
-            var cards = _browser.Page.Locator(".merge-group-card");
-            var count = await cards.CountAsync();
-            for (var j = 0; j < count; j++)
+            var rows = _browser.Page.Locator($"[data-mg-name*='{branchName}']");
+            if (await rows.CountAsync() > 0)
             {
-                var name = (await cards.Nth(j).Locator(".branch-name, .branch-subtitle").First.InnerTextAsync()).Trim();
-                if (name.Contains(branchName, StringComparison.OrdinalIgnoreCase))
-                {
-                    Log.Information(
-                        "Branch '{BranchName}' found on dashboard after ~{Seconds}s",
-                        branchName,
-                        i);
+                Log.Information(
+                    "Branch '{BranchName}' found on dashboard after ~{Seconds}s",
+                    branchName,
+                    i);
 
-                    return true;
-                }
+                return true;
             }
 
             if (i % 10 == 0)
@@ -703,21 +698,8 @@ public class AutoMergeBehaviorTest
     {
         for (var i = 0; i < timeoutSeconds; i++)
         {
-            var cards = _browser.Page.Locator(".merge-group-card");
-            var count = await cards.CountAsync();
-            var found = false;
-
-            for (var j = 0; j < count; j++)
-            {
-                var name = (await cards.Nth(j).Locator(".branch-name, .branch-subtitle").First.InnerTextAsync()).Trim();
-                if (name.Contains(branchName, StringComparison.OrdinalIgnoreCase))
-                {
-                    found = true;
-                    break;
-                }
-            }
-
-            if (!found)
+            var rows = _browser.Page.Locator($"[data-mg-name*='{branchName}']");
+            if (await rows.CountAsync() == 0)
             {
                 Log.Information(
                     "Branch '{BranchName}' disappeared from dashboard after ~{Seconds}s",
@@ -743,31 +725,25 @@ public class AutoMergeBehaviorTest
 
     /// <summary>
     ///     Navigates to the merge group details page for the given branch name
-    ///     by clicking on its card on the dashboard.
+    ///     by clicking on its row on the dashboard.
     /// </summary>
     private async Task NavigateToMergeGroupDetails(string branchName)
     {
-        var cards = _browser.Page.Locator(".merge-group-card");
-        var count = await cards.CountAsync();
-
-        for (var i = 0; i < count; i++)
+        var row = _browser.Page.Locator($"[data-mg-name*='{branchName}']").First;
+        if (await row.CountAsync() > 0)
         {
-            var name = (await cards.Nth(i).Locator(".branch-name, .branch-subtitle").First.InnerTextAsync()).Trim();
-            if (name.Contains(branchName, StringComparison.OrdinalIgnoreCase))
-            {
-                await cards.Nth(i).ClickAsync();
-                await _browser.Page.WaitForURLAsync(
-                    url => url.Contains("/merge-group/"),
-                    new PageWaitForURLOptions { Timeout = 15000 });
+            await row.ClickAsync();
+            await _browser.Page.WaitForURLAsync(
+                url => url.Contains("/merge-group/"),
+                new PageWaitForURLOptions { Timeout = 15000 });
 
-                await Task.Delay(2000);
-                Log.Information("Navigated to merge group details for '{BranchName}'", branchName);
-                return;
-            }
+            await Task.Delay(2000);
+            Log.Information("Navigated to merge group details for '{BranchName}'", branchName);
+            return;
         }
 
         throw new InvalidOperationException(
-            $"Could not find card for branch '{branchName}' on dashboard");
+            $"Could not find row for branch '{branchName}' on dashboard");
     }
 
     /// <summary>

@@ -206,62 +206,48 @@ public class MergeQueueTest
                 await _browser.TakeScreenshot("queue_06_single_queue_content");
             }
 
-            // Poll for queue toolbar to appear, which means queue data has loaded.
-            // Then switch to card view so the card-specific selectors work.
-            var queueToolbar = _browser.Page.Locator(".queue-toolbar");
+            // Poll for queue grid rows to appear, confirming queue data has loaded.
+            var queueRows = _browser.Page.Locator(".grid-row[data-mg-name]");
             for (var i = 0; i < 30; i++)
             {
-                if (await queueToolbar.CountAsync() > 0)
+                if (await queueRows.CountAsync() > 0)
                 {
-                    Log.Information("Queue toolbar appeared after ~{Seconds}s", i);
+                    Log.Information("Queue grid rows appeared after ~{Seconds}s", i);
                     break;
                 }
 
                 if (i % 10 == 0)
                 {
-                    Log.Information("Waiting for queue toolbar... {Seconds}s", i);
+                    Log.Information("Waiting for queue grid rows... {Seconds}s", i);
                 }
 
                 await Task.Delay(1000);
             }
 
-            if (await queueToolbar.CountAsync() == 0)
-            {
-                throw new InvalidOperationException("Queue toolbar never appeared — queue data did not load");
-            }
+            var rowCount = await queueRows.CountAsync();
+            await _browser.TakeScreenshot("queue_07_queue_rows_loaded");
+            Log.Information("Rows in selected queue: {Count}", rowCount);
 
-            // Ensure card view is active (the view mode may have been changed by a prior test)
-            var cardViewBtn = _browser.Page.Locator(".view-toggle .v-btn").Nth(1);
-            await cardViewBtn.ClickAsync();
-            await Task.Delay(500);
-            Log.Information("Switched to card view");
-
-            // Poll for queue cards to appear in card view
-            var queueCards = _browser.Page.Locator(".queue-card-wrapper .merge-group-card");
-            var cardCount = await queueCards.CountAsync();
-            await _browser.TakeScreenshot("queue_07_queue_cards_loaded");
-            Log.Information("Cards in selected queue: {Count}", cardCount);
-
-            if (cardCount < 2)
+            if (rowCount < 2)
             {
                 throw new InvalidOperationException(
-                    $"Expected at least 2 merge group cards in the queue, found {cardCount}");
+                    $"Expected at least 2 merge group rows in the queue, found {rowCount}");
             }
 
-            // Verify the first entry is marked as the next to process
-            var positionFirstBadge = _browser.Page.Locator(".position-first");
-            var positionFirstCount = await positionFirstBadge.CountAsync();
-            Log.Information("'position-first' (▶) badges in queue view: {Count}", positionFirstCount);
+            // Verify the first entry shows a queue-position badge indicating it is next
+            var firstQueueBadge = _browser.Page.Locator(".grid-row[data-mg-name] .queue-position-badge").First;
+            var queueBadgeCount = await firstQueueBadge.CountAsync();
+            Log.Information("Queue position badge on first row: {Count}", queueBadgeCount);
 
-            if (positionFirstCount == 0)
+            if (queueBadgeCount == 0)
             {
                 throw new InvalidOperationException(
-                    "Expected the first queue entry to have a 'position-first' badge");
+                    "Expected the first queue entry to have a queue-position badge");
             }
 
             // === Verify: queue position link on MG details page ===
-            // Click the first card to navigate to its details page
-            await queueCards.First.ClickAsync();
+            // Click the first row to navigate to its details page
+            await queueRows.First.ClickAsync();
             await _browser.Page.WaitForURLAsync(
                 url => url.Contains("/merge-group/"),
                 new PageWaitForURLOptions { Timeout = 15000 });
@@ -399,26 +385,21 @@ public class MergeQueueTest
     }
 
     /// <summary>
-    ///     Polls the dashboard until the given branch name appears as a card.
+    ///     Polls the dashboard until the given branch name appears as a grid row.
     /// </summary>
     private async Task<bool> WaitForBranchOnDashboard(string branchName, int timeoutSeconds)
     {
         for (var i = 0; i < timeoutSeconds; i++)
         {
-            var cards = _browser.Page.Locator(".merge-group-card");
-            var count = await cards.CountAsync();
-            for (var j = 0; j < count; j++)
+            var rows = _browser.Page.Locator($"[data-mg-name*='{branchName}']");
+            if (await rows.CountAsync() > 0)
             {
-                var name = (await cards.Nth(j).Locator(".branch-name, .branch-subtitle").First.InnerTextAsync()).Trim();
-                if (name.Contains(branchName, StringComparison.OrdinalIgnoreCase))
-                {
-                    Log.Information(
-                        "Branch '{BranchName}' found on dashboard after ~{Seconds}s",
-                        branchName,
-                        i);
+                Log.Information(
+                    "Branch '{BranchName}' found on dashboard after ~{Seconds}s",
+                    branchName,
+                    i);
 
-                    return true;
-                }
+                return true;
             }
 
             if (i % 15 == 0)
@@ -436,31 +417,25 @@ public class MergeQueueTest
     }
 
     /// <summary>
-    ///     Finds and clicks the merge group card for the given branch, waiting for the details page.
+    ///     Finds and clicks the merge group row for the given branch, waiting for the details page.
     /// </summary>
     private async Task NavigateToMergeGroupDetails(string branchName)
     {
-        var cards = _browser.Page.Locator(".merge-group-card");
-        var count = await cards.CountAsync();
-
-        for (var i = 0; i < count; i++)
+        var row = _browser.Page.Locator($"[data-mg-name*='{branchName}']").First;
+        if (await row.CountAsync() > 0)
         {
-            var name = (await cards.Nth(i).Locator(".branch-name, .branch-subtitle").First.InnerTextAsync()).Trim();
-            if (name.Contains(branchName, StringComparison.OrdinalIgnoreCase))
-            {
-                await cards.Nth(i).ClickAsync();
-                await _browser.Page.WaitForURLAsync(
-                    url => url.Contains("/merge-group/"),
-                    new PageWaitForURLOptions { Timeout = 15000 });
+            await row.ClickAsync();
+            await _browser.Page.WaitForURLAsync(
+                url => url.Contains("/merge-group/"),
+                new PageWaitForURLOptions { Timeout = 15000 });
 
-                await Task.Delay(2000);
-                Log.Information("Navigated to merge group details for '{BranchName}'", branchName);
-                return;
-            }
+            await Task.Delay(2000);
+            Log.Information("Navigated to merge group details for '{BranchName}'", branchName);
+            return;
         }
 
         throw new InvalidOperationException(
-            $"Could not find card for branch '{branchName}' on dashboard");
+            $"Merge group row for branch '{branchName}' not found on dashboard");
     }
 
     /// <summary>

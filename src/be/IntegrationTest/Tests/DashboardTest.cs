@@ -7,7 +7,7 @@ namespace IntegrationTest.Tests;
 
 /// <summary>
 ///     Tests that the dashboard UI displays the expected branch activity data
-///     after polling-based loading completes, using the card-based layout.
+///     after polling-based loading completes, using the grid-based layout.
 ///     Uses Playwright to interact with the actual frontend, just as a real user would.
 ///     Expected data per user (created by ProjectSetupService.SetupTestBranchData):
 ///     test1: feature/alpha (primary-1 with MR+approval, secondary-1 with MR),
@@ -16,8 +16,8 @@ namespace IntegrationTest.Tests;
 ///     test2: feature/gamma (primary-1 with MR, secondary-1 with MR+approval, secondary-2 with MR)
 ///     test3: feature/delta (secondary-3, no MR)
 ///     The UI should display the MR title next to the corresponding project entry
-///     within the branch card when an MR exists.
-///     When no MR exists, the UI shows 'No Merge Request' in the MR title area.
+///     within the branch row when an MR exists.
+///     When no MR exists, the UI shows 'No MR' in the MR title area.
 /// </summary>
 public class DashboardTest
 {
@@ -144,7 +144,7 @@ public class DashboardTest
                     null,
                     null,
                     "Test Group / secondary-3",
-                    "No Merge Request");
+                    "No MR");
 
                 Log.Information("test3 dashboard data verified");
             });
@@ -211,7 +211,7 @@ public class DashboardTest
         await _browser.TakeScreenshot($"dashboard_{username}_02_load_complete");
 
         // Parse the rendered dashboard cards
-        _parsedCards = await ParseDashboardCards();
+        _parsedCards = await ParseDashboardRows();
 
         Log.Information("Dashboard rendered {Count} cards for '{Username}':", _parsedCards.Count, username);
         foreach (var card in _parsedCards)
@@ -237,51 +237,59 @@ public class DashboardTest
     }
 
     /// <summary>
-    ///     Parses the rendered dashboard cards into structured data for assertions.
+    ///     Parses the rendered dashboard grid into structured data for assertions.
+    ///     Groups rows by their data-mg-name attribute, then reads per-branch data from each row.
     /// </summary>
-    private async Task<List<ParsedCard>> ParseDashboardCards()
+    private async Task<List<ParsedCard>> ParseDashboardRows()
     {
         var cards = new List<ParsedCard>();
-        var cardElements = _browser.Page.Locator(".merge-group-card");
-        var cardCount = await cardElements.CountAsync();
 
-        for (var i = 0; i < cardCount; i++)
+        // Collect all unique branch names from data-mg-name attributes
+        var allRows = _browser.Page.Locator(".grid-row[data-mg-name]");
+        var rowCount = await allRows.CountAsync();
+
+        var branchNames = new List<string>();
+        for (var i = 0; i < rowCount; i++)
         {
-            var card = cardElements.Nth(i);
+            var name = await allRows.Nth(i).GetAttributeAsync("data-mg-name") ?? "";
+            if (!string.IsNullOrEmpty(name) && !branchNames.Contains(name))
+                branchNames.Add(name);
+        }
 
-            var branchName = (await card.Locator(".branch-name, .branch-subtitle").First.InnerTextAsync()).Trim();
-            var groupStatusBadge = card.Locator(".card-status-badge");
+        foreach (var branchName in branchNames)
+        {
+            var branchRows = _browser.Page.Locator($"[data-mg-name='{branchName}']");
+            var branchRowCount = await branchRows.CountAsync();
+
+            // Group status badge is on the first row's col-status cell (only for auto-merge groups)
+            var groupStatusBadge = branchRows.First.Locator(".card-status-badge");
             var groupStatus = await groupStatusBadge.CountAsync() > 0
                 ? (await groupStatusBadge.InnerTextAsync()).Trim()
                 : "";
 
             var items = new List<ParsedCardItem>();
-            var itemElements = card.Locator(".card-item");
-            var itemCount = await itemElements.CountAsync();
 
-            for (var j = 0; j < itemCount; j++)
+            for (var j = 0; j < branchRowCount; j++)
             {
-                var item = itemElements.Nth(j);
-                var repo = (await item.Locator(".item-project").InnerTextAsync()).Trim();
-                var projectTooltip = (await item.Locator(".item-project").GetAttributeAsync("title"))?.Trim()
-                                     ?? "";
+                var row = branchRows.Nth(j);
 
-                // MR title (if any)
+                var projectEl = row.Locator(".project-name");
+                if (await projectEl.CountAsync() == 0) continue;
+
+                var repo = (await projectEl.InnerTextAsync()).Trim();
+                var projectTooltip = (await projectEl.GetAttributeAsync("title"))?.Trim() ?? "";
+
                 var mergeRequestTitle = "";
-                var mergeRequestTitleEl = item.Locator(".item-mr-title");
-                if (await mergeRequestTitleEl.CountAsync() > 0)
-                {
-                    mergeRequestTitle = (await mergeRequestTitleEl.InnerTextAsync()).Trim();
-                }
+                var mrTitleEl = row.Locator(".col-mr .mr-title");
+                if (await mrTitleEl.CountAsync() > 0)
+                    mergeRequestTitle = (await mrTitleEl.InnerTextAsync()).Trim();
 
                 var noMergeRequestText = "";
-                var noMergeRequestEl = item.Locator(".item-no-mr");
-                if (await noMergeRequestEl.CountAsync() > 0)
-                {
-                    noMergeRequestText = (await noMergeRequestEl.InnerTextAsync()).Trim();
-                }
+                var noMrEl = row.Locator(".col-mr .no-mr-text");
+                if (await noMrEl.CountAsync() > 0)
+                    noMergeRequestText = (await noMrEl.InnerTextAsync()).Trim();
 
-                var approvalEl = item.Locator(".item-approvals");
+                var approvalEl = row.Locator(".approvals-cell");
                 var approvals = "";
                 var tooltip = "";
                 var iconColor = "";
@@ -289,12 +297,9 @@ public class DashboardTest
                 {
                     approvals = (await approvalEl.InnerTextAsync()).Trim();
                     tooltip = (await approvalEl.GetAttributeAsync("title"))?.Trim() ?? "";
-                    // try read color prop from the icon if present
                     var iconEl = approvalEl.Locator(".approval-icon");
                     if (await iconEl.CountAsync() > 0)
-                    {
                         iconColor = await iconEl.GetAttributeAsync("data-approval-color") ?? "";
-                    }
                 }
 
                 items.Add(
@@ -433,13 +438,13 @@ public class DashboardTest
     }
 
     /// <summary>
-    ///     Tests that the dashboard card layout is responsive at mobile viewport width.
-    ///     Verifies that cards render properly and content is visible at small screen sizes.
-    ///     Called while already logged in as test1 (richest card set for better coverage).
+    ///     Tests that the dashboard grid layout is responsive at mobile viewport width.
+    ///     Verifies that rows render properly and content is visible at small screen sizes.
+    ///     Called while already logged in as test1 (richest data set for better coverage).
     /// </summary>
     private async Task TestResponsiveLayout()
     {
-        Log.Information("Testing responsive card layout...");
+        Log.Information("Testing responsive grid layout...");
 
         // Set a mobile-sized viewport and reload to apply it
         await _browser.Page.SetViewportSizeAsync(375, 812);
@@ -448,24 +453,24 @@ public class DashboardTest
         await WaitForDashboardReady(120);
         await _browser.TakeScreenshot("dashboard_responsive_mobile");
 
-        var cardCount = await _browser.Page.Locator(".merge-group-card").CountAsync();
-        if (cardCount == 0)
+        var rowCount = await _browser.Page.Locator(".grid-row").CountAsync();
+        if (rowCount == 0)
         {
-            throw new InvalidOperationException("No cards visible at mobile viewport");
+            throw new InvalidOperationException("No grid rows visible at mobile viewport");
         }
 
-        // Verify cards are visible and branch names are not clipped to zero width
-        var firstCard = _browser.Page.Locator(".merge-group-card").First;
-        var box = await firstCard.BoundingBoxAsync();
+        // Verify rows are visible and not clipped to zero width
+        var firstRow = _browser.Page.Locator(".grid-row").First;
+        var box = await firstRow.BoundingBoxAsync();
         if (box == null || box.Width < 200)
         {
             throw new InvalidOperationException(
-                $"Card unexpectedly narrow at mobile viewport: {box?.Width}px");
+                $"Grid row unexpectedly narrow at mobile viewport: {box?.Width}px");
         }
 
         Log.Information(
-            "Mobile viewport: {Count} cards visible, first card width={Width}px",
-            cardCount,
+            "Mobile viewport: {Count} rows visible, first row width={Width}px",
+            rowCount,
             box.Width);
 
         // Set a tablet-sized viewport
@@ -473,13 +478,13 @@ public class DashboardTest
         await Task.Delay(1000);
         await _browser.TakeScreenshot("dashboard_responsive_tablet");
 
-        cardCount = await _browser.Page.Locator(".merge-group-card").CountAsync();
-        if (cardCount == 0)
+        rowCount = await _browser.Page.Locator(".grid-row").CountAsync();
+        if (rowCount == 0)
         {
-            throw new InvalidOperationException("No cards visible at tablet viewport");
+            throw new InvalidOperationException("No grid rows visible at tablet viewport");
         }
 
-        Log.Information("Tablet viewport: {Count} cards visible", cardCount);
+        Log.Information("Tablet viewport: {Count} rows visible", rowCount);
 
         // Reset viewport to default desktop size
         await _browser.Page.SetViewportSizeAsync(1280, 720);
@@ -495,11 +500,9 @@ public class DashboardTest
     {
         Log.Information("Testing merge-group details navigation and links for '{BranchName}'", branchName);
 
-        var card = _browser.Page.Locator(".merge-group-card")
-            .Filter(new LocatorFilterOptions { HasTextString = branchName })
-            .First;
+        var row = _browser.Page.Locator($"[data-mg-name*='{branchName}']").First;
 
-        await card.ClickAsync();
+        await row.ClickAsync();
 
         await _browser.Page.WaitForURLAsync(
             url => url.Contains("/merge-group/"),
@@ -604,11 +607,11 @@ public class DashboardTest
 
         await _browser.TakeScreenshot("dashboard_details_02_back_home");
 
-        var cardsAfterReturn = await _browser.Page.Locator(".merge-group-card").CountAsync();
-        if (cardsAfterReturn == 0)
+        var rowsAfterReturn = await _browser.Page.Locator(".grid-row").CountAsync();
+        if (rowsAfterReturn == 0)
         {
             throw new InvalidOperationException(
-                "No dashboard cards visible after returning home via app bar title");
+                "No dashboard rows visible after returning home via app bar title");
         }
 
         Log.Information("Merge-group details navigation and links verified for '{BranchName}'", branchName);

@@ -5,63 +5,51 @@ namespace IntegrationTest.Services;
 
 /// <summary>
 ///     Shared helper for waiting until the dashboard UI is fully loaded:
-///     cards are visible and all card items have their MR data resolved
-///     (each item has either approval info, MR title, or "No Merge Request" text).
+///     grid rows are visible and all per-branch cells have their MR data resolved
+///     (each row has either approval info, MR title, or "No MR" text).
 /// </summary>
 public static class DashboardWaitHelper
 {
     /// <summary>
-    ///     Waits until dashboard cards appear and all card items have resolved MR data.
+    ///     Waits until dashboard grid rows appear and all per-branch MR cells have resolved.
     ///     Returns true if the dashboard loaded within the timeout, false otherwise.
     /// </summary>
     public static async Task<bool> WaitForDashboardReady(IPage page, int timeoutSeconds = 120)
     {
         for (var s = 0; s < timeoutSeconds; s++)
         {
-            var cardCount = await page.Locator(".merge-group-card").CountAsync();
-            if (cardCount == 0)
+            var rowCount = await page.Locator(".grid-row").CountAsync();
+            if (rowCount == 0)
             {
                 if (s % 10 == 0)
                 {
-                    Log.Information("Waiting for dashboard cards to appear... {Seconds}s", s);
-                }
-
-                // If data has loaded but no cards are visible, we may be in grid view.
-                // Switch to card view so card-based test assertions work.
-                var viewToggle = page.Locator(".view-toggle");
-                if (await viewToggle.CountAsync() > 0)
-                {
-                    var cardViewBtn = viewToggle.Locator(".v-btn").Nth(1);
-                    if (await cardViewBtn.CountAsync() > 0)
-                    {
-                        Log.Information("Grid view detected on dashboard, switching to card view");
-                        await cardViewBtn.ClickAsync();
-                        await Task.Delay(300);
-                    }
+                    Log.Information("Waiting for dashboard grid rows to appear... {Seconds}s", s);
                 }
 
                 await Task.Delay(1000);
                 continue;
             }
 
-            var items = page.Locator(".card-item");
-            var itemCount = await items.CountAsync();
+            // Check all col-mr cells — each must have resolved to either an MR title,
+            // "No MR" text, or an approvals indicator (i.e. not still showing a skeleton).
+            var mrCells = page.Locator(".grid-row .col-mr");
+            var mrCellCount = await mrCells.CountAsync();
 
-            if (itemCount == 0)
+            if (mrCellCount == 0)
             {
                 await Task.Delay(1000);
                 continue;
             }
 
             var allResolved = true;
-            for (var i = 0; i < itemCount; i++)
+            for (var i = 0; i < mrCellCount; i++)
             {
-                var item = items.Nth(i);
-                var hasApprovals = await item.Locator(".item-approvals").CountAsync() > 0;
-                var hasNoMergeRequest = await item.Locator(".item-no-mr").CountAsync() > 0;
-                var hasMergeRequestTitle = await item.Locator(".item-mr-title").CountAsync() > 0;
+                var cell = mrCells.Nth(i);
+                var hasMrTitle = await cell.Locator(".mr-title").CountAsync() > 0;
+                var hasNoMr = await cell.Locator(".no-mr-text").CountAsync() > 0;
+                var hasSkeleton = await cell.Locator(".skeleton-inline").CountAsync() > 0;
 
-                if (!hasApprovals && !hasNoMergeRequest && !hasMergeRequestTitle)
+                if (!hasMrTitle && !hasNoMr && hasSkeleton)
                 {
                     allResolved = false;
                     break;
@@ -71,10 +59,10 @@ public static class DashboardWaitHelper
             if (allResolved)
             {
                 Log.Information(
-                    "Dashboard fully loaded after ~{Seconds}s ({Cards} cards, {Items} items resolved)",
+                    "Dashboard fully loaded after ~{Seconds}s ({Rows} rows, {Cells} MR cells resolved)",
                     s,
-                    cardCount,
-                    itemCount);
+                    rowCount,
+                    mrCellCount);
 
                 return true;
             }
@@ -82,8 +70,8 @@ public static class DashboardWaitHelper
             if (s % 10 == 0)
             {
                 Log.Information(
-                    "Waiting for MR data to resolve... {Cards} cards visible, {Seconds}s elapsed",
-                    cardCount,
+                    "Waiting for MR data to resolve... {Rows} rows visible, {Seconds}s elapsed",
+                    rowCount,
                     s);
             }
 
@@ -94,7 +82,7 @@ public static class DashboardWaitHelper
     }
 
     /// <summary>
-    ///     Waits until each specified branch shows the expected group status badge on the dashboard.
+    ///     Waits until each specified branch shows the expected group status badge in the grid.
     ///     Useful for waiting until background build jobs complete and Mergician reflects the final state.
     /// </summary>
     /// <param name="page">The Playwright page to poll.</param>
@@ -112,26 +100,19 @@ public static class DashboardWaitHelper
 
             foreach (var (branchName, expectedStatus) in expectedStatuses)
             {
-                var cardElements = page.Locator(".merge-group-card");
-                var cardCount = await cardElements.CountAsync();
+                var rows = page.Locator($"[data-mg-name*='{branchName}']");
+                var rowCount = await rows.CountAsync();
                 var matched = false;
 
-                for (var i = 0; i < cardCount; i++)
+                if (rowCount > 0)
                 {
-                    var card = cardElements.Nth(i);
-                    var name = (await card.Locator(".branch-name, .branch-subtitle").First.InnerTextAsync()).Trim();
-                    if (!name.Contains(branchName, StringComparison.OrdinalIgnoreCase))
-                        continue;
-
-                    var badge = card.Locator(".card-status-badge");
+                    var badge = rows.First.Locator(".card-status-badge");
                     var status = await badge.CountAsync() > 0
                         ? (await badge.InnerTextAsync()).Trim()
                         : "";
 
                     if (status.Equals(expectedStatus, StringComparison.OrdinalIgnoreCase))
                         matched = true;
-
-                    break;
                 }
 
                 if (!matched)

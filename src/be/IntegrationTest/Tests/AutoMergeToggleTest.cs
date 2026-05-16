@@ -53,40 +53,61 @@ public class AutoMergeToggleTest
                 "Expected no 'Auto Merge Enabled' section on dashboard initially");
         }
 
-        // Find a merge group card that:
-        //   1. Has all branches with MRs (no .item-no-mr) so the auto-merge toggle is enabled.
+        // Find a merge group row where:
+        //   1. All branches have MRs (no .col-mr .no-mr-text) so the auto-merge toggle is enabled.
         //   2. Has a draft MR, which auto-merge will never execute on — safe to enable without
         //      the group disappearing from the dashboard before we can verify the badge.
-        //      Status badges are only rendered when auto-merge is already on, so we use
-        //      the draft MR indicator directly rather than the badge to identify safe cards.
-        var allCards = _browser.Page.Locator(".merge-group-card");
-        ILocator? targetCard = null;
-        var totalCards = await allCards.CountAsync();
-        for (var i = 0; i < totalCards; i++)
-        {
-            var card = allCards.Nth(i);
-            var hasNoMrBranch = await card.Locator(".item-no-mr").CountAsync() > 0;
-            if (hasNoMrBranch)
-                continue;
+        var allRows = _browser.Page.Locator("[data-mg-name]");
+        var totalRows = await allRows.CountAsync();
 
-            var hasDraftMr = await card.GetByText("Draft:").CountAsync() > 0;
-            if (hasDraftMr)
+        // Collect unique merge group names preserving order
+        var groupNames = new List<string>();
+        var seenNames = new HashSet<string>();
+        for (var i = 0; i < totalRows; i++)
+        {
+            var name = await allRows.Nth(i).GetAttributeAsync("data-mg-name") ?? string.Empty;
+            if (!string.IsNullOrEmpty(name) && seenNames.Add(name))
+                groupNames.Add(name);
+        }
+
+        string? targetGroupName = null;
+        foreach (var groupName in groupNames)
+        {
+            var groupRows = _browser.Page.Locator($"[data-mg-name='{groupName}']");
+            var groupRowCount = await groupRows.CountAsync();
+
+            var hasNoMrBranch = false;
+            var hasDraftMr = false;
+
+            for (var i = 0; i < groupRowCount; i++)
             {
-                targetCard = card;
+                var groupRow = groupRows.Nth(i);
+                if (await groupRow.Locator(".col-mr .no-mr-text").CountAsync() > 0)
+                {
+                    hasNoMrBranch = true;
+                    break;
+                }
+
+                if (await groupRow.GetByText("Draft:").CountAsync() > 0)
+                    hasDraftMr = true;
+            }
+
+            if (!hasNoMrBranch && hasDraftMr)
+            {
+                targetGroupName = groupName;
                 break;
             }
         }
 
-        if (targetCard == null)
+        if (targetGroupName == null)
         {
             throw new InvalidOperationException(
-                "No merge group card with a draft MR found; cannot safely run auto merge toggle test");
+                "No merge group row with a draft MR found; cannot safely run auto merge toggle test");
         }
 
-        var targetBranchName = (await targetCard.Locator(".branch-name, .branch-subtitle").First.InnerTextAsync()).Trim();
-        Log.Information("Selected card for auto merge toggle test: '{BranchName}'", targetBranchName);
+        Log.Information("Selected group for auto merge toggle test: '{GroupName}'", targetGroupName);
 
-        await targetCard.ClickAsync();
+        await _browser.Page.Locator($"[data-mg-name='{targetGroupName}']").First.ClickAsync();
         await _browser.Page.WaitForURLAsync(
             url => url.Contains("/merge-group/"),
             new PageWaitForURLOptions { Timeout = 15000 });
@@ -169,12 +190,12 @@ public class AutoMergeToggleTest
                 "Expected an 'Auto Merge Enabled' section on the dashboard after enabling auto merge");
         }
 
-        // Navigate back to details by finding the card for the target branch in the auto merge section
-        var cardInAutoMergeSection = _browser.Page
-            .Locator(".merge-group-card")
-            .Filter(new LocatorFilterOptions { HasText = targetBranchName });
+        // Navigate back to details by finding the row for the target group in the auto merge section
+        var rowInAutoMergeSection = _browser.Page
+            .Locator($"[data-mg-name='{targetGroupName}']")
+            .First;
 
-        await cardInAutoMergeSection.First.ClickAsync();
+        await rowInAutoMergeSection.ClickAsync();
         await _browser.Page.WaitForURLAsync(
             url => url.Contains("/merge-group/"),
             new PageWaitForURLOptions { Timeout = 15000 });

@@ -81,25 +81,23 @@ public class ManualJobFilterTest
 
             await _browser.TakeScreenshot("manual_job_filter_02_after_sync_wait");
 
-            var card = _browser.Page.Locator(".merge-group-card")
-                .Filter(new LocatorFilterOptions { HasTextString = branchName })
-                .First;
+            var row = _browser.Page.Locator($"[data-mg-name*='{branchName}']").First;
 
             // Verify the MR title is visible — confirms branch data has been loaded by Mergician.
-            var mrTitleCount = await card.Locator(".item-mr-title").CountAsync();
+            var mrTitleCount = await row.Locator(".col-mr .mr-title").CountAsync();
             if (mrTitleCount == 0)
             {
                 throw new InvalidOperationException(
-                    $"MR title not visible in card for branch '{branchName}'; branch data may not have loaded");
+                    $"MR title not visible in grid row for branch '{branchName}'; branch data may not have loaded");
             }
 
             // Assert no job chips are shown: the manual job must have been filtered out.
-            var jobSectionCount = await card.Locator(".card-jobs").CountAsync();
-            if (jobSectionCount > 0)
+            var jobCellCount = await row.Locator(".col-jobs .jobs-cell").CountAsync();
+            if (jobCellCount > 0)
             {
                 throw new InvalidOperationException(
                     $"Expected no job chips for branch '{branchName}' (manual job should be filtered out), "
-                    + $"but found {jobSectionCount} .card-jobs element(s)");
+                    + $"but found {jobCellCount} .jobs-cell element(s)");
             }
 
             await _browser.TakeScreenshot("manual_job_filter_03_verified_no_job_chips");
@@ -133,20 +131,15 @@ public class ManualJobFilterTest
     {
         for (var i = 0; i < timeoutSeconds; i++)
         {
-            var cards = _browser.Page.Locator(".merge-group-card");
-            var count = await cards.CountAsync();
-            for (var j = 0; j < count; j++)
+            var rows = _browser.Page.Locator($"[data-mg-name*='{branchName}']");
+            if (await rows.CountAsync() > 0)
             {
-                var name = (await cards.Nth(j).Locator(".branch-name, .branch-subtitle").First.InnerTextAsync()).Trim();
-                if (name.Contains(branchName, StringComparison.OrdinalIgnoreCase))
-                {
-                    Log.Information(
-                        "Branch '{BranchName}' found on dashboard after ~{Seconds}s",
-                        branchName,
-                        i);
+                Log.Information(
+                    "Branch '{BranchName}' found on dashboard after ~{Seconds}s",
+                    branchName,
+                    i);
 
-                    return true;
-                }
+                return true;
             }
 
             if (i % 10 == 0)

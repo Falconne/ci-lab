@@ -99,41 +99,38 @@ public class DashboardLiveUpdateTest
         await _browser.TakeScreenshot("live_04_branch_without_mr");
 
         // verify explicit no-MR text is shown before an MR exists
-        var card = _browser.Page.Locator(".merge-group-card")
-            .Filter(new LocatorFilterOptions { HasTextString = branchName })
-            .First;
-
-        // Wait for MR data to load so we can verify the no-MR state (card item may still be loading)
+        // Wait for MR data to load so we can verify the no-MR state (row may still be loading)
         var noMrLoaded = await WaitForNoMrText(branchName, 30);
         if (!noMrLoaded)
         {
             throw new InvalidOperationException(
-                $"Branch '{branchName}' did not show 'No Merge Request' within timeout");
+                $"Branch '{branchName}' did not show 'No MR' within timeout");
         }
 
-        var noMergeRequestText = (await card.Locator(".item-no-mr").InnerTextAsync()).Trim();
-        if (!noMergeRequestText.Contains("No Merge Request", StringComparison.OrdinalIgnoreCase))
+        var row = _browser.Page.Locator($"[data-mg-name*='{branchName}']").First;
+        var noMergeRequestText = (await row.Locator(".col-mr .no-mr-text").InnerTextAsync()).Trim();
+        if (!noMergeRequestText.Contains("No MR", StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException(
-                $"Expected 'No Merge Request' text before MR creation, got '{noMergeRequestText}'");
+                $"Expected 'No MR' text before MR creation, got '{noMergeRequestText}'");
         }
 
         // there should be no MR title element yet
-        var titleCount = await card.Locator(".item-mr-title").CountAsync();
+        var titleCount = await row.Locator(".col-mr .mr-title").CountAsync();
         if (titleCount > 0)
         {
             throw new InvalidOperationException("Unexpected MR title shown before any MR exists");
         }
 
         // Create an MR on the branch with an intentionally long title,
-        // so we can verify truncation logic in the UI.
+        // so we can verify the full title is displayed in the grid without truncation.
         var longTitle = new string('X', 230);
         _gitLab.CreateMergeRequest(projectId, branchName, "test1", longTitle);
         Log.Information(
             "Created MR for branch '{BranchName}' with long title, waiting for dashboard update...",
             branchName);
 
-        // Wait for the MR title to appear on the card (the refresh cycle picks up the new MR)
+        // Wait for the MR title to appear on the row (the refresh cycle picks up the new MR)
         var mrUpdated = await WaitForMergeRequestToAppear(branchName, 60);
         await _browser.TakeScreenshot("live_05_branch_with_mr");
 
@@ -145,35 +142,25 @@ public class DashboardLiveUpdateTest
 
         Log.Information("MR status updated on dashboard for '{BranchName}'", branchName);
 
-        var noMergeRequestAfterMergeRequestCount = await card.Locator(".item-no-mr").CountAsync();
+        var noMergeRequestAfterMergeRequestCount = await row.Locator(".col-mr .no-mr-text").CountAsync();
         if (noMergeRequestAfterMergeRequestCount > 0)
         {
             throw new InvalidOperationException("No-MR text should disappear after MR creation");
         }
 
-        // now check the MR title element is present with the full title (CSS fadeout, no JS truncation)
-        var titleEl = card.Locator(".item-mr-title");
+        // Check the MR title element is present with the full title (no truncation in grid view)
+        var titleEl = row.Locator(".col-mr .mr-title");
         if (await titleEl.CountAsync() == 0)
         {
             throw new InvalidOperationException(
-                "Expected MR title element in item after MR creation, but none found");
+                "Expected MR title element in grid row after MR creation, but none found");
         }
 
         var titleText = (await titleEl.InnerTextAsync()).Trim();
-        // titleText includes the leading vertical separator and space we render in the template.
-        // With CSS fadeout (Task 4), the full title is present in the DOM — no JS truncation.
-        if (!titleText.StartsWith("| "))
+        if (titleText != longTitle)
         {
             throw new InvalidOperationException(
-                $"MR title missing expected '| ' prefix, got '{titleText}' (len={titleText.Length})");
-        }
-
-        // ensure the full long title content is present (CSS handles visual fadeout, not JS)
-        var core = titleText[2..]; // strip "| " prefix
-        if (core != longTitle)
-        {
-            throw new InvalidOperationException(
-                $"MR title should contain full long title, got core='{core}' (len={core.Length}), expected len={longTitle.Length}");
+                $"MR title should contain full long title, got '{titleText}' (len={titleText.Length}), expected len={longTitle.Length}");
         }
     }
 
@@ -307,53 +294,32 @@ public class DashboardLiveUpdateTest
 
     private async Task<bool> IsBranchOnDashboard(string branchName)
     {
-        var branchElements = _browser.Page.Locator(".merge-group-card .branch-name, .merge-group-card .branch-subtitle");
-        var count = await branchElements.CountAsync();
-
-        for (var i = 0; i < count; i++)
-        {
-            var text = (await branchElements.Nth(i).InnerTextAsync()).Trim();
-            if (text.Contains(branchName))
-            {
-                return true;
-            }
-        }
-
-        return false;
+        var rows = _browser.Page.Locator($"[data-mg-name*='{branchName}']");
+        return await rows.CountAsync() > 0;
     }
 
     /// <summary>
-    ///     Waits until a branch card shows the "No Merge Request" indicator (item data loaded, no MR).
+    ///     Waits until a branch grid row shows the "No MR" indicator (row data loaded, no MR).
     /// </summary>
     private async Task<bool> WaitForNoMrText(string branchName, int timeoutSeconds)
     {
         for (var s = 0; s < timeoutSeconds; s++)
         {
-            var cards = _browser.Page.Locator(".merge-group-card");
-            var cardCount = await cards.CountAsync();
-
-            for (var i = 0; i < cardCount; i++)
+            var row = _browser.Page.Locator($"[data-mg-name*='{branchName}']").First;
+            if (await row.CountAsync() > 0 && await row.Locator(".col-mr .no-mr-text").CountAsync() > 0)
             {
-                var card = cards.Nth(i);
-                var name = (await card.Locator(".branch-name, .branch-subtitle").First.InnerTextAsync()).Trim();
-                if (!name.Contains(branchName))
-                    continue;
+                Log.Information(
+                    "Branch '{BranchName}' shows 'No MR' after ~{Seconds}s",
+                    branchName,
+                    s);
 
-                if (await card.Locator(".item-no-mr").CountAsync() > 0)
-                {
-                    Log.Information(
-                        "Branch '{BranchName}' shows 'No Merge Request' after ~{Seconds}s",
-                        branchName,
-                        s);
-
-                    return true;
-                }
+                return true;
             }
 
             if (s % 10 == 0)
             {
                 Log.Information(
-                    "Waiting for 'No Merge Request' text on '{BranchName}'... {Seconds}s",
+                    "Waiting for 'No MR' text on '{BranchName}'... {Seconds}s",
                     branchName,
                     s);
             }
@@ -365,32 +331,22 @@ public class DashboardLiveUpdateTest
     }
 
     /// <summary>
-    ///     Waits until a branch card shows an MR title element (indicating the dashboard
+    ///     Waits until a branch grid row shows an MR title element (indicating the dashboard
     ///     has picked up a newly created MR via the refresh cycle).
     /// </summary>
     private async Task<bool> WaitForMergeRequestToAppear(string branchName, int timeoutSeconds)
     {
         for (var s = 0; s < timeoutSeconds; s++)
         {
-            var cards = _browser.Page.Locator(".merge-group-card");
-            var cardCount = await cards.CountAsync();
-
-            for (var i = 0; i < cardCount; i++)
+            var row = _browser.Page.Locator($"[data-mg-name*='{branchName}']").First;
+            if (await row.CountAsync() > 0 && await row.Locator(".col-mr .mr-title").CountAsync() > 0)
             {
-                var card = cards.Nth(i);
-                var name = (await card.Locator(".branch-name, .branch-subtitle").First.InnerTextAsync()).Trim();
-                if (!name.Contains(branchName))
-                    continue;
+                Log.Information(
+                    "Branch '{BranchName}' shows MR title after ~{Seconds}s",
+                    branchName,
+                    s);
 
-                if (await card.Locator(".item-mr-title").CountAsync() > 0)
-                {
-                    Log.Information(
-                        "Branch '{BranchName}' shows MR title after ~{Seconds}s",
-                        branchName,
-                        s);
-
-                    return true;
-                }
+                return true;
             }
 
             if (s % 10 == 0)
