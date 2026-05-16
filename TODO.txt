@@ -1,0 +1,8 @@
+Task 1)
+Add an 800 pixel max width limit to the Merge Request column in the grid, and make it wrap if the text in the cell is long. Prefer to wrap at spaces as normal, but even if the title has no spaces, there should be a hard wrap at that width.
+
+Task 2)
+For the Queued build job chips, there is no need to say the word "queued" on the chip. Have a tooltip on each chip saying the status and what jobs are in that status. Instead of "Queued" for build jobs, use the word "Pending". The Pending chip icon should be an hourglass. If the "Running" chips say the word "Running", remove that too, just put it in the tooltip.
+
+Task 3)
+Increase the padding at the bottom of a Merege Group row in the grid, so there is more space between the rows.
