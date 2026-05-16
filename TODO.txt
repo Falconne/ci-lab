@@ -1,0 +1,17 @@
+Task 1)
+In the dashboard and queue views, remove support for the "Cards" view and just have the Grid View stay. The Merge Group (MG) Details page can keep the card view, but get rid of any code that was only used to support card view in the other pages.
+
+Task 2)
+The filter search box in the dashboard view needs to span the whole width of the page.
+
+Task 3)
+I nooticed that I had a MG in in the queue that was waiting for builds to finish, but even after the builds finished and the MRs in Gitlab showed the pipelines green and ready to merge, the Mergician app still showed those build jobs as running in the MG even after several minutes. See what could be causing this.
+
+Task 4)
+There is no need for a tooltip in the "Merge Request" column. That cell should not truncate the text (fix this if it does).
+
+Task 5)
+In the grid view, in the build jobs column, instead of showing every running and queued build job, show summary chips like currently shown for the number of completed jobs. Show the number of "queued" and "running" chips.
+
+Task 6)
+Make all the columns in the grid views auto size, except for the "Merge Request" column which should stretch to fill the remaining space.
