@@ -29,6 +29,7 @@
                   'grid-row--sub': idx > 0,
                   'grid-row--last-in-group': idx === Math.max(0, group.branches.length - 1),
                 }"
+                :data-mg-name="group.name"
                 @click="emit('navigate', group)"
               >
                 <!-- Branch name: rowspan spanning all branch rows -->
@@ -71,7 +72,7 @@
                   <template v-if="branch">
                     <v-tooltip location="top" :text="branch.projectNameWithNamespace">
                       <template #activator="{ props: tipProps }">
-                        <span v-bind="tipProps" class="project-name">{{ branch.projectName }}</span>
+                        <span v-bind="tipProps" class="project-name" :title="branch.projectNameWithNamespace">{{ branch.projectName }}</span>
                       </template>
                     </v-tooltip>
                   </template>
@@ -81,11 +82,7 @@
                 <!-- MR title (per branch) -->
                 <td class="col-mr">
                   <span v-if="!branch || branch.mrStatus === MRStatus.Loading" class="skeleton-inline"><span class="skeleton-shimmer" /></span>
-                  <v-tooltip v-else-if="branch.mergeRequestTitle" location="top" :text="branch.mergeRequestTitle">
-                    <template #activator="{ props: tipProps }">
-                      <span v-bind="tipProps" class="mr-title">{{ branch.mergeRequestTitle }}</span>
-                    </template>
-                  </v-tooltip>
+                  <span v-else-if="branch.mergeRequestTitle" class="mr-title">{{ branch.mergeRequestTitle }}</span>
                   <span v-else-if="branch.hasMergeRequest === false" class="no-mr-text">No MR</span>
                 </td>
 
@@ -117,7 +114,7 @@
                 <td v-if="idx === 0" :rowspan="Math.max(1, group.branches.length)" class="col-jobs">
                   <div v-if="deduplicateJobs(group.branches).length > 0" class="jobs-cell">
                     <v-tooltip
-                      v-for="job in nonSuccessJobs(group)"
+                      v-for="job in failedJobs(group)"
                       :key="job.name"
                       location="top"
                       :text="`${job.name} \u2022 ${jobStatusLabel(job.status)}`"
@@ -135,6 +132,14 @@
                         </v-chip>
                       </template>
                     </v-tooltip>
+                    <v-chip v-if="runningJobCount(group) > 0" size="x-small" color="info" variant="tonal" class="job-chip">
+                      <v-icon icon="mdi-play-circle" size="10" class="mr-1" />
+                      {{ runningJobCount(group) }} running
+                    </v-chip>
+                    <v-chip v-if="queuedJobCount(group) > 0" size="x-small" color="warning" variant="tonal" class="job-chip">
+                      <v-icon icon="mdi-clock-outline" size="10" class="mr-1" />
+                      {{ queuedJobCount(group) }} queued
+                    </v-chip>
                     <v-chip v-if="successJobCount(group) > 0" size="x-small" color="success" variant="tonal" class="job-chip">
                       <v-icon icon="mdi-check-circle" size="10" class="mr-1" />
                       {{ successJobCount(group) }} ✓
@@ -200,8 +205,19 @@ function groupRows(group: MergeGroup): { branch: BranchWithActivity | null; idx:
 
 // --- Build job deduplication ---
 
-function nonSuccessJobs(group: MergeGroup) {
-  return deduplicateJobs(group.branches).filter(j => j.status.toLowerCase() !== 'success')
+function failedJobs(group: MergeGroup) {
+  return deduplicateJobs(group.branches).filter(j => {
+    const s = j.status.toLowerCase()
+    return s !== 'success' && s !== 'running' && s !== 'pending'
+  })
+}
+
+function runningJobCount(group: MergeGroup): number {
+  return deduplicateJobs(group.branches).filter(j => j.status.toLowerCase() === 'running').length
+}
+
+function queuedJobCount(group: MergeGroup): number {
+  return deduplicateJobs(group.branches).filter(j => j.status.toLowerCase() === 'pending').length
 }
 
 function successJobCount(group: MergeGroup): number {
@@ -255,17 +271,14 @@ function navigateToQueue(group: MergeGroup) {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.85rem;
-  table-layout: fixed;
+  table-layout: auto;
 }
 
 /* ---- Column widths ---- */
-.col-mg     { width: 20%; }
 .col-status { width: 90px; }
-.col-project { width: 12%; }
-.col-mr     { width: auto; }
 .col-approvals { width: 80px; }
 .col-updated { width: 85px; }
-.col-jobs   { width: 22%; }
+.col-mr { width: 100%; }
 
 /* ---- Header row ---- */
 thead tr {
@@ -364,9 +377,6 @@ thead th {
 }
 
 .mr-title {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   display: block;
   color: rgba(var(--v-theme-on-surface), 0.7);
 }
