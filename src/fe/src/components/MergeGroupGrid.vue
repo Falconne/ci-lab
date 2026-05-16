@@ -132,14 +132,36 @@
                         </v-chip>
                       </template>
                     </v-tooltip>
-                    <v-chip v-if="runningJobCount(group) > 0" size="x-small" color="info" variant="tonal" class="job-chip">
-                      <v-icon icon="mdi-play-circle" size="10" class="mr-1" />
-                      {{ runningJobCount(group) }} running
-                    </v-chip>
-                    <v-chip v-if="queuedJobCount(group) > 0" size="x-small" color="warning" variant="tonal" class="job-chip">
-                      <v-icon icon="mdi-clock-outline" size="10" class="mr-1" />
-                      {{ queuedJobCount(group) }} queued
-                    </v-chip>
+                    <v-tooltip v-if="runningJobCount(group) > 0" location="top">
+                      <template #activator="{ props: tipProps }">
+                        <v-chip
+                          v-bind="tipProps"
+                          size="x-small"
+                          color="info"
+                          variant="tonal"
+                          class="job-chip"
+                        >
+                          <v-icon icon="mdi-play-circle" size="10" class="mr-1" />
+                          {{ runningJobCount(group) }}
+                        </v-chip>
+                      </template>
+                      <span class="tooltip-multiline">{{ runningJobsTooltip(group) }}</span>
+                    </v-tooltip>
+                    <v-tooltip v-if="queuedJobCount(group) > 0" location="top">
+                      <template #activator="{ props: tipProps }">
+                        <v-chip
+                          v-bind="tipProps"
+                          size="x-small"
+                          color="warning"
+                          variant="tonal"
+                          class="job-chip"
+                        >
+                          <v-icon icon="mdi-timer-sand" size="10" class="mr-1" />
+                          {{ queuedJobCount(group) }}
+                        </v-chip>
+                      </template>
+                      <span class="tooltip-multiline">{{ pendingJobsTooltip(group) }}</span>
+                    </v-tooltip>
                     <v-chip v-if="successJobCount(group) > 0" size="x-small" color="success" variant="tonal" class="job-chip">
                       <v-icon icon="mdi-check-circle" size="10" class="mr-1" />
                       {{ successJobCount(group) }} ✓
@@ -222,6 +244,20 @@ function queuedJobCount(group: MergeGroup): number {
 
 function successJobCount(group: MergeGroup): number {
   return deduplicateJobs(group.branches).filter(j => j.status.toLowerCase() === 'success').length
+}
+
+function runningJobsTooltip(group: MergeGroup): string {
+  return deduplicateJobs(group.branches)
+    .filter(j => j.status.toLowerCase() === 'running')
+    .map(j => `${j.name} \u2022 Running`)
+    .join('\n')
+}
+
+function pendingJobsTooltip(group: MergeGroup): string {
+  return deduplicateJobs(group.branches)
+    .filter(j => j.status.toLowerCase() === 'pending')
+    .map(j => `${j.name} \u2022 Pending`)
+    .join('\n')
 }
 
 // --- Approvals ---
