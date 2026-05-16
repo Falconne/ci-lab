@@ -62,74 +62,7 @@
           </div>
 
           <div v-else>
-            <div class="queue-toolbar mb-4">
-              <p class="text-body-2 text-grey queue-drag-hint">
-                Drag to reorder. The first merge group in the queue is rebased and merged next.
-              </p>
-              <div class="view-toggle">
-                <v-tooltip text="Grid View" location="top">
-                  <template #activator="{ props: tipProps }">
-                    <v-btn
-                      v-bind="tipProps"
-                      icon
-                      size="small"
-                      variant="text"
-                      :color="viewMode === 'grid' ? 'primary' : undefined"
-                      @click="viewMode = 'grid'"
-                    >
-                      <v-icon>mdi-table</v-icon>
-                    </v-btn>
-                  </template>
-                </v-tooltip>
-                <v-tooltip text="Card View" location="top">
-                  <template #activator="{ props: tipProps }">
-                    <v-btn
-                      v-bind="tipProps"
-                      icon
-                      size="small"
-                      variant="text"
-                      :color="viewMode === 'card' ? 'primary' : undefined"
-                      @click="viewMode = 'card'"
-                    >
-                      <v-icon>mdi-view-comfy</v-icon>
-                    </v-btn>
-                  </template>
-                </v-tooltip>
-              </div>
-            </div>
-
-            <!-- Card view: draggable list -->
-            <draggable
-              v-if="viewMode === 'card'"
-              v-model="queueGroups"
-              item-key="id"
-              handle=".drag-handle"
-              ghost-class="drag-ghost"
-              animation="200"
-              @end="onDragEnd"
-            >
-              <template #item="{ element, index }">
-                <div class="queue-entry">
-                  <div class="drag-handle">
-                    <v-icon icon="mdi-drag-vertical" size="20" color="grey" />
-                  </div>
-                  <div class="position-badge" :class="index === 0 ? 'position-first' : ''">
-                    {{ `#${index + 1}` }}
-                  </div>
-                  <div class="queue-card-wrapper">
-                    <MergeGroupCard
-                      :group="element"
-                      :now="now"
-                      @navigate="openMergeGroupDetails"
-                    />
-                  </div>
-                </div>
-              </template>
-            </draggable>
-
-            <!-- Grid view -->
             <MergeGroupGrid
-              v-else
               :sections="[{ title: '', groups: queueGroups }]"
               :now="now"
               @navigate="openMergeGroupDetails"
@@ -144,13 +77,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import draggable from 'vuedraggable'
 import { fetchBackend, isStartupRequiredError } from '@/composables/useBackendFetch'
 import { usePolling } from '@/composables/usePolling'
 import { useNow } from '@/composables/useNow'
-import { useViewMode } from '@/composables/useViewMode'
 import type { MergeGroup } from '@/types/mergeGroup'
-import MergeGroupCard from '@/components/MergeGroupCard.vue'
 import MergeGroupGrid from '@/components/MergeGroupGrid.vue'
 
 interface QueueSummary {
@@ -162,7 +92,6 @@ interface QueueSummary {
 const route = useRoute()
 const router = useRouter()
 const now = useNow()
-const viewMode = useViewMode()
 
 const allQueues = ref<QueueSummary[]>([])
 const queuesLoaded = ref(false)
@@ -170,7 +99,6 @@ const selectedQueueId = ref<number | null>(null)
 const queueGroups = ref<MergeGroup[]>([])
 const queueGroupsLoading = ref(false)
 const errorMessage = ref('')
-const reorderPending = ref(false)
 
 const queueItems = computed(() => allQueues.value)
 
@@ -217,7 +145,7 @@ async function pollQueueList() {
 const { start: startQueueContentsPolling } = usePolling(pollQueueContents)
 
 async function pollQueueContents() {
-  if (selectedQueueId.value == null || reorderPending.value) return
+  if (selectedQueueId.value == null) return
 
   try {
     const response = await fetchBackend(`/api/merge-queues/${selectedQueueId.value}`)
@@ -270,29 +198,6 @@ function onQueueSelected(queueId: number | null) {
   void loadQueueGroups(queueId)
 }
 
-async function onDragEnd() {
-  if (!queueGroups.value.length) return
-  if (selectedQueueId.value == null) return
-  const orderedIds = queueGroups.value.map(g => g.id)
-  reorderPending.value = true
-  try {
-    const response = await fetchBackend(`/api/merge-queues/${selectedQueueId.value}/reorder`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mergeGroupIds: orderedIds })
-    })
-    if (!response.ok) {
-      console.warn('[Queues] Reorder failed, status', response.status)
-      errorMessage.value = 'Reorder failed. The list will refresh automatically.'
-    }
-  } catch (err) {
-    console.error('[Queues] Error sending reorder request:', err)
-    errorMessage.value = 'Reorder failed. The list will refresh automatically.'
-  } finally {
-    reorderPending.value = false
-  }
-}
-
 function openMergeGroupDetails(group: MergeGroup) {
   void router.push({
     name: 'merge-group-details',
@@ -334,74 +239,5 @@ watch(() => route.query.queueId, (newVal) => {
 
 .queue-autocomplete {
   min-width: 300px;
-}
-
-/* ---- Queue toolbar: drag hint + view toggle ---- */
-.queue-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.queue-drag-hint {
-  flex: 1;
-  margin: 0;
-}
-
-.view-toggle {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  flex-shrink: 0;
-  margin-left: auto;
-}
-
-.queue-entry {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.drag-handle {
-  cursor: grab;
-  display: flex;
-  align-items: center;
-  padding-top: 18px;
-  flex-shrink: 0;
-}
-
-.drag-handle:active {
-  cursor: grabbing;
-}
-
-.position-badge {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  min-width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: rgba(var(--v-theme-on-surface), 0.08);
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: rgba(var(--v-theme-on-surface), 0.6);
-  margin-top: 14px;
-  flex-shrink: 0;
-}
-
-.position-first {
-  background: rgba(var(--v-theme-primary), 0.15);
-  color: rgb(var(--v-theme-primary));
-}
-
-.queue-card-wrapper {
-  flex: 1;
-  min-width: 0;
-}
-
-.drag-ghost {
-  opacity: 0.4;
 }
 </style>

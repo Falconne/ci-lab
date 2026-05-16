@@ -31,43 +31,11 @@
         </div>
 
         <div v-else class="dashboard-content">
-          <div class="dashboard-toolbar mb-6">
-            <DashboardFilter
-              v-model="filterText"
-              :show-open-m-r-button="isMRUrlFilter && filteredMergeGroups.length === 0"
-              class="dashboard-filter"
-            />
-            <div class="view-toggle">
-              <v-tooltip text="Grid View" location="top">
-                <template #activator="{ props: tipProps }">
-                  <v-btn
-                    v-bind="tipProps"
-                    icon
-                    size="small"
-                    variant="text"
-                    :color="viewMode === 'grid' ? 'primary' : undefined"
-                    @click="viewMode = 'grid'"
-                  >
-                    <v-icon>mdi-table</v-icon>
-                  </v-btn>
-                </template>
-              </v-tooltip>
-              <v-tooltip text="Card View" location="top">
-                <template #activator="{ props: tipProps }">
-                  <v-btn
-                    v-bind="tipProps"
-                    icon
-                    size="small"
-                    variant="text"
-                    :color="viewMode === 'card' ? 'primary' : undefined"
-                    @click="viewMode = 'card'"
-                  >
-                    <v-icon>mdi-view-comfy</v-icon>
-                  </v-btn>
-                </template>
-              </v-tooltip>
-            </div>
-          </div>
+          <DashboardFilter
+            v-model="filterText"
+            :show-open-m-r-button="isMRUrlFilter && filteredMergeGroups.length === 0"
+            class="mb-6"
+          />
 
           <div v-if="filteredMergeGroups.length === 0 && !isMRUrlFilter" class="text-center pa-8">
             <v-icon icon="mdi-filter-off" size="48" color="grey" class="mb-3" />
@@ -81,31 +49,11 @@
 
           <!-- Grid view -->
           <MergeGroupGrid
-            v-else-if="viewMode === 'grid'"
+            v-else
             :sections="partitionedGroups"
             :now="now"
             @navigate="openMergeGroupDetails"
           />
-
-          <!-- Card view -->
-          <div v-else class="dashboard-cards">
-            <div
-              v-for="partition in partitionedGroups"
-              :key="partition.title"
-              class="partition-section"
-            >
-              <div class="partition-header">{{ partition.title }}</div>
-              <TransitionGroup name="card-list" tag="div" class="card-container">
-                <MergeGroupCard
-                  v-for="group in partition.groups"
-                  :key="group.id.toString()"
-                  :group="group"
-                  :now="now"
-                  @navigate="openMergeGroupDetails"
-                />
-              </TransitionGroup>
-            </div>
-          </div>
         </div>
       </v-col>
     </v-row>
@@ -119,12 +67,10 @@ import { fetchBackend, isStartupRequiredError } from '@/composables/useBackendFe
 import { useCurrentUser } from '@/composables/useCurrentUser'
 import { usePolling } from '@/composables/usePolling'
 import { useNow } from '@/composables/useNow'
-import { useViewMode } from '@/composables/useViewMode'
 import type { MergeGroup } from '@/types/mergeGroup'
 import { handleTransientError, clearTransientError } from '@/utils/pollHelpers'
 import WelcomePage from '@/components/WelcomePage.vue'
 import DashboardFilter from '@/components/DashboardFilter.vue'
-import MergeGroupCard from '@/components/MergeGroupCard.vue'
 import MergeGroupGrid from '@/components/MergeGroupGrid.vue'
 
 interface GroupPartition {
@@ -143,7 +89,6 @@ const authenticated = computed(() => currentUser.value !== null)
 const errorMessage = ref('')
 const filterText = ref('')
 const now = useNow()
-const viewMode = useViewMode()
 
 /**
  * Returns the latest lastUpdated timestamp across all branches in the group, or null.
@@ -363,24 +308,6 @@ onMounted(async () => {
   width: 100%;
 }
 
-/* ---- Dashboard toolbar: filter + view toggle side by side ---- */
-.dashboard-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.dashboard-filter {
-  flex: 1;
-}
-
-.view-toggle {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  flex-shrink: 0;
-}
-
 /* ---- Partition sections (time-based grouping) ---- */
 .partition-section {
   margin-bottom: 28px;
@@ -399,47 +326,5 @@ onMounted(async () => {
   margin-bottom: 12px;
   padding-bottom: 6px;
   border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.08);
-}
-
-/* ---- Card container — auto-fill with fixed 600px cards ---- */
-.dashboard-cards {
-  position: relative;
-}
-
-.card-container {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, 600px);
-  gap: 20px;
-  position: relative;
-  align-items: start;
-}
-
-/* ---- TransitionGroup animations ---- */
-
-/* Enter: fade + slide down */
-:deep(.card-list-enter-active) {
-  transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
-}
-
-/* Leave: fade + shrink */
-:deep(.card-list-leave-active) {
-  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-  position: absolute;
-  width: 600px;
-}
-
-:deep(.card-list-enter-from) {
-  opacity: 0;
-  transform: translateY(-16px);
-}
-
-:deep(.card-list-leave-to) {
-  opacity: 0;
-  transform: translateY(8px) scale(0.97);
-}
-
-/* FLIP move transition for reordering */
-:deep(.card-list-move) {
-  transition: transform 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 </style>
