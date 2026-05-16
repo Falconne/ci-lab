@@ -278,7 +278,10 @@ function navigateToQueue(group: MergeGroup) {
 .col-status { width: 90px; }
 .col-approvals { width: 80px; }
 .col-updated { width: 85px; }
-.col-mr { width: 100%; }
+.col-mr {
+  width: 100%;
+  max-width: 800px;
+}
 
 /* ---- Header row ---- */
 thead tr {
@@ -379,6 +382,8 @@ thead th {
 .mr-title {
   display: block;
   color: rgba(var(--v-theme-on-surface), 0.7);
+  white-space: normal;
+  overflow-wrap: break-word;
 }
 
 .no-mr-text {
