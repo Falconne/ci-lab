@@ -82,7 +82,21 @@
                 <!-- MR title (per branch) -->
                 <td class="col-mr">
                   <span v-if="!branch || branch.mrStatus === MRStatus.Loading" class="skeleton-inline"><span class="skeleton-shimmer" /></span>
-                  <span v-else-if="branch.mergeRequestTitle" class="mr-title">{{ branch.mergeRequestTitle }}</span>
+                  <template v-else-if="branch.mergeRequestTitle">
+                    <v-tooltip
+                      location="top"
+                      :text="branch.mergeRequestTitle"
+                      :disabled="!mrTitleOverflowing.get(mrTitleKey(group, branch))"
+                    >
+                      <template #activator="{ props: tipProps }">
+                        <span
+                          v-bind="tipProps"
+                          :ref="(el) => registerMrTitleEl(mrTitleKey(group, branch), el as Element | null)"
+                          class="mr-title"
+                        >{{ branch.mergeRequestTitle }}</span>
+                      </template>
+                    </v-tooltip>
+                  </template>
                   <span v-else-if="branch.hasMergeRequest === false" class="no-mr-text">No MR</span>
                 </td>
 
@@ -178,6 +192,7 @@
 </template>
 
 <script setup lang="ts">
+import { reactive, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import type { BranchWithActivity, MergeGroup } from '@/types/mergeGroup'
 import {
@@ -273,6 +288,31 @@ function navigateToQueue(group: MergeGroup) {
   if (group.queueId == null) return
   router.push({ name: 'queues', query: { queueId: group.queueId } })
 }
+
+// --- MR title overflow detection ---
+
+/** Tracks which MR title cells are overflowing (key = groupId-projectId). */
+const mrTitleOverflowing = reactive(new Map<string, boolean>())
+
+function mrTitleKey(group: MergeGroup, branch: BranchWithActivity): string {
+  return `${group.id}-${branch.projectId}`
+}
+
+function registerMrTitleEl(key: string, el: Element | null) {
+  if (!el) {
+    mrTitleOverflowing.delete(key)
+    return
+  }
+  nextTick(() => {
+    const overflows = (el as HTMLElement).scrollWidth > (el as HTMLElement).clientWidth
+    mrTitleOverflowing.set(key, overflows)
+    if (overflows) {
+      el.classList.add('mr-title--overflow')
+    } else {
+      el.classList.remove('mr-title--overflow')
+    }
+  })
+}
 </script>
 
 <style scoped>
@@ -307,17 +347,17 @@ function navigateToQueue(group: MergeGroup) {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.85rem;
-  table-layout: auto;
+  table-layout: fixed;
 }
 
 /* ---- Column widths ---- */
-.col-status { width: 90px; }
+/* col-mr has no explicit width so it fills all remaining space in fixed layout */
+.col-mg      { width: 150px; }
+.col-status  { width: 90px;  }
+.col-project { width: 130px; }
 .col-approvals { width: 80px; }
-.col-updated { width: 85px; }
-.col-mr {
-  width: 100%;
-  max-width: 800px;
-}
+.col-updated   { width: 85px; }
+.col-jobs    { width: 160px; }
 
 /* ---- Header row ---- */
 thead tr {
@@ -418,8 +458,14 @@ thead th {
 .mr-title {
   display: block;
   color: rgba(var(--v-theme-on-surface), 0.7);
-  white-space: normal;
-  overflow-wrap: break-word;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* Fade-out applied only when the title overflows the available column width */
+.mr-title--overflow {
+  mask-image: linear-gradient(to right, black calc(100% - 48px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, black calc(100% - 48px), transparent 100%);
 }
 
 .no-mr-text {
