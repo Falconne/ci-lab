@@ -181,11 +181,20 @@ public class GitLabPipelineService
         }
 
         var commitJobs = statuses
+            .GroupBy(s => s.Name.IsEmpty() ? "build" : s.Name)
+            .Select(g => g.First())
             .Select(s => new BranchBuildJob(
                 s.Name.IsEmpty() ? "build" : s.Name,
                 s.Status.IsEmpty() ? "unknown" : s.Status,
                 s.TargetUrl.IsEmpty() ? null : s.TargetUrl))
             .ToList();
+
+        _logger.LogDebug(
+            "Deduplicated {Original} commit statuses to {Unique} unique job(s) for SHA {Sha} in project {ProjectId}",
+            statuses.Count,
+            commitJobs.Count,
+            sha,
+            projectId);
 
         var filteredCommitJobs = commitJobs
             .Where(j => !IsHiddenJobStatus(j.Status))
