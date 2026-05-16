@@ -353,7 +353,7 @@ thead th {
 
 /* Extra bottom padding on the last branch row of each MG group */
 .grid-row--last-in-group td {
-  padding-bottom: 14px;
+  padding-bottom: 22px;
 }
 
 .mg-grid td {
