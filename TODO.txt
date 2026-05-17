@@ -1,0 +1,4 @@
+Task 1)
+In the Merge Queues screen, instead of having a combo box to pick the queue to display, just show all queues, with a table for each queue in the same way as the "Today", "Last 7 Days", etc sections on the dashboard split up the display.
+
+Instead of the combo box, have a checkbox that is off by default called "Show all queues". When it is off, filter the display to queues that have any Merge Groups tracked by the current user.
