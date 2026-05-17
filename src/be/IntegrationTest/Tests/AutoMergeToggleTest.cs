@@ -43,7 +43,7 @@ public class AutoMergeToggleTest
 
         // Verify no "Auto Merge Enabled" section initially
         var autoMergeSectionCount = await _browser.Page
-            .Locator(".partition-section")
+            .Locator(".grid-section")
             .Filter(new LocatorFilterOptions { HasText = "Auto Merge Enabled" })
             .CountAsync();
         Log.Information("Initial auto merge sections on dashboard: {Count}", autoMergeSectionCount);
@@ -167,7 +167,7 @@ public class AutoMergeToggleTest
         await _browser.TakeScreenshot("auto_merge_04_dashboard_with_badge");
 
         autoMergeSectionCount = await _browser.Page
-            .Locator(".partition-section")
+            .Locator(".grid-section")
             .Filter(new LocatorFilterOptions { HasText = "Auto Merge Enabled" })
             .CountAsync();
         Log.Information("Auto Merge Enabled section count after enabling: {Count}", autoMergeSectionCount);
@@ -224,7 +224,7 @@ public class AutoMergeToggleTest
         await _browser.TakeScreenshot("auto_merge_06_dashboard_no_badge");
 
         autoMergeSectionCount = await _browser.Page
-            .Locator(".partition-section")
+            .Locator(".grid-section")
             .Filter(new LocatorFilterOptions { HasText = "Auto Merge Enabled" })
             .CountAsync();
         Log.Information("Auto Merge Enabled section count after disabling: {Count}", autoMergeSectionCount);
