@@ -120,7 +120,7 @@
             <div v-if="queueId != null && queuePosition != null" class="queue-position-info mt-3">
               <v-icon icon="mdi-playlist-play" size="16" class="mr-1" />
               Queue position:
-              <router-link :to="{ name: 'queues', query: { queueId } }" class="queue-position-link">
+              <router-link :to="{ name: 'queues' }" class="queue-position-link">
                 {{ queuePosition === 1 ? 'Next in queue' : `#${queuePosition} in queue` }}
               </router-link>
             </div>

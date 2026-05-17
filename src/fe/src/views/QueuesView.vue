@@ -13,8 +13,8 @@
           {{ errorMessage }}
         </v-alert>
 
-        <!-- No queues available -->
-        <div v-if="queuesLoaded && queueItems.length === 0" class="text-center pa-8">
+        <!-- No queues active at all -->
+        <div v-if="queuesLoaded && allQueues.length === 0" class="text-center pa-8">
           <v-icon icon="mdi-playlist-play" size="64" color="grey" class="mb-4" />
           <p class="text-h6 text-grey">No queues are active</p>
           <p class="text-body-2 text-grey mt-2">
@@ -23,50 +23,49 @@
           </p>
         </div>
 
-        <!-- Queue selector (only shown when multiple queues exist) -->
-        <div v-if="queueItems.length > 1" class="queue-selector-row mb-6">
-          <v-autocomplete
-            v-model="selectedQueueId"
-            :items="queueItems"
-            item-title="displayName"
-            item-value="queueId"
-            label="Select a queue"
-            variant="outlined"
-            density="compact"
-            clearable
-            hide-details
-            class="queue-autocomplete"
-            @update:model-value="onQueueSelected"
-          >
-            <template #item="{ item, props: itemProps }">
-              <v-list-item v-bind="itemProps">
-                <template #append>
-                  <v-chip size="x-small" variant="tonal" color="primary">
-                    {{ item.raw.entryCount }} {{ item.raw.entryCount === 1 ? 'group' : 'groups' }}
-                  </v-chip>
-                </template>
-              </v-list-item>
-            </template>
-          </v-autocomplete>
-        </div>
-
-        <!-- Queue content -->
-        <template v-else-if="selectedQueueId != null">
-          <div v-if="queueGroupsLoading && queueGroups.length === 0" class="text-center pa-8">
-            <p class="text-body-1 text-grey">Loading queue...</p>
-          </div>
-
-          <div v-else-if="queueGroups.length === 0 && !queueGroupsLoading" class="text-center pa-8">
-            <v-icon icon="mdi-playlist-remove" size="64" color="grey" class="mb-4" />
-            <p class="text-h6 text-grey">This queue is empty</p>
-          </div>
-
-          <div v-else>
-            <MergeGroupGrid
-              :sections="[{ title: '', groups: queueGroups }]"
-              :now="now"
-              @navigate="openMergeGroupDetails"
+        <template v-else-if="queuesLoaded">
+          <!-- Show all queues checkbox -->
+          <div class="queues-toolbar mb-4">
+            <v-checkbox
+              v-model="showAllQueues"
+              label="Show all queues"
+              hide-details
+              density="compact"
             />
+          </div>
+
+          <!-- No queues match the current filter -->
+          <div v-if="visibleQueues.length === 0" class="text-center pa-8">
+            <v-icon icon="mdi-playlist-check" size="48" color="grey" class="mb-3" />
+            <p class="text-body-1 text-grey">No queues have your tracked merge groups.</p>
+            <p class="text-body-2 text-grey mt-1">Check "Show all queues" to see all active queues.</p>
+          </div>
+
+          <!-- One section per visible queue -->
+          <div class="queues-sections">
+            <div
+              v-for="queue in visibleQueues"
+              :key="queue.queueId"
+              class="queue-section"
+            >
+              <div class="queue-section-header">{{ queue.displayName }}</div>
+
+              <div v-if="!queueGroupsMap.has(queue.queueId)" class="text-center pa-4">
+                <p class="text-body-2 text-grey">Loading queue...</p>
+              </div>
+
+              <div v-else-if="(queueGroupsMap.get(queue.queueId) ?? []).length === 0" class="text-center pa-4">
+                <v-icon icon="mdi-playlist-remove" size="40" color="grey" class="mb-2" />
+                <p class="text-body-2 text-grey">This queue is empty</p>
+              </div>
+
+              <MergeGroupGrid
+                v-else
+                :sections="[{ title: '', groups: queueGroupsMap.get(queue.queueId) ?? [] }]"
+                :now="now"
+                @navigate="openMergeGroupDetails"
+              />
+            </div>
           </div>
         </template>
       </v-col>
@@ -75,8 +74,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { fetchBackend, isStartupRequiredError } from '@/composables/useBackendFetch'
 import { usePolling } from '@/composables/usePolling'
 import { useNow } from '@/composables/useNow'
@@ -87,20 +86,22 @@ interface QueueSummary {
   queueId: number
   displayName: string
   entryCount: number
+  hasTrackedGroups: boolean
 }
 
-const route = useRoute()
 const router = useRouter()
 const now = useNow()
 
 const allQueues = ref<QueueSummary[]>([])
 const queuesLoaded = ref(false)
-const selectedQueueId = ref<number | null>(null)
-const queueGroups = ref<MergeGroup[]>([])
-const queueGroupsLoading = ref(false)
+const queueGroupsMap = ref(new Map<number, MergeGroup[]>())
+const showAllQueues = ref(false)
 const errorMessage = ref('')
 
-const queueItems = computed(() => allQueues.value)
+const visibleQueues = computed(() => {
+  if (showAllQueues.value) return allQueues.value
+  return allQueues.value.filter(q => q.hasTrackedGroups)
+})
 
 // ---- Polling: list of queues (every 5s) ----
 const { start: startQueueListPolling } = usePolling(pollQueueList)
@@ -116,22 +117,12 @@ async function pollQueueList() {
     allQueues.value = data
     queuesLoaded.value = true
 
-    if (selectedQueueId.value == null && data.length > 0) {
-      // Auto-select first queue on initial load
-      selectedQueueId.value = data[0].queueId
-      await loadQueueGroups(data[0].queueId)
-    } else if (selectedQueueId.value != null) {
-      const stillExists = data.some(q => q.queueId === selectedQueueId.value)
-      if (!stillExists && data.length > 0) {
-        console.info(
-          '[Queues] Selected queue %d no longer exists; switching to queue %d',
-          selectedQueueId.value,
-          data[0].queueId)
-        selectedQueueId.value = data[0].queueId
-        await loadQueueGroups(data[0].queueId)
-      } else if (!stillExists) {
-        selectedQueueId.value = null
-        queueGroups.value = []
+    // Remove stale queues from the content map
+    const activeIds = new Set(data.map(q => q.queueId))
+    for (const id of queueGroupsMap.value.keys()) {
+      if (!activeIds.has(id)) {
+        queueGroupsMap.value.delete(id)
+        console.info('[Queues] Removed stale queue %d from content map', id)
       }
     }
   } catch (err) {
@@ -141,61 +132,35 @@ async function pollQueueList() {
   }
 }
 
-// ---- Polling: selected queue contents (every 5s) ----
-const { start: startQueueContentsPolling } = usePolling(pollQueueContents)
+// ---- Polling: all queue contents (every 5s) ----
+const { start: startQueueContentsPolling } = usePolling(pollAllQueueContents)
 
-async function pollQueueContents() {
-  if (selectedQueueId.value == null) return
+async function pollAllQueueContents() {
+  const queues = allQueues.value
+  if (queues.length === 0) return
 
+  await Promise.all(queues.map(q => fetchQueueContents(q.queueId)))
+}
+
+async function fetchQueueContents(queueId: number) {
   try {
-    const response = await fetchBackend(`/api/merge-queues/${selectedQueueId.value}`)
+    const response = await fetchBackend(`/api/merge-queues/${queueId}`)
     if (response.status === 404) {
-      // Queue was removed or split — handled by queue list polling
+      queueGroupsMap.value.delete(queueId)
+      console.info('[Queues] Queue %d no longer exists, removed from map', queueId)
       return
     }
     if (!response.ok) {
-      console.warn('[Queues] Failed to fetch queue %d contents, status', selectedQueueId.value, response.status)
+      console.warn('[Queues] Failed to fetch queue %d contents, status', queueId, response.status)
       return
     }
     const data = await response.json() as MergeGroup[]
-    queueGroups.value = data
-    queueGroupsLoading.value = false
+    queueGroupsMap.value.set(queueId, data)
   } catch (err) {
     if (!isStartupRequiredError(err)) {
-      console.error('[Queues] Error polling queue contents:', err)
+      console.error('[Queues] Error fetching queue %d contents:', queueId, err)
     }
   }
-}
-
-async function loadQueueGroups(queueId: number) {
-  queueGroupsLoading.value = true
-  queueGroups.value = []
-  try {
-    const response = await fetchBackend(`/api/merge-queues/${queueId}`)
-    if (!response.ok) {
-      if (response.status !== 404) {
-        errorMessage.value = `Failed to load queue (status ${response.status})`
-      }
-      queueGroupsLoading.value = false
-      return
-    }
-    queueGroups.value = await response.json() as MergeGroup[]
-  } catch (err) {
-    console.error('[Queues] Error loading queue groups:', err)
-    errorMessage.value = 'Failed to load queue contents'
-  } finally {
-    queueGroupsLoading.value = false
-  }
-}
-
-function onQueueSelected(queueId: number | null) {
-  if (queueId == null) {
-    queueGroups.value = []
-    router.replace({ name: 'queues' })
-    return
-  }
-  router.replace({ name: 'queues', query: { queueId } })
-  void loadQueueGroups(queueId)
 }
 
 function openMergeGroupDetails(group: MergeGroup) {
@@ -206,38 +171,32 @@ function openMergeGroupDetails(group: MergeGroup) {
   })
 }
 
-onMounted(async () => {
-  // Pre-select queue from query param
-  const paramQueueId = route.query.queueId
-  if (paramQueueId != null) {
-    const id = Number(paramQueueId)
-    if (!isNaN(id)) {
-      selectedQueueId.value = id
-      void loadQueueGroups(id)
-    }
-  }
-
+onMounted(() => {
   startQueueListPolling()
   startQueueContentsPolling()
-})
-
-// When route query changes (e.g., navigating from MG card link), update selection
-watch(() => route.query.queueId, (newVal) => {
-  if (newVal == null) return
-  const id = Number(newVal)
-  if (!isNaN(id) && id !== selectedQueueId.value) {
-    selectedQueueId.value = id
-    void loadQueueGroups(id)
-  }
 })
 </script>
 
 <style scoped>
-.queue-selector-row {
-  max-width: 600px;
+.queues-toolbar {
+  display: flex;
+  align-items: center;
 }
 
-.queue-autocomplete {
-  min-width: 300px;
+.queues-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.queue-section-header {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.08);
 }
 </style>

@@ -296,7 +296,7 @@ function approvalsTooltip(item: BranchWithActivity): string {
 
 function navigateToQueue(group: MergeGroup) {
   if (group.queueId == null) return
-  router.push({ name: 'queues', query: { queueId: group.queueId } })
+  router.push({ name: 'queues' })
 }
 
 // --- MR title overflow detection ---

@@ -1,7 +1,7 @@
 namespace Mergician.Entities;
 
 /// <summary>
-///     Summary of a merge queue, used to populate the queue selector combobox.
+///     Summary of a merge queue, returned by the queue list API.
 /// </summary>
 public record MergeQueueSummary(
     int QueueId,
@@ -10,4 +10,7 @@ public record MergeQueueSummary(
     string DisplayName,
 
     /// <summary>Number of merge groups currently in the queue.</summary>
-    int EntryCount);
+    int EntryCount,
+
+    /// <summary>True if the requesting user has at least one tracked merge group in this queue.</summary>
+    bool HasTrackedGroups);

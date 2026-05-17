@@ -175,42 +175,32 @@ public class MergeQueueTest
                 throw new InvalidOperationException("Queues navigation tab not found in app bar");
             }
 
-            // The queue selector autocomplete is only shown when multiple queues exist.
-            // When there is a single queue (as in this test), it is auto-selected and
-            // content is displayed directly without any picker.
-            var queueAutocomplete = _browser.Page.Locator(".queue-autocomplete");
-            var autocompleteCount = await queueAutocomplete.CountAsync();
-            Log.Information("Queue selector autocomplete visible: {Visible}", autocompleteCount > 0);
+            // The Queues page now shows all tracked queues as sections.
+            // Wait for a queue section header containing "primary" to appear.
+            var queueSectionHeaders = _browser.Page
+                .Locator(".queue-section-header")
+                .Filter(new LocatorFilterOptions { HasText = "primary" });
 
-            if (autocompleteCount > 0)
+            for (var i = 0; i < 15; i++)
             {
-                // Multiple queues exist — select the one containing "primary"
-                await queueAutocomplete.ClickAsync();
-                await Task.Delay(1000);
-                await _browser.TakeScreenshot("queue_06_queue_selector_open");
-
-                var queueDropdownItems = _browser.Page
-                    .Locator(".v-overlay--active .v-list-item")
-                    .Filter(new LocatorFilterOptions { HasText = "primary" });
-                var dropdownItemCount = await queueDropdownItems.CountAsync();
-                Log.Information("Queue dropdown items containing 'primary': {Count}", dropdownItemCount);
-
-                if (dropdownItemCount == 0)
+                if (await queueSectionHeaders.CountAsync() > 0) break;
+                if (i % 5 == 0)
                 {
-                    throw new InvalidOperationException(
-                        "No queue items containing 'primary' found in the queue selector dropdown");
+                    Log.Information("Waiting for queue section header containing 'primary'... {Seconds}s", i);
                 }
+                await Task.Delay(1000);
+            }
 
-                await queueDropdownItems.First.ClickAsync();
-                await Task.Delay(2000);
-                await _browser.TakeScreenshot("queue_07_queue_selected");
-            }
-            else
+            var sectionCount = await queueSectionHeaders.CountAsync();
+            Log.Information("Queue section headers containing 'primary': {Count}", sectionCount);
+
+            if (sectionCount == 0)
             {
-                // Single queue — auto-selected, wait for content to load
-                Log.Information("Single queue detected (auto-selected); waiting for queue content to load");
-                await _browser.TakeScreenshot("queue_06_single_queue_content");
+                throw new InvalidOperationException(
+                    "No queue section header containing 'primary' found on the Queues page");
             }
+
+            await _browser.TakeScreenshot("queue_06_queue_section_visible");
 
             // Poll for queue grid rows to appear, confirming queue data has loaded.
             var queueRows = _browser.Page.Locator(".grid-row[data-mg-name]");
@@ -232,7 +222,7 @@ public class MergeQueueTest
 
             var rowCount = await queueRows.CountAsync();
             await _browser.TakeScreenshot("queue_07_queue_rows_loaded");
-            Log.Information("Rows in selected queue: {Count}", rowCount);
+            Log.Information("Rows in queue section: {Count}", rowCount);
 
             if (rowCount < 2)
             {

@@ -65,8 +65,8 @@ public interface IMergeQueueRepository
     void ReorderQueue(int queueId, IReadOnlyList<int> orderedMergeGroupIds);
 
     /// <summary>
-    ///     Returns summary info for all queues, including project display names and entry count.
-    ///     Used to populate the queue selector combobox in the UI.
+    ///     Returns summary info for all queues, including project display names, entry count,
+    ///     and whether the specified user has any tracked merge groups in each queue.
     /// </summary>
-    IReadOnlyList<MergeQueueSummary> GetAllQueueSummaries();
+    IReadOnlyList<MergeQueueSummary> GetAllQueueSummaries(int userId);
 }

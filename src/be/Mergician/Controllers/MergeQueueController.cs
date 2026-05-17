@@ -1,4 +1,5 @@
 using Mergician.Entities;
+using Mergician.Services.Authentication;
 using Mergician.Services.Database;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -30,15 +31,19 @@ public class MergeQueueController : ControllerBase
     }
 
     /// <summary>
-    ///     Returns summary information for all active queues.
-    ///     Used to populate the queue selector combobox in the Queues page.
+    ///     Returns summary information for all active queues, including whether the current user
+    ///     has any tracked merge groups in each queue.
     /// </summary>
     [HttpGet]
     public ActionResult<IReadOnlyList<MergeQueueSummary>> GetAllQueues()
     {
-        var summaries = _mergeQueueRepository.GetAllQueueSummaries();
+        var currentUser = HttpContext.GetGitLabUser();
+        var summaries = _mergeQueueRepository.GetAllQueueSummaries(currentUser.UserId);
 
-        _logger.LogDebug("MergeQueueController: returning {Count} queue summaries", summaries.Count);
+        _logger.LogDebug(
+            "MergeQueueController: returning {Count} queue summaries for user {UserId}",
+            summaries.Count,
+            currentUser.UserId);
 
         return Ok(summaries);
     }

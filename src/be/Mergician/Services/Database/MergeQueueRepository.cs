@@ -269,7 +269,7 @@ public class MergeQueueRepository : IMergeQueueRepository
             string.Join(", ", reordered));
     }
 
-    public IReadOnlyList<MergeQueueSummary> GetAllQueueSummaries()
+    public IReadOnlyList<MergeQueueSummary> GetAllQueueSummaries(int userId)
     {
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();
@@ -292,6 +292,17 @@ public class MergeQueueRepository : IMergeQueueRepository
             .GroupBy(r => r.QueueId)
             .ToDictionary(g => g.Key, g => g.Select(r => r.ProjectName).Distinct().OrderBy(n => n).ToList());
 
+        // Determine which queues contain at least one merge group tracked by the current user.
+        var trackedQueueIds = connection.Query<int>(
+                """
+                SELECT DISTINCT mge.queue_id
+                FROM merge_queue_entry mge
+                INNER JOIN users_in_merge_groups uimg ON uimg.merge_group_id = mge.merge_group_id
+                WHERE uimg.gitlab_user_id = @UserId
+                """,
+                new { UserId = userId })
+            .ToHashSet();
+
         var queueIds = connection.Query<int>("SELECT id FROM merge_queue ORDER BY id").ToList();
 
         return queueIds
@@ -302,7 +313,8 @@ public class MergeQueueRepository : IMergeQueueRepository
                     ? string.Join(", ", projects)
                     : $"Queue {id}";
                 var entryCount = entryCounts.GetValueOrDefault(id, 0);
-                return new MergeQueueSummary(id, displayName, entryCount);
+                var hasTrackedGroups = trackedQueueIds.Contains(id);
+                return new MergeQueueSummary(id, displayName, entryCount, hasTrackedGroups);
             })
             .ToList();
     }
