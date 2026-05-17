@@ -29,7 +29,6 @@ export interface MergeGroup {
   name: string
   branches: BranchWithActivity[]
   autoMerge: boolean
-  autoRebase: boolean
   autoMergeWarning: string | null
   queueId: number | null
   queuePosition: number | null

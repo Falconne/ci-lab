@@ -105,12 +105,12 @@ public interface IMergeGroupRepository
     void UpdateBranchDetails(int branchInProjectId, BranchDetailsUpdate update);
 
     /// <summary>
-    ///     Updates the auto merge and auto rebase settings for a merge group.
+    ///     Updates the auto merge setting for a merge group.
     /// </summary>
-    int UpdateAutoMergeSettings(int mergeGroupId, bool autoMerge, bool autoRebase);
+    int UpdateAutoMergeSettings(int mergeGroupId, bool autoMerge);
 
     /// <summary>
-    ///     Returns all merge groups that have auto_merge or auto_rebase enabled,
+    ///     Returns all merge groups that have auto_merge enabled,
     ///     each containing its branches. Used by the AutoMergeService.
     /// </summary>
     List<MergeGroup> GetMergeGroupsWithAutoSettings();

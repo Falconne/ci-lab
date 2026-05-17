@@ -9,7 +9,7 @@ namespace IntegrationTest.Tests;
 /// <summary>
 ///     Tests the merge queue system end-to-end:
 ///     - Two merge groups sharing a repo are assigned to the same queue when
-///       both have auto_merge + auto_rebase enabled and no hard blockers.
+///       both have auto_merge enabled and no hard blockers.
 ///     - The Queues page shows queue position badges and the correct card order.
 ///     - The merge group details page shows a clickable queue position link.
 ///     - The queue link navigates back to the Queues page.

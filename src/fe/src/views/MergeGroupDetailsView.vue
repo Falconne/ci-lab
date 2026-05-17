@@ -103,13 +103,13 @@
                 <template #activator="{ props: tooltipProps }">
                   <span v-bind="tooltipProps" class="d-inline-flex">
                     <v-switch
-                      v-model="autoRebase"
-                      label="Auto Rebase"
+                      v-model="autoMerge"
+                      label="Auto Merge / Rebase"
                       color="primary"
                       density="compact"
                       hide-details
-                      :disabled="settingsUpdating || !autoMerge"
-                      @update:model-value="onAutoRebaseToggle"
+                      :disabled="autoMergeDisabled"
+                      @update:model-value="onAutoMergeToggle"
                     />
                   </span>
                 </template>
@@ -332,7 +332,6 @@ const initialLoading = ref(true)
 const errorMessage = ref('')
 const mergeGroupGone = ref(false)
 const autoMerge = ref(false)
-const autoRebase = ref(false)
 const autoMergeWarning = ref<string | null>(null)
 const settingsUpdating = ref(false)
 let settingsUpdateSeq = 0
@@ -519,11 +518,10 @@ async function submitAddMergeRequest() {
 
 // --- Auto merge settings ---
 
-async function updateSettings(newAutoMerge: boolean, newAutoRebase: boolean) {
+async function updateSettings(newAutoMerge: boolean) {
   if (!mergeGroupId.value) return
 
   const prevAutoMerge = autoMerge.value
-  const prevAutoRebase = autoRebase.value
 
   settingsUpdating.value = true
   const seq = ++settingsUpdateSeq
@@ -531,26 +529,23 @@ async function updateSettings(newAutoMerge: boolean, newAutoRebase: boolean) {
     const response = await fetchBackend(`/api/merge-groups/${mergeGroupId.value}/settings`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ autoMerge: newAutoMerge, autoRebase: newAutoRebase })
+      body: JSON.stringify({ autoMerge: newAutoMerge })
     })
 
     if (!response.ok) {
       errorMessage.value = await extractBackendError(response, 'Failed to update auto merge settings')
       autoMerge.value = prevAutoMerge
-      autoRebase.value = prevAutoRebase
       return
     }
 
     const data: MergeGroup = await response.json()
     autoMerge.value = data.autoMerge
-    autoRebase.value = data.autoRebase
     autoMergeWarning.value = data.autoMergeWarning
   } catch (err) {
     if (isStartupRequiredError(err)) return
     console.error('Failed to update settings:', err)
     errorMessage.value = 'Failed to update auto merge settings.'
     autoMerge.value = prevAutoMerge
-    autoRebase.value = prevAutoRebase
   } finally {
     settingsUpdating.value = false
   }
@@ -558,24 +553,7 @@ async function updateSettings(newAutoMerge: boolean, newAutoRebase: boolean) {
 
 function onAutoMergeToggle(value: boolean | null) {
   const enabled = value === true
-  if (enabled) {
-    // Enabling auto merge also enables auto rebase
-    updateSettings(true, true)
-  } else {
-    // Disabling auto merge also disables auto rebase (rebase requires merge)
-    updateSettings(false, false)
-  }
-}
-
-function onAutoRebaseToggle(value: boolean | null) {
-  const enabled = value === true
-  if (!enabled && autoMerge.value) {
-    // Cannot disable auto rebase while auto merge is on; auto merge requires auto rebase
-    // Disable auto merge too
-    updateSettings(false, false)
-  } else {
-    updateSettings(autoMerge.value, enabled)
-  }
+  updateSettings(enabled)
 }
 
 async function dismissWarning() {
@@ -650,7 +628,6 @@ async function pollMergeGroup() {
     // Sync auto merge settings from backend (only if not currently updating)
     if (!settingsUpdating.value && settingsUpdateSeq === seq) {
       autoMerge.value = data.autoMerge
-      autoRebase.value = data.autoRebase
       autoMergeWarning.value = data.autoMergeWarning
     }
 

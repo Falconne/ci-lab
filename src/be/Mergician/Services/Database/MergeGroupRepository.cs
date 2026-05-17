@@ -71,12 +71,12 @@ public class MergeGroupRepository : IMergeGroupRepository
             VALUES (@Name)
             ON CONFLICT ON CONSTRAINT uq_merge_group_name
             DO NOTHING
-            RETURNING id AS Id, name AS Name, auto_merge AS AutoMerge, auto_rebase AS AutoRebase, auto_merge_warning AS AutoMergeWarning
+            RETURNING id AS Id, name AS Name, auto_merge AS AutoMerge, auto_merge_warning AS AutoMergeWarning
             """,
             new { Name = name })
             ?? connection.QueryFirstOrDefault<MergeGroupBase>(
                 """
-                SELECT mg.id AS Id, mg.name AS Name, mg.auto_merge AS AutoMerge, mg.auto_rebase AS AutoRebase,
+                SELECT mg.id AS Id, mg.name AS Name, mg.auto_merge AS AutoMerge,
                        mg.auto_merge_warning AS AutoMergeWarning,
                        mqe.queue_id AS QueueId, mqe.position AS QueuePosition
                 FROM merge_group mg
@@ -193,7 +193,7 @@ public class MergeGroupRepository : IMergeGroupRepository
 
         var records = connection.Query<MergeGroupBase>(
                 """
-                SELECT mg.id AS Id, mg.name AS Name, mg.auto_merge AS AutoMerge, mg.auto_rebase AS AutoRebase,
+                SELECT mg.id AS Id, mg.name AS Name, mg.auto_merge AS AutoMerge,
                        mg.auto_merge_warning AS AutoMergeWarning,
                        mqe.queue_id AS QueueId, mqe.position AS QueuePosition
                 FROM users_in_merge_groups umg
@@ -222,7 +222,7 @@ public class MergeGroupRepository : IMergeGroupRepository
 
         var record = connection.QueryFirstOrDefault<MergeGroupBase>(
             """
-            SELECT mg.id AS Id, mg.name AS Name, mg.auto_merge AS AutoMerge, mg.auto_rebase AS AutoRebase,
+            SELECT mg.id AS Id, mg.name AS Name, mg.auto_merge AS AutoMerge,
                    mg.auto_merge_warning AS AutoMergeWarning,
                    mqe.queue_id AS QueueId, mqe.position AS QueuePosition
             FROM merge_group mg
@@ -285,7 +285,7 @@ public class MergeGroupRepository : IMergeGroupRepository
                 """
                 DELETE FROM merge_group
                 WHERE id NOT IN (SELECT DISTINCT merge_group_id FROM branches_in_merge_group)
-                RETURNING id AS Id, name AS Name, auto_merge AS AutoMerge, auto_rebase AS AutoRebase, auto_merge_warning AS AutoMergeWarning
+                RETURNING id AS Id, name AS Name, auto_merge AS AutoMerge, auto_merge_warning AS AutoMergeWarning
                 """)
             .ToList();
 
@@ -305,7 +305,7 @@ public class MergeGroupRepository : IMergeGroupRepository
 
         return connection.Query<MergeGroupBase>(
                 """
-                SELECT mg.id AS Id, mg.name AS Name, mg.auto_merge AS AutoMerge, mg.auto_rebase AS AutoRebase, mg.auto_merge_warning AS AutoMergeWarning
+                SELECT mg.id AS Id, mg.name AS Name, mg.auto_merge AS AutoMerge, mg.auto_merge_warning AS AutoMergeWarning
                 FROM merge_group mg
                 LEFT JOIN branches_in_merge_group bmg ON bmg.merge_group_id = mg.id
                 WHERE bmg.id IS NULL
@@ -403,7 +403,7 @@ public class MergeGroupRepository : IMergeGroupRepository
             utcCommitTime);
     }
 
-    public int UpdateAutoMergeSettings(int mergeGroupId, bool autoMerge, bool autoRebase)
+    public int UpdateAutoMergeSettings(int mergeGroupId, bool autoMerge)
     {
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();
@@ -411,17 +411,15 @@ public class MergeGroupRepository : IMergeGroupRepository
         var rowsAffected = connection.Execute(
             """
             UPDATE merge_group
-            SET auto_merge = @AutoMerge,
-                auto_rebase = @AutoRebase
+            SET auto_merge = @AutoMerge
             WHERE id = @MergeGroupId
             """,
-            new { MergeGroupId = mergeGroupId, AutoMerge = autoMerge, AutoRebase = autoRebase });
+            new { MergeGroupId = mergeGroupId, AutoMerge = autoMerge });
 
         _logger.LogInformation(
-            "Updated auto merge settings for merge group {MergeGroupId}: autoMerge={AutoMerge}, autoRebase={AutoRebase}",
+            "Updated auto merge settings for merge group {MergeGroupId}: autoMerge={AutoMerge}",
             mergeGroupId,
-            autoMerge,
-            autoRebase);
+            autoMerge);
 
         return rowsAffected;
     }
@@ -433,12 +431,12 @@ public class MergeGroupRepository : IMergeGroupRepository
 
         var records = connection.Query<MergeGroupBase>(
                 """
-                SELECT mg.id AS Id, mg.name AS Name, mg.auto_merge AS AutoMerge, mg.auto_rebase AS AutoRebase,
+                SELECT mg.id AS Id, mg.name AS Name, mg.auto_merge AS AutoMerge,
                        mg.auto_merge_warning AS AutoMergeWarning,
                        mqe.queue_id AS QueueId, mqe.position AS QueuePosition
                 FROM merge_group mg
                 LEFT JOIN merge_queue_entry mqe ON mqe.merge_group_id = mg.id
-                WHERE mg.auto_merge = TRUE OR mg.auto_rebase = TRUE
+                WHERE mg.auto_merge = TRUE
                 """)
             .ToList();
 
@@ -458,7 +456,7 @@ public class MergeGroupRepository : IMergeGroupRepository
 
         var records = connection.Query<MergeGroupBase>(
                 """
-                SELECT mg.id AS Id, mg.name AS Name, mg.auto_merge AS AutoMerge, mg.auto_rebase AS AutoRebase,
+                SELECT mg.id AS Id, mg.name AS Name, mg.auto_merge AS AutoMerge,
                        mg.auto_merge_warning AS AutoMergeWarning,
                        mqe.queue_id AS QueueId, mqe.position AS QueuePosition
                 FROM merge_queue_entry mqe
@@ -545,7 +543,7 @@ public class MergeGroupRepository : IMergeGroupRepository
 
         var record = connection.QueryFirstOrDefault<MergeGroupBase>(
             """
-            SELECT mg.id AS Id, mg.name AS Name, mg.auto_merge AS AutoMerge, mg.auto_rebase AS AutoRebase,
+            SELECT mg.id AS Id, mg.name AS Name, mg.auto_merge AS AutoMerge,
                    mg.auto_merge_warning AS AutoMergeWarning,
                    mqe.queue_id AS QueueId, mqe.position AS QueuePosition
             FROM merge_group mg
@@ -640,7 +638,6 @@ public class MergeGroupRepository : IMergeGroupRepository
             .Select(r => new MergeGroup(r.Id, r.Name, branchesByGroup.GetValueOrDefault(r.Id, []))
             {
                 AutoMerge = r.AutoMerge,
-                AutoRebase = r.AutoRebase,
                 AutoMergeWarning = r.AutoMergeWarning,
                 QueueId = r.QueueId,
                 QueuePosition = r.QueuePosition

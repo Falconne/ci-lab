@@ -10,8 +10,6 @@ public class MergeGroupBase
     // ReSharper disable UnusedMember.Global
     public bool AutoMerge { get; set; }
 
-    public bool AutoRebase { get; set; }
-
     public string? AutoMergeWarning { get; set; }
 
     /// <summary>The ID of the merge queue this group is currently in, or null if not queued.</summary>

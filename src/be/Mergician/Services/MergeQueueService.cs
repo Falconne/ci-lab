@@ -6,10 +6,9 @@ namespace Mergician.Services;
 
 /// <summary>
 ///     Determines queue eligibility for merge groups and updates queue membership accordingly.
-///     A merge group is eligible for a queue only when <c>auto_merge</c> and <c>auto_rebase</c>
-///     are both enabled AND no hard blockers remain (only "needs rebase" or running builds are
-///     allowed; draft, conflicts, missing approvals, failed pipelines, and external MR blocks are
-///     hard blockers that prevent queuing).
+///     A merge group is eligible for a queue only when <c>auto_merge</c> is enabled AND no hard
+///     blockers remain (only "needs rebase" or running builds are allowed; draft, conflicts, missing
+///     approvals, failed pipelines, and external MR blocks are hard blockers that prevent queuing).
 /// </summary>
 public class MergeQueueService
 {
@@ -26,7 +25,7 @@ public class MergeQueueService
     ///     Returns true if the merge group is eligible to be placed in a merge queue.
     ///     Eligibility requires:
     ///     <list type="bullet">
-    ///         <item>Both <c>auto_merge</c> and <c>auto_rebase</c> are enabled.</item>
+    ///         <item><c>auto_merge</c> is enabled.</item>
     ///         <item>Every branch in the group has an open MR.</item>
     ///         <item>No MR is a draft.</item>
     ///         <item>No MR has merge conflicts.</item>
@@ -41,14 +40,13 @@ public class MergeQueueService
         IReadOnlyList<BranchWithMergeRequest> branchMRDetails,
         IReadOnlySet<int> intraGroupBlockedBranchIds)
     {
-        if (!group.AutoMerge || !group.AutoRebase)
+        if (!group.AutoMerge)
         {
             _logger.LogDebug(
-                "MergeQueueService: group '{GroupName}' ({GroupId}) is not eligible — auto_merge={AutoMerge}, auto_rebase={AutoRebase}",
+                "MergeQueueService: group '{GroupName}' ({GroupId}) is not eligible — auto_merge={AutoMerge}",
                 group.Name,
                 group.Id,
-                group.AutoMerge,
-                group.AutoRebase);
+                group.AutoMerge);
 
             return false;
         }

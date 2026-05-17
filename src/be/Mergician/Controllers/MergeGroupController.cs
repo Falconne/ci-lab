@@ -96,7 +96,7 @@ public class MergeGroupController : ControllerBase
     }
 
     /// <summary>
-    ///     Updates auto merge and auto rebase settings for a merge group.
+    ///     Updates auto merge settings for a merge group.
     ///     Returns 404 if the merge group does not exist.
     /// </summary>
     [HttpPut("{mergeGroupId:int}/settings")]
@@ -107,11 +107,10 @@ public class MergeGroupController : ControllerBase
         var currentUser = HttpContext.GetGitLabUser();
 
         _logger.LogInformation(
-            "User {UserId} updating auto merge settings for merge group {MergeGroupId}: autoMerge={AutoMerge}, autoRebase={AutoRebase}",
+            "User {UserId} updating auto merge settings for merge group {MergeGroupId}: autoMerge={AutoMerge}",
             currentUser.UserId,
             mergeGroupId,
-            request.AutoMerge,
-            request.AutoRebase);
+            request.AutoMerge);
 
         if (!_mergeGroupRepository.IsUserInMergeGroup(currentUser.UserId, mergeGroupId))
         {
@@ -122,7 +121,7 @@ public class MergeGroupController : ControllerBase
             return Forbid();
         }
 
-        var rowsAffected = _mergeGroupRepository.UpdateAutoMergeSettings(mergeGroupId, request.AutoMerge, request.AutoRebase);
+        var rowsAffected = _mergeGroupRepository.UpdateAutoMergeSettings(mergeGroupId, request.AutoMerge);
         if (rowsAffected == 0)
         {
             return NotFound(new ErrorResponse("Merge group not found"));
@@ -133,14 +132,12 @@ public class MergeGroupController : ControllerBase
         _mergeGroupRepository.ClearMergeErrorsForGroup(mergeGroupId);
         _autoMergeService.ResetRetryState(mergeGroupId);
 
-        // Remove from queue if auto_merge or auto_rebase was turned off (queue requires both).
-        if (!request.AutoMerge || !request.AutoRebase)
+        // Remove from queue if auto_merge was turned off.
+        if (!request.AutoMerge)
         {
             _logger.LogInformation(
-                "MergeGroupController: removing merge group {MergeGroupId} from queue because auto_merge={AutoMerge} or auto_rebase={AutoRebase} was disabled",
-                mergeGroupId,
-                request.AutoMerge,
-                request.AutoRebase);
+                "MergeGroupController: removing merge group {MergeGroupId} from queue because auto_merge was disabled",
+                mergeGroupId);
 
             _mergeQueueRepository.RemoveMergeGroupFromQueue(mergeGroupId);
         }

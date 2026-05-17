@@ -160,18 +160,6 @@ public class AutoMergeToggleTest
                 "Expected auto merge toggle to be on after click");
         }
 
-        // Verify auto rebase is also enabled (enabling auto merge enables auto rebase)
-        var autoRebaseSwitch = _browser.Page.Locator(".auto-merge-controls .v-switch").Nth(1);
-        var rebaseInput = autoRebaseSwitch.Locator("input[type='checkbox']");
-        var rebaseChecked = await rebaseInput.IsCheckedAsync();
-        Log.Information("Auto rebase toggle state after enabling auto merge: {State}", rebaseChecked);
-
-        if (!rebaseChecked)
-        {
-            throw new InvalidOperationException(
-                "Expected auto rebase to be enabled when auto merge is on");
-        }
-
         // Navigate back to dashboard and check for the auto merge badge
         await _browser.Navigate(TestConfig.MergicianUrl);
         await Task.Delay(2000);

@@ -168,11 +168,10 @@ public class AutoMergeService : BackgroundService
         CancellationToken cancellationToken)
     {
         _logger.LogDebug(
-            "AutoMergeService: processing merge group {MergeGroupId} '{MergeGroupName}' (autoMerge={AutoMerge}, autoRebase={AutoRebase})",
+            "AutoMergeService: processing merge group {MergeGroupId} '{MergeGroupName}' (autoMerge={AutoMerge})",
             group.Id,
             group.Name,
-            group.AutoMerge,
-            group.AutoRebase);
+            group.AutoMerge);
 
         // Fetch open MRs for all branches in parallel, then fetch detailed info for those that have one.
         var mrFetchTasks = group.Branches.Select(async branch =>
@@ -222,7 +221,7 @@ public class AutoMergeService : BackgroundService
         // Compute intra-group blocked branch IDs once; they are used for both queue eligibility
         // and for ProcessAutoMerge (passed through to avoid a duplicate API call).
         HashSet<int> intraGroupBlockedBranchIds = [];
-        if (group.AutoMerge && group.AutoRebase)
+        if (group.AutoMerge)
         {
             intraGroupBlockedBranchIds = await GetIntraGroupBlockedBranchIds(
                 serviceUser,
@@ -245,7 +244,7 @@ public class AutoMergeService : BackgroundService
         }
 
         // Step 1: Auto Rebase - rebase branches that are behind their target
-        if (group.AutoRebase)
+        if (group.AutoMerge)
         {
             await ProcessAutoRebase(serviceUser, group, branchMergeRequestDetails, cancellationToken);
         }
@@ -355,10 +354,10 @@ public class AutoMergeService : BackgroundService
                 branch.ProjectId,
                 group.Name);
 
-            _mergeGroupRepository.UpdateAutoMergeSettings(group.Id, false, false);
+            _mergeGroupRepository.UpdateAutoMergeSettings(group.Id, false);
 
             var warning =
-                $"Rebase conflict on {branch.ProjectName}/{branch.BranchName} (MR !{mr.Iid}). Auto merge and auto rebase have been disabled.";
+                $"Rebase conflict on {branch.ProjectName}/{branch.BranchName} (MR !{mr.Iid}). Auto merge has been disabled.";
 
             _mergeGroupRepository.UpdateAutoMergeWarning(group.Id, warning);
 
@@ -375,7 +374,7 @@ public class AutoMergeService : BackgroundService
         var groupRef = FormatMergeGroupLink(mergeGroupId, mergeGroupName);
         return
             $"Mergician can no longer rebase this branch due to conflicts. "
-            + $"Auto merge and auto rebase have been disabled for merge group {groupRef}.";
+            + $"Auto merge has been disabled for merge group {groupRef}.";
     }
 
     private string FormatMergeGroupLink(int mergeGroupId, string mergeGroupName)
@@ -410,7 +409,7 @@ public class AutoMergeService : BackgroundService
 
         // Use pre-computed intra-group blocked IDs if available (avoids duplicate API calls when
         // queue management already computed them); otherwise compute now.
-        var intraGroupBlockedBranchIds = preComputedIntraGroupBlockedIds.Count > 0 || group.AutoRebase
+        var intraGroupBlockedBranchIds = preComputedIntraGroupBlockedIds.Count > 0
             ? preComputedIntraGroupBlockedIds
             : await GetIntraGroupBlockedBranchIds(serviceUser, branchMergeRequestDetails, cancellationToken);
 
@@ -427,7 +426,6 @@ public class AutoMergeService : BackgroundService
                 serviceUser,
                 branch,
                 mr,
-                group.AutoRebase,
                 isIntraGroupBlockedOnly,
                 reasons,
                 cancellationToken);
@@ -639,7 +637,6 @@ public class AutoMergeService : BackgroundService
         AccessDetailsBase serviceUser,
         BranchWithActivity branch,
         GitLabDetailedMergeRequest mr,
-        bool autoRebaseEnabled,
         bool isIntraGroupBlockedOnly,
         List<string> reasons,
         CancellationToken cancellationToken)
@@ -685,8 +682,7 @@ public class AutoMergeService : BackgroundService
             }
         }
 
-        var needsRebase = autoRebaseEnabled
-            && (mr.DivergedCommitsCount > 0 || mr.HasConflicts || mr.DetailedMergeStatus == "need_rebase");
+        var needsRebase = mr.DivergedCommitsCount > 0 || mr.HasConflicts || mr.DetailedMergeStatus == "need_rebase";
 
         // When this branch's blocked_status is entirely due to intra-group prerequisites,
         // blocked_status is already in the handled set and will be ignored by MRStatusCalculator,
