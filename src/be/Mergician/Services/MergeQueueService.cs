@@ -27,18 +27,12 @@ public class MergeQueueService
     ///     <list type="bullet">
     ///         <item><c>auto_merge</c> is enabled.</item>
     ///         <item>Every branch in the group has an open MR.</item>
-    ///         <item>No MR is a draft.</item>
-    ///         <item>No MR has merge conflicts.</item>
-    ///         <item>No MR has missing approvals.</item>
-    ///         <item>No MR has a failed pipeline.</item>
-    ///         <item>No MR has external (non-intra-group) blockers.</item>
+    ///         <item>Every MR has <c>detailed_merge_status == "ci_still_running"</c> (CI is the only blocker).</item>
     ///     </list>
-    ///     "Needs rebase" and running/pending builds do NOT disqualify a group from the queue.
     /// </summary>
     public bool IsQueueEligible(
         MergeGroup group,
-        IReadOnlyList<BranchWithMergeRequest> branchMRDetails,
-        IReadOnlySet<int> intraGroupBlockedBranchIds)
+        IReadOnlyList<BranchWithMergeRequest> branchMRDetails)
     {
         if (!group.AutoMerge)
         {
@@ -65,34 +59,10 @@ public class MergeQueueService
 
         foreach (var (branch, mr) in branchMRDetails)
         {
-            if (mr.Draft)
+            if (mr.DetailedMergeStatus != "ci_still_running")
             {
                 _logger.LogDebug(
-                    "MergeQueueService: group '{GroupName}' ({GroupId}) is not eligible — branch '{BranchName}' MR is a draft",
-                    group.Name,
-                    group.Id,
-                    branch.BranchName);
-
-                return false;
-            }
-
-            if (mr.HasConflicts)
-            {
-                _logger.LogDebug(
-                    "MergeQueueService: group '{GroupName}' ({GroupId}) is not eligible — branch '{BranchName}' has conflicts",
-                    group.Name,
-                    group.Id,
-                    branch.BranchName);
-
-                return false;
-            }
-
-            // Pipeline failure is a hard blocker. Running/pending pipelines are not.
-            if (mr.DetailedMergeStatus == "ci_must_pass"
-                || mr.DetailedMergeStatus == "pipeline_must_succeed")
-            {
-                _logger.LogDebug(
-                    "MergeQueueService: group '{GroupName}' ({GroupId}) is not eligible — branch '{BranchName}' has a failed pipeline ({Status})",
+                    "MergeQueueService: group '{GroupName}' ({GroupId}) is not eligible — branch '{BranchName}' detailed_merge_status={Status}",
                     group.Name,
                     group.Id,
                     branch.BranchName,
@@ -100,32 +70,6 @@ public class MergeQueueService
 
                 return false;
             }
-
-            // External MR blockers are a hard blocker; intra-group ones are fine.
-            if (mr.DetailedMergeStatus == "blocked_status"
-                && !intraGroupBlockedBranchIds.Contains(branch.Id))
-            {
-                _logger.LogDebug(
-                    "MergeQueueService: group '{GroupName}' ({GroupId}) is not eligible — branch '{BranchName}' has external MR blockers",
-                    group.Name,
-                    group.Id,
-                    branch.BranchName);
-
-                return false;
-            }
-        }
-
-        // Check for missing approvals by examining all MRs.  We cannot easily get the approval
-        // counts here without additional API calls, but GitLab surfaced "not_approved" in
-        // detailed_merge_status, which we check instead.
-        if (branchMRDetails.Any(bm => bm.MergeRequest.DetailedMergeStatus == "not_approved"))
-        {
-            _logger.LogDebug(
-                "MergeQueueService: group '{GroupName}' ({GroupId}) is not eligible — at least one MR is not approved",
-                group.Name,
-                group.Id);
-
-            return false;
         }
 
         return true;
@@ -138,10 +82,9 @@ public class MergeQueueService
     /// </summary>
     public void EvaluateAndUpdateQueueMembership(
         MergeGroup group,
-        IReadOnlyList<BranchWithMergeRequest> branchMRDetails,
-        IReadOnlySet<int> intraGroupBlockedBranchIds)
+        IReadOnlyList<BranchWithMergeRequest> branchMRDetails)
     {
-        var eligible = IsQueueEligible(group, branchMRDetails, intraGroupBlockedBranchIds);
+        var eligible = IsQueueEligible(group, branchMRDetails);
         var currentlyQueued = group.QueueId.HasValue;
 
         if (eligible && !currentlyQueued)

@@ -695,17 +695,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             return;
         }
 
-        var (mrStatus, reasons) = MRStatusCalculator.Calculate(
-            hasMergeRequest,
-            isDraft,
-            approvalsRequired,
-            approvalsGiven,
-            buildJobs,
-            needsRebase,
-            rebaseInProgress,
-            hasConflicts,
-            hasMergeRequest ? mergeRequests[0].DetailedMergeStatus : null,
-            blockingMRDescriptions);
+        var (mrStatus, reasons) = MRStatusCalculator.Calculate(hasMergeRequest, hasMergeRequest ? mergeRequests[0].DetailedMergeStatus : null);
 
         // If a previous auto merge attempt failed and GitLab otherwise considers the branch Ready,
         // force Blocked so the user sees the error until they dismiss the warning.

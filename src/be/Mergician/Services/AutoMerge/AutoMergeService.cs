@@ -218,17 +218,9 @@ public class AutoMergeService : BackgroundService
             .ToList();
 
         // Step 0: Queue management — evaluate whether this group should be in a merge queue.
-        // Compute intra-group blocked branch IDs once; they are used for both queue eligibility
-        // and for ProcessAutoMerge (passed through to avoid a duplicate API call).
-        HashSet<int> intraGroupBlockedBranchIds = [];
         if (group.AutoMerge)
         {
-            intraGroupBlockedBranchIds = await GetIntraGroupBlockedBranchIds(
-                serviceUser,
-                branchMergeRequestDetails,
-                cancellationToken);
-
-            _mergeQueueService.EvaluateAndUpdateQueueMembership(group, branchMergeRequestDetails, intraGroupBlockedBranchIds);
+            _mergeQueueService.EvaluateAndUpdateQueueMembership(group, branchMergeRequestDetails);
 
             // Re-read queue position from DB — EvaluateAndUpdateQueueMembership may have changed it.
             var queueEntry = _mergeQueueRepository.GetQueueEntry(group.Id);
@@ -252,6 +244,11 @@ public class AutoMergeService : BackgroundService
         // Step 2: Auto Merge - check if all branches are ready and merge them all
         if (group.AutoMerge)
         {
+            var intraGroupBlockedBranchIds = await GetIntraGroupBlockedBranchIds(
+                serviceUser,
+                branchMergeRequestDetails,
+                cancellationToken);
+
             await ProcessAutoMerge(serviceUser, group, branchMergeRequestDetails, intraGroupBlockedBranchIds, cancellationToken);
         }
     }
@@ -407,12 +404,6 @@ public class AutoMergeService : BackgroundService
             return;
         }
 
-        // Use pre-computed intra-group blocked IDs if available (avoids duplicate API calls when
-        // queue management already computed them); otherwise compute now.
-        var intraGroupBlockedBranchIds = preComputedIntraGroupBlockedIds.Count > 0
-            ? preComputedIntraGroupBlockedIds
-            : await GetIntraGroupBlockedBranchIds(serviceUser, branchMergeRequestDetails, cancellationToken);
-
         // Check each branch for readiness
         var allReady = true;
         var reasons = new List<string>();
@@ -421,14 +412,12 @@ public class AutoMergeService : BackgroundService
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var isIntraGroupBlockedOnly = intraGroupBlockedBranchIds.Contains(branch.Id);
-            var branchReady = await IsBranchReadyToMerge(
-                serviceUser,
+            var isIntraGroupBlockedOnly = preComputedIntraGroupBlockedIds.Contains(branch.Id);
+            var branchReady = IsBranchReadyToMerge(
                 branch,
                 mr,
                 isIntraGroupBlockedOnly,
-                reasons,
-                cancellationToken);
+                reasons);
 
             if (!branchReady)
             {
@@ -460,8 +449,8 @@ public class AutoMergeService : BackgroundService
 
         // Only merge branches whose intra-group prerequisites have not yet been merged.
         // Blocked branches wait for subsequent cycles once their prerequisites land.
-        var branchesToMergeNow = intraGroupBlockedBranchIds.Count > 0
-            ? branchMergeRequestDetails.Where(x => !intraGroupBlockedBranchIds.Contains(x.Branch.Id)).ToList()
+        var branchesToMergeNow = preComputedIntraGroupBlockedIds.Count > 0
+            ? branchMergeRequestDetails.Where(x => !preComputedIntraGroupBlockedIds.Contains(x.Branch.Id)).ToList()
             : branchMergeRequestDetails;
 
         if (branchesToMergeNow.Count == 0)
@@ -474,14 +463,14 @@ public class AutoMergeService : BackgroundService
 
             branchesToMergeNow = branchMergeRequestDetails;
         }
-        else if (intraGroupBlockedBranchIds.Count > 0)
+        else if (preComputedIntraGroupBlockedIds.Count > 0)
         {
             _logger.LogInformation(
                 "AutoMergeService: merging {NowCount} of {TotalCount} branches in merge group '{MergeGroupName}' — {WaitingCount} branch(es) are waiting for intra-group prerequisites to merge first",
                 branchesToMergeNow.Count,
                 branchMergeRequestDetails.Count,
                 group.Name,
-                intraGroupBlockedBranchIds.Count);
+                preComputedIntraGroupBlockedIds.Count);
         }
         else
         {
@@ -633,95 +622,35 @@ public class AutoMergeService : BackgroundService
         }
     }
 
-    private async Task<bool> IsBranchReadyToMerge(
-        AccessDetailsBase serviceUser,
+    private bool IsBranchReadyToMerge(
         BranchWithActivity branch,
         GitLabDetailedMergeRequest mr,
         bool isIntraGroupBlockedOnly,
-        List<string> reasons,
-        CancellationToken cancellationToken)
+        List<string> reasons)
     {
         var branchLabel = $"{branch.ProjectName}/{branch.BranchName}";
 
-        // Check approvals via per-rule aggregation
-        var approvalCounts = await _gitLabService.GetMergeRequestApprovalCounts(
-            serviceUser,
-            branch.ProjectId,
-            mr.Iid,
-            cancellationToken);
-
-        int? approvalsRequired = null;
-        int? approvalsGiven = null;
-        if (approvalCounts != null)
-        {
-            approvalsRequired = approvalCounts.Value.Required;
-            approvalsGiven = approvalCounts.Value.Given;
-        }
-
-        // Fetch latest pipeline and its jobs
-        var latestPipeline = await _apiService.GetLatestMergeRequestPipeline(
-            serviceUser,
-            branch.ProjectId,
-            mr.Iid,
-            cancellationToken);
-
-        List<BranchBuildJob> buildJobs = [];
-        if (latestPipeline != null)
-        {
-            buildJobs = await _apiService.GetPipelineJobs(
-                serviceUser,
-                branch.ProjectId,
-                latestPipeline.Id,
-                cancellationToken);
-
-            // Guard against pipeline fetch failures: if pipeline is not successful, block regardless
-            if (latestPipeline.Status != "success")
-            {
-                reasons.Add($"{branchLabel}: latest pipeline status is '{latestPipeline.Status}'");
-                return false;
-            }
-        }
-
-        var needsRebase = mr.DivergedCommitsCount > 0 || mr.HasConflicts || mr.DetailedMergeStatus == "need_rebase";
-
-        // When this branch's blocked_status is entirely due to intra-group prerequisites,
-        // blocked_status is already in the handled set and will be ignored by MRStatusCalculator,
-        // so the branch is assessed on its other attributes only.
-        // For external blockers, the auto-merge service marks the branch as not ready directly.
-        if (!isIntraGroupBlockedOnly && mr.DetailedMergeStatus == "blocked_status")
+        // When this branch's blocked_status is caused entirely by intra-group prerequisites,
+        // treat it as ready — Mergician merges dependencies first.
+        if (isIntraGroupBlockedOnly && mr.DetailedMergeStatus == "blocked_status")
         {
             _logger.LogDebug(
-                "AutoMergeService: branch '{BranchName}' in project {ProjectId} has blocked_status with external blockers; marking as not ready",
+                "AutoMergeService: branch '{BranchName}' in project {ProjectId} has blocked_status from intra-group deps only; treating as ready",
                 branch.BranchName,
                 branch.ProjectId);
 
-            reasons.Add($"{branchLabel}: blocked by an external MR dependency");
-            return false;
+            return true;
         }
 
-        var (mrStatus, calcReasons) = MRStatusCalculator.Calculate(
-            hasMergeRequest: true,
-            isDraft: mr.Draft,
-            approvalsRequired,
-            approvalsGiven,
-            buildJobs,
-            needsRebase,
-            mr.RebaseInProgress,
-            hasConflicts: mr.HasConflicts,
-            detailedMergeStatus: mr.DetailedMergeStatus);
-
-        if (mrStatus != MRStatus.Ready)
+        if (mr.DetailedMergeStatus != "mergeable")
         {
-            foreach (var r in calcReasons)
-                reasons.Add($"{branchLabel}: {r}");
+            _logger.LogDebug(
+                "AutoMergeService: branch '{BranchName}' in project {ProjectId} is not ready: detailed_merge_status={Status}",
+                branch.BranchName,
+                branch.ProjectId,
+                mr.DetailedMergeStatus);
 
-            return false;
-        }
-
-        // Guard against MR being closed/merged between checks — not surfaced via detailed_merge_status handling.
-        if (mr.DetailedMergeStatus == "not_open")
-        {
-            reasons.Add($"{branchLabel}: merge status is '{mr.DetailedMergeStatus}'");
+            reasons.Add($"{branchLabel}: {MRStatusCalculator.FormatDetailedMergeStatus(mr.DetailedMergeStatus ?? "unknown")}");
             return false;
         }
 
