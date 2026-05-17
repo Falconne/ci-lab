@@ -107,7 +107,7 @@
                   <template v-if="branch && branch.mrStatus !== MRStatus.Loading && itemApprovalsText(branch)">
                     <v-tooltip location="top" :text="approvalsTooltip(branch)">
                       <template #activator="{ props: tipProps }">
-                        <span v-bind="tipProps" class="approvals-cell">
+                        <span v-bind="tipProps" :title="approvalsTooltip(branch)" class="approvals-cell">
                           {{ itemApprovalsText(branch) }}
                         </span>
                       </template>
