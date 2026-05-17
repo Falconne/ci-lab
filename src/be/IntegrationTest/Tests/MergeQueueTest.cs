@@ -94,6 +94,12 @@ public class MergeQueueTest
 
             Log.Information("Set both pipeline statuses to 'running' — queue-eligible but not merge-ready");
 
+            // Wait for GitLab to recompute detailed_merge_status → ci_still_running for both MRs.
+            // This prevents a race where the auto-merge cycle evaluates queue eligibility while
+            // GitLab is still in the transient "checking" state after the commit-status override.
+            await WaitForCiStillRunning(projectId, mrIidA, "MR-A");
+            await WaitForCiStillRunning(projectId, mrIidB, "MR-B");
+
             // === Enable auto merge + auto rebase on both MGs via the UI ===
             await LoginHelper.EnsureLoggedIn(_browser, "test1");
 
@@ -379,6 +385,43 @@ public class MergeQueueTest
 
         Log.Warning(
             "CI did not stabilize on {Label} MR !{Iid} within {Timeout}s. Proceeding anyway.",
+            label,
+            mergeRequestIid,
+            timeoutSeconds);
+    }
+
+    /// <summary>
+    ///     Polls the GitLab API until the MR's <c>detailed_merge_status</c> is <c>ci_still_running</c>,
+    ///     confirming that GitLab has finished recomputing after a commit-status override.
+    /// </summary>
+    private async Task WaitForCiStillRunning(int projectId, int mergeRequestIid, string label)
+    {
+        const int timeoutSeconds = 60;
+        Log.Information(
+            "Waiting for {Label} MR !{Iid} to reach ci_still_running (up to {Timeout}s)...",
+            label,
+            mergeRequestIid,
+            timeoutSeconds);
+
+        for (var i = 0; i < timeoutSeconds; i++)
+        {
+            var mr = _gitLab.GetMergeRequestDetail(projectId, mergeRequestIid);
+            if (mr.DetailedMergeStatus == "ci_still_running")
+            {
+                Log.Information(
+                    "{Label} MR !{Iid} reached ci_still_running after ~{Seconds}s",
+                    label,
+                    mergeRequestIid,
+                    i);
+
+                return;
+            }
+
+            await Task.Delay(1000);
+        }
+
+        Log.Warning(
+            "{Label} MR !{Iid} did not reach ci_still_running within {Timeout}s (current state may cause flaky test)",
             label,
             mergeRequestIid,
             timeoutSeconds);

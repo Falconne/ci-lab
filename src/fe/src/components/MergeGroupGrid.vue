@@ -42,7 +42,7 @@
                       @click.stop="navigateToQueue(group)"
                     >
                       <v-icon icon="mdi-playlist-play" size="11" class="mr-1" />
-                      {{ group.queuePosition === 1 ? 'Next' : `#${group.queuePosition}` }}
+                      {{ group.queuePosition === 1 ? 'Next in queue' : `#${group.queuePosition} in queue` }}
                     </a>
                   </div>
                 </td>
