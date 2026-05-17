@@ -450,16 +450,24 @@ thead th {
   color: rgb(var(--v-theme-on-surface));
 }
 
-/* BFC wrapper — overflow:hidden on a block inside a table cell prevents the auto-layout
-   algorithm from using text width as the column minimum, so the table never expands past
-   the viewport due to a long MR title. */
+/* The clip div is absolutely positioned so it's out of the table layout flow —
+   the auto-layout algorithm only sees the empty td, allocating the column its
+   remaining 100% share. The div then stretches over the full td and clips long titles. */
+td.col-mr {
+  position: relative;
+}
+
 .mr-content-clip {
+  position: absolute;
+  inset: 0 12px; /* match td horizontal padding; fill full td height */
   overflow: hidden;
-  min-width: 0;
+  display: flex;
+  align-items: center;
 }
 
 .mr-title {
-  display: block;
+  flex: 1;
+  min-width: 0;
   color: rgba(var(--v-theme-on-surface), 0.7);
   white-space: nowrap;
   overflow: hidden;
