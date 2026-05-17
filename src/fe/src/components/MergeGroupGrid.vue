@@ -14,8 +14,8 @@
               <th v-if="sectionHasAutoMerge(section)" class="col-status">Status</th>
               <th class="col-project">Project</th>
               <th class="col-mr">Merge Request</th>
-              <th class="col-approvals">Approvals</th>
-              <th class="col-updated">Updated</th>
+              <th class="col-approvals"><v-icon icon="mdi-thumb-up-outline" size="14" /></th>
+              <th class="col-updated"><v-icon icon="mdi-clock-outline" size="14" /></th>
               <th class="col-jobs">Build Jobs</th>
             </tr>
           </thead>
@@ -81,23 +81,25 @@
 
                 <!-- MR title (per branch) -->
                 <td class="col-mr">
-                  <span v-if="!branch || branch.mrStatus === MRStatus.Loading" class="skeleton-inline"><span class="skeleton-shimmer" /></span>
-                  <template v-else-if="branch.mergeRequestTitle">
-                    <v-tooltip
-                      location="top"
-                      :text="branch.mergeRequestTitle"
-                      :disabled="!mrTitleOverflowing.get(mrTitleKey(group, branch))"
-                    >
-                      <template #activator="{ props: tipProps }">
-                        <span
-                          v-bind="tipProps"
-                          :ref="(el) => registerMrTitleEl(mrTitleKey(group, branch), el as Element | null)"
-                          class="mr-title"
-                        >{{ branch.mergeRequestTitle }}</span>
-                      </template>
-                    </v-tooltip>
-                  </template>
-                  <span v-else-if="branch.hasMergeRequest === false" class="no-mr-text">No MR</span>
+                  <div class="mr-content-clip">
+                    <span v-if="!branch || branch.mrStatus === MRStatus.Loading" class="skeleton-inline"><span class="skeleton-shimmer" /></span>
+                    <template v-else-if="branch.mergeRequestTitle">
+                      <v-tooltip
+                        location="top"
+                        :text="branch.mergeRequestTitle"
+                        :disabled="!mrTitleOverflowing.get(mrTitleKey(group, branch))"
+                      >
+                        <template #activator="{ props: tipProps }">
+                          <span
+                            v-bind="tipProps"
+                            :ref="(el) => registerMrTitleEl(mrTitleKey(group, branch), el as Element | null)"
+                            class="mr-title"
+                          >{{ branch.mergeRequestTitle }}</span>
+                        </template>
+                      </v-tooltip>
+                    </template>
+                    <span v-else-if="branch.hasMergeRequest === false" class="no-mr-text">No MR</span>
+                  </div>
                 </td>
 
                 <!-- Approvals (per branch) -->
@@ -320,11 +322,7 @@ function registerMrTitleEl(key: string, el: Element | null) {
 
 /* ---- Section header (matches dashboard partition header) ---- */
 .grid-section {
-  margin-bottom: 28px;
-}
-
-.grid-section:last-child {
-  margin-bottom: 0;
+  margin-top: 36px;
 }
 
 .grid-section-header {
@@ -347,17 +345,16 @@ function registerMrTitleEl(key: string, el: Element | null) {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.85rem;
-  table-layout: fixed;
+  table-layout: auto;
 }
 
 /* ---- Column widths ---- */
-/* col-mr has no explicit width so it fills all remaining space in fixed layout */
-.col-mg      { width: 150px; }
-.col-status  { width: 90px;  }
-.col-project { width: 130px; }
-.col-approvals { width: 80px; }
-.col-updated   { width: 85px; }
-.col-jobs    { width: 160px; }
+/* col-mg, col-project, col-jobs have no explicit width and auto-size to their content */
+/* col-mr fills remaining space; overflow is handled by the .mr-content-clip BFC wrapper */
+.col-status    { width: 90px;  }
+.col-approvals { width: 80px;  }
+.col-updated   { width: 85px;  }
+.col-mr        { width: 100%;  }
 
 /* ---- Header row ---- */
 thead tr {
@@ -399,8 +396,6 @@ thead th {
 .mg-grid td {
   padding: 8px 12px;
   vertical-align: middle;
-  min-width: 0;
-  overflow: hidden;
 }
 
 /* Common cells (spanning all branch rows) align to top so content starts at the first sub-row */
@@ -453,6 +448,14 @@ thead th {
   text-overflow: ellipsis;
   display: block;
   color: rgb(var(--v-theme-on-surface));
+}
+
+/* BFC wrapper — overflow:hidden on a block inside a table cell prevents the auto-layout
+   algorithm from using text width as the column minimum, so the table never expands past
+   the viewport due to a long MR title. */
+.mr-content-clip {
+  overflow: hidden;
+  min-width: 0;
 }
 
 .mr-title {

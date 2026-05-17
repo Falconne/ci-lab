@@ -34,7 +34,6 @@
           <DashboardFilter
             v-model="filterText"
             :show-open-m-r-button="isMRUrlFilter && filteredMergeGroups.length === 0"
-            class="mb-6"
           />
 
           <div v-if="filteredMergeGroups.length === 0 && !isMRUrlFilter" class="text-center pa-8">
@@ -306,25 +305,5 @@ onMounted(async () => {
 /* ---- Dashboard content wrapper ---- */
 .dashboard-content {
   width: 100%;
-}
-
-/* ---- Partition sections (time-based grouping) ---- */
-.partition-section {
-  margin-bottom: 28px;
-}
-
-.partition-section:last-child {
-  margin-bottom: 0;
-}
-
-.partition-header {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: rgba(var(--v-theme-on-surface), 0.6);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  margin-bottom: 12px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.08);
 }
 </style>
