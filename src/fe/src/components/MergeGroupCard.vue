@@ -202,6 +202,7 @@ import {
   groupStatusLabel,
   groupStatusClass,
   itemApprovalsText,
+  approvalIconColor,
   getGroupStatusReasons,
   jobStatusIcon,
   jobStatusColor,
@@ -327,16 +328,6 @@ const nonSuccessJobs = computed(() =>
 const successJobCount = computed(() =>
   deduplicatedJobs.value.filter(j => j.status.toLowerCase() === 'success').length
 )
-
-function approvalIconColor(item: BranchWithActivity): string {
-  if (!item.hasMergeRequest || item.approvalsGiven == null || item.approvalsRequired == null) {
-    return 'grey'
-  }
-  if (item.approvalsGiven >= item.approvalsRequired) {
-    return 'green'
-  }
-  return 'grey'
-}
 
 function approvalsTooltip(item: BranchWithActivity): string {
   if (!item.hasMergeRequest || item.approvalsGiven == null || item.approvalsRequired == null) {

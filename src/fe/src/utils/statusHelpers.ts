@@ -97,6 +97,16 @@ export function itemApprovalsText(item: BranchWithActivity): string {
 }
 
 /**
+ * Icon color for the approval indicator (green if all approvals met, grey otherwise).
+ */
+export function approvalIconColor(item: BranchWithActivity): string {
+  if (!item.hasMergeRequest || item.approvalsGiven == null || item.approvalsRequired == null) {
+    return 'grey'
+  }
+  return item.approvalsGiven >= item.approvalsRequired ? 'green' : 'grey'
+}
+
+/**
  * Extended approval text used in the details view (includes "Not available" / "No approval needed").
  */
 export function itemApprovalsTextDetailed(item: BranchWithActivity): string {
