@@ -195,8 +195,7 @@ public class MergeGroupManagementTest
             // Click a known merge group (feature/alpha) to avoid hitting the auto-created
             // group for our test branch. The test MR's branch is from primary-1 which is
             // not already in feature/alpha, so the branch count should increase.
-            var targetCard = _browser.Page.Locator(".merge-group-card")
-                .Filter(new LocatorFilterOptions { HasTextString = "feature/alpha" });
+            var targetCard = _browser.Page.Locator($"[data-mg-name='feature/alpha']");
 
             var targetCount = await targetCard.CountAsync();
             Log.Information("Found {Count} merge group card(s) matching 'feature/alpha'", targetCount);
@@ -337,7 +336,7 @@ public class MergeGroupManagementTest
             var jsBranchName = branchName.Replace("\\", "\\\\").Replace("'", "\\'");
             await _browser.Page.WaitForFunctionAsync(
                 $"() => document.querySelector('.open-mr-btn') !== null || " +
-                $"Array.from(document.querySelectorAll('.merge-group-card')).some(c => c.textContent.includes('{jsBranchName}'))",
+                $"document.querySelector('[data-mg-name=\"{jsBranchName}\"]') !== null",
                 null, new PageWaitForFunctionOptions { Timeout = 15000 });
             await _browser.TakeScreenshot("find_mr_03_filtered");
 
@@ -349,9 +348,8 @@ public class MergeGroupManagementTest
             }
             else
             {
-                Log.Information("MR already tracked - clicking the filtered merge group card");
-                var matchingCard = _browser.Page.Locator(".merge-group-card")
-                    .Filter(new LocatorFilterOptions { HasTextString = branchName });
+                Log.Information("MR already tracked - clicking the filtered merge group row");
+                var matchingCard = _browser.Page.Locator($"[data-mg-name='{branchName}']");
                 await matchingCard.First.ClickAsync();
             }
 
