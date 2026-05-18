@@ -108,13 +108,6 @@
                     <v-tooltip location="top" :text="approvalsTooltip(branch)">
                       <template #activator="{ props: tipProps }">
                         <span v-bind="tipProps" :title="approvalsTooltip(branch)" class="approvals-cell">
-                          <v-icon
-                            icon="mdi-thumb-up"
-                            size="12"
-                            :color="approvalIconColor(branch)"
-                            :data-approval-color="approvalIconColor(branch)"
-                            class="approval-icon"
-                          />
                           {{ itemApprovalsText(branch) }}
                         </span>
                       </template>
@@ -209,7 +202,6 @@ import {
   groupStatusLabel,
   getGroupStatusReasons,
   itemApprovalsText,
-  approvalIconColor,
   jobStatusIcon,
   jobStatusColor,
   jobStatusLabel,
