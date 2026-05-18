@@ -1,8 +1,0 @@
-Task 1)
-In the grid view, remove the thumbs up icon from the cells in the Approvals column. Only the column heading needs to be the icon.
-
-Task 2)
-The sub-heading in the cards in the Merge Group Details view (that shows the branch if the main title is the MR title), needs to be a smaller font, like the MG Details page heading does.
-
-Task 3)
-Cancelled build jobs should be ignored, we don't need to see them in the Mergician UI.
