@@ -94,3 +94,103 @@ async function copyBranchName() {
   }
 }
 </script>
+
+<style scoped>
+.branch-card-title {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 6px;
+}
+
+.branch-card-title--with-mr {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.mr-title-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.mr-title-link,
+.mr-title-text {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: rgb(var(--v-theme-on-surface));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mr-title-link {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  min-width: 0;
+}
+
+.mr-external-link-btn {
+  display: inline-flex;
+  align-items: center;
+  color: inherit;
+  text-decoration: none;
+  flex-shrink: 0;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+
+.mr-external-link-btn:hover {
+  opacity: 1;
+}
+
+.mr-external-link-icon {
+  flex-shrink: 0;
+}
+
+.branch-subtitle-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.branch-subtitle-link,
+.branch-subtitle-text {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: rgba(var(--v-theme-on-surface), 0.55);
+  white-space: nowrap;
+}
+
+.branch-subtitle-link {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.branch-title-link,
+.branch-title-text {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: rgb(var(--v-theme-on-surface));
+}
+
+.branch-title-link {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.copy-branch-btn {
+  flex-shrink: 0;
+  opacity: 0.5;
+  transition: opacity 0.15s;
+}
+
+.copy-branch-btn:hover {
+  opacity: 1;
+}
+</style>
