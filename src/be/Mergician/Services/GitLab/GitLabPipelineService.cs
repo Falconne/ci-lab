@@ -285,10 +285,12 @@ public class GitLabPipelineService
 
     /// <summary>
     ///     Returns true for job statuses that should never be shown in the UI.
-    ///     Skipped jobs are always hidden. Manual jobs are hidden when they have not yet been
+    ///     Skipped and cancelled jobs are always hidden. Manual jobs are hidden when they have not yet been
     ///     triggered (status == "manual"); once run they carry a real status (success, failed, etc.).
     /// </summary>
     private static bool IsHiddenJobStatus(string status) =>
         status.Equals("skipped", StringComparison.OrdinalIgnoreCase) ||
-        status.Equals("manual", StringComparison.OrdinalIgnoreCase);
+        status.Equals("manual", StringComparison.OrdinalIgnoreCase) ||
+        status.Equals("canceled", StringComparison.OrdinalIgnoreCase) ||
+        status.Equals("cancelled", StringComparison.OrdinalIgnoreCase);
 }

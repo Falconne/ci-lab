@@ -53,7 +53,6 @@ public class DashboardTest
                     "primary-1",
                     "1/0",
                     "No approval needed",
-                    "green",
                     "Alpha changes in primary-1",
                     "Test Group / primary-1");
 
@@ -62,7 +61,6 @@ public class DashboardTest
                     "secondary-1",
                     "0/0",
                     "No approval needed",
-                    "green",
                     "Alpha changes in secondary-1",
                     "Test Group / secondary-1");
 
@@ -71,7 +69,6 @@ public class DashboardTest
                     "primary-2",
                     "0/0",
                     "No approval needed",
-                    "green",
                     "Beta changes in primary-2",
                     "Test Group / primary-2");
 
@@ -81,7 +78,6 @@ public class DashboardTest
                     "secondary-4",
                     "0/0",
                     "No approval needed",
-                    "green",
                     "Draft: Epsilon changes in secondary-4",
                     "Test Group / secondary-4");
 
@@ -106,7 +102,6 @@ public class DashboardTest
                     "primary-1",
                     "0/0",
                     "No approval needed",
-                    "green",
                     "Gamma changes in primary-1",
                     "Test Group / primary-1");
 
@@ -115,7 +110,6 @@ public class DashboardTest
                     "secondary-1",
                     "1/0",
                     "No approval needed",
-                    "green",
                     "Gamma changes in secondary-1",
                     "Test Group / secondary-1");
 
@@ -124,7 +118,6 @@ public class DashboardTest
                     "secondary-2",
                     "0/0",
                     "No approval needed",
-                    "green",
                     "Gamma changes in secondary-2",
                     "Test Group / secondary-2");
 
@@ -140,7 +133,6 @@ public class DashboardTest
                     "feature/delta",
                     "secondary-3",
                     "",
-                    null,
                     null,
                     null,
                     "Test Group / secondary-3",
@@ -292,14 +284,10 @@ public class DashboardTest
                 var approvalEl = row.Locator(".approvals-cell");
                 var approvals = "";
                 var tooltip = "";
-                var iconColor = "";
                 if (await approvalEl.CountAsync() > 0)
                 {
                     approvals = (await approvalEl.InnerTextAsync()).Trim();
                     tooltip = (await approvalEl.GetAttributeAsync("title"))?.Trim() ?? "";
-                    var iconEl = approvalEl.Locator(".approval-icon");
-                    if (await iconEl.CountAsync() > 0)
-                        iconColor = await iconEl.GetAttributeAsync("data-approval-color") ?? "";
                 }
 
                 items.Add(
@@ -308,7 +296,6 @@ public class DashboardTest
                         projectTooltip,
                         approvals,
                         tooltip,
-                        iconColor,
                         mergeRequestTitle,
                         noMergeRequestText));
             }
@@ -328,7 +315,6 @@ public class DashboardTest
         string repoContains,
         string expectedApprovals,
         string? expectedTooltip = null,
-        string? expectedIconColor = null,
         string? expectedMergeRequestTitle = null,
         string? expectedProjectTooltip = null,
         string? expectedNoMergeRequestText = null)
@@ -365,15 +351,6 @@ public class DashboardTest
             {
                 throw new InvalidOperationException(
                     $"Branch '{branchName}' repo '{repoContains}': expected tooltip '{expectedTooltip}', got '{item.Tooltip}'");
-            }
-        }
-
-        if (expectedIconColor != null)
-        {
-            if (item.IconColor != expectedIconColor)
-            {
-                throw new InvalidOperationException(
-                    $"Branch '{branchName}' repo '{repoContains}': expected icon color '{expectedIconColor}', got '{item.IconColor}'");
             }
         }
 
@@ -740,7 +717,6 @@ public class DashboardTest
         string ProjectTooltip,
         string Approvals,
         string Tooltip,
-        string IconColor,
         string MergeRequestTitle,
         string NoMergeRequestText);
 
