@@ -341,6 +341,43 @@ public class GitLabService
     }
 
     /// <summary>
+    ///     Returns all open merge requests for a project, optionally filtered by label.
+    ///     Returns an empty list on failure.
+    /// </summary>
+    public async Task<List<GitLabMergeRequest>> GetOpenMergeRequestsForProject(
+        AccessDetailsBase accessDetails,
+        int projectId,
+        string? labelFilter = null,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var url = $"projects/{projectId}/merge_requests?state=opened&per_page=100";
+            if (labelFilter != null)
+            {
+                url += $"&labels={Uri.EscapeDataString(labelFilter)}";
+            }
+
+            return await _gitLabApiClient.Execute<List<GitLabMergeRequest>>(
+                () => accessDetails.CreateRequest(url),
+                cancellationToken);
+        }
+        catch (GitLabUnexpectedResponseException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            throw;
+        }
+        catch (GitLabUnexpectedResponseException ex)
+        {
+            _logger.LogError(
+                "GetOpenMergeRequestsForProject failed with status {StatusCode} for project {ProjectId}",
+                (int)ex.StatusCode,
+                projectId);
+
+            return [];
+        }
+    }
+
+    /// <summary>
     ///     Gets per-rule approval state for a merge request using the <c>/approval_state</c> endpoint.
     ///     Returns aggregated (totalRequired, totalGiven) counts based only on approvals that satisfy rules.
     ///     Falls back to the <c>/approvals</c> endpoint on 404 (feature not available on this tier).

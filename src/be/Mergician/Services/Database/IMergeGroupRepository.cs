@@ -110,6 +110,24 @@ public interface IMergeGroupRepository
     int UpdateAutoMergeSettings(int mergeGroupId, bool autoMerge);
 
     /// <summary>
+    ///     Enables auto merge on a merge group and marks it as label-controlled.
+    ///     Sets auto_merge=true and auto_merge_by_label=true.
+    /// </summary>
+    void EnableAutoMergeByLabel(int mergeGroupId);
+
+    /// <summary>
+    ///     Disables auto merge on a merge group and clears the label-controlled flag.
+    ///     Sets auto_merge=false and auto_merge_by_label=false.
+    /// </summary>
+    void DisableAutoMergeByLabel(int mergeGroupId);
+
+    /// <summary>
+    ///     Returns all merge groups that have auto_merge_by_label set to true,
+    ///     each containing its branches.
+    /// </summary>
+    List<MergeGroup> GetMergeGroupsWithAutoMergeByLabel();
+
+    /// <summary>
     ///     Returns all merge groups that have auto_merge enabled,
     ///     each containing its branches. Used by the AutoMergeService.
     /// </summary>

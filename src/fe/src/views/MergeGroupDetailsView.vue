@@ -164,6 +164,15 @@
             {{ autoMergeWarning }}
           </v-alert>
 
+          <v-alert
+            v-if="autoMergeByLabel"
+            type="info"
+            variant="tonal"
+            class="mb-4"
+          >
+            Auto Merge enabled via GitLab Label
+          </v-alert>
+
           <div v-if="activities.length === 0 && !initialPhase" class="text-center pa-8">
             <v-icon icon="mdi-source-branch" size="64" color="grey" class="mb-4" />
             <p class="text-h6 text-grey">No branches in this merge group</p>
@@ -332,6 +341,7 @@ const initialLoading = ref(true)
 const errorMessage = ref('')
 const mergeGroupGone = ref(false)
 const autoMerge = ref(false)
+const autoMergeByLabel = ref(false)
 const autoMergeWarning = ref<string | null>(null)
 const settingsUpdating = ref(false)
 let settingsUpdateSeq = 0
@@ -540,6 +550,7 @@ async function updateSettings(newAutoMerge: boolean) {
 
     const data: MergeGroup = await response.json()
     autoMerge.value = data.autoMerge
+    autoMergeByLabel.value = data.autoMergeByLabel
     autoMergeWarning.value = data.autoMergeWarning
   } catch (err) {
     if (isStartupRequiredError(err)) return
@@ -628,6 +639,7 @@ async function pollMergeGroup() {
     // Sync auto merge settings from backend (only if not currently updating)
     if (!settingsUpdating.value && settingsUpdateSeq === seq) {
       autoMerge.value = data.autoMerge
+      autoMergeByLabel.value = data.autoMergeByLabel
       autoMergeWarning.value = data.autoMergeWarning
     }
 

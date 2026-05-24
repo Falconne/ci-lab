@@ -40,4 +40,7 @@ public class GitLabDetailedMergeRequest
 
     [JsonPropertyName("draft")]
     public bool Draft { get; set; }
+
+    [JsonPropertyName("labels")]
+    public List<string> Labels { get; set; } = [];
 }

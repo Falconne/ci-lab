@@ -34,4 +34,7 @@ public class GitLabMergeRequest
 
     [JsonPropertyName("has_conflicts")]
     public bool HasConflicts { get; set; }
+
+    [JsonPropertyName("labels")]
+    public List<string> Labels { get; set; } = [];
 }

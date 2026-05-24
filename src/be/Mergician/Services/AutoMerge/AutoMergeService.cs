@@ -42,6 +42,8 @@ public class AutoMergeService : BackgroundService
 
     private readonly IMergeGroupRepository _mergeGroupRepository;
 
+    private readonly IMonitoredProjectRepository _monitoredProjectRepository;
+
     private readonly IMergeQueueRepository _mergeQueueRepository;
 
     private readonly MergeQueueService _mergeQueueService;
@@ -61,6 +63,7 @@ public class AutoMergeService : BackgroundService
         GitLabUserFactory userFactory,
         HealthService healthService,
         IMergeGroupRepository mergeGroupRepository,
+        IMonitoredProjectRepository monitoredProjectRepository,
         IMergeQueueRepository mergeQueueRepository,
         MergeQueueService mergeQueueService,
         MergicianSettings settings,
@@ -73,6 +76,7 @@ public class AutoMergeService : BackgroundService
         _userFactory = userFactory;
         _healthService = healthService;
         _mergeGroupRepository = mergeGroupRepository;
+        _monitoredProjectRepository = monitoredProjectRepository;
         _mergeQueueRepository = mergeQueueRepository;
         _mergeQueueService = mergeQueueService;
         _settings = settings;
@@ -433,6 +437,26 @@ public class AutoMergeService : BackgroundService
                 string.Join("; ", reasons));
 
             return;
+        }
+
+        // If auto merge was enabled via a GitLab label, verify the label is still present on at least one MR
+        // in a monitored project before proceeding with the merge.
+        if (group.AutoMergeByLabel)
+        {
+            var monitoredProjectIds = _monitoredProjectRepository.GetAllProjectIds().ToHashSet();
+            var hasLabel = branchMergeRequestDetails.Any(
+                x => monitoredProjectIds.Contains(x.Branch.ProjectId)
+                    && x.MergeRequest.Labels.Contains(MonitoredProjectsService.AutoMergeLabel, StringComparer.OrdinalIgnoreCase));
+
+            if (!hasLabel)
+            {
+                _logger.LogInformation(
+                    "AutoMergeService: '{Label}' label no longer present on any monitored-project MR in merge group '{MergeGroupName}', skipping merge this cycle",
+                    MonitoredProjectsService.AutoMergeLabel,
+                    group.Name);
+
+                return;
+            }
         }
 
         // Check retry window — skip the merge attempt if we are still in a backoff period.
