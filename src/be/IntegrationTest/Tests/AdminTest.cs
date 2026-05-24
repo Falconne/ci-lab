@@ -23,6 +23,7 @@ public class AdminTest
         _browser.SetScreenshotDir(Path.Combine(TestConfig.ScreenshotDir, "admin"));
 
         await TestAdminMonitoredProjects();
+        await TestNavigationBackToDashboard();
 
         Log.Information("Admin tests passed");
     }
@@ -125,5 +126,56 @@ public class AdminTest
 
         Log.Information("Project {ProjectId} successfully removed from monitored projects", projectId);
         Log.Information("Admin monitored projects test passed");
+    }
+
+    private async Task TestNavigationBackToDashboard()
+    {
+        Log.Information("Testing: Admin → Dashboard navigation (blank page regression)...");
+
+        // Click the 'My Merge Groups' (Dashboard) nav tab from the Admin page
+        var dashboardTab = _browser.Page.Locator(".v-tab[href='/']");
+        await dashboardTab.WaitForAsync(new LocatorWaitForOptions { Timeout = 10000 });
+        await dashboardTab.ClickAsync();
+
+        await _browser.Page.WaitForURLAsync(
+            url => !url.Contains("/admin"),
+            new PageWaitForURLOptions { Timeout = 15000 });
+
+        await Task.Delay(2000);
+        await _browser.TakeScreenshot("admin_06_back_to_dashboard");
+
+        // The dashboard should not be blank — verify it shows merge group data,
+        // "No active branches", or "Loading dashboard..." (all are non-blank states).
+        var mergeGroupGrid = _browser.Page.Locator(".mg-grid");
+        var noActiveBranches = _browser.Page.GetByText("No active branches");
+        var loadingDashboard = _browser.Page.GetByText("Loading dashboard");
+
+        // Wait up to 10s for any non-blank content to appear
+        var appeared = false;
+        for (var i = 0; i < 20 && !appeared; i++)
+        {
+            if (await mergeGroupGrid.CountAsync() > 0 ||
+                await noActiveBranches.CountAsync() > 0 ||
+                await loadingDashboard.CountAsync() > 0)
+            {
+                appeared = true;
+            }
+            else
+            {
+                await Task.Delay(500);
+            }
+        }
+
+        if (!appeared)
+        {
+            throw new InvalidOperationException(
+                "Dashboard appears blank after navigating from Admin page. " +
+                "Expected merge group grid, 'No active branches', or 'Loading dashboard...' to be visible.");
+        }
+
+        // After the initial load, confirm actual merge group data is visible for test1
+        await mergeGroupGrid.First.WaitForAsync(new LocatorWaitForOptions { Timeout = 15000 });
+
+        Log.Information("Dashboard loaded correctly after navigating from Admin page");
     }
 }

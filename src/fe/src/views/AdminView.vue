@@ -73,43 +73,43 @@
         </v-table>
       </v-col>
     </v-row>
-  </v-container>
 
-  <!-- Add Project Dialog -->
-  <v-dialog v-model="showAddDialog" max-width="480" persistent>
-    <v-card>
-      <v-card-title class="text-subtitle-1 pt-5 px-5">Add Monitored Project</v-card-title>
-      <v-card-text class="px-5">
-        <p class="text-body-2 text-medium-emphasis mb-4">
-          Enter the numeric GitLab project ID. You can find it on the project's main page.
-        </p>
-        <v-text-field
-          v-model="newProjectIdInput"
-          label="GitLab Project ID"
-          type="number"
-          placeholder="e.g. 42"
-          variant="outlined"
-          density="compact"
-          :error-messages="addError"
-          :disabled="addLoading"
-          autofocus
-          @keyup.enter="submitAdd"
-        />
-      </v-card-text>
-      <v-card-actions class="px-5 pb-4">
-        <v-spacer />
-        <v-btn variant="text" :disabled="addLoading" @click="closeAddDialog">Cancel</v-btn>
-        <v-btn
-          color="primary"
-          :loading="addLoading"
-          :disabled="!newProjectIdInput.trim()"
-          @click="submitAdd"
-        >
-          Add
-        </v-btn>
-      </v-card-actions>
-    </v-card>
-  </v-dialog>
+    <!-- Add Project Dialog -->
+    <v-dialog v-model="showAddDialog" max-width="480" persistent>
+      <v-card>
+        <v-card-title class="text-subtitle-1 pt-5 px-5">Add Monitored Project</v-card-title>
+        <v-card-text class="px-5">
+          <p class="text-body-2 text-medium-emphasis mb-4">
+            Enter the numeric GitLab project ID. You can find it on the project's main page.
+          </p>
+          <v-text-field
+            v-model="newProjectIdInput"
+            label="GitLab Project ID"
+            type="number"
+            placeholder="e.g. 42"
+            variant="outlined"
+            density="compact"
+            :error-messages="addError"
+            :disabled="addLoading"
+            autofocus
+            @keyup.enter="submitAdd"
+          />
+        </v-card-text>
+        <v-card-actions class="px-5 pb-4">
+          <v-spacer />
+          <v-btn variant="text" :disabled="addLoading" @click="closeAddDialog">Cancel</v-btn>
+          <v-btn
+            color="primary"
+            :loading="addLoading"
+            :disabled="!newProjectIdInput.trim()"
+            @click="submitAdd"
+          >
+            Add
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+  </v-container>
 </template>
 
 <script setup lang="ts">
