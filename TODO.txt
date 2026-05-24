@@ -1,0 +1,15 @@
+Task 1)
+Add a new table and repository to the database called "MonitoredProject" which lists IDs of certain Gitlab projects. Add a new "MonitoredProjectsService" that starts as a permanent background job on app startup. This should run a loop every 60 seconds where for every project in the "MonitoredProject" table, it checks all open MRs in the project (using the service user) and checks if any have a label assigned called "AutoMerge". For all that do, fetch or create the appropriate Merge Group (MG) for that MR and set it to "Auto Merge".
+
+For MGs when the auto merge has been automatically enabled, show a note in the MG details page saying "Auto Merge enabled vis Gitlab Label". Add a boolean field `AutoMergeByLabel` to the MG object to achieve this, and update the backing database table and add support for enabling or disabling this value into the MG repository.
+
+In each loop, also check for existing MGs with `AutoMergeByLabel` set to true and check if the label has been removed from the MR. If so, disable the auto merge from the MG and set that field back to false.
+
+For safety, before merging an MG that has `AutoMergeByLabel` set to true, check if the MR still has the "AutoMerge" label.
+
+Task 2)
+Add a new page link to the navigation bar (after the Queues link) called "Admin". If possible via the Gitlab OAuth token we use, this should only be visible to users whose Gitlab role is System Admin. If it is not trivial to get this information from the way authentication is currently implemented, ignore that for now and grant this view to anyone.
+
+The admin page should currently just list the projects configured as "Monitored Projects". Put the description as "Project where auto merge will be automatically controlled via the Gitlab label "AutoMerge" on MRs".
+
+Add functionality to add and remove Gitlab project IDs to this list.
