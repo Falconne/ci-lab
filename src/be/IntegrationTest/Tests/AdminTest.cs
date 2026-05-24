@@ -74,12 +74,14 @@ public class AdminTest
         await Task.Delay(1500);
         await _browser.TakeScreenshot("admin_04_after_add");
 
-        // Verify project appears in the table
-        var projectIdCell = _browser.Page.GetByText(projectId.ToString());
-        await projectIdCell.WaitForAsync(new LocatorWaitForOptions { Timeout = 10000 });
+        // Verify project appears in the table — scope to the row to avoid ambiguous text matches
+        var projectRow = _browser.Page
+            .Locator(".monitored-projects-table tbody tr")
+            .Filter(new LocatorFilterOptions { HasText = projectId.ToString() });
+        await projectRow.WaitForAsync(new LocatorWaitForOptions { Timeout = 10000 });
         Log.Information("Project {ProjectId} appears in monitored projects table", projectId);
 
-        var projectNameCell = _browser.Page.GetByText("primary-1");
+        var projectNameCell = projectRow.GetByText("primary-1");
         await projectNameCell.WaitForAsync(new LocatorWaitForOptions { Timeout = 10000 });
         Log.Information("Project name 'primary-1' confirmed in table");
 
@@ -109,8 +111,11 @@ public class AdminTest
 
         if (remainingRows > 0 && await emptyState.CountAsync() == 0)
         {
-            // Check if the specific project ID is still shown
-            var stillPresent = await _browser.Page.GetByText(projectId.ToString()).CountAsync();
+            // Check if the specific project ID is still shown in the table
+            var stillPresent = await _browser.Page
+                .Locator(".monitored-projects-table tbody tr")
+                .Filter(new LocatorFilterOptions { HasText = projectId.ToString() })
+                .CountAsync();
             if (stillPresent > 0)
             {
                 throw new InvalidOperationException(
