@@ -1,0 +1,17 @@
+apiVersion: v2
+name: mergician
+description: Mergician — merge group orchestration for multi-repo GitLab environments
+type: application
+# Chart version — bump on every chart change
+version: 0.1.0
+# Application version — should match the Docker image tag being deployed
+appVersion: "1.0.0"
+
+dependencies:
+  # Bitnami PostgreSQL subchart. Pin to a specific version for reproducibility.
+  # Check https://artifacthub.io/packages/helm/bitnami/postgresql for the latest.
+  # Run `helm dependency update k8s/` after changing this version.
+  - name: postgresql
+    version: "16.2.3"
+    repository: "oci://registry-1.docker.io/bitnamicharts"
+    condition: postgresql.enabled

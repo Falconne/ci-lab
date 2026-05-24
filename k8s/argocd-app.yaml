@@ -1,0 +1,98 @@
+# ArgoCD Application for Mergician
+#
+# This file is a SAMPLE — adjust the repoURL, targetRevision, destination,
+# and any Helm value overrides to match your environment before applying.
+#
+# Apply with:
+#   kubectl apply -f k8s/argocd-app.yaml
+#
+# Or commit it to your App-of-Apps repository and let ArgoCD pick it up.
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: mergician
+  namespace: argocd
+  # Finalizer ensures ArgoCD deletes all managed resources on Application deletion.
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+
+  source:
+    # -- URL of the Git repository containing this chart.
+    repoURL: https://github.com/YOUR_ORG/YOUR_REPO.git
+    # -- Git branch, tag, or commit SHA to deploy.
+    targetRevision: main
+    # -- Path to the Helm chart within the repository.
+    path: k8s
+
+    helm:
+      # -- Values files to apply, in order (later files override earlier ones).
+      valueFiles:
+        - values.yaml
+        # - values-production.yaml  # Recommended: environment-specific overrides
+
+      # -- Inline value overrides (avoid putting secrets here — use values files
+      #    or secrets.existingSecret pointing to an externally managed Secret).
+      values: |
+        image:
+          repository: your-registry.example.com/mergician
+          tag: "1.0.0"
+
+        config:
+          baseUrl: "https://mergician.example.com"
+          gitlab:
+            url: "https://gitlab.example.com"
+            internalUrl: ""
+
+        ingress:
+          hosts:
+            - host: mergician.example.com
+              paths:
+                - path: /
+                  pathType: Prefix
+          tls:
+            - secretName: mergician-tls
+              hosts:
+                - mergician.example.com
+
+        # Reference a pre-created Secret managed by Sealed Secrets or ESO.
+        secrets:
+          existingSecret: mergician-credentials
+
+        postgresql:
+          auth:
+            existingSecret: mergician-db-credentials
+
+  destination:
+    # -- Target cluster API server URL. Use https://kubernetes.default.svc for in-cluster.
+    server: https://kubernetes.default.svc
+    # -- Namespace to deploy into (will be created if createNamespace is enabled below).
+    namespace: mergician
+
+  syncPolicy:
+    automated:
+      # -- Automatically delete resources removed from Git.
+      prune: true
+      # -- Automatically re-sync when the cluster drifts from Git.
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      # Respect the helm.sh/resource-policy: keep annotation on Secrets.
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
+  # Ignore differences in the postgresql StatefulSet's updateStrategy — the Bitnami
+  # chart may set this to values that ArgoCD considers a drift after the first sync.
+  ignoreDifferences:
+    - group: apps
+      kind: StatefulSet
+      jsonPointers:
+        - /spec/updateStrategy/rollingUpdate/partition

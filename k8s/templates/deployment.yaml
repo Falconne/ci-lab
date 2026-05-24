@@ -1,0 +1,171 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "mergician.fullname" . }}
+  labels:
+    {{- include "mergician.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "mergician.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "mergician.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "mergician.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: mergician
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 5000
+              protocol: TCP
+          env:
+            # --- Non-sensitive configuration from ConfigMap ---
+            - name: Mergician__BaseUrl
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "mergician.fullname" . }}-config
+                  key: base-url
+            - name: Mergician__GitLab__Url
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "mergician.fullname" . }}-config
+                  key: gitlab-url
+            - name: Mergician__GitLab__InternalUrl
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "mergician.fullname" . }}-config
+                  key: gitlab-internal-url
+            - name: Mergician__GitLab__AllowInsecureSsl
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "mergician.fullname" . }}-config
+                  key: gitlab-allow-insecure-ssl
+            - name: Mergician__Database__Host
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "mergician.fullname" . }}-config
+                  key: database-host
+            - name: Mergician__Database__Port
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "mergician.fullname" . }}-config
+                  key: database-port
+            - name: Mergician__Database__Database
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "mergician.fullname" . }}-config
+                  key: database-name
+            - name: Mergician__Database__Username
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "mergician.fullname" . }}-config
+                  key: database-username
+            {{- if .Values.config.database.sslMode }}
+            - name: Mergician__Database__SslMode
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "mergician.fullname" . }}-config
+                  key: database-ssl-mode
+            {{- end }}
+            # --- Sensitive credentials from Secret ---
+            - name: Mergician__GitLab__ServiceToken
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "mergician.secretName" . }}
+                  key: gitlab-service-token
+            - name: Mergician__GitLab__OAuth__ClientId
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "mergician.secretName" . }}
+                  key: gitlab-oauth-client-id
+            - name: Mergician__GitLab__OAuth__ClientSecret
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "mergician.secretName" . }}
+                  key: gitlab-oauth-client-secret
+            - name: Mergician__Database__Password
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "mergician.databaseSecretName" . }}
+                  key: {{ include "mergician.databasePasswordKey" . }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          # startupProbe gates both liveness and readiness during initial boot.
+          # 30 attempts × 10s = up to 5 minutes for migrations + GitLab connectivity.
+          startupProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 30
+            timeoutSeconds: 5
+          # readinessProbe uses the full health endpoint — returns 503 while
+          # Mergician is in startup or recovery mode so traffic is withheld.
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+            timeoutSeconds: 5
+          # livenessProbe uses the lightweight /live endpoint which only checks
+          # that the ASP.NET Core process is responsive — it does NOT check
+          # GitLab or the database. This avoids restarting the pod during a
+          # temporary GitLab outage while the recovery service is retrying.
+          livenessProbe:
+            httpGet:
+              path: /api/health/live
+              port: http
+            periodSeconds: 30
+            failureThreshold: 5
+            timeoutSeconds: 10
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          {{- with .Values.extraVolumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.extraVolumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.affinity }}
+      affinity:
+        {{- toYaml .Values.affinity | nindent 8 }}
+      {{- else }}
+      # Soft anti-affinity: prefer to schedule replicas on different nodes.
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    {{- include "mergician.selectorLabels" . | nindent 20 }}
+                topologyKey: kubernetes.io/hostname
+      {{- end }}

@@ -1,0 +1,45 @@
+Mergician has been deployed!
+
+  Release:   {{ .Release.Name }}
+  Namespace: {{ .Release.Namespace }}
+  Version:   {{ .Chart.AppVersion }}
+
+{{- if .Values.ingress.enabled }}
+  Application URL:
+  {{- range .Values.ingress.hosts }}
+  {{- range .paths }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ (index $.Values.ingress.hosts 0).host }}{{ .path }}
+  {{- end }}
+  {{- end }}
+{{- else }}
+  Access Mergician via port-forward:
+    kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "mergician.fullname" . }} 5000:80
+  Then open http://localhost:5000
+{{- end }}
+
+Verify the deployment is healthy:
+  kubectl rollout status deployment/{{ include "mergician.fullname" . }} -n {{ .Release.Namespace }}
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/name={{ include "mergician.name" . }}
+
+Health endpoint:
+  kubectl exec -n {{ .Release.Namespace }} deploy/{{ include "mergician.fullname" . }} -- \
+    curl -sf http://localhost:5000/api/health
+
+IMPORTANT — Pre-deployment checklist:
+  1. Register an OAuth application in GitLab at:
+       <your-gitlab-url>/-/profile/applications
+     - Callback URL: {{ .Values.config.baseUrl }}/api/auth/callback
+     - Scopes: api, read_user
+
+  2. Create a GitLab personal/project access token with scope: api
+     for the Mergician service account.
+
+  3. Provide these credentials as a Kubernetes Secret.
+     See k8s/README.md for details on secret management options.
+
+{{- if not .Values.secrets.existingSecret }}
+
+  WARNING: You are using chart-managed inline secrets.
+  This is only suitable for dev/testing. For production, create a Secret
+  externally and set secrets.existingSecret in your values.
+{{- end }}

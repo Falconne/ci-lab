@@ -21,6 +21,7 @@ public class HealthController : ControllerBase
     ///     the correct startup or recovery overlay.
     ///     Returns 503 when the application is not yet ready so clients can distinguish
     ///     an expected startup delay from a misconfigured probe.
+    ///     Use as a Kubernetes readiness probe target.
     /// </summary>
     [HttpGet]
     public ActionResult<HealthStatus> Get()
@@ -28,4 +29,13 @@ public class HealthController : ControllerBase
         var status = _healthService.GetStatus();
         return status.IsReady ? Ok(status) : StatusCode(503, status);
     }
+
+    /// <summary>
+    ///     Liveness probe endpoint. Returns 200 as long as the ASP.NET Core process is
+    ///     responsive. Does not check external dependencies such as GitLab or the database —
+    ///     use GET /api/health for readiness.
+    ///     Use as a Kubernetes liveness probe target.
+    /// </summary>
+    [HttpGet("live")]
+    public ActionResult Live() => Ok(new { status = "alive" });
 }

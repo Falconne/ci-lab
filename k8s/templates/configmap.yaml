@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "mergician.fullname" . }}-config
+  labels:
+    {{- include "mergician.labels" . | nindent 4 }}
+data:
+  base-url: {{ .Values.config.baseUrl | quote }}
+  gitlab-url: {{ .Values.config.gitlab.url | quote }}
+  gitlab-internal-url: {{ .Values.config.gitlab.internalUrl | quote }}
+  gitlab-allow-insecure-ssl: {{ .Values.config.gitlab.allowInsecureSsl | toString | quote }}
+  database-host: {{ include "mergician.databaseHost" . | quote }}
+  database-port: {{ include "mergician.databasePort" . | quote }}
+  database-name: {{ include "mergician.databaseName" . | quote }}
+  database-username: {{ include "mergician.databaseUsername" . | quote }}
+  {{- if .Values.config.database.sslMode }}
+  database-ssl-mode: {{ .Values.config.database.sslMode | quote }}
+  {{- end }}

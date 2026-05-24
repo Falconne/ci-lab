@@ -1,0 +1,232 @@
+# Default values for the Mergician Helm chart.
+# Override these in your environment-specific values file or ArgoCD application spec.
+
+# -- Number of Mergician pod replicas.
+# When autoscaling is enabled this sets the initial replica count only.
+replicaCount: 2
+
+image:
+  # -- Container image repository. Update to your private registry.
+  repository: your-registry.example.com/mergician
+  # -- Image pull policy.
+  pullPolicy: IfNotPresent
+  # -- Image tag. Defaults to the chart appVersion when empty.
+  tag: ""
+
+# -- Image pull secrets for private registries.
+imagePullSecrets: []
+# - name: regcred
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  # -- Create a dedicated ServiceAccount for Mergician pods.
+  create: true
+  # -- Annotations to add to the ServiceAccount (e.g. for IRSA / Workload Identity).
+  annotations: {}
+  # -- Override the ServiceAccount name (defaults to the chart fullname).
+  name: ""
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 5000
+
+ingress:
+  enabled: true
+  # -- Ingress class name (e.g. "nginx", "traefik").
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    # Uncomment to use cert-manager for automatic TLS:
+    # cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  hosts:
+    - host: mergician.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+  # tls:
+  #   - secretName: mergician-tls
+  #     hosts:
+  #       - mergician.example.com
+
+# ----------------------------------------------------------------------------
+# Non-sensitive application configuration (stored in a ConfigMap).
+# ----------------------------------------------------------------------------
+config:
+  # -- Public-facing base URL of this Mergician deployment.
+  # Used as the base for OAuth redirect URIs — must match the URL registered
+  # in the GitLab OAuth application.
+  baseUrl: "https://mergician.example.com"
+
+  gitlab:
+    # -- Public URL of your GitLab instance. Used for browser-facing OAuth redirects.
+    url: "https://gitlab.example.com"
+    # -- Internal/server-side URL for GitLab API calls.
+    # Set this when the Mergician pods cannot reach GitLab via the public URL
+    # (e.g. split-horizon DNS, internal-only network). Leave empty to fall back to url.
+    internalUrl: ""
+    # -- Disable TLS certificate validation for GitLab connections.
+    # Only set true for self-signed certificates in internal/dev environments.
+    allowInsecureSsl: false
+
+  database:
+    # -- Npgsql SSL mode for the PostgreSQL connection.
+    # Options: Disable, Allow, Prefer, Require, VerifyCA, VerifyFull.
+    # Leave empty for the Npgsql default (Prefer).
+    # Set "Require" or "VerifyFull" when connecting to a managed cloud database
+    # (AWS RDS, Google Cloud SQL, Azure Database for PostgreSQL, etc.).
+    sslMode: ""
+
+# ----------------------------------------------------------------------------
+# Secret management
+#
+# PRODUCTION (recommended): Set secrets.existingSecret to the name of a
+# Kubernetes Secret that was created outside this chart (e.g. via Sealed
+# Secrets, External Secrets Operator, or Vault). The chart will reference
+# it directly and will not create its own Secret resource.
+#
+# DEV / TESTING ONLY: Leave secrets.existingSecret empty and fill in the
+# inline values below. NEVER commit real credentials to Git.
+#
+# The secret (whether existing or chart-managed) must contain these keys:
+#   gitlab-service-token       — GitLab personal/project access token for
+#                                 Mergician's service account (api scope)
+#   gitlab-oauth-client-id     — GitLab OAuth application Client ID
+#   gitlab-oauth-client-secret — GitLab OAuth application Client Secret
+#   database-password          — Only required when postgresql.enabled=false
+#                                 (when using the Bitnami subchart the password
+#                                  is managed by that chart's own secret)
+# ----------------------------------------------------------------------------
+secrets:
+  # -- Name of an existing Secret containing Mergician credentials.
+  # When set, all inline values below are ignored.
+  existingSecret: ""
+
+  # -- Inline secret values. DEV/TESTING ONLY — do not commit real values.
+  gitlabServiceToken: ""
+  gitlabOauthClientId: ""
+  gitlabOauthClientSecret: ""
+  # Only used when postgresql.enabled is false:
+  databasePassword: ""
+
+# ----------------------------------------------------------------------------
+# Resource requests and limits
+# ----------------------------------------------------------------------------
+resources:
+  requests:
+    cpu: "100m"
+    memory: "256Mi"
+  limits:
+    cpu: "1000m"
+    memory: "512Mi"
+
+# ----------------------------------------------------------------------------
+# Horizontal Pod Autoscaler
+# ----------------------------------------------------------------------------
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# ----------------------------------------------------------------------------
+# Pod Disruption Budget
+# Ensures at least one pod is available during voluntary disruptions
+# (node drains, rolling updates, etc.).
+# ----------------------------------------------------------------------------
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# ----------------------------------------------------------------------------
+# Security contexts — run as non-root (mirrors the Dockerfile user setup)
+# ----------------------------------------------------------------------------
+podSecurityContext:
+  runAsNonRoot: true
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  capabilities:
+    drop:
+      - ALL
+
+# -- Node selector for pod scheduling.
+nodeSelector: {}
+
+# -- Tolerations for pod scheduling.
+tolerations: []
+
+# -- Custom affinity rules. When empty, soft pod anti-affinity is applied
+# automatically to spread replicas across nodes.
+affinity: {}
+
+# -- Extra environment variables to inject into the Mergician container.
+extraEnv: []
+# - name: MY_VAR
+#   value: "my-value"
+
+# -- Extra volumes to add to the Mergician pod.
+extraVolumes: []
+
+# -- Extra volume mounts to add to the Mergician container.
+extraVolumeMounts: []
+
+# ----------------------------------------------------------------------------
+# Bitnami PostgreSQL subchart
+# Full option reference: https://artifacthub.io/packages/helm/bitnami/postgresql
+#
+# Set postgresql.enabled=false and configure externalDatabase below to use a
+# managed database (RDS, Cloud SQL, Azure, etc.).
+# ----------------------------------------------------------------------------
+postgresql:
+  # -- Deploy the Bitnami PostgreSQL subchart alongside Mergician.
+  enabled: true
+
+  auth:
+    # -- PostgreSQL username created for Mergician.
+    username: mergician
+    # -- Name of the PostgreSQL database created for Mergician.
+    database: mergician
+    # -- Password for the Mergician PostgreSQL user.
+    # REQUIRED when postgresql.enabled=true unless existingSecret is set.
+    # Use existingSecret in production — do not commit real passwords to Git.
+    password: ""
+    # -- Name of an existing Secret containing the PostgreSQL password.
+    # The secret must have a key matching secretKeys.userPasswordKey below.
+    existingSecret: ""
+    secretKeys:
+      # -- Key within the existing secret that holds the user password.
+      userPasswordKey: "password"
+
+  primary:
+    persistence:
+      enabled: true
+      # -- PVC size for the PostgreSQL data volume.
+      size: 10Gi
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "256Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+
+# ----------------------------------------------------------------------------
+# External database configuration
+# Only used when postgresql.enabled=false.
+# ----------------------------------------------------------------------------
+externalDatabase:
+  host: ""
+  port: 5432
+  database: "mergician"
+  username: "mergician"
+  # SSL mode for external databases is configured via config.database.sslMode above.

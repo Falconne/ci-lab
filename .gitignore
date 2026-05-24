@@ -43,3 +43,6 @@ data/screenshots/
 
 *.jar
 *.log
+
+# Helm downloaded subchart tarballs (fetched by `helm dependency update`)
+k8s/charts/
