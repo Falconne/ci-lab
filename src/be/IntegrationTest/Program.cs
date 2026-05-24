@@ -132,6 +132,9 @@ try
 
     // Test 9: Merge queue system (queue assignment, ordering, UI badges and page)
     await RunTest("Merge Queue", () => new MergeQueueTest(browser).Run());
+
+    // Test 10: Admin page — monitored projects management
+    await RunTest("Admin Page", () => new AdminTest(browser).Run());
 }
 catch (Exception ex)
 {

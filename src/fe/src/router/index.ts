@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '@/views/HomeView.vue'
 import MergeGroupDetailsView from '@/views/MergeGroupDetailsView.vue'
 import QueuesView from '@/views/QueuesView.vue'
+import AdminView from '@/views/AdminView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -23,6 +24,12 @@ const router = createRouter({
       name: 'queues',
       component: QueuesView,
       meta: { title: 'Queues' },
+    },
+    {
+      path: '/admin',
+      name: 'admin',
+      component: AdminView,
+      meta: { title: 'Admin' },
     },
     {
       path: '/:pathMatch(.*)*',

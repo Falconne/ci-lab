@@ -14,6 +14,10 @@
       <v-icon icon="mdi-playlist-play" size="18" class="mr-1" />
       Queues
     </v-tab>
+    <v-tab :to="{ name: 'admin' }" value="admin" class="nav-tab">
+      <v-icon icon="mdi-cog-outline" size="18" class="mr-1" />
+      Admin
+    </v-tab>
   </v-tabs>
 </template>
 
@@ -25,6 +29,7 @@ const route = useRoute()
 
 const activeTab = computed(() => {
   if (route.name === 'queues') return 'queues'
+  if (route.name === 'admin') return 'admin'
   return 'home'
 })
 </script>
