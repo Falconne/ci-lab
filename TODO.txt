@@ -1,0 +1,6 @@
+Task 1)
+In the Merge Group details page, if a user is not in a Merge Group (MG), they should still be able to see it. 
+
+Unless there are any projects in the MG where they do not at least have Reporter level access; in that case, return 403 and show an access denied error saying what project(s) is denied.
+
+Otherwise, even if the user is not in the group, show the MG. They will be able to add themselves using the Track button if they want.
