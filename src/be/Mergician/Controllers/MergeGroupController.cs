@@ -53,7 +53,8 @@ public class MergeGroupController : ControllerBase
     ///     Returns a full snapshot of branches in the specified merge group.
     ///     MR, approval, and build details are populated by the background sync thread.
     ///     Also ensures the background sync thread is running and records user activity.
-    ///     Returns 404 if the merge group does not exist for the current user.
+    ///     Returns 404 if the merge group does not exist or has been merged/removed.
+    ///     Returns 403 if the merge group exists but the current user is not a member.
     /// </summary>
     [HttpPost("{mergeGroupId:int}/refresh")]
     public ActionResult<MergeGroup> Refresh(int mergeGroupId)
@@ -70,6 +71,20 @@ public class MergeGroupController : ControllerBase
             userId,
             mergeGroupId);
 
+        // Check existence first: when a MG is merged/removed, CleanupEmptyMergeGroups cascade-deletes
+        // the user associations too. Checking existence before membership ensures we return 404
+        // (not 403) so the UI correctly shows "Merge group has been merged or removed".
+        var result = _mergeGroupRepository.GetMergeGroup(mergeGroupId);
+
+        if (result == null)
+        {
+            _logger.LogInformation(
+                "Merge group {MergeGroupId} not found during refresh for user {UserId}",
+                mergeGroupId,
+                userId);
+            return NotFound(new ErrorResponse("Merge group not found"));
+        }
+
         if (!_mergeGroupRepository.IsUserInMergeGroup(userId, mergeGroupId))
         {
             _logger.LogWarning(
@@ -79,11 +94,18 @@ public class MergeGroupController : ControllerBase
             return Forbid();
         }
 
-        var result = _mergeGroupRepository.GetMergeGroup(mergeGroupId);
-
-        if (result == null)
+        // A merge group with no branches is an invalid transient state — it should have been
+        // cleaned up by CleanupEmptyMergeGroups after the last branch was removed. Trigger
+        // cleanup now and return 404 so the UI shows "Merge group has been merged or removed".
+        if (result.Branches.Count == 0)
         {
-            return NotFound(new ErrorResponse("Merge group not found"));
+            _logger.LogInformation(
+                "Merge group {MergeGroupId} '{Name}' has no branches during refresh for user {UserId}; triggering cleanup",
+                mergeGroupId,
+                result.Name,
+                userId);
+            _mergeGroupRepository.CleanupEmptyMergeGroups();
+            return NotFound(new ErrorResponse("Merge group has no branches and has been removed"));
         }
 
         _logger.LogDebug(

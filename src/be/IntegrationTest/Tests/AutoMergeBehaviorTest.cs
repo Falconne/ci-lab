@@ -445,13 +445,29 @@ public class AutoMergeBehaviorTest
 
         Log.Information("Scenario 4 PASSED: Both MRs were successfully merged by AutoMergeService");
 
+        // While still on the details page, verify the polling detects the group is gone
+        // and shows the "merged or removed" alert. This exercises the fix for the bug where
+        // a 403 was returned (cascade-deleted user association) instead of a 404.
+        Log.Information("Waiting for details page to show 'Merge group has been merged or removed'...");
+        var detailsGone = await WaitForDetailsPageGone(30);
+
+        await _browser.TakeScreenshot("behavior_07_details_merged_or_removed");
+
+        if (!detailsGone)
+        {
+            throw new InvalidOperationException(
+                "Scenario 4: Details page did not show 'merged or removed' alert within timeout after successful merge");
+        }
+
+        Log.Information("Scenario 4 PASSED: Details page correctly shows 'merged or removed' after merge");
+
         // Navigate back to dashboard and wait for the merge group to disappear.
         // AutoMergeService removes merged branches from the DB immediately after merging,
         // so the card should vanish within the next dashboard poll cycle (a few seconds).
 
         await _browser.Navigate(TestConfig.MergicianUrl);
         await Task.Delay(3000);
-        await _browser.TakeScreenshot("behavior_07_dashboard_after_merge");
+        await _browser.TakeScreenshot("behavior_08_dashboard_after_merge");
 
         Log.Information(
             "Waiting for merge group '{BranchName}' to disappear from dashboard...",
@@ -459,7 +475,7 @@ public class AutoMergeBehaviorTest
 
         var disappeared = await WaitForBranchToDisappearFromDashboard(branchName, 30);
 
-        await _browser.TakeScreenshot("behavior_08_dashboard_merge_group_gone");
+        await _browser.TakeScreenshot("behavior_09_dashboard_merge_group_gone");
 
         if (!disappeared)
         {
@@ -714,6 +730,34 @@ public class AutoMergeBehaviorTest
                 Log.Information(
                     "Waiting for branch '{BranchName}' to disappear from dashboard... {Seconds}s",
                     branchName,
+                    i);
+            }
+
+            await Task.Delay(1000);
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    ///     Waits for the merge group details page to show the "merged or removed" alert,
+    ///     indicating the polling detected that the group no longer exists (404 response).
+    /// </summary>
+    private async Task<bool> WaitForDetailsPageGone(int timeoutSeconds)
+    {
+        for (var i = 0; i < timeoutSeconds; i++)
+        {
+            var goneAlert = _browser.Page.Locator(".v-alert:has-text('Merge group has been merged or removed')");
+            if (await goneAlert.CountAsync() > 0)
+            {
+                Log.Information("Details page shows 'merged or removed' after ~{Seconds}s", i);
+                return true;
+            }
+
+            if (i % 5 == 0 && i > 0)
+            {
+                Log.Information(
+                    "Waiting for details page to show 'merged or removed'... {Seconds}s",
                     i);
             }
 
