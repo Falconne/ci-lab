@@ -54,10 +54,11 @@ public class MergeGroupController : ControllerBase
     ///     MR, approval, and build details are populated by the background sync thread.
     ///     Also ensures the background sync thread is running and records user activity.
     ///     Returns 404 if the merge group does not exist or has been merged/removed.
-    ///     Returns 403 if the merge group exists but the current user is not a member.
+    ///     Returns 403 with denied project names if the user lacks Reporter access to any project in the group.
+    ///     Non-members who pass the access check can view the group (e.g. to subscribe via the Track button).
     /// </summary>
     [HttpPost("{mergeGroupId:int}/refresh")]
-    public ActionResult<MergeGroup> Refresh(int mergeGroupId)
+    public async Task<ActionResult<MergeGroup>> Refresh(int mergeGroupId, CancellationToken cancellationToken)
     {
         var currentUser = HttpContext.GetGitLabUser();
 
@@ -87,11 +88,33 @@ public class MergeGroupController : ControllerBase
 
         if (!_mergeGroupRepository.IsUserInMergeGroup(userId, mergeGroupId))
         {
-            _logger.LogWarning(
-                "User {UserId} attempted to refresh merge group {MergeGroupId} they do not belong to",
+            _logger.LogInformation(
+                "User {UserId} is not a member of merge group {MergeGroupId}; checking view permissions",
                 userId,
                 mergeGroupId);
-            return Forbid();
+
+            var viewPermissions = await _mergePermissionService.CheckViewPermissions(
+                currentUser, result, cancellationToken);
+
+            if (!viewPermissions.CheckFailed && !viewPermissions.CanView)
+            {
+                _logger.LogInformation(
+                    "User {UserId} denied view access to merge group {MergeGroupId} due to insufficient access to: [{DeniedProjects}]",
+                    userId,
+                    mergeGroupId,
+                    string.Join(", ", viewPermissions.DeniedProjects));
+                return StatusCode(403, new AccessDeniedResponse(
+                    "You do not have access to view this merge group",
+                    viewPermissions.DeniedProjects));
+            }
+
+            if (viewPermissions.CheckFailed)
+            {
+                _logger.LogWarning(
+                    "View permission check failed for user {UserId} in merge group {MergeGroupId}; failing open",
+                    userId,
+                    mergeGroupId);
+            }
         }
 
         // A merge group with no branches is an invalid transient state — it should have been

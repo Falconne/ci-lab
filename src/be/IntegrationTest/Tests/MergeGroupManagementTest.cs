@@ -29,6 +29,7 @@ public class MergeGroupManagementTest
         await TestSubscriptionToggle();
         await TestAddMergeRequestToGroup();
         await TestFindByMergeRequest();
+        await TestNonMemberView();
 
         Log.Information("All merge group management tests passed");
     }
@@ -414,6 +415,87 @@ public class MergeGroupManagementTest
                 Log.Warning("Cleanup failed: {Message}", ex.Message);
             }
         }
+    }
+
+    /// <summary>
+    ///     Tests that a non-subscribed user with sufficient GitLab access can view a merge group
+    ///     details page they do not belong to, and can use the Track button to subscribe.
+    ///     1. Log in as test2 and navigate to the feature/gamma merge group details page
+    ///     2. Get the merge group ID from the URL
+    ///     3. Log in as test1 (who is not a member of feature/gamma)
+    ///     4. Navigate directly to the merge group details page by ID
+    ///     5. Verify the page loads and shows branch data (no access denied alert)
+    ///     6. Verify the Track button is available so test1 can subscribe
+    /// </summary>
+    private async Task TestNonMemberView()
+    {
+        Log.Information("Testing: non-member view of merge group details...");
+
+        // As test2, navigate to the feature/gamma details page to find its ID
+        await LoginHelper.EnsureLoggedIn(_browser, "test2");
+        await LoginHelper.NavigateToDashboard(_browser);
+        await _browser.TakeScreenshot("non_member_01_test2_dashboard");
+
+        var gammaRow = _browser.Page.Locator(".grid-row[data-mg-name='feature/gamma']");
+        await gammaRow.WaitForAsync(new LocatorWaitForOptions { Timeout = 15000 });
+        await gammaRow.ClickAsync();
+
+        await _browser.Page.WaitForURLAsync(
+            url => url.Contains("/merge-group/"),
+            new PageWaitForURLOptions { Timeout = 15000 });
+
+        var detailsUrl = _browser.Page.Url;
+        var mergeGroupId = detailsUrl.Split("/merge-group/")[1].Split("?")[0].Split("/")[0];
+        Log.Information("feature/gamma merge group ID: {Id}", mergeGroupId);
+
+        // As test1 (not a member of feature/gamma), navigate directly to the same details page
+        await LoginHelper.EnsureLoggedIn(_browser, "test1");
+        await _browser.Page.GotoAsync($"{TestConfig.MergicianUrl}/merge-group/{mergeGroupId}?title=feature%2Fgamma");
+
+        await _browser.Page.WaitForURLAsync(
+            url => url.Contains($"/merge-group/{mergeGroupId}"),
+            new PageWaitForURLOptions { Timeout = 15000 });
+
+        // Wait for page to finish loading (initial loading spinner gone)
+        await _browser.Page.WaitForFunctionAsync(
+            "() => !document.querySelector('.text-grey')?.textContent?.includes('Loading merge group')",
+            null, new PageWaitForFunctionOptions { Timeout = 15000 });
+
+        await _browser.TakeScreenshot("non_member_02_test1_viewing_gamma");
+
+        // Verify no access denied alert
+        var accessDeniedAlert = _browser.Page.Locator(".v-alert:has-text('Access denied')");
+        if (await accessDeniedAlert.IsVisibleAsync())
+        {
+            throw new InvalidOperationException(
+                "test1 should be able to view feature/gamma but got access denied alert");
+        }
+
+        // Verify branch data is shown (branch cards loaded)
+        var branchCards = _browser.Page.Locator(".branch-card");
+        await branchCards.First.WaitForAsync(new LocatorWaitForOptions { Timeout = 15000 });
+        var cardCount = await branchCards.CountAsync();
+        Log.Information("Branch cards visible to non-member: {Count}", cardCount);
+
+        if (cardCount == 0)
+        {
+            throw new InvalidOperationException(
+                "Expected branch cards to be visible to a non-member with Reporter access");
+        }
+
+        // Verify the Track button is shown so test1 can subscribe
+        var trackBtn = _browser.Page.Locator(".subscription-btn");
+        await trackBtn.WaitForAsync(new LocatorWaitForOptions { Timeout = 10000 });
+        var trackBtnText = await trackBtn.InnerTextAsync();
+        Log.Information("Subscription button text for non-member: {Text}", trackBtnText);
+
+        if (!trackBtnText.Contains("Track"))
+        {
+            throw new InvalidOperationException(
+                $"Expected 'Track' button for non-member, got '{trackBtnText}'");
+        }
+
+        Log.Information("Non-member view test passed");
     }
 
 }

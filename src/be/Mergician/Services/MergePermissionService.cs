@@ -8,10 +8,13 @@ namespace Mergician.Services;
 /// <summary>
 ///     Checks whether the current user has merge permissions for all projects in a merge group.
 ///     GitLab Developer access (level 30) or above is required to merge MRs in a project.
+///     Reporter access (level 20) or above is required to view a merge group.
 /// </summary>
 public class MergePermissionService
 {
     private const int MinMergeAccessLevel = 30;
+
+    private const int MinViewAccessLevel = 20;
 
     private readonly GitLabService _gitLabService;
 
@@ -83,5 +86,59 @@ public class MergePermissionService
             accessDetails.UserId, mergeGroupId, canMerge, checkFailed, string.Join(", ", blockedProjects));
 
         return new MergePermissionsResponse(canMerge, checkFailed, blockedProjects);
+    }
+
+    /// <summary>
+    ///     Checks whether the current user has at least Reporter access (level 20) in all projects
+    ///     belonging to the given merge group.
+    ///     Fails open on API errors to avoid blocking users due to transient GitLab unavailability.
+    /// </summary>
+    public async Task<ViewPermissionsResult> CheckViewPermissions(
+        AccessDetailsForUser accessDetails,
+        MergeGroup mergeGroup,
+        CancellationToken cancellationToken = default)
+    {
+        var uniqueProjectIds = mergeGroup.Branches
+            .Select(b => b.ProjectId)
+            .Distinct()
+            .ToList();
+
+        _logger.LogDebug(
+            "Checking view permissions for user {UserId} in {Count} projects of merge group {MergeGroupId}",
+            accessDetails.UserId, uniqueProjectIds.Count, mergeGroup.Id);
+
+        var deniedProjects = new List<string>();
+        var checkFailed = false;
+
+        foreach (var projectId in uniqueProjectIds)
+        {
+            var accessLevel = await _gitLabService.GetUserProjectAccessLevel(
+                accessDetails, projectId, accessDetails.UserId, cancellationToken);
+
+            if (accessLevel == null)
+            {
+                _logger.LogError(
+                    "Could not verify view access level for user {UserId} in project {ProjectId}; failing open",
+                    accessDetails.UserId, projectId);
+                checkFailed = true;
+                continue;
+            }
+
+            if (accessLevel < MinViewAccessLevel)
+            {
+                var projectName = mergeGroup.Branches.First(b => b.ProjectId == projectId).ProjectName;
+                _logger.LogInformation(
+                    "User {UserId} cannot view project {ProjectId} '{ProjectName}' (access level {AccessLevel})",
+                    accessDetails.UserId, projectId, projectName, accessLevel);
+                deniedProjects.Add(projectName);
+            }
+        }
+
+        var canView = deniedProjects.Count == 0;
+        _logger.LogInformation(
+            "View permission check complete: user {UserId}, merge group {MergeGroupId}, canView={CanView}, checkFailed={CheckFailed}, denied=[{DeniedProjects}]",
+            accessDetails.UserId, mergeGroup.Id, canView, checkFailed, string.Join(", ", deniedProjects));
+
+        return new ViewPermissionsResult(canView, checkFailed, deniedProjects);
     }
 }

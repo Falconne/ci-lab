@@ -8,7 +8,7 @@
           <v-btn variant="text" size="small" prepend-icon="mdi-arrow-left" :to="'/'">
             Back to Dashboard
           </v-btn>
-          <div v-if="!initialLoading && !mergeGroupGone" class="page-top-bar-right">
+          <div v-if="!initialLoading && !mergeGroupGone && !accessDenied" class="page-top-bar-right">
             <v-tooltip
               v-if="isFullyLoaded && overallStatusReasons.length > 0"
               location="bottom"
@@ -69,11 +69,22 @@
           Merge group has been merged or removed.
         </v-alert>
 
+        <v-alert
+          v-if="accessDenied"
+          type="error"
+          variant="tonal"
+          class="mb-4"
+        >
+          Access denied: you do not have sufficient access to view this merge group.<span
+            v-if="accessDeniedProjects.length > 0"
+          > Denied projects: {{ accessDeniedProjects.join(', ') }}</span>
+        </v-alert>
+
         <div v-if="initialLoading" class="text-center pa-8">
           <p class="text-body-1 text-grey">Loading merge group details...</p>
         </div>
 
-        <template v-else-if="!mergeGroupGone">
+        <template v-else-if="!mergeGroupGone && !accessDenied">
           <!-- Summary: merge group name + auto merge controls -->
           <div class="merge-group-header mb-5">
             <div v-if="singleMrTitle" class="header-title-block">
@@ -340,6 +351,8 @@ const mergeGroupName = ref('')
 const initialLoading = ref(true)
 const errorMessage = ref('')
 const mergeGroupGone = ref(false)
+const accessDenied = ref(false)
+const accessDeniedProjects = ref<string[]>([])
 const autoMerge = ref(false)
 const autoMergeByLabel = ref(false)
 const autoMergeWarning = ref<string | null>(null)
@@ -608,6 +621,15 @@ async function pollMergeGroup() {
 
     if (response.status === 404) {
       mergeGroupGone.value = true
+      initialLoading.value = false
+      stopPolling()
+      return
+    }
+
+    if (response.status === 403) {
+      const body = await response.json().catch(() => null) as { deniedProjects?: string[] } | null
+      accessDeniedProjects.value = body?.deniedProjects ?? []
+      accessDenied.value = true
       initialLoading.value = false
       stopPolling()
       return
