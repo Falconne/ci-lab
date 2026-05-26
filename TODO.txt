@@ -1,2 +1,0 @@
-Task 1)
-The Auto-Rebase toggle still exists on the Merge Group Details page. This should not be available any more, auto-rebase should be _always_ enabled when auto merge is turned on. Remove the toggle from the UI and update any code that allows or expects this to be conditional.
