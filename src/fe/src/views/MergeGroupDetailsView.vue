@@ -93,7 +93,7 @@
             </div>
             <span v-else class="header-title font-weight-bold">{{ mergeGroupName }}</span>
 
-            <!-- Auto Merge / Auto Rebase toggles -->
+            <!-- Auto Merge toggle -->
             <div class="auto-merge-controls mt-3">
               <v-tooltip :text="autoMergeTooltip" location="bottom">
                 <template #activator="{ props: tooltipProps }">
@@ -101,21 +101,6 @@
                     <v-switch
                       v-model="autoMerge"
                       label="Auto Merge"
-                      color="primary"
-                      density="compact"
-                      hide-details
-                      :disabled="autoMergeDisabled"
-                      @update:model-value="onAutoMergeToggle"
-                    />
-                  </span>
-                </template>
-              </v-tooltip>
-              <v-tooltip text="Keep rebasing out of date branches" location="bottom">
-                <template #activator="{ props: tooltipProps }">
-                  <span v-bind="tooltipProps" class="d-inline-flex">
-                    <v-switch
-                      v-model="autoMerge"
-                      label="Auto Merge / Rebase"
                       color="primary"
                       density="compact"
                       hide-details
@@ -406,7 +391,7 @@ const autoMergeTooltip = computed<string>(() => {
       return `Cannot enable Auto Merge: missing merge permission in: ${permissionBlockedProjects.value.join(', ')}`
     }
   }
-  return 'Merge all branches together, only when all are ready'
+  return 'Automatically rebase and merge all branches when they are all ready'
 })
 
 async function checkMergePermissions() {

@@ -19,7 +19,7 @@
           <p class="text-h6 text-grey">No queues are active</p>
           <p class="text-body-2 text-grey mt-2">
             Queues are created automatically when merge groups are set to
-            Auto Merge + Auto Rebase with no blocking conditions.
+            Auto Merge with no blocking conditions.
           </p>
         </div>
 
