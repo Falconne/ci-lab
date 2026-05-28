@@ -436,7 +436,7 @@ public class MergeGroupManagementTest
         await LoginHelper.NavigateToDashboard(_browser);
         await _browser.TakeScreenshot("non_member_01_test2_dashboard");
 
-        var gammaRow = _browser.Page.Locator(".grid-row[data-mg-name='feature/gamma']");
+        var gammaRow = _browser.Page.Locator(".grid-row[data-mg-name='feature/gamma']").First;
         await gammaRow.WaitForAsync(new LocatorWaitForOptions { Timeout = 15000 });
         await gammaRow.ClickAsync();
 

@@ -109,6 +109,19 @@ public class AutoMergeBehaviorTest
 
             await _browser.TakeScreenshot("behavior_01_branch_on_dashboard");
 
+            // === Scenario 1 pre-setup: set pipelines to 'failed' BEFORE enabling auto-merge ===
+            // This avoids a race where the AutoMergeService merges immediately after auto-merge is
+            // enabled (since MRs are already mergeable at this point). By failing the pipelines first
+            // and waiting for GitLab to process the state change, we guarantee the service sees a
+            // non-mergeable status when auto-merge is turned on.
+            var sha1 = _gitLab.GetBranchHeadSha(projectId1, branchName);
+            var sha2 = _gitLab.GetBranchHeadSha(projectId2, branchName);
+            Log.Information("Pre-setup for Scenario 1: setting pipelines to 'failed' before enabling auto-merge...");
+            _gitLab.SetCommitStatus(projectId1, sha1, "failed", PipelineName);
+            _gitLab.SetCommitStatus(projectId2, sha2, "failed", PipelineName);
+            await WaitForMrNotMergeable(projectId1, mergeRequestIid1, "primary-1");
+            await WaitForMrNotMergeable(projectId2, mergeRequestIid2, "secondary-1");
+
             // === Navigate to merge group details and enable auto merge ===
             await NavigateToMergeGroupDetails(branchName);
             await EnableAutoMerge();
@@ -606,7 +619,46 @@ public class AutoMergeBehaviorTest
     }
 
     /// <summary>
-    ///     Waits for GitLab to detect that a branch has diverged from its target.
+    ///     Waits until GitLab changes an MR's <c>detailed_merge_status</c> away from
+    ///     <c>"mergeable"</c>. Used to confirm that a commit-status override has been
+    ///     processed before enabling auto-merge, eliminating the race where the
+    ///     AutoMergeService merges before the failing status propagates.
+    /// </summary>
+    private async Task WaitForMrNotMergeable(int projectId, int mergeRequestIid, string projectLabel)
+    {
+        const int timeoutSeconds = 30;
+        Log.Information(
+            "Waiting for MR !{MergeRequestIid} in {Project} to leave 'mergeable' state (up to {Timeout}s)...",
+            mergeRequestIid,
+            projectLabel,
+            timeoutSeconds);
+
+        for (var i = 0; i < timeoutSeconds; i++)
+        {
+            var mr = _gitLab.GetMergeRequestDetail(projectId, mergeRequestIid);
+            if (mr.DetailedMergeStatus != "mergeable")
+            {
+                Log.Information(
+                    "MR !{MergeRequestIid} in {Project} left 'mergeable' after ~{Seconds}s: dms={Dms}",
+                    mergeRequestIid,
+                    projectLabel,
+                    i,
+                    mr.DetailedMergeStatus);
+
+                return;
+            }
+
+            await Task.Delay(1000);
+        }
+
+        Log.Warning(
+            "MR !{MergeRequestIid} in {Project} still 'mergeable' after {Timeout}s. Proceeding anyway.",
+            mergeRequestIid,
+            projectLabel,
+            timeoutSeconds);
+    }
+
+    /// <summary>
     ///     After pushing a commit to main, GitLab may take time to recalculate the MR's
     ///     diverged_commits_count and detailed_merge_status.
     /// </summary>
