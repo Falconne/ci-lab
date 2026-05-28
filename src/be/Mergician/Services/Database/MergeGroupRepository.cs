@@ -801,4 +801,26 @@ public class MergeGroupRepository : IMergeGroupRepository
             rowsAffected,
             mergeGroupId);
     }
+
+    public void UpdateBranchBlockingState(int branchId, bool needsRebase, int mrStatus, string? mrStatusReasons)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        connection.Open();
+
+        connection.Execute(
+            """
+            UPDATE branch_in_project
+            SET needs_rebase      = @NeedsRebase,
+                mr_status         = @MrStatus,
+                mr_status_reasons = @MrStatusReasons
+            WHERE id = @BranchId
+            """,
+            new { BranchId = branchId, NeedsRebase = needsRebase, MrStatus = mrStatus, MrStatusReasons = mrStatusReasons });
+
+        _logger.LogDebug(
+            "Updated blocking state for branch {BranchId}: needsRebase={NeedsRebase}, mrStatus={MrStatus}",
+            branchId,
+            needsRebase,
+            mrStatus);
+    }
 }

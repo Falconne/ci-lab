@@ -170,4 +170,11 @@ public interface IMergeGroupRepository
     ///     Returns merge groups belonging to the specified queue, ordered by their queue position.
     /// </summary>
     List<MergeGroup> GetMergeGroupsForQueue(int queueId);
+
+    /// <summary>
+    ///     Updates the blocking-state fields for a branch to reflect the current MR state from GitLab.
+    ///     Called by the AutoMergeService periodic check to remove stale blocking conditions
+    ///     (e.g. a <c>needs_rebase</c> flag that is no longer valid after a successful rebase).
+    /// </summary>
+    void UpdateBranchBlockingState(int branchId, bool needsRebase, int mrStatus, string? mrStatusReasons);
 }

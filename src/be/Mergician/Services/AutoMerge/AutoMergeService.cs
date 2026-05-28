@@ -4,6 +4,7 @@ using Mergician.Services.Authentication;
 using Mergician.Services.Database;
 using Mergician.Services.GitLab;
 using System.Collections.Concurrent;
+using System.Text.Json;
 using Util;
 
 namespace Mergician.Services.AutoMerge;
@@ -220,6 +221,10 @@ public class AutoMergeService : BackgroundService
             .Where(x => x != null)
             .Select(x => x!)
             .ToList();
+
+        // Reconcile blocking conditions: update DB to reflect current MR state, removing any
+        // stale flags (e.g. needs_rebase that is no longer true after a successful rebase).
+        ReconcileBlockingConditions(branchMergeRequestDetails);
 
         // Step 0: Queue management — evaluate whether this group should be in a merge queue.
         if (group.AutoMerge)
@@ -742,6 +747,59 @@ public class AutoMergeService : BackgroundService
         }
 
         return result;
+    }
+
+    /// <summary>
+    ///     Reconciles the blocking-state fields in the database against the current MR data fetched
+    ///     from GitLab. Removes obsolete conditions (e.g. a <c>needs_rebase</c> flag left over from
+    ///     a rebase that has since completed) so the UI always reflects the actual MR state.
+    ///     Called on every periodic cycle, not just after a rebase, so stale state is caught
+    ///     regardless of how it arose.
+    /// </summary>
+    private void ReconcileBlockingConditions(List<BranchWithMergeRequest> branchMergeRequestDetails)
+    {
+        foreach (var (branch, mr) in branchMergeRequestDetails)
+        {
+            var currentNeedsRebase = mr.DivergedCommitsCount > 0
+                                     || mr.HasConflicts
+                                     || mr.DetailedMergeStatus == "need_rebase";
+
+            var (currentMrStatus, currentReasons) = MRStatusCalculator.Calculate(true, mr.DetailedMergeStatus);
+
+            // Apply the same merge-error override that the sync service uses, so a pending merge
+            // error is not silently cleared by this reconciliation.
+            if (branch.MergeError.IsNotEmpty() && currentMrStatus == MRStatus.Ready)
+            {
+                currentMrStatus = MRStatus.Blocked;
+                currentReasons.Add(branch.MergeError!);
+            }
+
+            var storedNeedsRebase = branch.NeedsRebase == true;
+            if (storedNeedsRebase == currentNeedsRebase && branch.MRStatus == currentMrStatus)
+            {
+                continue;
+            }
+
+            var currentMrStatusReasons = currentReasons.Count > 0
+                ? JsonSerializer.Serialize(currentReasons)
+                : null;
+
+            _logger.LogInformation(
+                "AutoMergeService: reconciling blocking state for branch '{BranchName}' in project {ProjectId}: "
+                + "needsRebase {OldNeedsRebase}->{NewNeedsRebase}, mrStatus {OldStatus}->{NewStatus}",
+                branch.BranchName,
+                branch.ProjectId,
+                storedNeedsRebase,
+                currentNeedsRebase,
+                branch.MRStatus,
+                currentMrStatus);
+
+            _mergeGroupRepository.UpdateBranchBlockingState(
+                branch.Id,
+                currentNeedsRebase,
+                currentMrStatus,
+                currentMrStatusReasons);
+        }
     }
 
     private async Task WaitForReady(CancellationToken cancellationToken)
