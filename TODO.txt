@@ -1,0 +1,4 @@
+Task 1)
+The "needs rebase" blocking condition for a Merge Request in a merge group that's set to auto merge, is currently not removed after the rebase is done, which is incorrect.
+
+There shouldn't be an explicit removal of this status after initiating a rebase. Instead, whenever the periodic check of a Merge Group status is being done, obsolete blocking conditions should be removed, ensuring that the blocking conditions accurately reflect the current state of the Merge Request(s) and their containing Merge Group.
