@@ -6,7 +6,7 @@ namespace Mergician.Services.Authentication;
 ///     Represents authenticated GitLab API credentials with a valid access token.
 ///     Provides HTTP request creation with the GitLab API v4 base URL pre-configured,
 ///     so consumers only need to specify the relative API path (e.g. "user", "projects/1").
-///     Use <see cref="AccessDetailsForUser" /> when the GitLab user ID is also needed.
+///     Use <see cref="UserAccessDetails" /> when the GitLab user ID is also needed.
 /// </summary>
 public class AccessDetailsBase
 {

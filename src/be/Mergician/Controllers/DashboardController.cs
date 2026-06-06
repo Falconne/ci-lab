@@ -36,12 +36,12 @@ public class DashboardController : ControllerBase
     [HttpPost("refresh")]
     public ActionResult<List<MergeGroup>> Refresh()
     {
-        var currentUser = HttpContext.GetGitLabUser();
+        var userAccessDetails = HttpContext.GetGitLabUser();
 
-        var userId = currentUser.UserId;
+        var userId = userAccessDetails.UserId;
 
         // Ensure the background sync thread is running (also records that user is still active)
-        _backgroundSyncService.EnsureSyncRunning(currentUser);
+        _backgroundSyncService.EnsureSyncRunning(userAccessDetails);
 
         _logger.LogDebug("Dashboard refresh for user {UserId}", userId);
 

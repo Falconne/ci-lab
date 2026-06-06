@@ -122,11 +122,11 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
     ///     Updates the stored access token and records poll activity.
     ///     If a thread is already running, this is a no-op (apart from updating the token).
     /// </summary>
-    public void EnsureSyncRunning(AccessDetailsForUser accessDetails)
+    public void EnsureSyncRunning(UserAccessDetails userAccessDetails)
     {
-        var userId = accessDetails.UserId;
-        var context = _userContexts.GetOrAdd(userId, _ => new UserActivitySyncContext(accessDetails));
-        context.UpdateActivity(accessDetails);
+        var userId = userAccessDetails.UserId;
+        var context = _userContexts.GetOrAdd(userId, _ => new UserActivitySyncContext(userAccessDetails));
+        context.UpdateActivity(userAccessDetails);
 
         _logger.LogDebug("Starting background sync thread for user {UserId} if not running", userId);
         var linkedCts =
@@ -176,7 +176,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             // going into regular monitoring mode.
 
             // Phase 1: Backfill from existing open MRs created by the user
-            await BackfillFromExistingMergeRequests(context.AccessDetailsForUser, ct);
+            await BackfillFromExistingMergeRequests(context.UserAccessDetails, ct);
 
             // Phase 2: Backfill from the user's last known activity or 14 days
             await BackfillUserActivity(gitLabUserId, context, ct);
@@ -201,13 +201,13 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                         gitLabUserId);
                 }
 
-                var accessUser = context.AccessDetailsForUser;
+                var userAccessDetails = context.UserAccessDetails;
 
                 if (firstPoll)
                 {
                     firstPoll = false;
                     // Refresh branch details immediately on first poll for responsive UI
-                    await RefreshAllBranchDetails(accessUser, ct);
+                    await RefreshAllBranchDetails(userAccessDetails, ct);
                 }
                 else
                 {
@@ -229,13 +229,13 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                 {
                     var nextPollTimeFrom = DateTimeOffset.UtcNow;
                     // Poll for new push events since the last successful poll
-                    await FetchNewUserActivityFromGitLab(accessUser, lastPollTime, ct);
+                    await FetchNewUserActivityFromGitLab(userAccessDetails, lastPollTime, ct);
 
                     lastPollTime = nextPollTimeFrom;
 
                     // Refresh MR, approval, and build status for all tracked branches.
                     // Also removes branches that are no longer present in GitLab.
-                    await RefreshAllBranchDetails(accessUser, ct);
+                    await RefreshAllBranchDetails(userAccessDetails, ct);
                 }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested)
                 {
@@ -283,18 +283,18 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
     ///     branches in the database. Called by the background sync thread.
     /// </summary>
     private async Task FetchNewUserActivityFromGitLab(
-        AccessDetailsForUser accessDetails,
+        UserAccessDetails userAccessDetails,
         DateTimeOffset since,
         CancellationToken cancellationToken)
     {
-        var userId = accessDetails.UserId;
+        var userId = userAccessDetails.UserId;
         _logger.LogDebug(
             "Syncing GitLab activity for user {UserId} since {Since}",
             userId,
             since);
 
         var ignoredBranches = await _ignoredBranchRepository.GetIgnoredBranchNames(userId);
-        var pushEvents = _gitLabService.GetPushEventsForUserSince(accessDetails, since, cancellationToken);
+        var pushEvents = _gitLabService.GetPushEventsForUserSince(userAccessDetails, since, cancellationToken);
         var processedBranches = new HashSet<(string BranchName, int ProjectId)>();
 
         await foreach (var pushEvent in pushEvents)
@@ -340,7 +340,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             }
 
             var project = await _gitLabService.GetProject(
-                accessDetails,
+                userAccessDetails,
                 pushEvent.ProjectId,
                 cancellationToken);
 
@@ -396,7 +396,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
         UserActivitySyncContext context,
         CancellationToken ct)
     {
-        var accessUser = context.AccessDetailsForUser;
+        var userAccessDetails = context.UserAccessDetails;
 
         var since = DateTimeOffset.UtcNow.Subtract(_maxActivityLookback);
         _logger.LogInformation(
@@ -406,7 +406,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
 
         try
         {
-            await FetchNewUserActivityFromGitLab(accessUser, since, ct);
+            await FetchNewUserActivityFromGitLab(userAccessDetails, since, ct);
 
             _logger.LogInformation("Backfill completed for user {UserId}", gitLabUserId);
         }
@@ -435,16 +435,16 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
     ///     any untracked branches with this user's merge groups.
     /// </summary>
     private async Task BackfillFromExistingMergeRequests(
-        AccessDetailsForUser accessDetails,
+        UserAccessDetails userAccessDetails,
         CancellationToken ct)
     {
-        var userId = accessDetails.UserId;
+        var userId = userAccessDetails.UserId;
         _logger.LogInformation("Syncing existing open MRs for user {UserId}", userId);
 
         try
         {
             var ignoredBranches = await _ignoredBranchRepository.GetIgnoredBranchNames(userId);
-            var openMRs = await _gitLabService.GetOpenMergeRequestsForUser(accessDetails, userId, ct);
+            var openMRs = await _gitLabService.GetOpenMergeRequestsForUser(userAccessDetails, userId, ct);
 
             _logger.LogInformation(
                 "Found {Count} open MRs for user {UserId}, checking for untracked branches",
@@ -464,7 +464,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                     continue;
                 }
 
-                var project = await _gitLabService.GetProject(accessDetails, mr.ProjectId, ct);
+                var project = await _gitLabService.GetProject(userAccessDetails, mr.ProjectId, ct);
 
                 if (project == null)
                 {
@@ -528,10 +528,10 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
     ///     Called by the background sync thread as a second pass after activity sync.
     /// </summary>
     private async Task RefreshAllBranchDetails(
-        AccessDetailsForUser accessDetails,
+        UserAccessDetails userAccessDetails,
         CancellationToken cancellationToken)
     {
-        var userId = accessDetails.UserId;
+        var userId = userAccessDetails.UserId;
         var userGroups = _mergeGroupRepository.GetMergeGroupsForUser(userId);
 
         var totalBranches = userGroups.Sum(g => g.Branches.Count);
@@ -548,7 +548,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
 
                 try
                 {
-                    await RefreshBranchDetails(accessDetails, branch, group.Branches, cancellationToken);
+                    await RefreshBranchDetails(userAccessDetails, branch, group.Branches, cancellationToken);
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {
@@ -583,7 +583,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
     ///     On 401 (expired token), skips the update rather than persisting stale "no MR" data.
     /// </summary>
     private async Task RefreshBranchDetails(
-        AccessDetailsForUser accessDetails,
+        UserAccessDetails userAccessDetails,
         BranchInProject branch,
         IReadOnlyList<BranchWithActivity> groupSiblings,
         CancellationToken cancellationToken)
@@ -595,7 +595,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             branch.BranchName,
             branch.ProjectId);
 
-        var project = await _gitLabService.GetProject(accessDetails, branch.ProjectId, cancellationToken);
+        var project = await _gitLabService.GetProject(userAccessDetails, branch.ProjectId, cancellationToken);
         if (project == null)
         {
             _logger.LogDebug(
@@ -620,7 +620,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
         try
         {
             mergeRequests = await _gitLabService.GetMergeRequests(
-                accessDetails,
+                userAccessDetails,
                 branch.ProjectId,
                 branch.BranchName,
                 cancellationToken);
@@ -657,7 +657,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             hasConflicts = first.HasConflicts;
 
             var approvalCounts = await _gitLabService.GetMergeRequestApprovalCounts(
-                accessDetails,
+                userAccessDetails,
                 branch.ProjectId,
                 first.Iid,
                 cancellationToken);
@@ -671,7 +671,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             if (first.DetailedMergeStatus == "blocked_status")
             {
                 var resolved = await ResolveBlockingMRDescriptions(
-                    accessDetails,
+                    userAccessDetails,
                     branch,
                     first.Iid,
                     groupSiblings,
@@ -684,14 +684,14 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
         }
 
         var buildJobs = await _gitLabPipelineService.GetLatestBuildJobsForBranch(
-            accessDetails,
+            userAccessDetails,
             branch.ProjectId,
             branch.BranchName,
             cancellationToken);
 
         // Fetch the branch's latest commit date from GitLab to use as the last updated timestamp
         var branchDetails = await _gitLabService.GetBranchDetails(
-            accessDetails,
+            userAccessDetails,
             branch.ProjectId,
             branch.BranchName,
             cancellationToken);
@@ -779,14 +779,14 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
     ///     Returns an empty list when the endpoint is available but no external blockers exist.
     /// </summary>
     private async Task<List<string>?> ResolveBlockingMRDescriptions(
-        AccessDetailsForUser accessDetails,
+        UserAccessDetails userAccessDetails,
         BranchInProject branch,
         int mrIid,
         IReadOnlyList<BranchWithActivity> groupSiblings,
         CancellationToken cancellationToken)
     {
         var blockingMRs = await _gitLabService.GetBlockingMergeRequests(
-            accessDetails,
+            userAccessDetails,
             branch.ProjectId,
             mrIid,
             cancellationToken);

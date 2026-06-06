@@ -37,7 +37,7 @@ public class MergeGroupManagementService
     ///     to the specified merge group, subscribing the user if not already subscribed.
     /// </summary>
     public async Task<AddBranchResult> AddBranchByMergeRequestUrl(
-        AccessDetailsForUser currentUser,
+        UserAccessDetails userAccessDetails,
         int mergeGroupId,
         string mergeRequestUrl,
         CancellationToken cancellationToken = default)
@@ -59,7 +59,7 @@ public class MergeGroupManagementService
         }
 
         var lookupResult = await _mergeRequestLookupService.LookupMergeRequest(
-            currentUser,
+            userAccessDetails,
             parsed.ProjectPath,
             parsed.MergeRequestIid,
             cancellationToken);
@@ -74,12 +74,12 @@ public class MergeGroupManagementService
             lookupResult.Project);
 
         _mergeGroupRepository.EnsureBranchInMergeGroup(mergeGroupId, branchRecord.Id);
-        var wasAdded = _mergeGroupRepository.EnsureUserInMergeGroup(currentUser.UserId, mergeGroupId);
-        await _ignoredBranchRepository.RemoveIgnoredBranch(currentUser.UserId, lookupResult.SourceBranch);
+        var wasAdded = _mergeGroupRepository.EnsureUserInMergeGroup(userAccessDetails.UserId, mergeGroupId);
+        await _ignoredBranchRepository.RemoveIgnoredBranch(userAccessDetails.UserId, lookupResult.SourceBranch);
 
         _logger.LogInformation(
             "User {UserId} added branch '{BranchName}' from project {ProjectId} to merge group {MergeGroupId} via MR URL",
-            currentUser.UserId,
+            userAccessDetails.UserId,
             lookupResult.SourceBranch,
             lookupResult.Project.Id,
             mergeGroupId);
@@ -88,7 +88,7 @@ public class MergeGroupManagementService
         {
             _logger.LogInformation(
                 "User {UserId} added to tracked branches for merge group {MergeGroupId} via MR URL addition",
-                currentUser.UserId,
+                userAccessDetails.UserId,
                 mergeGroupId);
         }
 
@@ -101,7 +101,7 @@ public class MergeGroupManagementService
     ///     merge group containing that branch or creates a new one, subscribing the user.
     /// </summary>
     public async Task<FindOrCreateMergeGroupResult> FindOrCreateMergeGroupByMergeRequestUrl(
-        AccessDetailsForUser currentUser,
+        UserAccessDetails userAccessDetails,
         string mergeRequestUrl,
         CancellationToken cancellationToken = default)
     {
@@ -112,7 +112,7 @@ public class MergeGroupManagementService
         }
 
         var lookupResult = await _mergeRequestLookupService.LookupMergeRequest(
-            currentUser,
+            userAccessDetails,
             parsed.ProjectPath,
             parsed.MergeRequestIid,
             cancellationToken);
@@ -131,14 +131,14 @@ public class MergeGroupManagementService
 
         if (existingMg != null)
         {
-            var wasAdded = _mergeGroupRepository.EnsureUserInMergeGroup(currentUser.UserId, existingMg.Id);
+            var wasAdded = _mergeGroupRepository.EnsureUserInMergeGroup(userAccessDetails.UserId, existingMg.Id);
             await _ignoredBranchRepository.RemoveIgnoredBranch(
-                currentUser.UserId,
+                userAccessDetails.UserId,
                 lookupResult.SourceBranch);
 
             _logger.LogInformation(
                 "User {UserId} found existing merge group {MergeGroupId} for branch '{BranchName}' via MR URL",
-                currentUser.UserId,
+                userAccessDetails.UserId,
                 existingMg.Id,
                 lookupResult.SourceBranch);
 
@@ -146,7 +146,7 @@ public class MergeGroupManagementService
             {
                 _logger.LogInformation(
                     "User {UserId} added to tracked branches for merge group {MergeGroupId} ('{MergeGroupName}') via MR URL lookup",
-                    currentUser.UserId,
+                    userAccessDetails.UserId,
                     existingMg.Id,
                     existingMg.Name);
             }
@@ -161,13 +161,13 @@ public class MergeGroupManagementService
 
         _mergeGroupRepository.EnsureBranchInMergeGroup(mergeGroup.Id, branchRecord.Id);
         var wasAddedToNewGroup =
-            _mergeGroupRepository.EnsureUserInMergeGroup(currentUser.UserId, mergeGroup.Id);
+            _mergeGroupRepository.EnsureUserInMergeGroup(userAccessDetails.UserId, mergeGroup.Id);
 
-        await _ignoredBranchRepository.RemoveIgnoredBranch(currentUser.UserId, lookupResult.SourceBranch);
+        await _ignoredBranchRepository.RemoveIgnoredBranch(userAccessDetails.UserId, lookupResult.SourceBranch);
 
         _logger.LogInformation(
             "User {UserId} created merge group {MergeGroupId} for branch '{BranchName}' via MR URL",
-            currentUser.UserId,
+            userAccessDetails.UserId,
             mergeGroup.Id,
             lookupResult.SourceBranch);
 
@@ -175,7 +175,7 @@ public class MergeGroupManagementService
         {
             _logger.LogInformation(
                 "User {UserId} added to tracked branches for merge group {MergeGroupId} ('{MergeGroupName}') via MR URL lookup",
-                currentUser.UserId,
+                userAccessDetails.UserId,
                 mergeGroup.Id,
                 mergeGroup.Name);
         }

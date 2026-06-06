@@ -37,13 +37,13 @@ public class MergeQueueController : ControllerBase
     [HttpGet]
     public ActionResult<IReadOnlyList<MergeQueueSummary>> GetAllQueues()
     {
-        var currentUser = HttpContext.GetGitLabUser();
-        var summaries = _mergeQueueRepository.GetAllQueueSummaries(currentUser.UserId);
+        var userAccessDetails = HttpContext.GetGitLabUser();
+        var summaries = _mergeQueueRepository.GetAllQueueSummaries(userAccessDetails.UserId);
 
         _logger.LogDebug(
             "MergeQueueController: returning {Count} queue summaries for user {UserId}",
             summaries.Count,
-            currentUser.UserId);
+            userAccessDetails.UserId);
 
         return Ok(summaries);
     }

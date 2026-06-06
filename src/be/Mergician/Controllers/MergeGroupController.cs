@@ -60,12 +60,12 @@ public class MergeGroupController : ControllerBase
     [HttpPost("{mergeGroupId:int}/refresh")]
     public async Task<ActionResult<MergeGroup>> Refresh(int mergeGroupId, CancellationToken cancellationToken)
     {
-        var currentUser = HttpContext.GetGitLabUser();
+        var userAccessDetails = HttpContext.GetGitLabUser();
 
-        var userId = currentUser.UserId;
+        var userId = userAccessDetails.UserId;
 
         // Keep the background sync thread alive during polling
-        _backgroundSyncService.EnsureSyncRunning(currentUser);
+        _backgroundSyncService.EnsureSyncRunning(userAccessDetails);
 
         _logger.LogDebug(
             "Merge group refresh for user {UserId}, merge group {MergeGroupId}",
@@ -95,7 +95,7 @@ public class MergeGroupController : ControllerBase
                 mergeGroupId);
 
             var viewPermissions = await _mergePermissionService.CheckViewPermissions(
-                currentUser,
+                userAccessDetails,
                 result,
                 cancellationToken);
 
@@ -156,19 +156,19 @@ public class MergeGroupController : ControllerBase
         int mergeGroupId,
         [FromBody] UpdateAutoMergeSettingsRequest request)
     {
-        var currentUser = HttpContext.GetGitLabUser();
+        var userAccessDetails = HttpContext.GetGitLabUser();
 
         _logger.LogInformation(
             "User {UserId} updating auto merge settings for merge group {MergeGroupId}: autoMerge={AutoMerge}",
-            currentUser.UserId,
+            userAccessDetails.UserId,
             mergeGroupId,
             request.AutoMerge);
 
-        if (!_mergeGroupRepository.IsUserInMergeGroup(currentUser.UserId, mergeGroupId))
+        if (!_mergeGroupRepository.IsUserInMergeGroup(userAccessDetails.UserId, mergeGroupId))
         {
             _logger.LogWarning(
                 "User {UserId} attempted to update settings for merge group {MergeGroupId} they do not belong to",
-                currentUser.UserId,
+                userAccessDetails.UserId,
                 mergeGroupId);
 
             return Forbid();
@@ -206,13 +206,13 @@ public class MergeGroupController : ControllerBase
     [HttpPost("{mergeGroupId:int}/settings/clear-warning")]
     public ActionResult ClearWarning(int mergeGroupId)
     {
-        var currentUser = HttpContext.GetGitLabUser();
+        var userAccessDetails = HttpContext.GetGitLabUser();
 
-        if (!_mergeGroupRepository.IsUserInMergeGroup(currentUser.UserId, mergeGroupId))
+        if (!_mergeGroupRepository.IsUserInMergeGroup(userAccessDetails.UserId, mergeGroupId))
         {
             _logger.LogWarning(
                 "User {UserId} attempted to clear warning for merge group {MergeGroupId} they do not belong to",
-                currentUser.UserId,
+                userAccessDetails.UserId,
                 mergeGroupId);
 
             return Forbid();
@@ -220,7 +220,7 @@ public class MergeGroupController : ControllerBase
 
         _logger.LogInformation(
             "User {UserId} clearing auto merge warning for merge group {MergeGroupId}",
-            currentUser.UserId,
+            userAccessDetails.UserId,
             mergeGroupId);
 
         _mergeGroupRepository.UpdateAutoMergeWarning(mergeGroupId, null);
@@ -235,7 +235,7 @@ public class MergeGroupController : ControllerBase
     [HttpGet("{mergeGroupId:int}/subscription")]
     public ActionResult<SubscriptionResponse> GetSubscription(int mergeGroupId)
     {
-        var currentUser = HttpContext.GetGitLabUser();
+        var userAccessDetails = HttpContext.GetGitLabUser();
 
         var existing = _mergeGroupRepository.GetMergeGroup(mergeGroupId);
         if (existing == null)
@@ -243,7 +243,7 @@ public class MergeGroupController : ControllerBase
             return NotFound(new ErrorResponse("Merge group not found"));
         }
 
-        var isSubscribed = _mergeGroupRepository.IsUserInMergeGroup(currentUser.UserId, mergeGroupId);
+        var isSubscribed = _mergeGroupRepository.IsUserInMergeGroup(userAccessDetails.UserId, mergeGroupId);
 
         return Ok(new SubscriptionResponse(isSubscribed));
     }
@@ -254,7 +254,7 @@ public class MergeGroupController : ControllerBase
     [HttpPut("{mergeGroupId:int}/subscription")]
     public async Task<ActionResult<SubscriptionResponse>> Subscribe(int mergeGroupId)
     {
-        var currentUser = HttpContext.GetGitLabUser();
+        var userAccessDetails = HttpContext.GetGitLabUser();
 
         var existing = _mergeGroupRepository.GetMergeGroup(mergeGroupId);
         if (existing == null)
@@ -262,14 +262,14 @@ public class MergeGroupController : ControllerBase
             return NotFound(new ErrorResponse("Merge group not found"));
         }
 
-        var wasAdded = _mergeGroupRepository.EnsureUserInMergeGroup(currentUser.UserId, mergeGroupId);
-        await _ignoredBranchRepository.RemoveIgnoredBranch(currentUser.UserId, existing.Name);
+        var wasAdded = _mergeGroupRepository.EnsureUserInMergeGroup(userAccessDetails.UserId, mergeGroupId);
+        await _ignoredBranchRepository.RemoveIgnoredBranch(userAccessDetails.UserId, existing.Name);
 
         if (wasAdded)
         {
             _logger.LogInformation(
                 "User {UserId} added to tracked branches for merge group {MergeGroupId} ('{Name}') via manual subscribe",
-                currentUser.UserId,
+                userAccessDetails.UserId,
                 mergeGroupId,
                 existing.Name);
         }
@@ -277,7 +277,7 @@ public class MergeGroupController : ControllerBase
         {
             _logger.LogDebug(
                 "User {UserId} re-subscribed to merge group {MergeGroupId} ('{Name}'), already tracking",
-                currentUser.UserId,
+                userAccessDetails.UserId,
                 mergeGroupId,
                 existing.Name);
         }
@@ -291,7 +291,7 @@ public class MergeGroupController : ControllerBase
     [HttpDelete("{mergeGroupId:int}/subscription")]
     public async Task<ActionResult<SubscriptionResponse>> Unsubscribe(int mergeGroupId)
     {
-        var currentUser = HttpContext.GetGitLabUser();
+        var userAccessDetails = HttpContext.GetGitLabUser();
 
         var existing = _mergeGroupRepository.GetMergeGroup(mergeGroupId);
         if (existing == null)
@@ -299,12 +299,12 @@ public class MergeGroupController : ControllerBase
             return NotFound(new ErrorResponse("Merge group not found"));
         }
 
-        await _ignoredBranchRepository.AddIgnoredBranch(currentUser.UserId, existing.Name);
-        _mergeGroupRepository.RemoveUserFromMergeGroup(currentUser.UserId, mergeGroupId);
+        await _ignoredBranchRepository.AddIgnoredBranch(userAccessDetails.UserId, existing.Name);
+        _mergeGroupRepository.RemoveUserFromMergeGroup(userAccessDetails.UserId, mergeGroupId);
 
         _logger.LogInformation(
             "User {UserId} unsubscribed from merge group {MergeGroupId} (name: '{Name}')",
-            currentUser.UserId,
+            userAccessDetails.UserId,
             mergeGroupId,
             existing.Name);
 
@@ -321,10 +321,10 @@ public class MergeGroupController : ControllerBase
         int mergeGroupId,
         [FromBody] MergeRequestUrlRequest request)
     {
-        var currentUser = HttpContext.GetGitLabUser();
+        var userAccessDetails = HttpContext.GetGitLabUser();
 
         var result = await _mergeGroupManagementService.AddBranchByMergeRequestUrl(
-            currentUser,
+            userAccessDetails,
             mergeGroupId,
             request.MergeRequestUrl);
 
@@ -356,10 +356,10 @@ public class MergeGroupController : ControllerBase
     public async Task<ActionResult<FindByMergeRequestResponse>> FindByMergeRequest(
         [FromBody] MergeRequestUrlRequest request)
     {
-        var currentUser = HttpContext.GetGitLabUser();
+        var userAccessDetails = HttpContext.GetGitLabUser();
 
         var result = await _mergeGroupManagementService.FindOrCreateMergeGroupByMergeRequestUrl(
-            currentUser,
+            userAccessDetails,
             request.MergeRequestUrl);
 
         return result.Error switch
@@ -384,15 +384,15 @@ public class MergeGroupController : ControllerBase
         int mergeGroupId,
         CancellationToken cancellationToken)
     {
-        var currentUser = HttpContext.GetGitLabUser();
+        var userAccessDetails = HttpContext.GetGitLabUser();
 
         _logger.LogDebug(
             "Checking merge permissions for user {UserId} in merge group {MergeGroupId}",
-            currentUser.UserId,
+            userAccessDetails.UserId,
             mergeGroupId);
 
         var result = await _mergePermissionService.CheckMergePermissions(
-            currentUser,
+            userAccessDetails,
             mergeGroupId,
             cancellationToken);
 

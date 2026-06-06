@@ -4,9 +4,9 @@ namespace Mergician.Services.Authentication;
 ///     Represents an authenticated GitLab API user with a valid access token and a known GitLab user ID.
 ///     Instances are created by the GitLabCookieAuthenticationHandler after successful authentication.
 /// </summary>
-public class AccessDetailsForUser : AccessDetailsBase
+public class UserAccessDetails : AccessDetailsBase
 {
-    public AccessDetailsForUser(string accessToken, string apiBaseUrl, int userId)
+    public UserAccessDetails(string accessToken, string apiBaseUrl, int userId)
         : base(accessToken, apiBaseUrl)
     {
         UserId = userId;

@@ -149,7 +149,7 @@ public class AuthController : ControllerBase
         Response.Cookies.Append("gl_refresh_token", tokenResponse.RefreshToken, cookieOptions);
 
         // Fetch and persist the user ID so the authentication handler can include it
-        // in the AccessDetailsForUser on subsequent requests without an additional API call
+        // in the UserAccessDetails on subsequent requests without an additional API call
         var tempUser = new AccessDetailsBase(tokenResponse.AccessToken, _authSettings.ApiBaseUrl);
         var userInfo = await _gitLabService.GetCurrentUser(tempUser, HttpContext.RequestAborted);
         if (userInfo != null)
@@ -173,9 +173,9 @@ public class AuthController : ControllerBase
     [HttpGet("me")]
     public async Task<ActionResult<GitLabUserInfo>> Me()
     {
-        var accessUser = HttpContext.GetGitLabUser();
+        var userAccessDetails = HttpContext.GetGitLabUser();
 
-        var user = await _gitLabService.GetCurrentUser(accessUser, HttpContext.RequestAborted);
+        var user = await _gitLabService.GetCurrentUser(userAccessDetails, HttpContext.RequestAborted);
         if (user == null)
         {
             return Unauthorized();
