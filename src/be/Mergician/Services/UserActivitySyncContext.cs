@@ -7,7 +7,7 @@ namespace Mergician.Services;
 ///     Stores the user's latest access token (updated on each request) and the timestamp
 ///     of their last dashboard poll activity (used to determine when to stop the sync thread).
 /// </summary>
-public class UserSyncContext
+public class UserActivitySyncContext
 {
     private readonly ReaderWriterLockSlim _accessUserLock = new(LockRecursionPolicy.NoRecursion);
 
@@ -17,7 +17,7 @@ public class UserSyncContext
 
     private long _lastPollTicks = DateTimeOffset.UtcNow.UtcTicks;
 
-    public UserSyncContext(AccessDetailsForUser accessUser)
+    public UserActivitySyncContext(AccessDetailsForUser accessUser)
     {
         _accessUser = accessUser;
     }

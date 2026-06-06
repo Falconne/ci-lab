@@ -4,6 +4,7 @@ using Mergician.Services.Authentication;
 using Mergician.Services.Database;
 using Mergician.Services.GitLab;
 using System.Collections.Concurrent;
+using System.Net;
 using System.Text.Json;
 using Util;
 
@@ -38,7 +39,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
 
     private readonly IUntrackedBranchRepository _untrackedBranchRepository;
 
-    private readonly ConcurrentDictionary<int, UserSyncContext> _userContexts = new();
+    private readonly ConcurrentDictionary<int, UserActivitySyncContext> _userContexts = new();
 
     private CancellationTokenSource? _globalCts;
 
@@ -123,7 +124,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
     public void EnsureSyncRunning(AccessDetailsForUser accessDetails)
     {
         var userId = accessDetails.UserId;
-        var context = _userContexts.GetOrAdd(userId, _ => new UserSyncContext(accessDetails));
+        var context = _userContexts.GetOrAdd(userId, _ => new UserActivitySyncContext(accessDetails));
         context.UpdateActivity(accessDetails);
 
         lock (context.StartLock)
@@ -145,7 +146,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
         }
     }
 
-    private async Task RunUserSync(int gitLabUserId, UserSyncContext context, CancellationToken ct)
+    private async Task RunUserSync(int gitLabUserId, UserActivitySyncContext context, CancellationToken ct)
     {
         try
         {
@@ -363,7 +364,12 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             }
 
             var branchRecord = _mergeGroupRepository.GetOrCreateBranchRecord(pushEvent.BranchName, project);
-            EnsureBranchTracked(branchRecord, pushEvent.BranchName, userId, untrackedBranches, "push event sync");
+            EnsureBranchTracked(
+                branchRecord,
+                pushEvent.BranchName,
+                userId,
+                untrackedBranches,
+                "push event sync");
 
             _logger.LogDebug(
                 "Stored branch '{BranchName}' in project {ProjectId} for user {UserId}",
@@ -375,7 +381,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
 
     private async Task BackfillUserActivity(
         int gitLabUserId,
-        UserSyncContext context,
+        UserActivitySyncContext context,
         CancellationToken ct)
     {
         var accessUser = context.AccessUser;
@@ -604,12 +610,13 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                 branch.BranchName,
                 cancellationToken);
         }
-        catch (GitLabUnexpectedResponseException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        catch (GitLabUnexpectedResponseException ex) when (ex.StatusCode == HttpStatusCode.Unauthorized)
         {
             _logger.LogWarning(
                 "Skipping branch '{BranchName}' in project {ProjectId}: received 401 (token may be expired)",
                 branch.BranchName,
                 branch.ProjectId);
+
             return;
         }
 
@@ -656,7 +663,8 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                     cancellationToken);
 
                 // null means the endpoint is unavailable (GitLab CE / non-Premium); use a generic reason
-                blockingMRDescriptions = resolved ?? ["Blocked by a dependency (details unavailable on this GitLab tier)"];
+                blockingMRDescriptions =
+                    resolved ?? ["Blocked by a dependency (details unavailable on this GitLab tier)"];
             }
         }
 
@@ -695,7 +703,9 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             return;
         }
 
-        var (mrStatus, reasons) = MRStatusCalculator.Calculate(hasMergeRequest, hasMergeRequest ? mergeRequests[0].DetailedMergeStatus : null);
+        var (mrStatus, reasons) = MRStatusCalculator.Calculate(
+            hasMergeRequest,
+            hasMergeRequest ? mergeRequests[0].DetailedMergeStatus : null);
 
         // If a previous auto merge attempt failed and GitLab otherwise considers the branch Ready,
         // force Blocked so the user sees the error until they dismiss the warning.
@@ -789,9 +799,11 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
         var descriptions = new List<string>();
         foreach (var blocker in blockingMRs)
         {
-            var isIntraGroup = groupSiblings.Any(
-                s => s.ProjectId == blocker.ProjectId
-                     && string.Equals(s.BranchName, blocker.SourceBranch, StringComparison.OrdinalIgnoreCase));
+            var isIntraGroup = groupSiblings.Any(s => s.ProjectId == blocker.ProjectId
+                                                      && string.Equals(
+                                                          s.BranchName,
+                                                          blocker.SourceBranch,
+                                                          StringComparison.OrdinalIgnoreCase));
 
             if (isIntraGroup)
             {
@@ -825,9 +837,9 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
     /// <summary>
     ///     Ensures a branch record is associated with its merge group and that the user
     ///     is a member of that group. Shared by push-event and MR-sync paths.
-    ///     If the merge group name is in <paramref name="untrackedBranches"/>, the user
+    ///     If the merge group name is in <paramref name="untrackedBranches" />, the user
     ///     subscription step is skipped (the user has explicitly opted out of tracking).
-    ///     Logs at Info when the user is newly added, including the provided <paramref name="reason"/>.
+    ///     Logs at Info when the user is newly added, including the provided <paramref name="reason" />.
     /// </summary>
     private void EnsureBranchTracked(
         BranchInProject branchRecord,
@@ -866,7 +878,12 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             return;
         }
 
-        var wasAdded = _mergeGroupRepository.EnsureUserInMergeGroupIfNotUntracked(userId, mergeGroup.Id, mergeGroup.Name);
+        var wasAdded =
+            _mergeGroupRepository.EnsureUserInMergeGroupIfNotUntracked(
+                userId,
+                mergeGroup.Id,
+                mergeGroup.Name);
+
         if (wasAdded)
         {
             _logger.LogInformation(
