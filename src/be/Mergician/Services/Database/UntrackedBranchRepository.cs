@@ -2,6 +2,10 @@ using Dapper;
 
 namespace Mergician.Services.Database;
 
+// TODO Rename this class from `UntrackedBranchRepository` to `IgnoredBranchRepository`. Update all
+// associated code, including interfaces, variables and database table names to use this new
+// naming convention.
+
 public class UntrackedBranchRepository : IUntrackedBranchRepository
 {
     private readonly IDbConnectionFactory _connectionFactory;
@@ -52,6 +56,6 @@ public class UntrackedBranchRepository : IUntrackedBranchRepository
             "SELECT branch_name FROM untracked_branches WHERE user_id = @UserId",
             new { UserId = userId });
 
-        return [..names];
+        return [.. names];
     }
 }
