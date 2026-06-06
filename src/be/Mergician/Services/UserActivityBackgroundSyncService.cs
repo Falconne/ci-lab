@@ -185,22 +185,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             // Phase 3: Continuous polling loop
             while (!ct.IsCancellationRequested)
             {
-                if (_gitLabRecoveryService.IsInGitLabRecoveryMode)
-                {
-                    _logger.LogInformation(
-                        "Sync thread for user {UserId} pausing: GitLab recovery mode is active",
-                        gitLabUserId);
-
-                    while (_gitLabRecoveryService.IsInGitLabRecoveryMode && !ct.IsCancellationRequested)
-                    {
-                        await Task.Delay(TimeSpan.FromSeconds(5), ct);
-                    }
-
-                    _logger.LogInformation(
-                        "Sync thread for user {UserId} resuming after recovery",
-                        gitLabUserId);
-                }
-
+                await EnsureNotInRecoveryMode(gitLabUserId, ct);
                 var userAccessDetails = context.UserAccessDetails;
 
                 if (firstPoll)
@@ -275,6 +260,26 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             _logger.LogInformation(
                 "Background sync thread stopped for user {UserId}",
                 gitLabUserId);
+        }
+    }
+
+    private async Task EnsureNotInRecoveryMode(int userId, CancellationToken cancellationToken)
+    {
+        if (_gitLabRecoveryService.IsInGitLabRecoveryMode)
+        {
+            _logger.LogInformation(
+                "Sync thread for user {UserId} pausing: GitLab recovery mode is active",
+                userId);
+
+            while (_gitLabRecoveryService.IsInGitLabRecoveryMode
+                   && !cancellationToken.IsCancellationRequested)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+            }
+
+            _logger.LogInformation(
+                "Sync thread for user {UserId} resuming after recovery",
+                userId);
         }
     }
 
@@ -379,6 +384,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             }
 
             var branchRecord = _mergeGroupRepository.GetOrCreateBranchRecord(pushEvent.BranchName, project);
+
             EnsureBranchTracked(
                 branchRecord,
                 pushEvent.BranchName,
@@ -409,7 +415,6 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
         try
         {
             await FetchNewUserActivityFromGitLab(userAccessDetails, since, ct);
-
             _logger.LogInformation("Backfill completed for user {UserId}", gitLabUserId);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
