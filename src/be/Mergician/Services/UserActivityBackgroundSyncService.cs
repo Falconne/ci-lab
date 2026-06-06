@@ -133,7 +133,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             CancellationTokenSource.CreateLinkedTokenSource(_globalCts?.Token ?? CancellationToken.None);
 
         var started = context.StartSyncIfNotRunning(
-            () => RunUserSync(userId, context, linkedCts.Token),
+            () => RunUserActivitySync(userId, context, linkedCts.Token),
             _logger,
             _globalCts?.Token);
 
@@ -147,7 +147,10 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
         }
     }
 
-    private async Task RunUserSync(int gitLabUserId, UserActivitySyncContext context, CancellationToken ct)
+    private async Task RunUserActivitySync(
+        int gitLabUserId,
+        UserActivitySyncContext context,
+        CancellationToken ct)
     {
         try
         {
@@ -168,8 +171,12 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                 _logger.LogInformation("Sync thread for user {UserId} resuming after recovery", gitLabUserId);
             }
 
-            // Phase 1: Sync branches from existing open MRs created by the user
-            await SyncExistingMergeRequests(context.AccessDetailsForUser, ct);
+            // Since we only monitor for activity of users who are actively using the Mergician UI,
+            // we must backfill data since the last time the user was active on Mergician before
+            // going into regular monitoring mode.
+
+            // Phase 1: Backfill from existing open MRs created by the user
+            await BackfillFromExistingMergeRequests(context.AccessDetailsForUser, ct);
 
             // Phase 2: Backfill from the user's last known activity or 14 days
             await BackfillUserActivity(gitLabUserId, context, ct);
@@ -421,10 +428,9 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
 
     /// <summary>
     ///     Fetches all open merge requests created by the user from GitLab and associates
-    ///     any untracked branches with this user's merge groups. This runs before the activity
-    ///     backfill so that MRs created on machines where the user has not pushed are also discovered.
+    ///     any untracked branches with this user's merge groups.
     /// </summary>
-    private async Task SyncExistingMergeRequests(
+    private async Task BackfillFromExistingMergeRequests(
         AccessDetailsForUser accessDetails,
         CancellationToken ct)
     {
