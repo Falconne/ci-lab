@@ -9,7 +9,7 @@ namespace Mergician.Services;
 /// </summary>
 public class UserActivitySyncContext
 {
-    private readonly ReaderWriterLockSlim _accessUserLock = new(LockRecursionPolicy.NoRecursion);
+    private readonly ReaderWriterLockSlim _accessLock = new(LockRecursionPolicy.NoRecursion);
 
     private readonly Lock _startLock = new();
 
@@ -34,14 +34,14 @@ public class UserActivitySyncContext
     {
         get
         {
-            _accessUserLock.EnterReadLock();
+            _accessLock.EnterReadLock();
             try
             {
                 return _accessDetailsForUser;
             }
             finally
             {
-                _accessUserLock.ExitReadLock();
+                _accessLock.ExitReadLock();
             }
         }
     }
@@ -86,14 +86,14 @@ public class UserActivitySyncContext
     /// </summary>
     public void UpdateActivity(AccessDetailsForUser accessDetails)
     {
-        _accessUserLock.EnterWriteLock();
+        _accessLock.EnterWriteLock();
         try
         {
             _accessDetailsForUser = accessDetails;
         }
         finally
         {
-            _accessUserLock.ExitWriteLock();
+            _accessLock.ExitWriteLock();
         }
 
         RecordPollTime();
