@@ -13,13 +13,13 @@ public class UserActivitySyncContext
 
     public readonly object StartLock = new();
 
-    private AccessDetailsForUser _accessUser;
+    private AccessDetailsForUser _accessDetailsForUser;
 
     private long _lastPollTicks = DateTimeOffset.UtcNow.UtcTicks;
 
-    public UserActivitySyncContext(AccessDetailsForUser accessUser)
+    public UserActivitySyncContext(AccessDetailsForUser accessDetailsForUser)
     {
-        _accessUser = accessUser;
+        _accessDetailsForUser = accessDetailsForUser;
     }
 
     public CancellationTokenSource? Cts { get; set; }
@@ -30,14 +30,14 @@ public class UserActivitySyncContext
     ///     The user's latest access token for GitLab API calls.
     ///     Updated on each incoming request so the background thread always uses a fresh token.
     /// </summary>
-    public AccessDetailsForUser AccessUser
+    public AccessDetailsForUser AccessDetailsForUser
     {
         get
         {
             _accessUserLock.EnterReadLock();
             try
             {
-                return _accessUser;
+                return _accessDetailsForUser;
             }
             finally
             {
@@ -66,7 +66,7 @@ public class UserActivitySyncContext
         _accessUserLock.EnterWriteLock();
         try
         {
-            _accessUser = accessDetails;
+            _accessDetailsForUser = accessDetails;
         }
         finally
         {

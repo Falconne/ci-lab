@@ -168,7 +168,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             }
 
             // Phase 1: Sync branches from existing open MRs created by the user
-            await SyncExistingMergeRequests(context.AccessUser, ct);
+            await SyncExistingMergeRequests(context.AccessDetailsForUser, ct);
 
             // Phase 2: Backfill from the user's last known activity or 14 days
             await BackfillUserActivity(gitLabUserId, context, ct);
@@ -193,7 +193,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                         gitLabUserId);
                 }
 
-                var accessUser = context.AccessUser;
+                var accessUser = context.AccessDetailsForUser;
 
                 if (firstPoll)
                 {
@@ -384,7 +384,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
         UserActivitySyncContext context,
         CancellationToken ct)
     {
-        var accessUser = context.AccessUser;
+        var accessUser = context.AccessDetailsForUser;
 
         var since = DateTimeOffset.UtcNow.Subtract(_maxActivityLookback);
         _logger.LogInformation(
