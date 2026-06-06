@@ -1,8 +1,8 @@
-using System.Data;
 using Dapper;
 using Mergician.Entities;
 using Mergician.Entities.Database;
 using Mergician.Services.Time;
+using System.Data;
 
 namespace Mergician.Services.Database;
 
@@ -145,47 +145,6 @@ public class MergeGroupRepository : IMergeGroupRepository
         }
 
         return rowsAffected > 0;
-    }
-
-    public bool EnsureUserInMergeGroupIfNotUntracked(int gitlabUserId, int mergeGroupId, string branchName)
-    {
-        using var connection = _connectionFactory.CreateConnection();
-        connection.Open();
-
-        var inserted = connection.ExecuteScalar<int>(
-            """
-            WITH inserted AS (
-                INSERT INTO users_in_merge_groups (gitlab_user_id, merge_group_id)
-                SELECT @GitlabUserId, @MergeGroupId
-                WHERE NOT EXISTS (
-                    SELECT 1 FROM ignored_branches
-                    WHERE user_id = @GitlabUserId AND branch_name = @BranchName
-                )
-                ON CONFLICT (gitlab_user_id, merge_group_id) DO NOTHING
-                RETURNING 1
-            )
-            SELECT COUNT(*) FROM inserted
-            """,
-            new { GitlabUserId = gitlabUserId, MergeGroupId = mergeGroupId, BranchName = branchName });
-
-        if (inserted > 0)
-        {
-            _logger.LogDebug(
-                "User {UserId} newly added to merge group {MergeGroupId} (branch '{BranchName}' not untracked)",
-                gitlabUserId,
-                mergeGroupId,
-                branchName);
-        }
-        else
-        {
-            _logger.LogDebug(
-                "Skipped subscribing user {UserId} to merge group {MergeGroupId}: branch '{BranchName}' is untracked or user already subscribed",
-                gitlabUserId,
-                mergeGroupId,
-                branchName);
-        }
-
-        return inserted > 0;
     }
 
     public List<MergeGroup> GetMergeGroupsForUser(int gitlabUserId)
@@ -393,7 +352,7 @@ public class MergeGroupRepository : IMergeGroupRepository
                 ON CONFLICT (branch_in_project_id, name) DO UPDATE SET status = EXCLUDED.status, url = EXCLUDED.url
                 """,
                 update.BuildJobs.Select(j => new
-                    { BranchInProjectId = branchInProjectId, j.Name, j.Status, j.Url }),
+                { BranchInProjectId = branchInProjectId, j.Name, j.Status, j.Url }),
                 transaction);
         }
 
@@ -715,7 +674,9 @@ public class MergeGroupRepository : IMergeGroupRepository
             """,
             new
             {
-                BranchId = branchId, NeedsRebase = needsRebase, MrStatus = mrStatus,
+                BranchId = branchId,
+                NeedsRebase = needsRebase,
+                MrStatus = mrStatus,
                 MrStatusReasons = mrStatusReasons
             });
 

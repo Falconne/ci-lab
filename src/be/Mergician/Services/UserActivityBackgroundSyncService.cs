@@ -879,11 +879,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                 mergeGroup.Id);
         }
 
-        var wasAdded =
-            _mergeGroupRepository.EnsureUserInMergeGroupIfNotUntracked(
-                userId,
-                mergeGroup.Id,
-                mergeGroup.Name);
+        var wasAdded = _mergeGroupRepository.EnsureUserInMergeGroup(userId, mergeGroup.Id);
 
         if (wasAdded)
         {
