@@ -39,7 +39,9 @@ public class DatabaseSettings
             $"Host={Host};Port={Port};Username={Username};Password={Password};Database={database};Include Error Detail=true");
 
         if (SslMode.IsNotEmpty())
+        {
             sb.Append($";SslMode={SslMode}");
+        }
 
         return sb.ToString();
     }

@@ -1,10 +1,9 @@
+using System.Collections.Concurrent;
+using System.Text.Json;
 using Mergician.Entities;
-using Mergician.Services;
 using Mergician.Services.Authentication;
 using Mergician.Services.Database;
 using Mergician.Services.GitLab;
-using System.Collections.Concurrent;
-using System.Text.Json;
 using Util;
 
 namespace Mergician.Services.AutoMerge;
@@ -43,18 +42,18 @@ public class AutoMergeService : BackgroundService
 
     private readonly IMergeGroupRepository _mergeGroupRepository;
 
-    private readonly IMonitoredProjectRepository _monitoredProjectRepository;
+    /// <summary>Per-group retry state: tracks next allowed merge attempt time and current backoff.</summary>
+    private readonly ConcurrentDictionary<int, MergeGroupRetryState> _mergeGroupRetryState = new();
 
     private readonly IMergeQueueRepository _mergeQueueRepository;
 
     private readonly MergeQueueService _mergeQueueService;
 
+    private readonly IMonitoredProjectRepository _monitoredProjectRepository;
+
     private readonly MergicianSettings _settings;
 
     private readonly GitLabUserFactory _userFactory;
-
-    /// <summary>Per-group retry state: tracks next allowed merge attempt time and current backoff.</summary>
-    private readonly ConcurrentDictionary<int, MergeGroupRetryState> _mergeGroupRetryState = new();
 
     public AutoMergeService(
         AutoMergeGitLabApiService apiService,
@@ -133,6 +132,7 @@ public class AutoMergeService : BackgroundService
                     "AutoMergeService: cycle completed in {ElapsedMs}ms, waiting {RemainingMs}ms before next cycle",
                     (int)elapsed.TotalMilliseconds,
                     (int)remaining.TotalMilliseconds);
+
                 await Task.Delay(remaining, stoppingToken);
             }
         }
@@ -258,7 +258,12 @@ public class AutoMergeService : BackgroundService
                 branchMergeRequestDetails,
                 cancellationToken);
 
-            await ProcessAutoMerge(serviceUser, group, branchMergeRequestDetails, intraGroupBlockedBranchIds, cancellationToken);
+            await ProcessAutoMerge(
+                serviceUser,
+                group,
+                branchMergeRequestDetails,
+                intraGroupBlockedBranchIds,
+                cancellationToken);
         }
     }
 
@@ -328,6 +333,7 @@ public class AutoMergeService : BackgroundService
                         "AutoMergeService: rebase completed for branch '{BranchName}' in project {ProjectId}",
                         branch.BranchName,
                         branch.ProjectId);
+
                     break;
                 }
 
@@ -346,6 +352,7 @@ public class AutoMergeService : BackgroundService
                     _rebaseCheckTimeout.TotalSeconds,
                     branch.BranchName,
                     branch.ProjectId);
+
                 continue;
             }
 
@@ -449,9 +456,10 @@ public class AutoMergeService : BackgroundService
         if (group.AutoMergeByLabel)
         {
             var monitoredProjectIds = _monitoredProjectRepository.GetAllProjectIds().ToHashSet();
-            var hasLabel = branchMergeRequestDetails.Any(
-                x => monitoredProjectIds.Contains(x.Branch.ProjectId)
-                    && x.MergeRequest.Labels.Contains(MonitoredProjectsService.AutoMergeLabel, StringComparer.OrdinalIgnoreCase));
+            var hasLabel = branchMergeRequestDetails.Any(x => monitoredProjectIds.Contains(x.Branch.ProjectId)
+                                                              && x.MergeRequest.Labels.Contains(
+                                                                  MonitoredProjectsService.AutoMergeLabel,
+                                                                  StringComparer.OrdinalIgnoreCase));
 
             if (!hasLabel)
             {
@@ -479,7 +487,8 @@ public class AutoMergeService : BackgroundService
         // Only merge branches whose intra-group prerequisites have not yet been merged.
         // Blocked branches wait for subsequent cycles once their prerequisites land.
         var branchesToMergeNow = preComputedIntraGroupBlockedIds.Count > 0
-            ? branchMergeRequestDetails.Where(x => !preComputedIntraGroupBlockedIds.Contains(x.Branch.Id)).ToList()
+            ? branchMergeRequestDetails.Where(x => !preComputedIntraGroupBlockedIds.Contains(x.Branch.Id))
+                .ToList()
             : branchMergeRequestDetails;
 
         if (branchesToMergeNow.Count == 0)
@@ -544,13 +553,16 @@ public class AutoMergeService : BackgroundService
 
         // Persist per-branch merge errors and clear them for succeeded branches.
         foreach (var (branch, _, _) in succeeded)
+        {
             _mergeGroupRepository.SetMergeError(branch.Id, null);
+        }
 
         foreach (var (branch, _, result) in failed)
         {
             var errorMsg = result.IsPermissionDenied
                 ? "Auto merge failed: insufficient permissions"
                 : "Auto merge failed";
+
             _mergeGroupRepository.SetMergeError(branch.Id, errorMsg);
         }
 
@@ -568,7 +580,9 @@ public class AutoMergeService : BackgroundService
             {
                 var hasPriorState = _mergeGroupRetryState.TryGetValue(group.Id, out var current);
                 // Reset exponential backoff when transitioning away from a permission-denied failure.
-                var currentBackoff = hasPriorState && !current!.IsPermissionDenied ? current.Backoff : TimeSpan.Zero;
+                var currentBackoff = hasPriorState && !current!.IsPermissionDenied
+                    ? current.Backoff
+                    : TimeSpan.Zero;
 
                 nextBackoff = currentBackoff == TimeSpan.Zero
                     ? _mergeBackoffInitial
@@ -576,7 +590,10 @@ public class AutoMergeService : BackgroundService
                         Math.Min(currentBackoff.TotalSeconds * 2, _mergeBackoffMax.TotalSeconds));
             }
 
-            _mergeGroupRetryState[group.Id] = new MergeGroupRetryState(DateTimeOffset.UtcNow + nextBackoff, nextBackoff, permissionDenied);
+            _mergeGroupRetryState[group.Id] = new MergeGroupRetryState(
+                DateTimeOffset.UtcNow + nextBackoff,
+                nextBackoff,
+                permissionDenied);
 
             _logger.LogInformation(
                 "AutoMergeService: merge group '{MergeGroupName}' scheduled for retry in {Backoff}s (permissionDenied={PermissionDenied})",
@@ -679,7 +696,9 @@ public class AutoMergeService : BackgroundService
                 branch.ProjectId,
                 mr.DetailedMergeStatus);
 
-            reasons.Add($"{branchLabel}: {MRStatusCalculator.FormatDetailedMergeStatus(mr.DetailedMergeStatus ?? "unknown")}");
+            reasons.Add(
+                $"{branchLabel}: {MRStatusCalculator.FormatDetailedMergeStatus(mr.DetailedMergeStatus ?? "unknown")}");
+
             return false;
         }
 
@@ -705,7 +724,9 @@ public class AutoMergeService : BackgroundService
         foreach (var (branch, mr) in branchMergeRequestDetails)
         {
             if (mr.DetailedMergeStatus != "blocked_status")
+            {
                 continue;
+            }
 
             var blockingMRs = await _gitLabService.GetBlockingMergeRequests(
                 serviceUser,
@@ -736,7 +757,9 @@ public class AutoMergeService : BackgroundService
             }
             else
             {
-                var externalBlockers = blockingMRs.Where(b => !groupMRKeys.Contains((b.ProjectId, b.Iid))).ToList();
+                var externalBlockers = blockingMRs.Where(b => !groupMRKeys.Contains((b.ProjectId, b.Iid)))
+                    .ToList();
+
                 _logger.LogInformation(
                     "AutoMergeService: branch '{BranchName}' in project {ProjectId} is blocked by {Count} external MR(s): {Titles}",
                     branch.BranchName,
@@ -764,7 +787,8 @@ public class AutoMergeService : BackgroundService
                                      || mr.HasConflicts
                                      || mr.DetailedMergeStatus == "need_rebase";
 
-            var (currentMrStatus, currentReasons) = MRStatusCalculator.Calculate(true, mr.DetailedMergeStatus);
+            var (currentMrStatus, currentReasons) =
+                MRStatusCalculator.Calculate(true, mr.DetailedMergeStatus);
 
             // Apply the same merge-error override that the sync service uses, so a pending merge
             // error is not silently cleared by this reconciliation.
@@ -818,5 +842,8 @@ public class AutoMergeService : BackgroundService
         }
     }
 
-    private record MergeGroupRetryState(DateTimeOffset RetryAfter, TimeSpan Backoff, bool IsPermissionDenied = false);
+    private record MergeGroupRetryState(
+        DateTimeOffset RetryAfter,
+        TimeSpan Backoff,
+        bool IsPermissionDenied = false);
 }

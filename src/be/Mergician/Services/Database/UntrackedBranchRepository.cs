@@ -1,14 +1,16 @@
 using Dapper;
-using Mergician.Services.Database;
 
 namespace Mergician.Services.Database;
 
 public class UntrackedBranchRepository : IUntrackedBranchRepository
 {
     private readonly IDbConnectionFactory _connectionFactory;
+
     private readonly ILogger<UntrackedBranchRepository> _logger;
 
-    public UntrackedBranchRepository(IDbConnectionFactory connectionFactory, ILogger<UntrackedBranchRepository> logger)
+    public UntrackedBranchRepository(
+        IDbConnectionFactory connectionFactory,
+        ILogger<UntrackedBranchRepository> logger)
     {
         _connectionFactory = connectionFactory;
         _logger = logger;
@@ -30,7 +32,11 @@ public class UntrackedBranchRepository : IUntrackedBranchRepository
 
     public async Task RemoveUntrackedBranch(int userId, string branchName)
     {
-        _logger.LogDebug("Removing untracked status for branch '{BranchName}' for user {UserId}", branchName, userId);
+        _logger.LogDebug(
+            "Removing untracked status for branch '{BranchName}' for user {UserId}",
+            branchName,
+            userId);
+
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();
         await connection.ExecuteAsync(
@@ -45,6 +51,7 @@ public class UntrackedBranchRepository : IUntrackedBranchRepository
         var names = await connection.QueryAsync<string>(
             "SELECT branch_name FROM untracked_branches WHERE user_id = @UserId",
             new { UserId = userId });
+
         return [..names];
     }
 }

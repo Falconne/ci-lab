@@ -1,6 +1,5 @@
 using System.Text.Json;
 using IntegrationTest;
-using IntegrationTest.Services;
 using IntegrationTest.Tests;
 using PlaywrightService;
 using Serilog;
@@ -42,7 +41,9 @@ async Task RunTest(string name, Func<Task> testFn)
         Log.Error("FAIL: {Name} - {Error}", name, ex.Message);
         allPassed = false;
         if (abortOnFirstFailure)
+        {
             throw;
+        }
     }
 }
 

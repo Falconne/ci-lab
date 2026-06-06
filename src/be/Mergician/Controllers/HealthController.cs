@@ -37,5 +37,8 @@ public class HealthController : ControllerBase
     ///     Use as a Kubernetes liveness probe target.
     /// </summary>
     [HttpGet("live")]
-    public ActionResult Live() => Ok(new { status = "alive" });
+    public ActionResult Live()
+    {
+        return Ok(new { status = "alive" });
+    }
 }

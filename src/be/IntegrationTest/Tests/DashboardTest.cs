@@ -161,7 +161,7 @@ public class DashboardTest
 
     /// <summary>
     ///     Waits for the dashboard data to load via polling (cards appear and MR data
-    ///     is resolved through the refresh cycle). If <paramref name="expectedGroupStatuses"/>
+    ///     is resolved through the refresh cycle). If <paramref name="expectedGroupStatuses" />
     ///     is provided, additionally waits until every listed branch shows the expected
     ///     status badge. Parses the rendered cards into <see cref="_parsedCards" /> for assertion.
     /// </summary>
@@ -190,7 +190,7 @@ public class DashboardTest
             var statusesReached = await DashboardWaitHelper.WaitForGroupStatuses(
                 _browser.Page,
                 expectedGroupStatuses,
-                timeoutSeconds: 360);
+                360);
 
             if (!statusesReached)
             {
@@ -245,7 +245,9 @@ public class DashboardTest
         {
             var name = await allRows.Nth(i).GetAttributeAsync("data-mg-name") ?? "";
             if (!string.IsNullOrEmpty(name) && !branchNames.Contains(name))
+            {
                 branchNames.Add(name);
+            }
         }
 
         foreach (var branchName in branchNames)
@@ -266,7 +268,10 @@ public class DashboardTest
                 var row = branchRows.Nth(j);
 
                 var projectEl = row.Locator(".project-name");
-                if (await projectEl.CountAsync() == 0) continue;
+                if (await projectEl.CountAsync() == 0)
+                {
+                    continue;
+                }
 
                 var repo = (await projectEl.InnerTextAsync()).Trim();
                 var projectTooltip = (await projectEl.GetAttributeAsync("title"))?.Trim() ?? "";
@@ -274,12 +279,16 @@ public class DashboardTest
                 var mergeRequestTitle = "";
                 var mrTitleEl = row.Locator(".col-mr .mr-title");
                 if (await mrTitleEl.CountAsync() > 0)
+                {
                     mergeRequestTitle = (await mrTitleEl.InnerTextAsync()).Trim();
+                }
 
                 var noMergeRequestText = "";
                 var noMrEl = row.Locator(".col-mr .no-mr-text");
                 if (await noMrEl.CountAsync() > 0)
+                {
                     noMergeRequestText = (await noMrEl.InnerTextAsync()).Trim();
+                }
 
                 var approvalEl = row.Locator(".approvals-cell");
                 var approvals = "";
@@ -356,7 +365,9 @@ public class DashboardTest
 
         if (expectedMergeRequestTitle != null)
         {
-            if (!item.MergeRequestTitle.Contains(expectedMergeRequestTitle, StringComparison.OrdinalIgnoreCase))
+            if (!item.MergeRequestTitle.Contains(
+                    expectedMergeRequestTitle,
+                    StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidOperationException(
                     $"Branch '{branchName}' repo '{repoContains}': expected MR title '{expectedMergeRequestTitle}', got '{item.MergeRequestTitle}'");
@@ -374,7 +385,9 @@ public class DashboardTest
 
         if (expectedNoMergeRequestText != null)
         {
-            if (!item.NoMergeRequestText.Contains(expectedNoMergeRequestText, StringComparison.OrdinalIgnoreCase))
+            if (!item.NoMergeRequestText.Contains(
+                    expectedNoMergeRequestText,
+                    StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidOperationException(
                     $"Branch '{branchName}' repo '{repoContains}': expected no-MR text '{expectedNoMergeRequestText}', got '{item.NoMergeRequestText}'");
@@ -543,6 +556,7 @@ public class DashboardTest
             var mergeRequestRow = repoCard.Locator(".detail-row")
                 .Filter(new LocatorFilterOptions { HasTextString = "Merge Request" })
                 .First;
+
             var legacyLink = mergeRequestRow.Locator(".detail-link").First;
             mergeRequestText = await legacyLink.CountAsync() > 0
                 ? (await legacyLink.InnerTextAsync()).Trim()
@@ -643,14 +657,18 @@ public class DashboardTest
 
                 var hasMergeRequestLink = await mergeRequestRow.Locator(".detail-link").CountAsync() > 0;
                 var hasCreateMrButton = await mergeRequestRow.Locator(".v-btn").CountAsync() > 0;
-                var hasNoMergeRequestText = await mergeRequestRow.Locator(".text-medium-emphasis").CountAsync() > 0;
+                var hasNoMergeRequestText =
+                    await mergeRequestRow.Locator(".text-medium-emphasis").CountAsync() > 0;
+
                 var noMergeRequestText = hasNoMergeRequestText
                     ? (await mergeRequestRow.Locator(".text-medium-emphasis").InnerTextAsync()).Trim()
                     : "";
 
                 isResolved = hasMergeRequestLink
                              || hasCreateMrButton
-                             || noMergeRequestText.Contains("No Merge Request", StringComparison.OrdinalIgnoreCase);
+                             || noMergeRequestText.Contains(
+                                 "No Merge Request",
+                                 StringComparison.OrdinalIgnoreCase);
             }
 
             // Also check that all cards have resolved (not showing skeleton/loading state)
@@ -663,7 +681,9 @@ public class DashboardTest
 
                     // A card is still loading if the MR title area shows a skeleton, or if the
                     // legacy "Merge Request" detail row (shown when there's no MR) contains "Resolving...".
-                    var cardHasMrTitle = await card.Locator(".mr-title-link, .mr-title-text").CountAsync() > 0;
+                    var cardHasMrTitle =
+                        await card.Locator(".mr-title-link, .mr-title-text").CountAsync() > 0;
+
                     if (cardHasMrTitle)
                     {
                         // MR title present in header — resolved.

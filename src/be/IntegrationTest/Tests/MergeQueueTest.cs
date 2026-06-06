@@ -1,4 +1,3 @@
-using IntegrationTest.Entities;
 using IntegrationTest.Services;
 using Microsoft.Playwright;
 using PlaywrightService;
@@ -9,11 +8,10 @@ namespace IntegrationTest.Tests;
 /// <summary>
 ///     Tests the merge queue system end-to-end:
 ///     - Two merge groups sharing a repo are assigned to the same queue when
-///       both have auto_merge enabled and no hard blockers.
+///     both have auto_merge enabled and no hard blockers.
 ///     - The Queues page shows queue position badges and the correct card order.
 ///     - The merge group details page shows a clickable queue position link.
 ///     - The queue link navigates back to the Queues page.
-///
 ///     Pipeline statuses are held at "running" to keep MGs queue-eligible while
 ///     preventing premature merges during verification.
 /// </summary>
@@ -64,10 +62,16 @@ public class MergeQueueTest
             _gitLab.CreateBranchWithCommit(projectId, branchB, "test1");
 
             mrIidA = _gitLab.CreateMergeRequest(
-                projectId, branchA, "test1", $"Queue test A ({timestamp})");
+                projectId,
+                branchA,
+                "test1",
+                $"Queue test A ({timestamp})");
 
             mrIidB = _gitLab.CreateMergeRequest(
-                projectId, branchB, "test1", $"Queue test B ({timestamp})");
+                projectId,
+                branchB,
+                "test1",
+                $"Queue test B ({timestamp})");
 
             Log.Information(
                 "Created MRs: project {P} MR-A !{A}, MR-B !{B}",
@@ -149,6 +153,7 @@ public class MergeQueueTest
             var nextInQueueBadges = _browser.Page
                 .Locator(".queue-position-badge")
                 .Filter(new LocatorFilterOptions { HasText = "Next in queue" });
+
             var nextCount = await nextInQueueBadges.CountAsync();
             Log.Information("'Next in queue' badges: {Count}", nextCount);
 
@@ -167,6 +172,7 @@ public class MergeQueueTest
             var queuesTab = _browser.Page
                 .Locator(".nav-tabs .v-tab")
                 .Filter(new LocatorFilterOptions { HasText = "Queues" });
+
             var tabCount = await queuesTab.CountAsync();
             Log.Information("Queues nav tab found: {Count}", tabCount);
 
@@ -183,11 +189,16 @@ public class MergeQueueTest
 
             for (var i = 0; i < 15; i++)
             {
-                if (await queueSectionHeaders.CountAsync() > 0) break;
+                if (await queueSectionHeaders.CountAsync() > 0)
+                {
+                    break;
+                }
+
                 if (i % 5 == 0)
                 {
                     Log.Information("Waiting for queue section header containing 'primary'... {Seconds}s", i);
                 }
+
                 await Task.Delay(1000);
             }
 
@@ -231,7 +242,9 @@ public class MergeQueueTest
             }
 
             // Verify the first entry shows a queue-position badge indicating it is next
-            var firstQueueBadge = _browser.Page.Locator(".grid-row[data-mg-name] .queue-position-badge").First;
+            var firstQueueBadge =
+                _browser.Page.Locator(".grid-row[data-mg-name] .queue-position-badge").First;
+
             var queueBadgeCount = await firstQueueBadge.CountAsync();
             Log.Information("Queue position badge on first row: {Count}", queueBadgeCount);
 
@@ -299,8 +312,16 @@ public class MergeQueueTest
         finally
         {
             Log.Information("Cleaning up merge queue test data...");
-            if (mrIidA > 0) _gitLab.CloseMergeRequest(projectId, mrIidA);
-            if (mrIidB > 0) _gitLab.CloseMergeRequest(projectId, mrIidB);
+            if (mrIidA > 0)
+            {
+                _gitLab.CloseMergeRequest(projectId, mrIidA);
+            }
+
+            if (mrIidB > 0)
+            {
+                _gitLab.CloseMergeRequest(projectId, mrIidB);
+            }
+
             _gitLab.DeleteBranch(projectId, branchA);
             _gitLab.DeleteBranch(projectId, branchB);
         }
@@ -486,7 +507,11 @@ public class MergeQueueTest
         var enabledDeadline = DateTime.UtcNow.AddSeconds(15);
         while (DateTime.UtcNow < enabledDeadline)
         {
-            if (await switchInput.IsEnabledAsync()) break;
+            if (await switchInput.IsEnabledAsync())
+            {
+                break;
+            }
+
             await Task.Delay(300);
         }
 

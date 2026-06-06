@@ -14,9 +14,9 @@ public static class LoginHelper
     private static string? _currentUser;
 
     /// <summary>
-    ///     Full OAuth login: clears cookies, authenticates as <paramref name="username"/>,
+    ///     Full OAuth login: clears cookies, authenticates as <paramref name="username" />,
     ///     navigates to the dashboard and waits for it to fully load.
-    ///     Updates <see cref="_currentUser"/> on success.
+    ///     Updates <see cref="_currentUser" /> on success.
     /// </summary>
     public static async Task LoginAndWaitForDashboard(BrowserService browser, string username)
     {
@@ -35,8 +35,8 @@ public static class LoginHelper
 
     /// <summary>
     ///     Navigates to the dashboard and waits for it to fully load, reusing the existing
-    ///     session when the current user already matches <paramref name="username"/>.
-    ///     Falls back to a full <see cref="LoginAndWaitForDashboard"/> when the session
+    ///     session when the current user already matches <paramref name="username" />.
+    ///     Falls back to a full <see cref="LoginAndWaitForDashboard" /> when the session
     ///     has expired or belongs to a different user.
     /// </summary>
     public static async Task EnsureLoggedIn(BrowserService browser, string username)
@@ -55,7 +55,10 @@ public static class LoginHelper
                 return;
             }
 
-            Log.Warning("Expected active session for '{Username}' but login page shown; re-authenticating", username);
+            Log.Warning(
+                "Expected active session for '{Username}' but login page shown; re-authenticating",
+                username);
+
             _currentUser = null;
         }
 

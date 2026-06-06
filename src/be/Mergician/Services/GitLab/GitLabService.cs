@@ -1,7 +1,7 @@
-using Mergician.Entities;
-using Mergician.Services.Authentication;
 using System.Net;
 using System.Runtime.CompilerServices;
+using Mergician.Entities;
+using Mergician.Services.Authentication;
 using Util;
 
 namespace Mergician.Services.GitLab;
@@ -324,7 +324,7 @@ public class GitLabService
                         $"projects/{projectId}/merge_requests?source_branch={encodedBranch}&state=opened"),
                 cancellationToken);
         }
-        catch (GitLabUnexpectedResponseException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        catch (GitLabUnexpectedResponseException ex) when (ex.StatusCode == HttpStatusCode.Unauthorized)
         {
             throw;
         }
@@ -362,7 +362,7 @@ public class GitLabService
                 () => accessDetails.CreateRequest(url),
                 cancellationToken);
         }
-        catch (GitLabUnexpectedResponseException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        catch (GitLabUnexpectedResponseException ex) when (ex.StatusCode == HttpStatusCode.Unauthorized)
         {
             throw;
         }
@@ -416,7 +416,11 @@ public class GitLabService
                 projectId,
                 mergeRequestIid);
 
-            return await GetApprovalCountsFallback(accessDetails, projectId, mergeRequestIid, cancellationToken);
+            return await GetApprovalCountsFallback(
+                accessDetails,
+                projectId,
+                mergeRequestIid,
+                cancellationToken);
         }
         catch (GitLabUnexpectedResponseException ex)
         {
@@ -632,7 +636,9 @@ public class GitLabService
             return result;
         }
         catch (GitLabUnexpectedResponseException ex) when (
-            ex.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+            ex.StatusCode is HttpStatusCode.NotFound
+                or HttpStatusCode.Unauthorized
+                or HttpStatusCode.Forbidden)
         {
             _logger.LogInformation(
                 "GetBlockingMergeRequests not available for project {ProjectId}, MR {MergeRequestIid} (status {StatusCode}); feature may require GitLab Premium",

@@ -1,7 +1,7 @@
+using IntegrationTest.Services;
 using Microsoft.Playwright;
 using PlaywrightService;
 using Serilog;
-using IntegrationTest.Services;
 
 namespace IntegrationTest.Tests;
 

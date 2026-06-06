@@ -1,6 +1,6 @@
+using System.Text.RegularExpressions;
 using Mergician.Entities;
 using Mergician.Services.Authentication;
-using System.Text.RegularExpressions;
 using Util;
 
 namespace Mergician.Services.GitLab;
@@ -49,7 +49,11 @@ public partial class MergeRequestLookupService
             return null;
         }
 
-        _logger.LogDebug("Parsed MR URL: projectPath={ProjectPath}, mergeRequestIid={MergeRequestIid}", projectPath, mergeRequestIid);
+        _logger.LogDebug(
+            "Parsed MR URL: projectPath={ProjectPath}, mergeRequestIid={MergeRequestIid}",
+            projectPath,
+            mergeRequestIid);
+
         return new ParsedMergeRequestUrl(projectPath, mergeRequestIid);
     }
 

@@ -1,5 +1,4 @@
 using Mergician.Entities;
-using Mergician.Entities.Database;
 
 namespace Mergician.Services.Database;
 
@@ -11,7 +10,10 @@ public record MergeQueueEntryInfo(int QueueId, int MergeGroupId, int Position);
 /// <summary>
 ///     Summary of a merge queue returned by <see cref="IMergeQueueRepository.GetAllQueues" />.
 /// </summary>
-public record MergeQueueInfo(int QueueId, IReadOnlyList<int> ProjectIds, IReadOnlyList<MergeQueueEntryInfo> Entries);
+public record MergeQueueInfo(
+    int QueueId,
+    IReadOnlyList<int> ProjectIds,
+    IReadOnlyList<MergeQueueEntryInfo> Entries);
 
 /// <summary>
 ///     Repository interface for merge-queue management.
@@ -36,8 +38,10 @@ public interface IMergeQueueRepository
     ///     <list type="bullet">
     ///         <item>If no queue shares any project → creates a new queue.</item>
     ///         <item>If one queue shares projects → appends to that queue and unions project keys.</item>
-    ///         <item>If multiple queues share projects → interleaves (zips) all of them into one,
-    ///         appends the new group, and deletes the old queues.</item>
+    ///         <item>
+    ///             If multiple queues share projects → interleaves (zips) all of them into one,
+    ///             appends the new group, and deletes the old queues.
+    ///         </item>
     ///     </list>
     ///     No-ops if the merge group is already in a queue.
     /// </summary>

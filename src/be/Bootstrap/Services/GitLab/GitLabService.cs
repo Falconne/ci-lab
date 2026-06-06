@@ -841,7 +841,8 @@ public class GitLabService : IDisposable
         string userToken,
         bool draft = false)
     {
-        Log.Information($"Creating MR '{title}' in project {projectId}: {sourceBranch} -> {targetBranch} (draft={draft})");
+        Log.Information(
+            $"Creating MR '{title}' in project {projectId}: {sourceBranch} -> {targetBranch} (draft={draft})");
 
         // Use a user-scoped client to create MR as that user
         using var userClient = CreateUserClient(userToken);
@@ -862,7 +863,7 @@ public class GitLabService : IDisposable
             if (draft && !existing.Draft && !existing.WorkInProgress)
             {
                 Log.Information($"Existing MR !{existing.Iid} is not draft; updating to draft");
-                await SetMergeRequestDraft(projectId, existing.Iid, userToken, isDraft: true);
+                await SetMergeRequestDraft(projectId, existing.Iid, userToken, true);
             }
 
             return existing;
@@ -870,14 +871,20 @@ public class GitLabService : IDisposable
 
         var effectiveTitle = draft ? $"Draft: {title}" : title;
         var createRequest = new RestRequest($"projects/{projectId}/merge_requests", Method.Post)
-            .AddJsonBody(new { source_branch = sourceBranch, target_branch = targetBranch, title = effectiveTitle, draft });
+            .AddJsonBody(
+                new
+                {
+                    source_branch = sourceBranch, target_branch = targetBranch, title = effectiveTitle, draft
+                });
 
         var createResponse = await userClient.ExecutePostAsync<GitLabMergeRequest>(createRequest);
 
         if (createResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created
             && createResponse.Data is not null)
         {
-            Log.Information($"MR '{effectiveTitle}' created in project {projectId} (IID: {createResponse.Data.Iid})");
+            Log.Information(
+                $"MR '{effectiveTitle}' created in project {projectId} (IID: {createResponse.Data.Iid})");
+
             return createResponse.Data;
         }
 
@@ -894,7 +901,9 @@ public class GitLabService : IDisposable
         Log.Information($"Setting MR !{mergeRequestIid} in project {projectId} draft={isDraft}");
 
         using var userClient = CreateUserClient(userToken);
-        var updateRequest = new RestRequest($"projects/{projectId}/merge_requests/{mergeRequestIid}", Method.Put)
+        var updateRequest = new RestRequest(
+                $"projects/{projectId}/merge_requests/{mergeRequestIid}",
+                Method.Put)
             .AddJsonBody(new { draft = isDraft });
 
         var updateResponse = await userClient.ExecuteAsync(updateRequest);
@@ -905,7 +914,9 @@ public class GitLabService : IDisposable
             return;
         }
 
-        Log.Error($"Failed to set MR draft state: {(int)updateResponse.StatusCode} - {updateResponse.Content}");
+        Log.Error(
+            $"Failed to set MR draft state: {(int)updateResponse.StatusCode} - {updateResponse.Content}");
+
         throw new InvalidOperationException(
             $"Failed to set MR !{mergeRequestIid} draft={isDraft}: {(int)updateResponse.StatusCode} - {updateResponse.Content}");
     }

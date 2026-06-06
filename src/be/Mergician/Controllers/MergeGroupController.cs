@@ -21,11 +21,11 @@ public class MergeGroupController : ControllerBase
 
     private readonly MergeGroupManagementService _mergeGroupManagementService;
 
-    private readonly IMergeQueueRepository _mergeQueueRepository;
+    private readonly IMergeGroupRepository _mergeGroupRepository;
 
     private readonly MergePermissionService _mergePermissionService;
 
-    private readonly IMergeGroupRepository _mergeGroupRepository;
+    private readonly IMergeQueueRepository _mergeQueueRepository;
 
     private readonly IUntrackedBranchRepository _untrackedBranchRepository;
 
@@ -83,6 +83,7 @@ public class MergeGroupController : ControllerBase
                 "Merge group {MergeGroupId} not found during refresh for user {UserId}",
                 mergeGroupId,
                 userId);
+
             return NotFound(new ErrorResponse("Merge group not found"));
         }
 
@@ -94,7 +95,9 @@ public class MergeGroupController : ControllerBase
                 mergeGroupId);
 
             var viewPermissions = await _mergePermissionService.CheckViewPermissions(
-                currentUser, result, cancellationToken);
+                currentUser,
+                result,
+                cancellationToken);
 
             if (!viewPermissions.CheckFailed && !viewPermissions.CanView)
             {
@@ -103,9 +106,12 @@ public class MergeGroupController : ControllerBase
                     userId,
                     mergeGroupId,
                     string.Join(", ", viewPermissions.DeniedProjects));
-                return StatusCode(403, new AccessDeniedResponse(
-                    "You do not have access to view this merge group",
-                    viewPermissions.DeniedProjects));
+
+                return StatusCode(
+                    403,
+                    new AccessDeniedResponse(
+                        "You do not have access to view this merge group",
+                        viewPermissions.DeniedProjects));
             }
 
             if (viewPermissions.CheckFailed)
@@ -127,6 +133,7 @@ public class MergeGroupController : ControllerBase
                 mergeGroupId,
                 result.Name,
                 userId);
+
             _mergeGroupRepository.CleanupEmptyMergeGroups();
             return NotFound(new ErrorResponse("Merge group has no branches and has been removed"));
         }
@@ -163,6 +170,7 @@ public class MergeGroupController : ControllerBase
                 "User {UserId} attempted to update settings for merge group {MergeGroupId} they do not belong to",
                 currentUser.UserId,
                 mergeGroupId);
+
             return Forbid();
         }
 
@@ -206,6 +214,7 @@ public class MergeGroupController : ControllerBase
                 "User {UserId} attempted to clear warning for merge group {MergeGroupId} they do not belong to",
                 currentUser.UserId,
                 mergeGroupId);
+
             return Forbid();
         }
 
@@ -213,6 +222,7 @@ public class MergeGroupController : ControllerBase
             "User {UserId} clearing auto merge warning for merge group {MergeGroupId}",
             currentUser.UserId,
             mergeGroupId);
+
         _mergeGroupRepository.UpdateAutoMergeWarning(mergeGroupId, null);
         _mergeGroupRepository.ClearMergeErrorsForGroup(mergeGroupId);
         _autoMergeService.ResetRetryState(mergeGroupId);
@@ -382,7 +392,9 @@ public class MergeGroupController : ControllerBase
             mergeGroupId);
 
         var result = await _mergePermissionService.CheckMergePermissions(
-            currentUser, mergeGroupId, cancellationToken);
+            currentUser,
+            mergeGroupId,
+            cancellationToken);
 
         return Ok(result);
     }

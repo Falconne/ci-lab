@@ -196,7 +196,7 @@ public class MergeGroupManagementTest
             // Click a known merge group (feature/alpha) to avoid hitting the auto-created
             // group for our test branch. The test MR's branch is from primary-1 which is
             // not already in feature/alpha, so the branch count should increase.
-            var targetCard = _browser.Page.Locator($"[data-mg-name='feature/alpha']");
+            var targetCard = _browser.Page.Locator("[data-mg-name='feature/alpha']");
 
             var targetCount = await targetCard.CountAsync();
             Log.Information("Found {Count} merge group card(s) matching 'feature/alpha'", targetCount);
@@ -213,8 +213,10 @@ public class MergeGroupManagementTest
                 new PageWaitForURLOptions { Timeout = 15000 });
 
             // Wait for existing branch cards to load before capturing the baseline count
-            await _browser.Page.Locator(".branch-card").First.WaitForAsync(
-                new LocatorWaitForOptions { Timeout = 15000 });
+            await _browser.Page.Locator(".branch-card")
+                .First.WaitForAsync(
+                    new LocatorWaitForOptions { Timeout = 15000 });
+
             await _browser.TakeScreenshot("add_mr_01_details");
 
             // Count existing branches
@@ -240,14 +242,18 @@ public class MergeGroupManagementTest
             // Wait for the dialog to close (success) or timeout (failure with error message visible)
             await _browser.Page.WaitForFunctionAsync(
                 "() => document.querySelector('.v-dialog--active') === null",
-                null, new PageWaitForFunctionOptions { Timeout = 10000 });
+                null,
+                new PageWaitForFunctionOptions { Timeout = 10000 });
+
             await _browser.TakeScreenshot("add_mr_04_after_add");
 
             // Poll until the branch count increases — the page refreshes asynchronously after the add
             var newBranchCount = 0;
             await _browser.Page.WaitForFunctionAsync(
                 $"() => document.querySelectorAll('.branch-card').length > {initialBranchCount}",
-                null, new PageWaitForFunctionOptions { Timeout = 15000 });
+                null,
+                new PageWaitForFunctionOptions { Timeout = 15000 });
+
             newBranchCount = await _browser.Page.Locator(".branch-card").CountAsync();
             Log.Information("Branch count after add: {Count}", newBranchCount);
 
@@ -262,7 +268,8 @@ public class MergeGroupManagementTest
             // title yet, and in .branch-subtitle-link/.branch-subtitle-text once MR details have
             // been synced. Accept either so the check is timing-independent.
             var newBranchLink = _browser.Page
-                .Locator(".branch-title-link, .branch-title-text, .branch-subtitle-link, .branch-subtitle-text")
+                .Locator(
+                    ".branch-title-link, .branch-title-text, .branch-subtitle-link, .branch-subtitle-text")
                 .Filter(new LocatorFilterOptions { HasTextString = "primary-1" });
 
             var linkCount = await newBranchLink.CountAsync();
@@ -323,7 +330,10 @@ public class MergeGroupManagementTest
 
             // Type the MR URL into the filter box.
             // Use Exact = true to avoid matching the clearable icon's aria-label which contains the same text.
-            var filterInput = _browser.Page.GetByLabel("Filter by branch name or Merge Request URL", new PageGetByLabelOptions { Exact = true });
+            var filterInput = _browser.Page.GetByLabel(
+                "Filter by branch name or Merge Request URL",
+                new PageGetByLabelOptions { Exact = true });
+
             await filterInput.WaitForAsync(new LocatorWaitForOptions { Timeout = 10000 });
             await filterInput.FillAsync(mrWebUrl);
             await _browser.TakeScreenshot("find_mr_02_url_filled");
@@ -336,9 +346,11 @@ public class MergeGroupManagementTest
             // that may still be in the DOM during filter transitions.
             var jsBranchName = branchName.Replace("\\", "\\\\").Replace("'", "\\'");
             await _browser.Page.WaitForFunctionAsync(
-                $"() => document.querySelector('.open-mr-btn') !== null || " +
-                $"document.querySelector('[data-mg-name=\"{jsBranchName}\"]') !== null",
-                null, new PageWaitForFunctionOptions { Timeout = 15000 });
+                $"() => document.querySelector('.open-mr-btn') !== null || "
+                + $"document.querySelector('[data-mg-name=\"{jsBranchName}\"]') !== null",
+                null,
+                new PageWaitForFunctionOptions { Timeout = 15000 });
+
             await _browser.TakeScreenshot("find_mr_03_filtered");
 
             var openMRBtn = _browser.Page.Locator(".open-mr-btn");
@@ -364,6 +376,7 @@ public class MergeGroupManagementTest
             // Branch name shows in .header-mr-subtitle (single-MR layout) or .header-title (multi/no-MR layout).
             var groupHeader = _browser.Page.Locator(".header-mr-subtitle, .header-title")
                 .Filter(new LocatorFilterOptions { HasTextString = branchName });
+
             await groupHeader.First.WaitForAsync(new LocatorWaitForOptions { Timeout = 15000 });
             await _browser.TakeScreenshot("find_mr_04_details_page");
 
@@ -386,7 +399,8 @@ public class MergeGroupManagementTest
             // title yet, and in .branch-subtitle-link/.branch-subtitle-text once MR details have
             // been synced. Accept either so the check is timing-independent.
             var projectLink = _browser.Page
-                .Locator(".branch-title-link, .branch-title-text, .branch-subtitle-link, .branch-subtitle-text")
+                .Locator(
+                    ".branch-title-link, .branch-title-text, .branch-subtitle-link, .branch-subtitle-text")
                 .Filter(new LocatorFilterOptions { HasTextString = "secondary-1" });
 
             await projectLink.First.WaitForAsync(new LocatorWaitForOptions { Timeout = 15000 });
@@ -450,7 +464,8 @@ public class MergeGroupManagementTest
 
         // As test1 (not a member of feature/gamma), navigate directly to the same details page
         await LoginHelper.EnsureLoggedIn(_browser, "test1");
-        await _browser.Page.GotoAsync($"{TestConfig.MergicianUrl}/merge-group/{mergeGroupId}?title=feature%2Fgamma");
+        await _browser.Page.GotoAsync(
+            $"{TestConfig.MergicianUrl}/merge-group/{mergeGroupId}?title=feature%2Fgamma");
 
         await _browser.Page.WaitForURLAsync(
             url => url.Contains($"/merge-group/{mergeGroupId}"),
@@ -459,7 +474,8 @@ public class MergeGroupManagementTest
         // Wait for page to finish loading (initial loading spinner gone)
         await _browser.Page.WaitForFunctionAsync(
             "() => !document.querySelector('.text-grey')?.textContent?.includes('Loading merge group')",
-            null, new PageWaitForFunctionOptions { Timeout = 15000 });
+            null,
+            new PageWaitForFunctionOptions { Timeout = 15000 });
 
         await _browser.TakeScreenshot("non_member_02_test1_viewing_gamma");
 
@@ -497,5 +513,4 @@ public class MergeGroupManagementTest
 
         Log.Information("Non-member view test passed");
     }
-
 }

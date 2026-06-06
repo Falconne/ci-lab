@@ -1,10 +1,9 @@
-using Mergician.Entities;
-using Mergician.Services.Authentication;
-using Mergician.Services.GitLab;
 using System.Net;
 using System.Text;
 using System.Text.Json;
-using Util;
+using Mergician.Entities;
+using Mergician.Services.Authentication;
+using Mergician.Services.GitLab;
 
 namespace Mergician.Services.AutoMerge;
 
@@ -201,7 +200,7 @@ public class AutoMergeGitLabApiService
                     projectId,
                     mergeRequestIid);
 
-                return MergeAttemptResult.Failed(isPermissionDenied: true);
+                return MergeAttemptResult.Failed(true);
             }
 
             _logger.LogError(

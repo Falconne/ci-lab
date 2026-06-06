@@ -236,7 +236,9 @@ public class GitLabPipelineService
                 allJobs.AddRange(pageJobs);
 
                 if (nextPage.IsEmpty())
+                {
                     break;
+                }
 
                 if (!int.TryParse(nextPage, out page) || page <= 0)
                 {
@@ -244,6 +246,7 @@ public class GitLabPipelineService
                         "Unexpected next page token '{NextPage}' while fetching jobs for pipeline {PipelineId}; stopping pagination",
                         nextPage,
                         pipelineId);
+
                     break;
                 }
             } while (true);
@@ -288,9 +291,11 @@ public class GitLabPipelineService
     ///     Skipped and cancelled jobs are always hidden. Manual jobs are hidden when they have not yet been
     ///     triggered (status == "manual"); once run they carry a real status (success, failed, etc.).
     /// </summary>
-    private static bool IsHiddenJobStatus(string status) =>
-        status.Equals("skipped", StringComparison.OrdinalIgnoreCase) ||
-        status.Equals("manual", StringComparison.OrdinalIgnoreCase) ||
-        status.Equals("canceled", StringComparison.OrdinalIgnoreCase) ||
-        status.Equals("cancelled", StringComparison.OrdinalIgnoreCase);
+    private static bool IsHiddenJobStatus(string status)
+    {
+        return status.Equals("skipped", StringComparison.OrdinalIgnoreCase)
+               || status.Equals("manual", StringComparison.OrdinalIgnoreCase)
+               || status.Equals("canceled", StringComparison.OrdinalIgnoreCase)
+               || status.Equals("cancelled", StringComparison.OrdinalIgnoreCase);
+    }
 }

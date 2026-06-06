@@ -11,7 +11,13 @@ public record MergeAttemptResult(
     GitLabMergeResponse? Response = null,
     bool IsPermissionDenied = false)
 {
-    public static MergeAttemptResult Succeeded(GitLabMergeResponse response) => new(true, response);
+    public static MergeAttemptResult Succeeded(GitLabMergeResponse response)
+    {
+        return new MergeAttemptResult(true, response);
+    }
 
-    public static MergeAttemptResult Failed(bool isPermissionDenied = false) => new(false, IsPermissionDenied: isPermissionDenied);
+    public static MergeAttemptResult Failed(bool isPermissionDenied = false)
+    {
+        return new MergeAttemptResult(false, IsPermissionDenied: isPermissionDenied);
+    }
 }

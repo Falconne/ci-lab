@@ -46,6 +46,7 @@ public class AutoMergeToggleTest
             .Locator(".grid-section")
             .Filter(new LocatorFilterOptions { HasText = "Auto Merge Enabled" })
             .CountAsync();
+
         Log.Information("Initial auto merge sections on dashboard: {Count}", autoMergeSectionCount);
         if (autoMergeSectionCount > 0)
         {
@@ -67,7 +68,9 @@ public class AutoMergeToggleTest
         {
             var name = await allRows.Nth(i).GetAttributeAsync("data-mg-name") ?? string.Empty;
             if (!string.IsNullOrEmpty(name) && seenNames.Add(name))
+            {
                 groupNames.Add(name);
+            }
         }
 
         string? targetGroupName = null;
@@ -89,7 +92,9 @@ public class AutoMergeToggleTest
                 }
 
                 if (await groupRow.GetByText("Draft:").CountAsync() > 0)
+                {
                     hasDraftMr = true;
+                }
             }
 
             if (!hasNoMrBranch && hasDraftMr)
@@ -125,7 +130,11 @@ public class AutoMergeToggleTest
         var enabledDeadline = DateTime.UtcNow.AddSeconds(15);
         while (DateTime.UtcNow < enabledDeadline)
         {
-            if (await switchInput.IsEnabledAsync()) break;
+            if (await switchInput.IsEnabledAsync())
+            {
+                break;
+            }
+
             await Task.Delay(300);
         }
 
@@ -170,6 +179,7 @@ public class AutoMergeToggleTest
             .Locator(".grid-section")
             .Filter(new LocatorFilterOptions { HasText = "Auto Merge Enabled" })
             .CountAsync();
+
         Log.Information("Auto Merge Enabled section count after enabling: {Count}", autoMergeSectionCount);
 
         if (autoMergeSectionCount == 0)
@@ -227,6 +237,7 @@ public class AutoMergeToggleTest
             .Locator(".grid-section")
             .Filter(new LocatorFilterOptions { HasText = "Auto Merge Enabled" })
             .CountAsync();
+
         Log.Information("Auto Merge Enabled section count after disabling: {Count}", autoMergeSectionCount);
 
         if (autoMergeSectionCount > 0)

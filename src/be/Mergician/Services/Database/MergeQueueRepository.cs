@@ -77,6 +77,7 @@ public class MergeQueueRepository : IMergeQueueRepository
                     targetQueueId,
                     mergeGroupId,
                     string.Join(", ", projectIds));
+
                 break;
 
             case 1:
@@ -86,6 +87,7 @@ public class MergeQueueRepository : IMergeQueueRepository
                     "MergeQueueRepository: appending merge group {MergeGroupId} to existing queue {QueueId}",
                     mergeGroupId,
                     targetQueueId);
+
                 break;
 
             default:
@@ -96,6 +98,7 @@ public class MergeQueueRepository : IMergeQueueRepository
                     intersectingQueueIds.Count,
                     targetQueueId,
                     mergeGroupId);
+
                 break;
         }
 
@@ -152,13 +155,17 @@ public class MergeQueueRepository : IMergeQueueRepository
         if (entries.Count <= 1)
         {
             if (entries.Count == 0)
+            {
                 DeleteEmptyQueue(connection, queueId);
+            }
 
             return;
         }
 
         // Build a project-ID map per merge group entry.
-        var projectsPerGroup = LoadProjectIdsForQueueEntries(connection, entries.Select(e => e.MergeGroupId).ToList());
+        var projectsPerGroup = LoadProjectIdsForQueueEntries(
+            connection,
+            entries.Select(e => e.MergeGroupId).ToList());
 
         var components = FindConnectedComponents(entries, projectsPerGroup);
 
@@ -236,7 +243,9 @@ public class MergeQueueRepository : IMergeQueueRepository
         foreach (var id in orderedMergeGroupIds)
         {
             if (currentIds.Contains(id))
+            {
                 reordered.Add(id);
+            }
         }
 
         // Any groups not in the requested list keep their relative order at the end.
@@ -244,7 +253,9 @@ public class MergeQueueRepository : IMergeQueueRepository
         foreach (var entry in currentEntries)
         {
             if (!requestedSet.Contains(entry.MergeGroupId))
+            {
                 reordered.Add(entry.MergeGroupId);
+            }
         }
 
         using var transaction = connection.BeginTransaction();
@@ -312,6 +323,7 @@ public class MergeQueueRepository : IMergeQueueRepository
                 var displayName = projects.Count > 0
                     ? string.Join(", ", projects)
                     : $"Queue {id}";
+
                 var entryCount = entryCounts.GetValueOrDefault(id, 0);
                 var hasTrackedGroups = trackedQueueIds.Contains(id);
                 return new MergeQueueSummary(id, displayName, entryCount, hasTrackedGroups);
@@ -329,7 +341,9 @@ public class MergeQueueRepository : IMergeQueueRepository
         IReadOnlyCollection<int> projectIds)
     {
         if (projectIds.Count == 0)
+        {
             return [];
+        }
 
         return connection.Query<int>(
                 """
@@ -411,7 +425,9 @@ public class MergeQueueRepository : IMergeQueueRepository
                 .ToList();
 
             foreach (var p in queueProjects)
+            {
                 allProjects.Add(p);
+            }
         }
 
         // Round-robin interleave: pick one entry from each queue in order.
@@ -514,7 +530,9 @@ public class MergeQueueRepository : IMergeQueueRepository
         IReadOnlyList<int> mergeGroupIds)
     {
         if (mergeGroupIds.Count == 0)
+        {
             return new Dictionary<int, HashSet<int>>();
+        }
 
         var rows = connection.Query<(int MergeGroupId, int ProjectId)>(
             """
@@ -567,7 +585,9 @@ public class MergeQueueRepository : IMergeQueueRepository
             a = Find(a);
             b = Find(b);
             if (a != b)
+            {
                 parent[a] = b;
+            }
         }
 
         // Union entries that share at least one project.
@@ -578,7 +598,9 @@ public class MergeQueueRepository : IMergeQueueRepository
                 var pi = projectsPerGroup.GetValueOrDefault(entries[i].MergeGroupId, []);
                 var pj = projectsPerGroup.GetValueOrDefault(entries[j].MergeGroupId, []);
                 if (pi.Overlaps(pj))
+                {
                     Union(i, j);
+                }
             }
         }
 
@@ -603,7 +625,9 @@ public class MergeQueueRepository : IMergeQueueRepository
             foreach (var list in lists)
             {
                 if (i < list.Count)
+                {
                     result.Add(list[i]);
+                }
             }
         }
 

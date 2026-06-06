@@ -116,7 +116,9 @@ public class AutoMergeBehaviorTest
             // non-mergeable status when auto-merge is turned on.
             var sha1 = _gitLab.GetBranchHeadSha(projectId1, branchName);
             var sha2 = _gitLab.GetBranchHeadSha(projectId2, branchName);
-            Log.Information("Pre-setup for Scenario 1: setting pipelines to 'failed' before enabling auto-merge...");
+            Log.Information(
+                "Pre-setup for Scenario 1: setting pipelines to 'failed' before enabling auto-merge...");
+
             _gitLab.SetCommitStatus(projectId1, sha1, "failed", PipelineName);
             _gitLab.SetCommitStatus(projectId2, sha2, "failed", PipelineName);
             await WaitForMrNotMergeable(projectId1, mergeRequestIid1, "primary-1");
@@ -128,13 +130,28 @@ public class AutoMergeBehaviorTest
             await _browser.TakeScreenshot("behavior_02_auto_merge_enabled");
 
             // === SCENARIO 1: Blocked by failing pipeline ===
-            await TestBlockedByFailingPipeline(projectId1, projectId2, mergeRequestIid1, mergeRequestIid2, branchName);
+            await TestBlockedByFailingPipeline(
+                projectId1,
+                projectId2,
+                mergeRequestIid1,
+                mergeRequestIid2,
+                branchName);
 
             // === SCENARIO 2: Blocked by partial readiness (one pipeline passes, other fails) ===
-            await TestBlockedByPartialReadiness(projectId1, projectId2, mergeRequestIid1, mergeRequestIid2, branchName);
+            await TestBlockedByPartialReadiness(
+                projectId1,
+                projectId2,
+                mergeRequestIid1,
+                mergeRequestIid2,
+                branchName);
 
             // === SCENARIO 3: Branch behind target - auto-rebase should kick in ===
-            await TestAutoRebaseAndBlockedByDivergence(projectId1, projectId2, mergeRequestIid1, mergeRequestIid2, branchName);
+            await TestAutoRebaseAndBlockedByDivergence(
+                projectId1,
+                projectId2,
+                mergeRequestIid1,
+                mergeRequestIid2,
+                branchName);
 
             // === SCENARIO 4: Everything ready - merge should happen ===
             await TestSuccessfulMerge(projectId1, projectId2, mergeRequestIid1, mergeRequestIid2, branchName);
@@ -198,8 +215,15 @@ public class AutoMergeBehaviorTest
             mergeRequest2.State,
             mergeRequest2.DetailedMergeStatus);
 
-        AssertMergeRequestOpen(mergeRequest1, "primary-1", "Scenario 1: MR should not merge with failing pipeline");
-        AssertMergeRequestOpen(mergeRequest2, "secondary-1", "Scenario 1: MR should not merge with failing pipeline");
+        AssertMergeRequestOpen(
+            mergeRequest1,
+            "primary-1",
+            "Scenario 1: MR should not merge with failing pipeline");
+
+        AssertMergeRequestOpen(
+            mergeRequest2,
+            "secondary-1",
+            "Scenario 1: MR should not merge with failing pipeline");
 
         await _browser.TakeScreenshot("behavior_03_blocked_by_pipeline");
         Log.Information("Scenario 1 PASSED: MRs correctly blocked by failing pipelines");
@@ -239,7 +263,11 @@ public class AutoMergeBehaviorTest
             mergeRequest2.State,
             mergeRequest2.DetailedMergeStatus);
 
-        AssertMergeRequestOpen(mergeRequest1, "primary-1", "Scenario 2: ready MR should NOT merge while other MR is not ready");
+        AssertMergeRequestOpen(
+            mergeRequest1,
+            "primary-1",
+            "Scenario 2: ready MR should NOT merge while other MR is not ready");
+
         AssertMergeRequestOpen(mergeRequest2, "secondary-1", "Scenario 2: unready MR should remain open");
 
         await _browser.TakeScreenshot("behavior_04_blocked_by_partial");
@@ -563,7 +591,10 @@ public class AutoMergeBehaviorTest
             await Task.Delay(1000);
         }
 
-        Log.Warning("MR !{MergeRequestIid} in project {ProjectId} still 'preparing' after timeout", mergeRequestIid, projectId);
+        Log.Warning(
+            "MR !{MergeRequestIid} in project {ProjectId} still 'preparing' after timeout",
+            mergeRequestIid,
+            projectId);
     }
 
     /// <summary>
@@ -698,7 +729,11 @@ public class AutoMergeBehaviorTest
     /// <summary>
     ///     Waits for a branch to be rebased (SHA changes from the original).
     /// </summary>
-    private async Task<bool> WaitForRebase(int projectId, int mergeRequestIid, string originalSha, int timeoutSeconds)
+    private async Task<bool> WaitForRebase(
+        int projectId,
+        int mergeRequestIid,
+        string originalSha,
+        int timeoutSeconds)
     {
         for (var i = 0; i < timeoutSeconds; i++)
         {
@@ -726,7 +761,10 @@ public class AutoMergeBehaviorTest
 
             if (i % 10 == 0 && i > 0)
             {
-                Log.Information("Still waiting for rebase on MR !{MergeRequestIid}... {Seconds}s", mergeRequestIid, i);
+                Log.Information(
+                    "Still waiting for rebase on MR !{MergeRequestIid}... {Seconds}s",
+                    mergeRequestIid,
+                    i);
             }
         }
 
@@ -799,7 +837,9 @@ public class AutoMergeBehaviorTest
     {
         for (var i = 0; i < timeoutSeconds; i++)
         {
-            var goneAlert = _browser.Page.Locator(".v-alert:has-text('Merge group has been merged or removed')");
+            var goneAlert =
+                _browser.Page.Locator(".v-alert:has-text('Merge group has been merged or removed')");
+
             if (await goneAlert.CountAsync() > 0)
             {
                 Log.Information("Details page shows 'merged or removed' after ~{Seconds}s", i);
@@ -874,7 +914,10 @@ public class AutoMergeBehaviorTest
         }
     }
 
-    private static void AssertMergeRequestOpen(GitLabMergeRequestDetail mr, string projectName, string context)
+    private static void AssertMergeRequestOpen(
+        GitLabMergeRequestDetail mr,
+        string projectName,
+        string context)
     {
         if (mr.State != "opened")
         {
@@ -883,7 +926,12 @@ public class AutoMergeBehaviorTest
         }
     }
 
-    private void CleanupTestData(int projectId1, int projectId2, string branchName, int mergeRequestIid1, int mergeRequestIid2)
+    private void CleanupTestData(
+        int projectId1,
+        int projectId2,
+        string branchName,
+        int mergeRequestIid1,
+        int mergeRequestIid2)
     {
         Log.Information("Cleaning up test data for branch '{BranchName}'...", branchName);
         try

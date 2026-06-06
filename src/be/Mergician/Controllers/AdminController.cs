@@ -1,4 +1,3 @@
-using Mergician.Entities;
 using Mergician.Services.Authentication;
 using Mergician.Services.Database;
 using Mergician.Services.GitLab;
@@ -45,11 +44,16 @@ public class AdminController : ControllerBase
     {
         if (request.ProjectId <= 0)
         {
-            _logger.LogWarning("AdminController: invalid project ID {ProjectId} in add request", request.ProjectId);
+            _logger.LogWarning(
+                "AdminController: invalid project ID {ProjectId} in add request",
+                request.ProjectId);
+
             return BadRequest("ProjectId must be a positive integer.");
         }
 
-        _logger.LogInformation("AdminController: resolving project {ProjectId} from GitLab", request.ProjectId);
+        _logger.LogInformation(
+            "AdminController: resolving project {ProjectId} from GitLab",
+            request.ProjectId);
 
         var accessDetails = HttpContext.GetGitLabUser();
         var project = await _gitLabService.GetProject(accessDetails, request.ProjectId, cancellationToken);

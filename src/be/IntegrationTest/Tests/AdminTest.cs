@@ -70,6 +70,7 @@ public class AdminTest
 
         var submitButton = _browser.Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Add" })
             .Last;
+
         await submitButton.ClickAsync();
         await _browser.Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
         await Task.Delay(1500);
@@ -79,6 +80,7 @@ public class AdminTest
         var projectRow = _browser.Page
             .Locator(".monitored-projects-table tbody tr")
             .Filter(new LocatorFilterOptions { HasText = projectId.ToString() });
+
         await projectRow.WaitForAsync(new LocatorWaitForOptions { Timeout = 10000 });
         Log.Information("Project {ProjectId} appears in monitored projects table", projectId);
 
@@ -117,6 +119,7 @@ public class AdminTest
                 .Locator(".monitored-projects-table tbody tr")
                 .Filter(new LocatorFilterOptions { HasText = projectId.ToString() })
                 .CountAsync();
+
             if (stillPresent > 0)
             {
                 throw new InvalidOperationException(
@@ -154,9 +157,9 @@ public class AdminTest
         var appeared = false;
         for (var i = 0; i < 20 && !appeared; i++)
         {
-            if (await mergeGroupGrid.CountAsync() > 0 ||
-                await noActiveBranches.CountAsync() > 0 ||
-                await loadingDashboard.CountAsync() > 0)
+            if (await mergeGroupGrid.CountAsync() > 0
+                || await noActiveBranches.CountAsync() > 0
+                || await loadingDashboard.CountAsync() > 0)
             {
                 appeared = true;
             }
@@ -169,8 +172,8 @@ public class AdminTest
         if (!appeared)
         {
             throw new InvalidOperationException(
-                "Dashboard appears blank after navigating from Admin page. " +
-                "Expected merge group grid, 'No active branches', or 'Loading dashboard...' to be visible.");
+                "Dashboard appears blank after navigating from Admin page. "
+                + "Expected merge group grid, 'No active branches', or 'Loading dashboard...' to be visible.");
         }
 
         // After the initial load, confirm actual merge group data is visible for test1

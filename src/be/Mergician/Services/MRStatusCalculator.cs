@@ -17,7 +17,7 @@ public static class MRStatusCalculator
         "checking",
         "unchecked",
         "preparing",
-        "approvals_syncing",
+        "approvals_syncing"
     };
 
     /// <summary>

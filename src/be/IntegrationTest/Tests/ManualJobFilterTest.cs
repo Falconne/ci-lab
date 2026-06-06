@@ -1,5 +1,4 @@
 using IntegrationTest.Services;
-using Microsoft.Playwright;
 using PlaywrightService;
 using Serilog;
 
@@ -57,7 +56,7 @@ public class ManualJobFilterTest
                 projectId,
                 branchName,
                 "manual-deploy",
-                timeoutSeconds: 60);
+                60);
 
             await LoginHelper.EnsureLoggedIn(_browser, "test1");
 
@@ -122,7 +121,10 @@ public class ManualJobFilterTest
         finally
         {
             if (mergeRequestIid > 0)
+            {
                 _gitLab.CloseMergeRequest(projectId, mergeRequestIid);
+            }
+
             _gitLab.DeleteBranch(projectId, branchName);
         }
     }

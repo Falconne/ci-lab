@@ -64,7 +64,8 @@ public class VersionAndLastUpdatedTest
         }
 
         var mergeGroupCardContent = await File.ReadAllTextAsync(mergeGroupCardPath);
-        if (!mergeGroupCardContent.Contains("lastUpdated") || !mergeGroupCardContent.Contains("formatTimeAgo"))
+        if (!mergeGroupCardContent.Contains("lastUpdated")
+            || !mergeGroupCardContent.Contains("formatTimeAgo"))
         {
             throw new Exception(
                 "MergeGroupCard.vue does not contain lastUpdated field and formatTimeAgo rendering");

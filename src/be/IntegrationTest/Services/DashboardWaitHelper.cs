@@ -112,7 +112,9 @@ public static class DashboardWaitHelper
                         : "";
 
                     if (status.Equals(expectedStatus, StringComparison.OrdinalIgnoreCase))
+                    {
                         matched = true;
+                    }
                 }
 
                 if (!matched)
@@ -127,6 +129,7 @@ public static class DashboardWaitHelper
                 Log.Information(
                     "All expected group statuses matched after ~{Seconds}s",
                     s);
+
                 return true;
             }
 

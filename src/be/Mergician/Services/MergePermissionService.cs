@@ -51,7 +51,9 @@ public class MergePermissionService
 
         _logger.LogDebug(
             "Checking merge permissions for user {UserId} in {Count} projects of merge group {MergeGroupId}",
-            accessDetails.UserId, uniqueProjectIds.Count, mergeGroupId);
+            accessDetails.UserId,
+            uniqueProjectIds.Count,
+            mergeGroupId);
 
         var blockedProjects = new List<string>();
         var checkFailed = false;
@@ -59,13 +61,18 @@ public class MergePermissionService
         foreach (var projectId in uniqueProjectIds)
         {
             var accessLevel = await _gitLabService.GetUserProjectAccessLevel(
-                accessDetails, projectId, accessDetails.UserId, cancellationToken);
+                accessDetails,
+                projectId,
+                accessDetails.UserId,
+                cancellationToken);
 
             if (accessLevel == null)
             {
                 _logger.LogError(
                     "Could not verify access level for user {UserId} in project {ProjectId}",
-                    accessDetails.UserId, projectId);
+                    accessDetails.UserId,
+                    projectId);
+
                 checkFailed = true;
                 continue;
             }
@@ -75,7 +82,11 @@ public class MergePermissionService
                 var projectName = mergeGroup.Branches.First(b => b.ProjectId == projectId).ProjectName;
                 _logger.LogInformation(
                     "User {UserId} cannot merge in project {ProjectId} '{ProjectName}' (access level {AccessLevel})",
-                    accessDetails.UserId, projectId, projectName, accessLevel);
+                    accessDetails.UserId,
+                    projectId,
+                    projectName,
+                    accessLevel);
+
                 blockedProjects.Add(projectName);
             }
         }
@@ -83,7 +94,11 @@ public class MergePermissionService
         var canMerge = blockedProjects.Count == 0 && !checkFailed;
         _logger.LogInformation(
             "Merge permission check complete: user {UserId}, merge group {MergeGroupId}, canMerge={CanMerge}, checkFailed={CheckFailed}, blocked=[{BlockedProjects}]",
-            accessDetails.UserId, mergeGroupId, canMerge, checkFailed, string.Join(", ", blockedProjects));
+            accessDetails.UserId,
+            mergeGroupId,
+            canMerge,
+            checkFailed,
+            string.Join(", ", blockedProjects));
 
         return new MergePermissionsResponse(canMerge, checkFailed, blockedProjects);
     }
@@ -105,7 +120,9 @@ public class MergePermissionService
 
         _logger.LogDebug(
             "Checking view permissions for user {UserId} in {Count} projects of merge group {MergeGroupId}",
-            accessDetails.UserId, uniqueProjectIds.Count, mergeGroup.Id);
+            accessDetails.UserId,
+            uniqueProjectIds.Count,
+            mergeGroup.Id);
 
         var deniedProjects = new List<string>();
         var checkFailed = false;
@@ -113,13 +130,18 @@ public class MergePermissionService
         foreach (var projectId in uniqueProjectIds)
         {
             var accessLevel = await _gitLabService.GetUserProjectAccessLevel(
-                accessDetails, projectId, accessDetails.UserId, cancellationToken);
+                accessDetails,
+                projectId,
+                accessDetails.UserId,
+                cancellationToken);
 
             if (accessLevel == null)
             {
                 _logger.LogError(
                     "Could not verify view access level for user {UserId} in project {ProjectId}; failing open",
-                    accessDetails.UserId, projectId);
+                    accessDetails.UserId,
+                    projectId);
+
                 checkFailed = true;
                 continue;
             }
@@ -129,7 +151,11 @@ public class MergePermissionService
                 var projectName = mergeGroup.Branches.First(b => b.ProjectId == projectId).ProjectName;
                 _logger.LogInformation(
                     "User {UserId} cannot view project {ProjectId} '{ProjectName}' (access level {AccessLevel})",
-                    accessDetails.UserId, projectId, projectName, accessLevel);
+                    accessDetails.UserId,
+                    projectId,
+                    projectName,
+                    accessLevel);
+
                 deniedProjects.Add(projectName);
             }
         }
@@ -137,7 +163,11 @@ public class MergePermissionService
         var canView = deniedProjects.Count == 0;
         _logger.LogInformation(
             "View permission check complete: user {UserId}, merge group {MergeGroupId}, canView={CanView}, checkFailed={CheckFailed}, denied=[{DeniedProjects}]",
-            accessDetails.UserId, mergeGroup.Id, canView, checkFailed, string.Join(", ", deniedProjects));
+            accessDetails.UserId,
+            mergeGroup.Id,
+            canView,
+            checkFailed,
+            string.Join(", ", deniedProjects));
 
         return new ViewPermissionsResult(canView, checkFailed, deniedProjects);
     }

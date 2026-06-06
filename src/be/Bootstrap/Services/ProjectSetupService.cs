@@ -24,9 +24,6 @@ public class ProjectSetupService
 
     private readonly Dictionary<string, int> _secondaryRepos = new();
 
-    // Project ID for the GitLab CI-only test repo (no TeamCity VCS root)
-    private int _ciTestProjectId;
-
     private readonly TeamCityService _teamCityService;
 
     private readonly TeamCityVCSRootService _teamCityVCSRootService;
@@ -35,6 +32,9 @@ public class ProjectSetupService
 
     // Store user PATs for creating MRs/approvals as specific users
     private readonly Dictionary<string, string> _userTokens = new();
+
+    // Project ID for the GitLab CI-only test repo (no TeamCity VCS root)
+    private int _ciTestProjectId;
 
     public ProjectSetupService(
         GitLabService gitLabService,
@@ -124,8 +124,12 @@ public class ProjectSetupService
                                         - echo "Manual deployment"
                                       when: manual
                                     """;
+
         var ciTestProject = await _gitlabService.CreateProjectWithCIConfig(
-            "gitlab-ci-test", testGroup.Id, gitlabCiYaml);
+            "gitlab-ci-test",
+            testGroup.Id,
+            gitlabCiYaml);
+
         _ciTestProjectId = ciTestProject.Id;
         await _gitlabService.AddProjectMember(ciTestProject.Id, "b.builder");
         await _gitlabService.ConfigureProjectMergeRequestSettings(ciTestProject.Id);
@@ -867,7 +871,7 @@ public class ProjectSetupService
             "main",
             "Epsilon changes in secondary-4",
             test1Token,
-            draft: true);
+            true);
 
         Log.Information("Test branch data setup complete!");
     }

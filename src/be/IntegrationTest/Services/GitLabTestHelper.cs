@@ -363,17 +363,26 @@ public class GitLabTestHelper
     /// </summary>
     public void CloseMergeRequest(int projectId, int mergeRequestIid)
     {
-        var request = new RestRequest($"/api/v4/projects/{projectId}/merge_requests/{mergeRequestIid}", Method.Put);
+        var request = new RestRequest(
+            $"/api/v4/projects/{projectId}/merge_requests/{mergeRequestIid}",
+            Method.Put);
+
         request.AddJsonBody(new { state_event = "close" });
 
         var response = _adminClient.Execute(request);
         if (!response.IsSuccessful)
         {
-            Log.Warning("Failed to close MR !{MergeRequestIid}: {Status}", mergeRequestIid, response.StatusCode);
+            Log.Warning(
+                "Failed to close MR !{MergeRequestIid}: {Status}",
+                mergeRequestIid,
+                response.StatusCode);
         }
         else
         {
-            Log.Information("Closed MR !{MergeRequestIid} in project {ProjectId}", mergeRequestIid, projectId);
+            Log.Information(
+                "Closed MR !{MergeRequestIid} in project {ProjectId}",
+                mergeRequestIid,
+                projectId);
         }
     }
 
@@ -404,7 +413,8 @@ public class GitLabTestHelper
             if (response.IsSuccessful && !string.IsNullOrWhiteSpace(response.Content))
             {
                 var pipelines = JsonSerializer.Deserialize<List<GitLabPipelineInfo>>(
-                                    response.Content!, JsonOptions)
+                                    response.Content!,
+                                    JsonOptions)
                                 ?? [];
 
                 var ciPipeline = pipelines.FirstOrDefault(p => p.Source != "external");
@@ -443,11 +453,13 @@ public class GitLabTestHelper
             if (response.IsSuccessful && !string.IsNullOrWhiteSpace(response.Content))
             {
                 var jobs = JsonSerializer.Deserialize<List<GitLabPipelineJobInfo>>(
-                               response.Content!, JsonOptions)
+                               response.Content!,
+                               JsonOptions)
                            ?? [];
 
-                var targetJob = jobs.FirstOrDefault(
-                    j => j.Name.Equals(jobName, StringComparison.OrdinalIgnoreCase));
+                var targetJob = jobs.FirstOrDefault(j => j.Name.Equals(
+                    jobName,
+                    StringComparison.OrdinalIgnoreCase));
 
                 if (targetJob != null)
                 {
@@ -466,5 +478,6 @@ public class GitLabTestHelper
         }
 
         throw new TimeoutException(
-            $"Job '{jobName}' did not appear in pipeline {pipelineId} within {timeoutSeconds}s");    }
+            $"Job '{jobName}' did not appear in pipeline {pipelineId} within {timeoutSeconds}s");
+    }
 }

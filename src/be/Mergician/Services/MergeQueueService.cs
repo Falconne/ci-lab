@@ -1,5 +1,4 @@
 using Mergician.Entities;
-using Mergician.Entities.Database;
 using Mergician.Services.Database;
 
 namespace Mergician.Services;
@@ -12,8 +11,9 @@ namespace Mergician.Services;
 /// </summary>
 public class MergeQueueService
 {
-    private readonly IMergeQueueRepository _queueRepository;
     private readonly ILogger<MergeQueueService> _logger;
+
+    private readonly IMergeQueueRepository _queueRepository;
 
     public MergeQueueService(IMergeQueueRepository queueRepository, ILogger<MergeQueueService> logger)
     {

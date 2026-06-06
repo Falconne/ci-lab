@@ -1,3 +1,4 @@
+using Mergician.Entities;
 using Mergician.Services.Authentication;
 using Mergician.Services.Database;
 using Mergician.Services.GitLab;
@@ -10,9 +11,14 @@ namespace Mergician.Services;
 ///     Runs a loop every 60 seconds. For each monitored project, it:
 ///     <list type="bullet">
 ///         <item>Fetches all open MRs with the "AutoMerge" label.</item>
-///         <item>For each labeled MR, finds or creates the corresponding merge group and enables auto merge by label.</item>
-///         <item>Checks existing merge groups with AutoMergeByLabel=true; if the label has been removed from all
-///               monitored-project MRs in the group, disables auto merge.</item>
+///         <item>
+///             For each labeled MR, finds or creates the corresponding merge group and enables auto merge by
+///             label.
+///         </item>
+///         <item>
+///             Checks existing merge groups with AutoMergeByLabel=true; if the label has been removed from all
+///             monitored-project MRs in the group, disables auto merge.
+///         </item>
 ///     </list>
 /// </summary>
 public class MonitoredProjectsService : BackgroundService
@@ -144,7 +150,7 @@ public class MonitoredProjectsService : BackgroundService
         var openMrs = await _gitLabService.GetOpenMergeRequestsForProject(
             serviceUser,
             projectId,
-            labelFilter: AutoMergeLabel,
+            AutoMergeLabel,
             cancellationToken);
 
         _logger.LogDebug(
@@ -163,6 +169,7 @@ public class MonitoredProjectsService : BackgroundService
                     "MonitoredProjectsService: MR !{Iid} in project {ProjectId} has no source branch, skipping",
                     mr.Iid,
                     projectId);
+
                 continue;
             }
 
@@ -174,7 +181,7 @@ public class MonitoredProjectsService : BackgroundService
     private async Task EnsureAutoMergeEnabledForMr(
         AccessDetailsBase serviceUser,
         int projectId,
-        Entities.GitLabMergeRequest mr,
+        GitLabMergeRequest mr,
         CancellationToken cancellationToken)
     {
         _logger.LogDebug(
@@ -190,6 +197,7 @@ public class MonitoredProjectsService : BackgroundService
                 "MonitoredProjectsService: could not resolve project {ProjectId}, skipping MR !{Iid}",
                 projectId,
                 mr.Iid);
+
             return;
         }
 
@@ -245,10 +253,12 @@ public class MonitoredProjectsService : BackgroundService
                     "MonitoredProjectsService: merge group {MergeGroupId} '{MergeGroupName}' has no branches in monitored projects, skipping label check",
                     group.Id,
                     group.Name);
+
                 continue;
             }
 
-            var stillLabeled = monitoredBranches.Any(b => labeledBranches.Contains((b.ProjectId, b.BranchName)));
+            var stillLabeled =
+                monitoredBranches.Any(b => labeledBranches.Contains((b.ProjectId, b.BranchName)));
 
             if (!stillLabeled)
             {

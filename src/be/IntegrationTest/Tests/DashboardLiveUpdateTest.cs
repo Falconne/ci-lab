@@ -1,5 +1,4 @@
 using IntegrationTest.Services;
-using Microsoft.Playwright;
 using PlaywrightService;
 using Serilog;
 

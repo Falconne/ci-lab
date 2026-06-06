@@ -51,7 +51,10 @@ public class MergeGroupManagementService
         var existing = _mergeGroupRepository.GetMergeGroup(mergeGroupId);
         if (existing == null)
         {
-            _logger.LogInformation("Merge group {MergeGroupId} not found for AddBranchByMergeRequestUrl", mergeGroupId);
+            _logger.LogInformation(
+                "Merge group {MergeGroupId} not found for AddBranchByMergeRequestUrl",
+                mergeGroupId);
+
             return new AddBranchResult(null, MergeGroupManagementError.MergeGroupNotFound);
         }
 
@@ -116,7 +119,10 @@ public class MergeGroupManagementService
 
         if (lookupResult == null)
         {
-            return new FindOrCreateMergeGroupResult(null, false, MergeGroupManagementError.MergeRequestNotFound);
+            return new FindOrCreateMergeGroupResult(
+                null,
+                false,
+                MergeGroupManagementError.MergeRequestNotFound);
         }
 
         var existingMg = _mergeGroupRepository.FindMergeGroupByBranch(
@@ -126,7 +132,9 @@ public class MergeGroupManagementService
         if (existingMg != null)
         {
             var wasAdded = _mergeGroupRepository.EnsureUserInMergeGroup(currentUser.UserId, existingMg.Id);
-            await _untrackedBranchRepository.RemoveUntrackedBranch(currentUser.UserId, lookupResult.SourceBranch);
+            await _untrackedBranchRepository.RemoveUntrackedBranch(
+                currentUser.UserId,
+                lookupResult.SourceBranch);
 
             _logger.LogInformation(
                 "User {UserId} found existing merge group {MergeGroupId} for branch '{BranchName}' via MR URL",
@@ -152,7 +160,9 @@ public class MergeGroupManagementService
             lookupResult.Project);
 
         _mergeGroupRepository.EnsureBranchInMergeGroup(mergeGroup.Id, branchRecord.Id);
-        var wasAddedToNewGroup = _mergeGroupRepository.EnsureUserInMergeGroup(currentUser.UserId, mergeGroup.Id);
+        var wasAddedToNewGroup =
+            _mergeGroupRepository.EnsureUserInMergeGroup(currentUser.UserId, mergeGroup.Id);
+
         await _untrackedBranchRepository.RemoveUntrackedBranch(currentUser.UserId, lookupResult.SourceBranch);
 
         _logger.LogInformation(
