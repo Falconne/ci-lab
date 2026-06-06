@@ -294,7 +294,9 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             since);
 
         var ignoredBranches = await _ignoredBranchRepository.GetIgnoredBranchNames(userId);
-        var pushEvents = _gitLabService.GetPushEventsForUserSince(userAccessDetails, since, cancellationToken);
+        var pushEvents =
+            _gitLabService.GetPushEventsForUserSince(userAccessDetails, since, cancellationToken);
+
         var processedBranches = new HashSet<(string BranchName, int ProjectId)>();
 
         await foreach (var pushEvent in pushEvents)
@@ -311,6 +313,16 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                 continue;
             }
 
+            if (GitLabService.IsPossibleDefaultBranch(pushEvent.BranchName))
+            {
+                _logger.LogDebug(
+                    "Skipping default branch '{BranchName}' in project {ProjectId}",
+                    pushEvent.BranchName,
+                    pushEvent.ProjectId);
+
+                continue;
+            }
+
             var key = (pushEvent.BranchName, pushEvent.ProjectId);
             if (!processedBranches.Add(key))
             {
@@ -322,7 +334,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                 continue;
             }
 
-            // Only check if the branch still exists for push events older than 10 minutes,
+            // Only check if the branch still exists for older push events,
             // to avoid unnecessary GitLab API calls.
             var pushEventAge = DateTimeOffset.UtcNow - pushEvent.CreatedAt;
             if (pushEventAge > TimeSpan.FromMinutes(10)
@@ -350,16 +362,6 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                     "Project {ProjectId} not found while processing push event for branch '{BranchName}'; skipping",
                     pushEvent.ProjectId,
                     pushEvent.BranchName);
-
-                continue;
-            }
-
-            if (GitLabService.IsPossibleDefaultBranch(pushEvent.BranchName, project.DefaultBranch))
-            {
-                _logger.LogDebug(
-                    "Skipping default branch '{BranchName}' in project {ProjectId}",
-                    pushEvent.BranchName,
-                    pushEvent.ProjectId);
 
                 continue;
             }
@@ -476,7 +478,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                     continue;
                 }
 
-                if (GitLabService.IsPossibleDefaultBranch(mr.SourceBranch, project.DefaultBranch))
+                if (GitLabService.IsPossibleDefaultBranch(mr.SourceBranch))
                 {
                     _logger.LogDebug(
                         "Skipping default branch '{BranchName}' in project {ProjectId} from MR sync",

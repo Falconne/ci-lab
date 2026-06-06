@@ -24,14 +24,9 @@ public class GitLabService
         _logger = logger;
     }
 
-    public static bool IsPossibleDefaultBranch(string branchName, string? projectDefaultBranch = null)
+    public static bool IsPossibleDefaultBranch(string branchName)
     {
-        if (!projectDefaultBranch.IsEmpty() && branchName == projectDefaultBranch)
-        {
-            return true;
-        }
-
-        if (branchName is "main" or "master" or "develop")
+        if (branchName is "main" or "master" or "develop" or "staging")
         {
             return true;
         }
