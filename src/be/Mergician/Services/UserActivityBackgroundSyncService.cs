@@ -14,8 +14,9 @@ namespace Mergician.Services;
 ///     Manages per-user background sync threads that keep the database up-to-date
 ///     with each user's GitLab push activity. A sync thread is started the first time
 ///     a user makes an authenticated request, backfills recent activity from GitLab,
-///     then polls every 10 seconds for new activity and checks for deleted branches.
-///     The thread stops 5 minutes after the user's last dashboard poll activity.
+///     then polls regularly for new activity.
+///     The thread stops some minutes after the user's last poll activity (i.e. they
+///     have closed the Mergician web pages).
 /// </summary>
 public class UserActivityBackgroundSyncService : IHostedService, IDisposable
 {
