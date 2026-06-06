@@ -127,22 +127,22 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
         var context = _userContexts.GetOrAdd(userId, _ => new UserActivitySyncContext(accessDetails));
         context.UpdateActivity(accessDetails);
 
-        lock (context.StartLock)
+        _logger.LogDebug("Starting background sync thread for user {UserId} if not running", userId);
+        var linkedCts =
+            CancellationTokenSource.CreateLinkedTokenSource(_globalCts?.Token ?? CancellationToken.None);
+
+        var started = context.StartSyncIfNotRunning(
+            () => RunUserSync(userId, context, linkedCts.Token),
+            _logger,
+            _globalCts?.Token);
+
+        if (started)
         {
-            if (context.IsRunning)
-            {
-                _logger.LogDebug("Sync thread already running for user {UserId}", userId);
-                return;
-            }
-
-            _logger.LogInformation("Starting background sync thread for user {UserId}", userId);
-
-            context.Cts?.Dispose();
-            var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
-                _globalCts?.Token ?? CancellationToken.None);
-
-            context.Cts = linkedCts;
-            context.SyncTask = Task.Run(() => RunUserSync(userId, context, linkedCts.Token));
+            _logger.LogInformation("Started background sync thread for user {UserId}", userId);
+        }
+        else
+        {
+            _logger.LogDebug("Background thread already running for {UserId}", userId);
         }
     }
 

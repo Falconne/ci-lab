@@ -11,7 +11,7 @@ public class UserActivitySyncContext
 {
     private readonly ReaderWriterLockSlim _accessUserLock = new(LockRecursionPolicy.NoRecursion);
 
-    public readonly object StartLock = new();
+    private readonly Lock _startLock = new();
 
     private AccessDetailsForUser _accessDetailsForUser;
 
@@ -57,6 +57,29 @@ public class UserActivitySyncContext
     ///     True if the background sync task is currently running.
     /// </summary>
     public bool IsRunning => SyncTask is { IsCompleted: false };
+
+    public bool StartSyncIfNotRunning(
+        Func<Task> action,
+        ILogger logger,
+        CancellationToken? globalCancellationToken)
+    {
+        lock (_startLock)
+        {
+            if (IsRunning)
+            {
+                return false;
+            }
+
+            Cts?.Dispose();
+            var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+                globalCancellationToken ?? CancellationToken.None);
+
+            Cts = linkedCts;
+            SyncTask = Task.Run(action);
+        }
+
+        return true;
+    }
 
     /// <summary>
     ///     Updates the access token and records a poll activity timestamp.
