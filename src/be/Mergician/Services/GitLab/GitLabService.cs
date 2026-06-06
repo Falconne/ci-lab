@@ -1,7 +1,7 @@
-using System.Net;
-using System.Runtime.CompilerServices;
 using Mergician.Entities;
 using Mergician.Services.Authentication;
+using System.Net;
+using System.Runtime.CompilerServices;
 using Util;
 
 namespace Mergician.Services.GitLab;
@@ -24,20 +24,24 @@ public class GitLabService
         _logger = logger;
     }
 
-    /// <summary>
-    ///     Returns true if the branch name matches the project's actual default branch or any
-    ///     common fallback names (main, master, develop). The <paramref name="projectDefaultBranch" />
-    ///     parameter should come from <see cref="GitLabProject.DefaultBranch" /> for accurate detection.
-    /// </summary>
     public static bool IsPossibleDefaultBranch(string branchName, string? projectDefaultBranch = null)
     {
-        if (!projectDefaultBranch.IsEmpty()
-            && string.Equals(branchName, projectDefaultBranch, StringComparison.OrdinalIgnoreCase))
+        if (!projectDefaultBranch.IsEmpty() && branchName == projectDefaultBranch)
         {
             return true;
         }
 
-        return branchName is "main" or "master" or "develop";
+        if (branchName is "main" or "master" or "develop")
+        {
+            return true;
+        }
+
+        if (branchName.EndsWith("/release") || branchName.EndsWith("/production"))
+        {
+            return true;
+        }
+
+        return false;
     }
 
     public async Task<GitLabUserInfo?> GetCurrentUser(
@@ -662,7 +666,6 @@ public class GitLabService
 
     /// <summary>
     ///     Fetches all open merge requests authored by the given user, across all projects.
-    ///     Uses the GitLab /merge_requests endpoint with author_id filter and handles pagination.
     /// </summary>
     public async Task<List<GitLabMergeRequest>> GetOpenMergeRequestsForUser(
         AccessDetailsBase accessDetails,

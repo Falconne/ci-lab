@@ -34,11 +34,11 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
 
     private readonly GitLabService _gitLabService;
 
+    private readonly IIgnoredBranchRepository _ignoredBranchRepository;
+
     private readonly ILogger<UserActivityBackgroundSyncService> _logger;
 
     private readonly IMergeGroupRepository _mergeGroupRepository;
-
-    private readonly IIgnoredBranchRepository _ignoredBranchRepository;
 
     private readonly ConcurrentDictionary<int, UserActivitySyncContext> _userContexts = new();
 
@@ -294,17 +294,22 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             since);
 
         var ignoredBranches = await _ignoredBranchRepository.GetIgnoredBranchNames(userId);
-        _logger.LogDebug(
-            "User {UserId} has {Count} ignored branch(es) — these will be skipped during auto-tracking",
-            userId,
-            ignoredBranches.Count);
-
         var pushEvents = _gitLabService.GetPushEventsForUserSince(accessDetails, since, cancellationToken);
         var processedBranches = new HashSet<(string BranchName, int ProjectId)>();
 
         await foreach (var pushEvent in pushEvents)
         {
             cancellationToken.ThrowIfCancellationRequested();
+
+            if (ignoredBranches.Contains(pushEvent.BranchName))
+            {
+                _logger.LogDebug(
+                    "User {UserId} has marked branch '{Branch}' as ignored — skipping it",
+                    userId,
+                    pushEvent.BranchName);
+
+                continue;
+            }
 
             var key = (pushEvent.BranchName, pushEvent.ProjectId);
             if (!processedBranches.Add(key))
@@ -376,7 +381,6 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                 branchRecord,
                 pushEvent.BranchName,
                 userId,
-                ignoredBranches,
                 "push event sync");
 
             _logger.LogDebug(
@@ -440,11 +444,6 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
         try
         {
             var ignoredBranches = await _ignoredBranchRepository.GetIgnoredBranchNames(userId);
-            _logger.LogDebug(
-                "User {UserId} has {Count} ignored branch(es) — these will be skipped during MR sync",
-                userId,
-                ignoredBranches.Count);
-
             var openMRs = await _gitLabService.GetOpenMergeRequestsForUser(accessDetails, userId, ct);
 
             _logger.LogInformation(
@@ -455,6 +454,15 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             foreach (var mr in openMRs)
             {
                 ct.ThrowIfCancellationRequested();
+                if (ignoredBranches.Contains(mr.SourceBranch))
+                {
+                    _logger.LogDebug(
+                        "User {UserId} has marked branch '{Branch}' as ignored — skipping it",
+                        userId,
+                        mr.SourceBranch);
+
+                    continue;
+                }
 
                 var project = await _gitLabService.GetProject(accessDetails, mr.ProjectId, ct);
 
@@ -490,7 +498,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                 }
 
                 var branchRecord = _mergeGroupRepository.GetOrCreateBranchRecord(mr.SourceBranch, project);
-                EnsureBranchTracked(branchRecord, mr.SourceBranch, userId, ignoredBranches, "open MR sync");
+                EnsureBranchTracked(branchRecord, mr.SourceBranch, userId, "open MR sync");
             }
 
             _logger.LogInformation("MR sync completed for user {UserId}", userId);
@@ -843,16 +851,12 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
 
     /// <summary>
     ///     Ensures a branch record is associated with its merge group and that the user
-    ///     is a member of that group. Shared by push-event and MR-sync paths.
-    ///     If the merge group name is in <paramref name="ignoredBranches" />, the user
-    ///     subscription step is skipped (the user has explicitly opted out of tracking).
-    ///     Logs at Info when the user is newly added, including the provided <paramref name="reason" />.
+    ///     is a member of that group.
     /// </summary>
     private void EnsureBranchTracked(
         BranchInProject branchRecord,
         string branchName,
         int userId,
-        HashSet<string> ignoredBranches,
         string reason)
     {
         var mergeGroup = _mergeGroupRepository.GetOrCreateMergeGroup(branchName);
@@ -873,16 +877,6 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                 "Branch {BranchId} already in merge group {MergeGroupId}, skipping association",
                 branchRecord.Id,
                 mergeGroup.Id);
-        }
-
-        if (ignoredBranches.Contains(mergeGroup.Name))
-        {
-            _logger.LogDebug(
-                "User {UserId} has marked merge group '{MergeGroupName}' as ignored — skipping subscription",
-                userId,
-                mergeGroup.Name);
-
-            return;
         }
 
         var wasAdded =
