@@ -158,7 +158,7 @@ public class MergeGroupRepository : IMergeGroupRepository
                 INSERT INTO users_in_merge_groups (gitlab_user_id, merge_group_id)
                 SELECT @GitlabUserId, @MergeGroupId
                 WHERE NOT EXISTS (
-                    SELECT 1 FROM untracked_branches
+                    SELECT 1 FROM ignored_branches
                     WHERE user_id = @GitlabUserId AND branch_name = @BranchName
                 )
                 ON CONFLICT (gitlab_user_id, merge_group_id) DO NOTHING

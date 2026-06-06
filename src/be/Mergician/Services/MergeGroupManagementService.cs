@@ -18,16 +18,16 @@ public class MergeGroupManagementService
 
     private readonly MergeRequestLookupService _mergeRequestLookupService;
 
-    private readonly IUntrackedBranchRepository _untrackedBranchRepository;
+    private readonly IIgnoredBranchRepository _ignoredBranchRepository;
 
     public MergeGroupManagementService(
         IMergeGroupRepository mergeGroupRepository,
-        IUntrackedBranchRepository untrackedBranchRepository,
+        IIgnoredBranchRepository ignoredBranchRepository,
         MergeRequestLookupService mergeRequestLookupService,
         ILogger<MergeGroupManagementService> logger)
     {
         _mergeGroupRepository = mergeGroupRepository;
-        _untrackedBranchRepository = untrackedBranchRepository;
+        _ignoredBranchRepository = ignoredBranchRepository;
         _mergeRequestLookupService = mergeRequestLookupService;
         _logger = logger;
     }
@@ -75,7 +75,7 @@ public class MergeGroupManagementService
 
         _mergeGroupRepository.EnsureBranchInMergeGroup(mergeGroupId, branchRecord.Id);
         var wasAdded = _mergeGroupRepository.EnsureUserInMergeGroup(currentUser.UserId, mergeGroupId);
-        await _untrackedBranchRepository.RemoveUntrackedBranch(currentUser.UserId, lookupResult.SourceBranch);
+        await _ignoredBranchRepository.RemoveIgnoredBranch(currentUser.UserId, lookupResult.SourceBranch);
 
         _logger.LogInformation(
             "User {UserId} added branch '{BranchName}' from project {ProjectId} to merge group {MergeGroupId} via MR URL",
@@ -132,7 +132,7 @@ public class MergeGroupManagementService
         if (existingMg != null)
         {
             var wasAdded = _mergeGroupRepository.EnsureUserInMergeGroup(currentUser.UserId, existingMg.Id);
-            await _untrackedBranchRepository.RemoveUntrackedBranch(
+            await _ignoredBranchRepository.RemoveIgnoredBranch(
                 currentUser.UserId,
                 lookupResult.SourceBranch);
 
@@ -163,7 +163,7 @@ public class MergeGroupManagementService
         var wasAddedToNewGroup =
             _mergeGroupRepository.EnsureUserInMergeGroup(currentUser.UserId, mergeGroup.Id);
 
-        await _untrackedBranchRepository.RemoveUntrackedBranch(currentUser.UserId, lookupResult.SourceBranch);
+        await _ignoredBranchRepository.RemoveIgnoredBranch(currentUser.UserId, lookupResult.SourceBranch);
 
         _logger.LogInformation(
             "User {UserId} created merge group {MergeGroupId} for branch '{BranchName}' via MR URL",

@@ -27,11 +27,11 @@ public class MergeGroupController : ControllerBase
 
     private readonly IMergeQueueRepository _mergeQueueRepository;
 
-    private readonly IUntrackedBranchRepository _untrackedBranchRepository;
+    private readonly IIgnoredBranchRepository _ignoredBranchRepository;
 
     public MergeGroupController(
         IMergeGroupRepository mergeGroupRepository,
-        IUntrackedBranchRepository untrackedBranchRepository,
+        IIgnoredBranchRepository ignoredBranchRepository,
         AutoMergeService autoMergeService,
         UserActivityBackgroundSyncService backgroundSyncService,
         MergeGroupManagementService mergeGroupManagementService,
@@ -40,7 +40,7 @@ public class MergeGroupController : ControllerBase
         ILogger<MergeGroupController> logger)
     {
         _mergeGroupRepository = mergeGroupRepository;
-        _untrackedBranchRepository = untrackedBranchRepository;
+        _ignoredBranchRepository = ignoredBranchRepository;
         _autoMergeService = autoMergeService;
         _backgroundSyncService = backgroundSyncService;
         _mergeGroupManagementService = mergeGroupManagementService;
@@ -263,7 +263,7 @@ public class MergeGroupController : ControllerBase
         }
 
         var wasAdded = _mergeGroupRepository.EnsureUserInMergeGroup(currentUser.UserId, mergeGroupId);
-        await _untrackedBranchRepository.RemoveUntrackedBranch(currentUser.UserId, existing.Name);
+        await _ignoredBranchRepository.RemoveIgnoredBranch(currentUser.UserId, existing.Name);
 
         if (wasAdded)
         {
@@ -299,7 +299,7 @@ public class MergeGroupController : ControllerBase
             return NotFound(new ErrorResponse("Merge group not found"));
         }
 
-        await _untrackedBranchRepository.AddUntrackedBranch(currentUser.UserId, existing.Name);
+        await _ignoredBranchRepository.AddIgnoredBranch(currentUser.UserId, existing.Name);
         _mergeGroupRepository.RemoveUserFromMergeGroup(currentUser.UserId, mergeGroupId);
 
         _logger.LogInformation(

@@ -44,7 +44,7 @@ try
         new NpgsqlConnectionFactory(mergicianSettings.Database));
 
     builder.Services.AddSingleton<IMergeGroupRepository, MergeGroupRepository>();
-    builder.Services.AddSingleton<IUntrackedBranchRepository, UntrackedBranchRepository>();
+    builder.Services.AddSingleton<IIgnoredBranchRepository, IgnoredBranchRepository>();
     builder.Services.AddSingleton<IMergeQueueRepository, MergeQueueRepository>();
     builder.Services.AddSingleton<IMonitoredProjectRepository, MonitoredProjectRepository>();
     builder.Services.AddSingleton<MergeQueueService>();
