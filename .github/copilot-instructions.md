@@ -6,12 +6,8 @@ Mergician is a tool to help developers in environments where any one product is 
 
 # Guidelines
 ## General Guidelines
-- When doing edits, after all the testing and rework is done, before finishing up, perform a code review and see if any clean up or improvements are warrented based on the final changes. Look for any technical debt that can me remedied, such as any duplicated functionality or code that now exists that should be consolidated. Remove any unsued variables, imports, etc that may have been left behind. If the rework is significant, redo any important tests.
-  - Be careful not to make code review changes for the sake of making changes. Only do so if the code quality can be improved in a meaningful way.
-- Add logging in code whenever any significant action is performed, especially when conditional logic is executed (e.g. in branches of if/switch statements) with the intention of diagnosing the flow.
-- When refactoring, never leave compatiblity shims behind. Always update references to changed code. All the usages of the code in this repo is within this repo so there is no reason to leave compatibility shims.
-- If there is a likely typo in the user's instructions for symbol names that will be written to code (e.g. in new class names specified in the prompt), ask for clarification early with a suggested correction.
-- At the end of editing, validate that changes work by running the Mergician integration tests (or the CI Lab or Botstrapper is that is what was changed). See the testing section below for instructions.
+- Add logging in code whenever any significant action is performed, especially when conditional logic is executed.
+- When refactoring, never leave compatibility shims behind. Always update references to changed code. All the usages of the code in this repo is within this repo so there is no reason to leave compatibility shims.
 - Do not add redundant comments if a nearby log line suitably explains what is happening.
 
 ## CI Lab Specific Guidelines
@@ -27,7 +23,7 @@ Mergician is a tool to help developers in environments where any one product is 
 # Testing & verification
 If running on a Windows platform, do not worry about any verification other than doing a build. The following testing procedure only applies if running on Linux.
 
-After doing any changes to the Mergician code, always run the integration tests to verify the changes work. When adding or changing functionality in Mergician, see if updating or adding to the integration tests is warrented.
+After doing any changes to the Mergician code, always run the integration tests to verify the changes work. When adding or changing functionality in Mergician, see if updating or adding to the integration tests is warranted.
 
 Always use the scripts mentioned below to start the various apps and operations. The scripts do the necessary cleanup and setup work before starting the apps.
 
