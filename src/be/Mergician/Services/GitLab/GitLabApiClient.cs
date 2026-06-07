@@ -1,8 +1,8 @@
-using System.Net;
-using System.Text.Json;
 using Mergician.Entities;
 using Mergician.Services.Authentication;
 using Mergician.Utilities;
+using System.Net;
+using System.Text.Json;
 
 namespace Mergician.Services.GitLab;
 
@@ -209,10 +209,10 @@ public class GitLabApiClient
         CancellationToken cancellationToken)
     {
         Exception? lastException = null;
-        var totalAttempts = _retryDelays.Length + 1;
+        var maxAttempts = _retryDelays.Length + 1;
         string? operationName = null;
 
-        for (var attempt = 1; attempt <= totalAttempts; attempt++)
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -270,7 +270,7 @@ public class GitLabApiClient
                 lastException = ex;
             }
 
-            if (attempt == totalAttempts)
+            if (attempt == maxAttempts)
             {
                 break;
             }
@@ -292,7 +292,7 @@ public class GitLabApiClient
                 "GitLab call {OperationName} failed on attempt {Attempt}/{TotalAttempts}; retrying in {Delay}",
                 operationName,
                 attempt,
-                totalAttempts,
+                maxAttempts,
                 delay);
 
             await Task.Delay(delay, cancellationToken);
@@ -302,14 +302,14 @@ public class GitLabApiClient
 
         var failureException = new GitLabApiFailureException(
             operationName,
-            totalAttempts,
+            maxAttempts,
             lastException ?? new InvalidOperationException("GitLab call failed without an exception."));
 
         _logger.LogError(
             failureException,
             "GitLab call {OperationName} failed after {TotalAttempts} attempts",
             operationName,
-            totalAttempts);
+            maxAttempts);
 
         // Always enter recovery mode when retries are exhausted, regardless of the
         // caller's failure behavior. This ensures the frontend shows the GitLab error
