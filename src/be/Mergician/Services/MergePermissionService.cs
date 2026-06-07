@@ -6,7 +6,7 @@ using Mergician.Services.GitLab;
 namespace Mergician.Services;
 
 /// <summary>
-///     Checks whether the current user has merge permissions for all projects in a merge group.
+///     Service for checking if a user has permissions to view and merge an MR.
 ///     GitLab Developer access (level 30) or above is required to merge MRs in a project.
 ///     Reporter access (level 20) or above is required to view a merge group.
 /// </summary>
@@ -106,7 +106,6 @@ public class MergePermissionService
     /// <summary>
     ///     Checks whether the current user has at least Reporter access (level 20) in all projects
     ///     belonging to the given merge group.
-    ///     Fails open on API errors to avoid blocking users due to transient GitLab unavailability.
     /// </summary>
     public async Task<ViewPermissionsResult> CheckViewPermissions(
         UserAccessDetails userAccessDetails,

@@ -17,6 +17,8 @@ public class MergeGroupController : ControllerBase
 
     private readonly UserActivityBackgroundSyncService _backgroundSyncService;
 
+    private readonly IIgnoredBranchRepository _ignoredBranchRepository;
+
     private readonly ILogger<MergeGroupController> _logger;
 
     private readonly MergeGroupManagementService _mergeGroupManagementService;
@@ -26,8 +28,6 @@ public class MergeGroupController : ControllerBase
     private readonly MergePermissionService _mergePermissionService;
 
     private readonly IMergeQueueRepository _mergeQueueRepository;
-
-    private readonly IIgnoredBranchRepository _ignoredBranchRepository;
 
     public MergeGroupController(
         IMergeGroupRepository mergeGroupRepository,
@@ -99,7 +99,7 @@ public class MergeGroupController : ControllerBase
                 result,
                 cancellationToken);
 
-            if (!viewPermissions.CheckFailed && !viewPermissions.CanView)
+            if (viewPermissions is { CheckFailed: false, CanView: false })
             {
                 _logger.LogInformation(
                     "User {UserId} denied view access to merge group {MergeGroupId} due to insufficient access to: [{DeniedProjects}]",
