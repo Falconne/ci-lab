@@ -220,7 +220,7 @@ public class GitLabService
     ///     Fetches full branch details including the latest commit information.
     ///     Returns null when the branch does not exist or the request fails.
     /// </summary>
-    public async Task<GitLabBranchDetails?> GetBranchDetails(
+    public async Task<(GitLabBranchDetails? Details, GitLabBranchLookupStatus Status)> GetBranchDetails(
         AccessDetailsBase accessDetails,
         int projectId,
         string branchName,
@@ -230,10 +230,12 @@ public class GitLabService
 
         try
         {
-            return await _gitLabApiClient.Execute<GitLabBranchDetails>(
+            var details = await _gitLabApiClient.Execute<GitLabBranchDetails>(
                 () => accessDetails.CreateRequest(
                     $"projects/{projectId}/repository/branches/{encodedBranch}"),
                 cancellationToken);
+
+            return (details, GitLabBranchLookupStatus.Exists);
         }
         catch (GitLabUnexpectedResponseException ex)
         {
@@ -245,7 +247,7 @@ public class GitLabService
                     projectId,
                     (int)ex.StatusCode);
 
-                return null;
+                return (null, GitLabBranchLookupStatus.Missing);
             }
 
             _logger.LogError(
@@ -254,52 +256,7 @@ public class GitLabService
                 projectId,
                 (int)ex.StatusCode);
 
-            return null;
-        }
-    }
-
-    /// <summary>
-    ///     Checks branch lookup status in the given project.
-    ///     Returns Missing only for 404 responses; all other failures are Unavailable.
-    /// </summary>
-    public async Task<GitLabBranchLookupResult> GetBranchLookupResult(
-        AccessDetailsBase accessDetails,
-        int projectId,
-        string branchName,
-        CancellationToken cancellationToken = default)
-    {
-        var encodedBranch = Uri.EscapeDataString(branchName);
-
-        try
-        {
-            await _gitLabApiClient.Execute<GitLabBranchDetails>(
-                () => accessDetails.CreateRequest(
-                    $"projects/{projectId}/repository/branches/{encodedBranch}"),
-                cancellationToken);
-
-            _logger.LogDebug("Branch '{BranchName}' exists in project {ProjectId}", branchName, projectId);
-            return new GitLabBranchLookupResult(GitLabBranchLookupStatus.Exists, 200);
-        }
-        catch (GitLabUnexpectedResponseException ex)
-        {
-            if (ex.StatusCode == HttpStatusCode.NotFound)
-            {
-                _logger.LogDebug(
-                    "Branch '{BranchName}' does not exist in project {ProjectId} (status {StatusCode})",
-                    branchName,
-                    projectId,
-                    (int)ex.StatusCode);
-
-                return new GitLabBranchLookupResult(GitLabBranchLookupStatus.Missing, (int)ex.StatusCode);
-            }
-
-            _logger.LogError(
-                "Branch lookup unavailable for '{BranchName}' in project {ProjectId} (status {StatusCode})",
-                branchName,
-                projectId,
-                (int)ex.StatusCode);
-
-            return new GitLabBranchLookupResult(GitLabBranchLookupStatus.Unavailable, (int)ex.StatusCode);
+            return (null, GitLabBranchLookupStatus.Unavailable);
         }
     }
 

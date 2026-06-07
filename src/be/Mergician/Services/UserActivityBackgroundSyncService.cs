@@ -697,11 +697,32 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             cancellationToken);
 
         // Fetch the branch's latest commit date from GitLab to use as the last updated timestamp
-        var branchDetails = await _gitLabService.GetBranchDetails(
+        var (branchDetails, status) = await _gitLabService.GetBranchDetails(
             userAccessDetails,
             branch.ProjectId,
             branch.BranchName,
             cancellationToken);
+
+        if (status == GitLabBranchLookupStatus.Missing)
+        {
+            _logger.LogInformation(
+                "Branch '{BranchName}' in project {ProjectId} not found, removing from database",
+                branch.BranchName,
+                branch.ProjectId);
+
+            _deadBranchesService.RemoveBranchAndCleanup(branch.Id);
+            return;
+        }
+
+        if (status == GitLabBranchLookupStatus.Unavailable)
+        {
+            _logger.LogWarning(
+                "Branch '{BranchName}' in project {ProjectId} cannot be fetched, ignoring this branch",
+                branch.BranchName,
+                branch.ProjectId);
+
+            return;
+        }
 
         DateTimeOffset? lastCommitTime;
         var lastCommitMessage = branchDetails?.Commit?.Title;
@@ -716,12 +737,11 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
         }
         else
         {
-            _logger.LogInformation(
-                "Branch '{BranchName}' in project {ProjectId} not found or has no commit; removing from database",
+            _logger.LogWarning(
+                "Branch '{BranchName}' in project {ProjectId} has no last commit time",
                 branch.BranchName,
                 branch.ProjectId);
 
-            _deadBranchesService.RemoveBranchAndCleanup(branch.Id);
             return;
         }
 

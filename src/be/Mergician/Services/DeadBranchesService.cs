@@ -1,3 +1,4 @@
+using Mergician.Entities;
 using Mergician.Services.Authentication;
 using Mergician.Services.Database;
 using Mergician.Services.GitLab;
@@ -108,25 +109,24 @@ public class DeadBranchesService
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        var branchLookup = await _gitLabService.GetBranchLookupResult(
+        var (_, status) = await _gitLabService.GetBranchDetails(
             accessDetails,
             projectId,
             branchName,
             cancellationToken);
 
-        if (branchLookup.IsMissing)
+        switch (status)
         {
-            return true;
-        }
+            case GitLabBranchLookupStatus.Missing:
+                return true;
 
-        if (branchLookup.IsUnavailable)
-        {
-            _logger.LogError(
-                "'{BranchName}' in project {ProjectId} is unavailable in Gitlab API; treating as still present",
-                branchName,
-                projectId);
+            case GitLabBranchLookupStatus.Unavailable:
+                _logger.LogError(
+                    "'{BranchName}' in project {ProjectId} is unavailable in Gitlab API; treating as still present",
+                    branchName,
+                    projectId);
 
-            return false;
+                break;
         }
 
         return false;
