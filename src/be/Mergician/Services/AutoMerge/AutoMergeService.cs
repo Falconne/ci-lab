@@ -1,9 +1,9 @@
-using System.Collections.Concurrent;
-using System.Text.Json;
 using Mergician.Entities;
 using Mergician.Services.Authentication;
 using Mergician.Services.Database;
 using Mergician.Services.GitLab;
+using System.Collections.Concurrent;
+using System.Text.Json;
 using Util;
 
 namespace Mergician.Services.AutoMerge;
@@ -181,7 +181,7 @@ public class AutoMergeService : BackgroundService
         // Fetch open MRs for all branches in parallel, then fetch detailed info for those that have one.
         var mrFetchTasks = group.Branches.Select(async branch =>
             {
-                var mrs = await _gitLabService.GetMergeRequests(
+                var mrs = await _gitLabService.GetOpenMergeRequestsForBranch(
                     serviceUser,
                     branch.ProjectId,
                     branch.BranchName,

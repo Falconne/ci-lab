@@ -626,7 +626,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
         List<GitLabMergeRequest> mergeRequests;
         try
         {
-            mergeRequests = await _gitLabService.GetMergeRequests(
+            mergeRequests = await _gitLabService.GetOpenMergeRequestsForBranch(
                 userAccessDetails,
                 branch.ProjectId,
                 branch.BranchName,

@@ -263,7 +263,7 @@ public class GitLabService
     /// <summary>
     ///     Finds open merge requests for a given source branch in a project.
     /// </summary>
-    public async Task<List<GitLabMergeRequest>> GetMergeRequests(
+    public async Task<List<GitLabMergeRequest>> GetOpenMergeRequestsForBranch(
         AccessDetailsBase accessDetails,
         int projectId,
         string sourceBranch,
