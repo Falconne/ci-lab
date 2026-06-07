@@ -54,6 +54,11 @@ public sealed class ExternalServiceRateLimiter : IDisposable
         using var instantLease = _rateLimiter.AttemptAcquire();
         if (instantLease.IsAcquired)
         {
+            lock (_logLock)
+            {
+                _pendingHitCount = 0;
+            }
+
             return;
         }
 
