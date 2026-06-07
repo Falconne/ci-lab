@@ -333,10 +333,10 @@ public class GitLabService
     }
 
     /// <summary>
-    ///     Gets per-rule approval state for a merge request using the <c>/approval_state</c> endpoint.
+    ///     Gets per-rule approval state for a merge request.
     ///     Returns aggregated (totalRequired, totalGiven) counts based only on approvals that satisfy rules.
-    ///     Falls back to the <c>/approvals</c> endpoint on 404 (feature not available on this tier).
-    ///     Returns null when the request fails for any other reason.
+    ///     Falls back to the <c>/approvals</c> endpoint on 404 (to allow testing on free tier that doesn't support
+    ///     this).
     /// </summary>
     public async Task<(int Required, int Given)?> GetMergeRequestApprovalCounts(
         AccessDetailsBase accessDetails,
