@@ -99,8 +99,8 @@ public class GitLabApiClient
     }
 
     /// <summary>
-    ///     Adjusts a UTC date to the GitLab server's local date, for use in date-only
-    ///     API parameters (e.g. the 'after' filter in the events endpoint).
+    ///     Adjusts a UTC date to the GitLab server's local date, for use in date
+    ///     API parameters that must be in the server's time zone.
     ///     Returns the date as it would appear on the GitLab server.
     /// </summary>
     public DateTimeOffset AdjustToGitLabLocal(DateTimeOffset utcTimestamp)
