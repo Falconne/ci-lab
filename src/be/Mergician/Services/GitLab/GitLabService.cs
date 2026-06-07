@@ -71,10 +71,9 @@ public class GitLabService
         var sinceUtc = since.ToUniversalTime();
 
         // GitLab events API 'after' is date-only and interprets the date in the server's
-        // configured timezone. Convert our UTC timestamp to GitLab's local time, then
-        // query from the previous day to avoid missing events near the date boundary.
+        // configured timezone. Convert our UTC timestamp to GitLab's local time.
         var sinceInGitLabLocal = _gitLabApiClient.AdjustToGitLabLocal(sinceUtc);
-        var afterDate = sinceInGitLabLocal.AddDays(-1).ToString("yyyy-MM-dd");
+        var afterDate = sinceInGitLabLocal.ToString("yyyy-MM-dd");
 
         _logger.LogDebug(
             "GetPushEventsForUserSince: sinceUtc={SinceUtc}, gitLabLocal={GitLabLocal}, afterDate={AfterDate}, gitLabOffset={Offset}",
@@ -85,7 +84,7 @@ public class GitLabService
 
         var page = 1;
         var yieldedCount = 0;
-        var emittedBranchProjects = new HashSet<string>();
+        var emittedBranchProjects = new HashSet<(string?, int)>();
 
         while (true)
         {
@@ -131,7 +130,7 @@ public class GitLabService
                     continue;
                 }
 
-                var key = $"{pushEvent.PushData.Ref}:{pushEvent.ProjectId}";
+                var key = (pushEvent.PushData.Ref, pushEvent.ProjectId);
                 if (!emittedBranchProjects.Add(key))
                 {
                     continue;

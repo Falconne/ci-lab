@@ -202,7 +202,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                 var inactiveFor = DateTimeOffset.UtcNow - context.LastPollActivity;
                 if (inactiveFor > _inactivityTimeout)
                 {
-                    _logger.LogInformation(
+                    _logger.LogDebug(
                         "User {UserId} inactive for {Inactive}, stopping sync thread",
                         gitLabUserId,
                         inactiveFor);
