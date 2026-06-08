@@ -745,7 +745,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             return;
         }
 
-        var (mrStatus, reasons) = MRStatusCalculator.Calculate(
+        var (mrStatus, reasons) = MergeRequestStatusCalculator.Calculate(
             hasMergeRequest,
             hasMergeRequest ? mergeRequests[0].DetailedMergeStatus : null);
 

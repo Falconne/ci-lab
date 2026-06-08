@@ -694,7 +694,7 @@ public class AutoMergeService : BackgroundService
                 mr.DetailedMergeStatus);
 
             reasons.Add(
-                $"{branchLabel}: {MRStatusCalculator.FormatDetailedMergeStatus(mr.DetailedMergeStatus ?? "unknown")}");
+                $"{branchLabel}: {MergeRequestStatusCalculator.FormatDetailedMergeStatus(mr.DetailedMergeStatus ?? "unknown")}");
 
             return false;
         }
@@ -783,7 +783,7 @@ public class AutoMergeService : BackgroundService
                                      || mr.DetailedMergeStatus == "need_rebase";
 
             var (currentMrStatus, currentReasons) =
-                MRStatusCalculator.Calculate(true, mr.DetailedMergeStatus);
+                MergeRequestStatusCalculator.Calculate(true, mr.DetailedMergeStatus);
 
             // Apply the same merge-error override that the sync service uses, so a pending merge
             // error is not silently cleared by this reconciliation.

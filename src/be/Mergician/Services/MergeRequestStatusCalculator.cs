@@ -6,7 +6,7 @@ namespace Mergician.Services;
 ///     Calculates the status of a branch's merge request from GitLab's
 ///     <c>detailed_merge_status</c> field.
 /// </summary>
-public static class MRStatusCalculator
+public static class MergeRequestStatusCalculator
 {
     /// <summary>
     ///     GitLab <c>detailed_merge_status</c> values that represent transient states where
