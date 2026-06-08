@@ -541,12 +541,6 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
         var userId = userAccessDetails.UserId;
         var userGroups = _mergeGroupRepository.GetMergeGroupsForUser(userId);
 
-        var totalBranches = userGroups.Sum(g => g.Branches.Count);
-        _logger.LogDebug(
-            "Refreshing details for {Count} branches for user {UserId}",
-            totalBranches,
-            userId);
-
         foreach (var group in userGroups)
         {
             foreach (var branch in group.Branches)
@@ -586,8 +580,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
 
     /// <summary>
     ///     Fetches MR, approval, and build job details from GitLab for the given branch
-    ///     and persists them in the database. Silently skips if project info is unavailable.
-    ///     On 401 (expired token), skips the update rather than persisting stale "no MR" data.
+    ///     and persists them in the database.
     /// </summary>
     private async Task RefreshBranchDetails(
         UserAccessDetails userAccessDetails,
@@ -642,31 +635,23 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             return;
         }
 
-        var hasMergeRequest = mergeRequests.Count > 0;
+        var mr = mergeRequests.FirstOrDefault();
         int? approvalsRequired = null;
         int? approvalsGiven = null;
         string? mergeRequestTitle = null;
         string? mergeRequestUrl = null;
         bool? needsRebase = null;
-        bool? rebaseInProgress = null;
-        var isDraft = false;
-        var hasConflicts = false;
-        List<string>? blockingMRDescriptions = null;
 
-        if (hasMergeRequest)
+        if (mr != null)
         {
-            var first = mergeRequests[0];
-            mergeRequestTitle = first.Title;
-            mergeRequestUrl = first.WebUrl;
-            needsRebase = first.DetailedMergeStatus == "need_rebase";
-            rebaseInProgress = first.RebaseInProgress;
-            isDraft = first.Draft || first.WorkInProgress;
-            hasConflicts = first.HasConflicts;
+            mergeRequestTitle = mr.Title;
+            mergeRequestUrl = mr.WebUrl;
+            needsRebase = mr.DetailedMergeStatus == "need_rebase";
 
             var approvalCounts = await _gitLabService.GetMergeRequestApprovalCounts(
                 userAccessDetails,
                 branch.ProjectId,
-                first.Iid,
+                mr.Iid,
                 cancellationToken);
 
             if (approvalCounts != null)
@@ -675,19 +660,30 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
                 approvalsGiven = approvalCounts.Value.Given;
             }
 
-            if (first.DetailedMergeStatus == "blocked_status")
-            {
-                var resolved = await ResolveBlockingMRDescriptions(
-                    userAccessDetails,
-                    branch,
-                    first.Iid,
-                    groupSiblings,
-                    cancellationToken);
+            // Can't currently support intra-group MR dependencies, because there's no way to tell if that
+            // is the only reason an MR is blocked. We would have to check all other known blocking conditions
+            // which should be done at some point.
+            // See https://docs.gitlab.com/api/merge_requests/#merge-status
+            // Known blockers are:
+            // * Rebase needed / Merge conflicts
+            // * CI pipeline failures
+            // * Not enough approvals
+            // * Discussions not resolved
+            // * MR is in Draft
 
-                // null means the endpoint is unavailable (GitLab CE / non-Premium); use a generic reason
-                blockingMRDescriptions =
-                    resolved ?? ["Blocked by a dependency (details unavailable on this GitLab tier)"];
-            }
+            //if (mr.DetailedMergeStatus == "blocked_status")
+            //{
+            //    var resolved = await ResolveBlockingMRDescriptions(
+            //        userAccessDetails,
+            //        branch,
+            //        mr.Iid,
+            //        groupSiblings,
+            //        cancellationToken);
+
+            //    // null means the endpoint is unavailable (GitLab CE / non-Premium); use a generic reason
+            //    blockingMRDescriptions =
+            //        resolved ?? ["Blocked by a dependency (details unavailable on this GitLab tier)"];
+            //}
         }
 
         var buildJobs = await _gitLabPipelineService.GetLatestBuildJobsForBranch(
@@ -747,7 +743,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
 
         var (mrStatus, reasons) =
             MergeRequestStatusCalculator.Calculate(
-                hasMergeRequest ? mergeRequests[0].DetailedMergeStatus : null);
+                mr != null ? mergeRequests[0].DetailedMergeStatus : null);
 
         // If a previous auto merge attempt failed and GitLab otherwise considers the branch Ready,
         // force Blocked so the user sees the error until they dismiss the warning.
@@ -776,7 +772,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
         _mergeGroupRepository.UpdateBranchDetails(
             branch.Id,
             new BranchDetailsUpdate(
-                hasMergeRequest,
+                mr != null,
                 mergeRequestTitle,
                 mergeRequestUrl,
                 project.WebUrl,
@@ -793,7 +789,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             "Updated details for branch '{BranchName}' in project {ProjectId}: hasMergeRequest={HasMergeRequest}, {JobCount} jobs",
             branch.BranchName,
             branch.ProjectId,
-            hasMergeRequest,
+            mr != null,
             buildJobs.Count);
     }
 
