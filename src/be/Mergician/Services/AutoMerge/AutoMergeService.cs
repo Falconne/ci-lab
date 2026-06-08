@@ -772,9 +772,7 @@ public class AutoMergeService : BackgroundService
     /// <summary>
     ///     Reconciles the blocking-state fields in the database against the current MR data fetched
     ///     from GitLab. Removes obsolete conditions (e.g. a <c>needs_rebase</c> flag left over from
-    ///     a rebase that has since completed) so the UI always reflects the actual MR state.
-    ///     Called on every periodic cycle, not just after a rebase, so stale state is caught
-    ///     regardless of how it arose.
+    ///     a rebase that has since completed).
     /// </summary>
     private void ReconcileBlockingConditions(List<BranchWithMergeRequest> branchMergeRequestDetails)
     {
