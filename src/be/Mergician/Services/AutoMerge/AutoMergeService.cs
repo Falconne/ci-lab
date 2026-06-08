@@ -783,7 +783,7 @@ public class AutoMergeService : BackgroundService
                                      || mr.DetailedMergeStatus == "need_rebase";
 
             var (currentMrStatus, currentReasons) =
-                MergeRequestStatusCalculator.Calculate(true, mr.DetailedMergeStatus);
+                MergeRequestStatusCalculator.Calculate(mr.DetailedMergeStatus);
 
             // Apply the same merge-error override that the sync service uses, so a pending merge
             // error is not silently cleared by this reconciliation.
