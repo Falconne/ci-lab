@@ -12,11 +12,9 @@ namespace Mergician.Services;
 /// </summary>
 public class MergePermissionService
 {
-    // TODO: Update the use of Gitlab permission levels in this project to use an enum with proper values names such as
-    // Developer = 30, Reporter = 20, etc. instead of using constants.
-    private const int MinMergeAccessLevel = 30;
+    private const GitLabAccessLevel MinMergeAccessLevel = GitLabAccessLevel.Developer;
 
-    private const int MinViewAccessLevel = 20;
+    private const GitLabAccessLevel MinViewAccessLevel = GitLabAccessLevel.Reporter;
 
     private readonly GitLabService _gitLabService;
 
@@ -86,7 +84,7 @@ public class MergePermissionService
     private async Task<(List<string> RestrictedProjects, bool CheckFailed)> GetProjectsWithInsufficientAccess(
         UserAccessDetails userAccessDetails,
         MergeGroup mergeGroup,
-        int minAccessLevel,
+        GitLabAccessLevel minAccessLevel,
         string permissionType,
         CancellationToken cancellationToken)
     {
@@ -125,7 +123,7 @@ public class MergePermissionService
                 continue;
             }
 
-            if (accessLevel < minAccessLevel)
+            if (accessLevel < (int)minAccessLevel)
             {
                 var projectName = mergeGroup.Branches.First(b => b.ProjectId == projectId).ProjectName;
                 _logger.LogInformation(
