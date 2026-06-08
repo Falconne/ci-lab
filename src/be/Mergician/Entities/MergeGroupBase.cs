@@ -1,4 +1,4 @@
-namespace Mergician.Entities.Database;
+namespace Mergician.Entities;
 
 public class MergeGroupBase
 {

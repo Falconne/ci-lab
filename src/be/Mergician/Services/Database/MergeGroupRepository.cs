@@ -1,6 +1,5 @@
 using Dapper;
 using Mergician.Entities;
-using Mergician.Entities.Database;
 using Mergician.Services.Time;
 using System.Data;
 

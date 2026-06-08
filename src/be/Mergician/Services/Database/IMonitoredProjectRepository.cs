@@ -1,4 +1,4 @@
-using Mergician.Entities.Database;
+using Mergician.Entities;
 
 namespace Mergician.Services.Database;
 

@@ -1,5 +1,4 @@
 using Mergician.Entities;
-using Mergician.Entities.Database;
 using Mergician.Services.Authentication;
 using Mergician.Services.Database;
 using Mergician.Services.GitLab;

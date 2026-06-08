@@ -1,5 +1,3 @@
-using Mergician.Entities.Database;
-
 namespace Mergician.Entities;
 
 /// <summary>

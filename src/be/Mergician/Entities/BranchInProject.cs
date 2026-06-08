@@ -1,4 +1,4 @@
-namespace Mergician.Entities.Database;
+namespace Mergician.Entities;
 
 // TODO: Move all the Entities in the Database folder up a level and adjust namespaces.
 public record BranchInProject
