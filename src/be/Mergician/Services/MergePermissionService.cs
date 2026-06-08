@@ -12,6 +12,8 @@ namespace Mergician.Services;
 /// </summary>
 public class MergePermissionService
 {
+    // TODO: Update the use of Gitlab permission levels in this project to use an enum with proper values names such as
+    // Developer = 30, Reporter = 20, etc. instead of using constants.
     private const int MinMergeAccessLevel = 30;
 
     private const int MinViewAccessLevel = 20;
@@ -32,6 +34,10 @@ public class MergePermissionService
         _logger = logger;
     }
 
+    // TODO: MergePermissionsResponse and ViewPermissionsResult are functionally identical. Unify them into
+    // one generic record and update the frontend if needed. Once done, consolidate the CheckMergePermissions
+    // and CheckViewPermissions more by moving more of the shared logic into the GetProjectsWithInsufficientAccess.
+
     public async Task<MergePermissionsResponse> CheckMergePermissions(
         UserAccessDetails userAccessDetails,
         int mergeGroupId,
@@ -45,16 +51,13 @@ public class MergePermissionService
         }
 
         var (blockedProjects, checkFailed) = await GetProjectsWithInsufficientAccess(
-            userAccessDetails, mergeGroup, MinMergeAccessLevel, "merge", cancellationToken);
+            userAccessDetails,
+            mergeGroup,
+            MinMergeAccessLevel,
+            "merge",
+            cancellationToken);
 
         var canMerge = blockedProjects.Count == 0 && !checkFailed;
-        _logger.LogInformation(
-            "Merge permission check complete: user {UserId}, merge group {MergeGroupId}, canMerge={CanMerge}, checkFailed={CheckFailed}, blocked=[{BlockedProjects}]",
-            userAccessDetails.UserId,
-            mergeGroupId,
-            canMerge,
-            checkFailed,
-            string.Join(", ", blockedProjects));
 
         return new MergePermissionsResponse(canMerge, checkFailed, blockedProjects);
     }
@@ -69,16 +72,13 @@ public class MergePermissionService
         CancellationToken cancellationToken = default)
     {
         var (deniedProjects, checkFailed) = await GetProjectsWithInsufficientAccess(
-            userAccessDetails, mergeGroup, MinViewAccessLevel, "view", cancellationToken);
+            userAccessDetails,
+            mergeGroup,
+            MinViewAccessLevel,
+            "view",
+            cancellationToken);
 
         var canView = deniedProjects.Count == 0;
-        _logger.LogInformation(
-            "View permission check complete: user {UserId}, merge group {MergeGroupId}, canView={CanView}, checkFailed={CheckFailed}, denied=[{DeniedProjects}]",
-            userAccessDetails.UserId,
-            mergeGroup.Id,
-            canView,
-            checkFailed,
-            string.Join(", ", deniedProjects));
 
         return new ViewPermissionsResult(canView, checkFailed, deniedProjects);
     }
