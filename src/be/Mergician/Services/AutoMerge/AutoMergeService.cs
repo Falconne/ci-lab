@@ -9,10 +9,7 @@ using Util;
 namespace Mergician.Services.AutoMerge;
 
 /// <summary>
-///     Background service that monitors merge groups with auto merge or auto rebase enabled.
-///     Runs a loop with a minimum cycle interval of 30 seconds to check and act on eligible merge groups:
-///     - Auto Rebase: rebases branches that are behind their target branch.
-///     - Auto Merge: merges all branches in a group when they are all ready.
+///     Background service that monitors and merges Merge Groups with auto merge enabled.
 /// </summary>
 public class AutoMergeService : BackgroundService
 {
@@ -42,7 +39,7 @@ public class AutoMergeService : BackgroundService
 
     private readonly IMergeGroupRepository _mergeGroupRepository;
 
-    /// <summary>Per-group retry state: tracks next allowed merge attempt time and current backoff.</summary>
+    /// Per-group retry state: tracks next allowed merge attempt time and current backoff.
     private readonly ConcurrentDictionary<int, MergeGroupRetryState> _mergeGroupRetryState = new();
 
     private readonly IMergeQueueRepository _mergeQueueRepository;
@@ -104,7 +101,7 @@ public class AutoMergeService : BackgroundService
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            var cycleStart = DateTime.UtcNow;
+            var cycleStart = DateTimeOffset.UtcNow;
             try
             {
                 await ProcessAutoMergeGroups(stoppingToken);
@@ -124,7 +121,7 @@ public class AutoMergeService : BackgroundService
                 _logger.LogError(ex, "AutoMergeService: unexpected error during processing");
             }
 
-            var elapsed = DateTime.UtcNow - cycleStart;
+            var elapsed = DateTimeOffset.UtcNow - cycleStart;
             var remaining = _minCycleInterval - elapsed;
             if (remaining > TimeSpan.Zero)
             {
