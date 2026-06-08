@@ -405,15 +405,15 @@ async function checkMergePermissions() {
       mergePermissionState.value = 'check-failed'
       return
     }
-    const data = await response.json() as { canMerge: boolean; checkFailed: boolean; blockedProjects: string[] }
+    const data = await response.json() as { hasPermission: boolean; checkFailed: boolean; deniedProjects: string[] }
     if (data.checkFailed) {
       mergePermissionState.value = 'check-failed'
-    } else if (data.canMerge) {
+    } else if (data.hasPermission) {
       mergePermissionState.value = 'can-merge'
       permissionBlockedProjects.value = []
     } else {
       mergePermissionState.value = 'blocked'
-      permissionBlockedProjects.value = data.blockedProjects ?? []
+      permissionBlockedProjects.value = data.deniedProjects ?? []
     }
   } catch (err) {
     if (isStartupRequiredError(err)) return

@@ -99,7 +99,7 @@ public class MergeGroupController : ControllerBase
                 result,
                 cancellationToken);
 
-            if (viewPermissions is { CheckFailed: false, CanView: false })
+            if (viewPermissions is { CheckFailed: false, HasPermission: false })
             {
                 _logger.LogInformation(
                     "User {UserId} denied view access to merge group {MergeGroupId} due to insufficient access to: [{DeniedProjects}]",
@@ -376,11 +376,11 @@ public class MergeGroupController : ControllerBase
 
     /// <summary>
     ///     Checks whether the current user has merge permissions in all projects belonging to this merge group.
-    ///     Returns canMerge=true if all projects are accessible, checkFailed=true if any permission
-    ///     check failed due to an API error, and blockedProjects listing any projects where access is insufficient.
+    ///     Returns hasPermission=true if all projects are accessible, checkFailed=true if any permission
+    ///     check failed due to an API error, and deniedProjects listing any projects where access is insufficient.
     /// </summary>
     [HttpGet("{mergeGroupId:int}/merge-permissions")]
-    public async Task<ActionResult<MergePermissionsResponse>> GetMergePermissions(
+    public async Task<ActionResult<PermissionsCheckResult>> GetMergePermissions(
         int mergeGroupId,
         CancellationToken cancellationToken)
     {

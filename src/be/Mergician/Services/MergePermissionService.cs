@@ -32,11 +32,7 @@ public class MergePermissionService
         _logger = logger;
     }
 
-    // TODO: MergePermissionsResponse and ViewPermissionsResult are functionally identical. Unify them into
-    // one generic record and update the frontend if needed. Once done, consolidate the CheckMergePermissions
-    // and CheckViewPermissions more by moving more of the shared logic into the GetProjectsWithInsufficientAccess.
-
-    public async Task<MergePermissionsResponse> CheckMergePermissions(
+    public async Task<PermissionsCheckResult> CheckMergePermissions(
         UserAccessDetails userAccessDetails,
         int mergeGroupId,
         CancellationToken cancellationToken = default)
@@ -45,43 +41,35 @@ public class MergePermissionService
         if (mergeGroup == null)
         {
             _logger.LogError("Merge group {MergeGroupId} not found during permissions check", mergeGroupId);
-            return new MergePermissionsResponse(false, true, []);
+            return new PermissionsCheckResult(false, true, []);
         }
 
-        var (blockedProjects, checkFailed) = await GetProjectsWithInsufficientAccess(
+        return await GetProjectsWithInsufficientAccess(
             userAccessDetails,
             mergeGroup,
             MinMergeAccessLevel,
             "merge",
             cancellationToken);
-
-        var canMerge = blockedProjects.Count == 0 && !checkFailed;
-
-        return new MergePermissionsResponse(canMerge, checkFailed, blockedProjects);
     }
 
     /// <summary>
     ///     Checks whether the current user has at least Reporter access (level 20) in all projects
     ///     belonging to the given merge group.
     /// </summary>
-    public async Task<ViewPermissionsResult> CheckViewPermissions(
+    public async Task<PermissionsCheckResult> CheckViewPermissions(
         UserAccessDetails userAccessDetails,
         MergeGroup mergeGroup,
         CancellationToken cancellationToken = default)
     {
-        var (deniedProjects, checkFailed) = await GetProjectsWithInsufficientAccess(
+        return await GetProjectsWithInsufficientAccess(
             userAccessDetails,
             mergeGroup,
             MinViewAccessLevel,
             "view",
             cancellationToken);
-
-        var canView = deniedProjects.Count == 0;
-
-        return new ViewPermissionsResult(canView, checkFailed, deniedProjects);
     }
 
-    private async Task<(List<string> RestrictedProjects, bool CheckFailed)> GetProjectsWithInsufficientAccess(
+    private async Task<PermissionsCheckResult> GetProjectsWithInsufficientAccess(
         UserAccessDetails userAccessDetails,
         MergeGroup mergeGroup,
         GitLabAccessLevel minAccessLevel,
@@ -138,6 +126,7 @@ public class MergePermissionService
             }
         }
 
-        return (restrictedProjects, checkFailed);
+        var hasPermission = restrictedProjects.Count == 0 && !checkFailed;
+        return new PermissionsCheckResult(hasPermission, checkFailed, restrictedProjects);
     }
 }
