@@ -250,16 +250,17 @@ public class AutoMergeService : BackgroundService
         // Step 2: Auto Merge - check if all branches are ready and merge them all
         if (group.AutoMerge)
         {
-            var intraGroupBlockedBranchIds = await GetIntraGroupBlockedBranchIds(
-                serviceUser,
-                branchMergeRequestDetails,
-                cancellationToken);
+            // Disabled until proper MR blocking can be determined.
+            //var intraGroupBlockedBranchIds = await GetIntraGroupBlockedBranchIds(
+            //    serviceUser,
+            //    branchMergeRequestDetails,
+            //    cancellationToken);
 
             await ProcessAutoMerge(
                 serviceUser,
                 group,
                 branchMergeRequestDetails,
-                intraGroupBlockedBranchIds,
+                [],
                 cancellationToken);
         }
     }

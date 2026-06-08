@@ -800,8 +800,11 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
     ///     ordering automatically. Returns null when the blocking MR endpoint is unavailable
     ///     (GitLab CE / non-Premium), which signals to the caller to use a generic fallback.
     ///     Returns an empty list when the endpoint is available but no external blockers exist.
+    ///     Currently not used until MR blockers can be checked for reliably
     /// </summary>
+#pragma warning disable IDE0051
     private async Task<List<string>?> ResolveBlockingMRDescriptions(
+#pragma warning restore IDE0051
         UserAccessDetails userAccessDetails,
         BranchInProject branch,
         int mrIid,
