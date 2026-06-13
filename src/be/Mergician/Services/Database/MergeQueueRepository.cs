@@ -233,17 +233,14 @@ public class MergeQueueRepository : IMergeQueueRepository
             return;
         }
 
-        var currentIds = currentEntries.Select(e => e.MergeGroupId).ToHashSet();
-        var reordered = new List<int>();
+        var currentIds = currentEntries
+            .Select(e => e.MergeGroupId)
+            .ToHashSet();
 
-        // Requested order first (only for groups that are actually in the queue).
-        foreach (var id in orderedMergeGroupIds)
-        {
-            if (currentIds.Contains(id))
-            {
-                reordered.Add(id);
-            }
-        }
+        // Ignore any entries that may have been removed.
+        var reordered = orderedMergeGroupIds
+            .Where(id => currentIds.Contains(id))
+            .ToList();
 
         // Any groups not in the requested list keep their relative order at the end.
         var requestedSet = orderedMergeGroupIds.ToHashSet();
