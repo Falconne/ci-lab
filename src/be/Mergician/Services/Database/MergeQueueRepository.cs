@@ -1,6 +1,6 @@
-using System.Data;
 using Dapper;
 using Mergician.Entities;
+using System.Data;
 
 namespace Mergician.Services.Database;
 
@@ -71,6 +71,7 @@ public class MergeQueueRepository : IMergeQueueRepository
         switch (intersectingQueueIds.Count)
         {
             case 0:
+                // No queues exist for this repo yet, create a new one
                 targetQueueId = CreateQueue(connection, transaction, projectIds);
                 _logger.LogInformation(
                     "MergeQueueRepository: created new queue {QueueId} for merge group {MergeGroupId} (projects: [{Projects}])",
@@ -81,6 +82,7 @@ public class MergeQueueRepository : IMergeQueueRepository
                 break;
 
             case 1:
+                // One appropriate queue exists for this repo, add the group to it
                 targetQueueId = intersectingQueueIds[0];
                 AddMissingProjectsToQueue(connection, transaction, targetQueueId, projectIds);
                 _logger.LogInformation(
