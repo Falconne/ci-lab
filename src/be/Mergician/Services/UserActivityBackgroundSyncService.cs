@@ -548,7 +548,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
 
                 try
                 {
-                    await RefreshBranchDetails(userAccessDetails, branch, group.Branches, cancellationToken);
+                    await RefreshBranchDetails(userAccessDetails, branch, cancellationToken);
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {
@@ -584,7 +584,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
     private async Task RefreshBranchDetails(
         UserAccessDetails userAccessDetails,
         BranchInProject branch,
-        IReadOnlyList<BranchWithActivity> groupSiblings,
+        //IReadOnlyList<BranchWithActivity> groupSiblings,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -740,9 +740,15 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             return;
         }
 
-        var (mrStatus, reasons) =
+        var (mrStatus, reason) =
             MergeRequestStatusCalculator.Calculate(
                 mr != null ? mergeRequests[0].DetailedMergeStatus : null);
+
+        var reasons = new List<string>();
+        if (reason != null)
+        {
+            reasons.Add(reason);
+        }
 
         // If a previous auto merge attempt failed and GitLab otherwise considers the branch Ready,
         // force Blocked so the user sees the error until they dismiss the warning.

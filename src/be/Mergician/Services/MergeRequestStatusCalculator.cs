@@ -21,36 +21,36 @@ public static class MergeRequestStatusCalculator
     };
 
     /// <summary>
-    ///     Computes the MR status and the list of reasons for non-Ready states from
+    ///     Computes the MR status and the top reason for any non-Ready state from
     ///     GitLab's <c>detailed_merge_status</c>.
     /// </summary>
     /// <param name="detailedMergeStatus">The <c>detailed_merge_status</c> value from GitLab.</param>
-    /// <returns>The status value from <see cref="MRStatus" /> and a list of reason strings.</returns>
-    public static (int Status, List<string> Reasons) Calculate(string? detailedMergeStatus)
+    /// <returns>The status value from <see cref="MRStatus" /> and associated reason.</returns>
+    public static (int Status, string? Reasons) Calculate(string? detailedMergeStatus)
     {
         if (detailedMergeStatus == null)
         {
-            return (MRStatus.Blocked, ["No merge request"]);
+            return (MRStatus.Blocked, "No merge request");
         }
 
         if (detailedMergeStatus == "mergeable")
         {
-            return (MRStatus.Ready, []);
+            return (MRStatus.Ready, null);
         }
 
         if (detailedMergeStatus == "ci_still_running")
         {
-            return (MRStatus.Waiting, ["Build running"]);
+            return (MRStatus.Waiting, "Build running");
         }
 
         if (_transientMergeStatuses.Contains(detailedMergeStatus))
         {
-            return (MRStatus.Waiting, ["GitLab is computing merge status"]);
+            return (MRStatus.Waiting, "GitLab is computing merge status");
         }
 
         var reason = FormatDetailedMergeStatus(detailedMergeStatus);
 
-        return (MRStatus.Blocked, [reason]);
+        return (MRStatus.Blocked, reason);
     }
 
     /// <summary>

@@ -219,8 +219,6 @@ public class AutoMergeService : BackgroundService
             .Select(x => x!)
             .ToList();
 
-        // Reconcile blocking conditions: update DB to reflect current MR state, removing any
-        // stale flags (e.g. needs_rebase that is no longer true after a successful rebase).
         ReconcileBlockingConditions(branchMergeRequestDetails);
 
         // Step 0: Queue management — evaluate whether this group should be in a merge queue.
@@ -783,15 +781,21 @@ public class AutoMergeService : BackgroundService
                                        || mr.HasConflicts
                                        || mr.DetailedMergeStatus == "need_rebase";
 
-            var (currentMrStatus, currentReasons) =
+            var (currentMrStatus, blockingReason) =
                 MergeRequestStatusCalculator.Calculate(mr.DetailedMergeStatus);
+
+            var blockingReasons = new List<string>();
+            if (blockingReason.IsNotEmpty())
+            {
+                blockingReasons.Add(blockingReason);
+            }
 
             // Apply the same merge-error override that the sync service uses, so a pending merge
             // error is not silently cleared by this reconciliation.
             if (branch.MergeError.IsNotEmpty() && currentMrStatus == MRStatus.Ready)
             {
                 currentMrStatus = MRStatus.Blocked;
-                currentReasons.Add(branch.MergeError!);
+                blockingReasons.Add(branch.MergeError!);
             }
 
             var storedNeedsRebase = branch.NeedsRebase == true;
@@ -800,8 +804,8 @@ public class AutoMergeService : BackgroundService
                 continue;
             }
 
-            var currentMrStatusReasons = currentReasons.Count > 0
-                ? JsonSerializer.Serialize(currentReasons)
+            var currentMRStatusReasons = blockingReasons.Count > 0
+                ? JsonSerializer.Serialize(blockingReasons)
                 : null;
 
             _logger.LogInformation(
@@ -818,7 +822,7 @@ public class AutoMergeService : BackgroundService
                 branch.Id,
                 currentlyNeedsRebase,
                 currentMrStatus,
-                currentMrStatusReasons);
+                currentMRStatusReasons);
         }
     }
 
