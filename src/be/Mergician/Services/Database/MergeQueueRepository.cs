@@ -1,6 +1,6 @@
+using System.Data;
 using Dapper;
 using Mergician.Entities;
-using System.Data;
 
 namespace Mergician.Services.Database;
 
@@ -94,7 +94,7 @@ public class MergeQueueRepository : IMergeQueueRepository
 
             default:
                 // Multiple queues share projects with the new group — merge them all into one.
-                targetQueueId = MergeQueues(connection, transaction, intersectingQueueIds, projectIds);
+                targetQueueId = CombineQueues(connection, transaction, intersectingQueueIds, projectIds);
                 _logger.LogInformation(
                     "MergeQueueRepository: merged {Count} queues into queue {QueueId} for merge group {MergeGroupId}",
                     intersectingQueueIds.Count,
@@ -396,10 +396,10 @@ public class MergeQueueRepository : IMergeQueueRepository
     }
 
     /// <summary>
-    ///     Merges multiple queues into one via round-robin interleaving.
+    ///     Combines multiple queues into one via round-robin interleaving.
     ///     Deletes the source queues and returns the ID of the new combined queue.
     /// </summary>
-    private int MergeQueues(
+    private int CombineQueues(
         IDbConnection connection,
         IDbTransaction transaction,
         IReadOnlyList<int> queueIds,
