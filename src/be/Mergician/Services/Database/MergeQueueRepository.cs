@@ -141,10 +141,10 @@ public class MergeQueueRepository : IMergeQueueRepository
             mergeGroupId,
             queueId);
 
-        // Check for possible split outside the remove transaction to keep it focused.
         CheckAndSplitQueue(queueId);
     }
 
+    // After removing a merge group from a multi-repo queue, check if the queue can not be split
     public void CheckAndSplitQueue(int queueId)
     {
         using var connection = _connectionFactory.CreateConnection();
@@ -163,11 +163,11 @@ public class MergeQueueRepository : IMergeQueueRepository
         }
 
         // Build a project-ID map per merge group entry.
-        var projectsPerGroup = LoadProjectIdsForQueueEntries(
+        var projectsPerMergeGroup = LoadProjectIdsForQueueEntries(
             connection,
             entries.Select(e => e.MergeGroupId).ToList());
 
-        var components = FindConnectedComponents(entries, projectsPerGroup);
+        var components = FindConnectedComponents(entries, projectsPerMergeGroup);
 
         if (components.Count <= 1)
         {
@@ -190,7 +190,7 @@ public class MergeQueueRepository : IMergeQueueRepository
         foreach (var component in components)
         {
             var allProjects = component
-                .SelectMany(e => projectsPerGroup.GetValueOrDefault(e.MergeGroupId, []))
+                .SelectMany(e => projectsPerMergeGroup.GetValueOrDefault(e.MergeGroupId, []))
                 .ToHashSet();
 
             var newQueueId = CreateQueue(connection, transaction, allProjects);
