@@ -145,7 +145,7 @@ public class AutoMergeService : BackgroundService
             return;
         }
 
-        var mergeGroups = _mergeGroupRepository.GetMergeGroupsWithAutoSettings();
+        var mergeGroups = _mergeGroupRepository.GetMergeGroupsToAutoMerge();
         if (mergeGroups.Count == 0)
         {
             return;

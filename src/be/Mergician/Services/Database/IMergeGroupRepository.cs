@@ -120,7 +120,7 @@ public interface IMergeGroupRepository
     ///     Returns all merge groups that have auto_merge enabled,
     ///     each containing its branches. Used by the AutoMergeService.
     /// </summary>
-    List<MergeGroup> GetMergeGroupsWithAutoSettings();
+    List<MergeGroup> GetMergeGroupsToAutoMerge();
 
     /// <summary>
     ///     Sets or clears the auto merge warning text for a merge group.

@@ -389,7 +389,7 @@ public class MergeGroupRepository : IMergeGroupRepository
         return rowsAffected;
     }
 
-    public List<MergeGroup> GetMergeGroupsWithAutoSettings()
+    public List<MergeGroup> GetMergeGroupsToAutoMerge()
     {
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();
