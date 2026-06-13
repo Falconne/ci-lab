@@ -228,7 +228,7 @@ public class AutoMergeService : BackgroundService
 
             // Re-read queue position from DB — EvaluateAndUpdateQueueMembership may have changed it.
             var queueEntry = _mergeQueueRepository.GetQueueEntry(group.Id);
-            if (queueEntry != null && queueEntry.Position > 1)
+            if (queueEntry is { Position: > 1 })
             {
                 _logger.LogDebug(
                     "AutoMergeService: merge group '{MergeGroupName}' is at queue position {Position} — skipping rebase/merge this cycle",

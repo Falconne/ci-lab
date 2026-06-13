@@ -167,7 +167,9 @@ public class MergeQueueRepository : IMergeQueueRepository
             connection,
             entries.Select(e => e.MergeGroupId).ToList());
 
-        var components = FindConnectedComponents(entries, projectsPerMergeGroup);
+        var components = FindConnectedMergeGroups(
+            entries.Select(e => e.MergeGroupId).ToArray(),
+            projectsPerMergeGroup);
 
         if (components.Count <= 1)
         {
@@ -557,26 +559,34 @@ public class MergeQueueRepository : IMergeQueueRepository
     }
 
     /// <summary>
-    ///     Finds connected components in the merge-group graph where edges exist between
-    ///     groups that share at least one project.  Returns one list per component, preserving
-    ///     the original entry order within each component.
+    ///     Finds merge groups that share at least one project. Returns one list per set of connected
+    ///     Merge Groups.
     /// </summary>
-    private static List<List<MergeQueueEntryInfo>> FindConnectedComponents(
-        IReadOnlyList<MergeQueueEntryInfo> entries,
-        Dictionary<int, HashSet<int>> projectsPerGroup)
+    private static List<List<int>> FindConnectedMergeGroups(
+        int[] mgIDs,
+        Dictionary<int, HashSet<int>> projectsPerMergeGroup)
     {
-        var parent = entries.Select((e, i) => i).ToArray();
+        var parent = mgIDs.Select((_, i) => i).ToArray();
 
-        int Find(int x)
+        // Union entries that share at least one project.
+        for (var i = 0; i < mgIDs.Length; i++)
         {
-            while (parent[x] != x)
+            for (var j = i + 1; j < mgIDs.Length; j++)
             {
-                parent[x] = parent[parent[x]];
-                x = parent[x];
+                var pi = projectsPerMergeGroup.GetValueOrDefault(mgIDs[i], []);
+                var pj = projectsPerMergeGroup.GetValueOrDefault(mgIDs[j], []);
+                if (pi.Overlaps(pj))
+                {
+                    Union(i, j);
+                }
             }
-
-            return x;
         }
+
+        return mgIDs
+            .Select((e, i) => (entry: e, root: Find(i)))
+            .GroupBy(x => x.root)
+            .Select(g => g.Select(x => x.entry).ToList())
+            .ToList();
 
         void Union(int a, int b)
         {
@@ -588,25 +598,16 @@ public class MergeQueueRepository : IMergeQueueRepository
             }
         }
 
-        // Union entries that share at least one project.
-        for (var i = 0; i < entries.Count; i++)
+        int Find(int x)
         {
-            for (var j = i + 1; j < entries.Count; j++)
+            while (parent[x] != x)
             {
-                var pi = projectsPerGroup.GetValueOrDefault(entries[i].MergeGroupId, []);
-                var pj = projectsPerGroup.GetValueOrDefault(entries[j].MergeGroupId, []);
-                if (pi.Overlaps(pj))
-                {
-                    Union(i, j);
-                }
+                parent[x] = parent[parent[x]];
+                x = parent[x];
             }
-        }
 
-        return entries
-            .Select((e, i) => (entry: e, root: Find(i)))
-            .GroupBy(x => x.root)
-            .Select(g => g.Select(x => x.entry).ToList())
-            .ToList();
+            return x;
+        }
     }
 
     /// <summary>
