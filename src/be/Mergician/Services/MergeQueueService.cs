@@ -27,7 +27,10 @@ public class MergeQueueService
     ///     <list type="bullet">
     ///         <item><c>auto_merge</c> is enabled.</item>
     ///         <item>Every branch in the group has an open MR.</item>
-    ///         <item>Every MR has <c>detailed_merge_status == "ci_still_running"</c> (CI is the only blocker).</item>
+    ///         <item>
+    ///             Every MR has no blockers or <c>detailed_merge_status == "ci_still_running"</c> (CI is the only
+    ///             blocker).
+    ///         </item>
     ///     </list>
     /// </summary>
     public bool IsQueueEligible(
@@ -59,7 +62,7 @@ public class MergeQueueService
 
         foreach (var (branch, mr) in branchMRDetails)
         {
-            if (mr.DetailedMergeStatus != "ci_still_running")
+            if (mr.DetailedMergeStatus != "mergeable" && mr.DetailedMergeStatus != "ci_still_running")
             {
                 _logger.LogDebug(
                     "MergeQueueService: group '{GroupName}' ({GroupId}) is not eligible — branch '{BranchName}' detailed_merge_status={Status}",
