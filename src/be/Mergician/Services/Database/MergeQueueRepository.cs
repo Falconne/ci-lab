@@ -411,11 +411,10 @@ public class MergeQueueRepository : IMergeQueueRepository
 
         foreach (var queueId in queueIds)
         {
-            var entries = connection.Query<(int MergeGroupId, int Position)>(
-                    "SELECT merge_group_id AS MergeGroupId, position AS Position FROM merge_queue_entry WHERE queue_id = @QueueId ORDER BY position",
+            var entries = connection.Query<int>(
+                    "SELECT merge_group_id AS MergeGroupId FROM merge_queue_entry WHERE queue_id = @QueueId ORDER BY position",
                     new { QueueId = queueId },
                     transaction)
-                .Select(e => e.MergeGroupId)
                 .ToList();
 
             entriesPerQueue.Add(entries);
@@ -437,7 +436,6 @@ public class MergeQueueRepository : IMergeQueueRepository
 
         // Create the new combined queue with all project IDs.
         var newQueueId = CreateQueue(connection, transaction, allProjects);
-
         for (var i = 0; i < interleaved.Count; i++)
         {
             connection.Execute(
