@@ -1,6 +1,6 @@
-using System.Data;
 using Dapper;
 using Mergician.Entities;
+using System.Data;
 
 namespace Mergician.Services.Database;
 
@@ -113,11 +113,11 @@ public class MergeQueueRepository : IMergeQueueRepository
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();
 
-        var entry = connection.QueryFirstOrDefault<(int QueueId, int Position)>(
-            "SELECT queue_id AS QueueId, position AS Position FROM merge_queue_entry WHERE merge_group_id = @MergeGroupId",
+        var queueId = connection.QueryFirstOrDefault<int>(
+            "SELECT queue_id AS QueueId FROM merge_queue_entry WHERE merge_group_id = @MergeGroupId",
             new { MergeGroupId = mergeGroupId });
 
-        if (entry == default)
+        if (queueId == 0)
         {
             _logger.LogDebug(
                 "MergeQueueRepository: merge group {MergeGroupId} is not in any queue, nothing to remove",
@@ -125,8 +125,6 @@ public class MergeQueueRepository : IMergeQueueRepository
 
             return;
         }
-
-        var queueId = entry.QueueId;
 
         using var transaction = connection.BeginTransaction();
         connection.Execute(
@@ -472,7 +470,7 @@ public class MergeQueueRepository : IMergeQueueRepository
 
     private static void ResequencePositions(IDbConnection connection, IDbTransaction transaction, int queueId)
     {
-        // Re-number positions 1, 2, 3 ... in existing order to close any gaps.
+        // Re-number positions in existing order to close any gaps (i.e. after removing a queue entry).
         connection.Execute(
             """
             UPDATE merge_queue_entry mqe
