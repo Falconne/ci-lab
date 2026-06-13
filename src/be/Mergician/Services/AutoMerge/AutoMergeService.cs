@@ -779,9 +779,9 @@ public class AutoMergeService : BackgroundService
     {
         foreach (var (branch, mr) in branchMergeRequestDetails)
         {
-            var currentNeedsRebase = mr.DivergedCommitsCount > 0
-                                     || mr.HasConflicts
-                                     || mr.DetailedMergeStatus == "need_rebase";
+            var currentlyNeedsRebase = mr.DivergedCommitsCount > 0
+                                       || mr.HasConflicts
+                                       || mr.DetailedMergeStatus == "need_rebase";
 
             var (currentMrStatus, currentReasons) =
                 MergeRequestStatusCalculator.Calculate(mr.DetailedMergeStatus);
@@ -795,7 +795,7 @@ public class AutoMergeService : BackgroundService
             }
 
             var storedNeedsRebase = branch.NeedsRebase == true;
-            if (storedNeedsRebase == currentNeedsRebase && branch.MRStatus == currentMrStatus)
+            if (storedNeedsRebase == currentlyNeedsRebase && branch.MRStatus == currentMrStatus)
             {
                 continue;
             }
@@ -810,13 +810,13 @@ public class AutoMergeService : BackgroundService
                 branch.BranchName,
                 branch.ProjectId,
                 storedNeedsRebase,
-                currentNeedsRebase,
+                currentlyNeedsRebase,
                 branch.MRStatus,
                 currentMrStatus);
 
             _mergeGroupRepository.UpdateBranchBlockingState(
                 branch.Id,
-                currentNeedsRebase,
+                currentlyNeedsRebase,
                 currentMrStatus,
                 currentMrStatusReasons);
         }
