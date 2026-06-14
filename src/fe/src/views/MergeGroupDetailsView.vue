@@ -9,23 +9,26 @@
             Back to Dashboard
           </v-btn>
           <div v-if="!initialLoading && !mergeGroupGone && !accessDenied" class="page-top-bar-right">
-            <v-tooltip
-              v-if="isFullyLoaded && overallStatusReasons.length > 0"
-              location="bottom"
-            >
-              <template #activator="{ props: tipProps }">
-                <span v-bind="tipProps" class="card-status-badge" :class="overallStatusClass">
-                  <span class="status-dot" />
-                  {{ overallStatusLabel }}
-                </span>
-              </template>
-              <span class="tooltip-multiline">{{ overallStatusReasonsText }}</span>
-            </v-tooltip>
-            <span v-else-if="isFullyLoaded" class="card-status-badge" :class="overallStatusClass">
-              <span class="status-dot" />
-              {{ overallStatusLabel }}
-            </span>
-            <span v-else class="skeleton-badge"><span class="skeleton-shimmer" /></span>
+            <!-- Status chip: only in top bar when auto merge is off; when on, it appears in the Status section -->
+            <template v-if="!autoMerge">
+              <v-tooltip
+                v-if="isFullyLoaded && overallStatusReasons.length > 0"
+                location="bottom"
+              >
+                <template #activator="{ props: tipProps }">
+                  <span v-bind="tipProps" class="card-status-badge" :class="overallStatusClass">
+                    <span class="status-dot" />
+                    {{ overallStatusLabel }}
+                  </span>
+                </template>
+                <span class="tooltip-multiline">{{ overallStatusReasonsText }}</span>
+              </v-tooltip>
+              <span v-else-if="isFullyLoaded" class="card-status-badge" :class="overallStatusClass">
+                <span class="status-dot" />
+                {{ overallStatusLabel }}
+              </span>
+              <span v-else class="skeleton-badge"><span class="skeleton-shimmer" /></span>
+            </template>
             <v-tooltip
               :text="isSubscribed ? 'Remove this merge group from my dashboard' : 'Track this merge group in my dashboard'"
               location="bottom"
@@ -112,17 +115,39 @@
               </v-tooltip>
             </div>
 
-            <!-- Queue position indicator -->
-            <div v-if="queueId != null && queuePosition != null" class="queue-position-info mt-3">
-              <v-icon icon="mdi-playlist-play" size="16" class="mr-1" />
-              Queue position:
-              <router-link :to="{ name: 'queues' }" class="queue-position-link">
-                {{ queuePosition === 1 ? 'Next in queue' : `#${queuePosition} in queue` }}
-              </router-link>
+            <!-- Status section: shown when auto merge is enabled -->
+            <div v-if="autoMerge" class="auto-merge-status mt-3">
+              <span class="status-section-label">Status</span>
+              <div class="mt-1 d-flex align-center flex-wrap" style="gap: 8px;">
+                <template v-if="isFullyLoaded">
+                  <span class="card-status-badge" :class="overallStatusClass">
+                    <span class="status-dot" />
+                    {{ overallStatusLabel }}
+                  </span>
+                </template>
+                <span v-else class="skeleton-badge"><span class="skeleton-shimmer" /></span>
+              </div>
+              <div v-if="queueId != null && queuePosition != null" class="queue-position-info mt-2">
+                <v-icon icon="mdi-playlist-play" size="16" class="mr-1" />
+                Queue position:
+                <router-link :to="{ name: 'queues' }" class="queue-position-link">
+                  {{ queuePosition === 1 ? 'Next in queue' : `#${queuePosition} in queue` }}
+                </router-link>
+              </div>
+              <div
+                v-else-if="isFullyLoaded && overallStatusReasons.length > 0"
+                class="blocking-reasons mt-2"
+              >
+                <div
+                  v-for="reason in overallStatusReasons"
+                  :key="reason"
+                  class="blocking-reason-row"
+                >
+                  {{ reason }}
+                </div>
+              </div>
             </div>
           </div>
-
-          <!-- Add Merge Request dialog -->
           <v-dialog v-model="showAddMergeRequestDialog" max-width="520" persistent>
             <v-card>
               <v-card-title>Add Merge Request</v-card-title>
@@ -747,6 +772,33 @@ onMounted(async () => {
   display: flex;
   gap: 24px;
   flex-wrap: wrap;
+}
+
+/* ---- Auto merge status section ---- */
+.auto-merge-status {
+  border-left: 3px solid rgba(var(--v-theme-primary), 0.3);
+  padding-left: 10px;
+}
+
+.status-section-label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+  margin-bottom: 4px;
+}
+
+.blocking-reasons {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.blocking-reason-row {
+  font-size: 0.85rem;
+  color: rgba(var(--v-theme-on-surface), 0.75);
 }
 
 .queue-position-info {
