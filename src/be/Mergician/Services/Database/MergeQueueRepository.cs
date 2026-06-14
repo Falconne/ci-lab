@@ -104,7 +104,7 @@ public class MergeQueueRepository : IMergeQueueRepository
                 break;
         }
 
-        AppendGroupToQueue(connection, transaction, targetQueueId, mergeGroupId);
+        AddGroupToQueue(connection, transaction, targetQueueId, mergeGroupId);
         transaction.Commit();
     }
 
@@ -448,7 +448,7 @@ public class MergeQueueRepository : IMergeQueueRepository
         return newQueueId;
     }
 
-    private void AppendGroupToQueue(
+    private void AddGroupToQueue(
         IDbConnection connection,
         IDbTransaction transaction,
         int queueId,
