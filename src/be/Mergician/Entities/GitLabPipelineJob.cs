@@ -10,9 +10,6 @@ public class GitLabPipelineJob
     [JsonPropertyName("status")]
     public string Status { get; set; } = "";
 
-    [JsonPropertyName("stage")]
-    public string Stage { get; set; } = "";
-
     [JsonPropertyName("web_url")]
     public string WebUrl { get; set; } = "";
 }

@@ -121,7 +121,7 @@ public class GitLabPipelineService
                 projectId);
         }
 
-        return [..buildJobs, ..dedupedExternalJobs];
+        return [.. buildJobs, .. dedupedExternalJobs];
     }
 
     private async Task<GitLabPipeline?> GetLatestPipeline(
@@ -220,15 +220,13 @@ public class GitLabPipelineService
         CancellationToken cancellationToken)
     {
         var allJobs = new List<GitLabPipelineJob>();
-        string? nextPage;
         var page = 1;
 
         try
         {
             do
             {
-                List<GitLabPipelineJob> pageJobs;
-                (pageJobs, nextPage) = await _gitLabApiClient.ExecutePaged<List<GitLabPipelineJob>>(
+                var (pageJobs, nextPage) = await _gitLabApiClient.ExecutePaged<List<GitLabPipelineJob>>(
                     () => accessDetails.CreateRequest(
                         $"projects/{projectId}/pipelines/{pipelineId}/jobs?per_page=100&page={page}"),
                     cancellationToken);
