@@ -133,7 +133,7 @@ public class MonitoredProjectsService : BackgroundService
         }
 
         // Disable auto merge on groups where the label has been removed from all monitored-project MRs
-        DisableLabelRemovedGroups(monitoredProjectIds, labeledBranches, cancellationToken);
+        DisableLabelRemovedGroups(labeledBranches, cancellationToken);
     }
 
     private async Task ProcessMonitoredProject(
@@ -174,11 +174,11 @@ public class MonitoredProjectsService : BackgroundService
             }
 
             labeledBranches.Add((projectId, mr.SourceBranch));
-            await EnsureAutoMergeEnabledForMr(serviceUser, projectId, mr, cancellationToken);
+            await EnableAutoMergeByLabelForMR(serviceUser, projectId, mr, cancellationToken);
         }
     }
 
-    private async Task EnsureAutoMergeEnabledForMr(
+    private async Task EnableAutoMergeByLabelForMR(
         AccessDetailsBase serviceUser,
         int projectId,
         GitLabMergeRequest mr,
@@ -225,7 +225,6 @@ public class MonitoredProjectsService : BackgroundService
     }
 
     private void DisableLabelRemovedGroups(
-        List<int> monitoredProjectIds,
         HashSet<(int ProjectId, string BranchName)> labeledBranches,
         CancellationToken cancellationToken)
     {
@@ -236,29 +235,12 @@ public class MonitoredProjectsService : BackgroundService
             return;
         }
 
-        var monitoredProjectSet = monitoredProjectIds.ToHashSet();
-
         foreach (var group in labeledGroups)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            // Find branches in this group that belong to monitored projects
-            var monitoredBranches = group.Branches
-                .Where(b => monitoredProjectSet.Contains(b.ProjectId))
-                .ToList();
-
-            if (monitoredBranches.Count == 0)
-            {
-                _logger.LogDebug(
-                    "MonitoredProjectsService: merge group {MergeGroupId} '{MergeGroupName}' has no branches in monitored projects, skipping label check",
-                    group.Id,
-                    group.Name);
-
-                continue;
-            }
-
             var stillLabeled =
-                monitoredBranches.Any(b => labeledBranches.Contains((b.ProjectId, b.BranchName)));
+                group.Branches.Any(b => labeledBranches.Contains((b.ProjectId, b.BranchName)));
 
             if (!stillLabeled)
             {

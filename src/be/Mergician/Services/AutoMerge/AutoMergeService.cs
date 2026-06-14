@@ -425,7 +425,7 @@ public class AutoMergeService : BackgroundService
 
         // Check each branch for readiness
         var allReady = true;
-        var reasons = new List<string>();
+        var unreadyReasons = new List<string>();
 
         foreach (var (branch, mr) in branchMergeRequestDetails)
         {
@@ -436,7 +436,7 @@ public class AutoMergeService : BackgroundService
                 branch,
                 mr,
                 isIntraGroupBlockedOnly,
-                reasons);
+                unreadyReasons);
 
             if (!branchReady)
             {
@@ -449,7 +449,7 @@ public class AutoMergeService : BackgroundService
             _logger.LogInformation(
                 "AutoMergeService: merge group '{MergeGroupName}' is not ready to merge: {Reasons}",
                 group.Name,
-                string.Join("; ", reasons));
+                string.Join("; ", unreadyReasons));
 
             return;
         }
@@ -458,11 +458,9 @@ public class AutoMergeService : BackgroundService
         // in a monitored project before proceeding with the merge.
         if (group.AutoMergeByLabel)
         {
-            var monitoredProjectIds = _monitoredProjectRepository.GetAllProjectIds().ToHashSet();
-            var hasLabel = branchMergeRequestDetails.Any(x => monitoredProjectIds.Contains(x.Branch.ProjectId)
-                                                              && x.MergeRequest.Labels.Contains(
-                                                                  MonitoredProjectsService.AutoMergeLabel,
-                                                                  StringComparer.OrdinalIgnoreCase));
+            var hasLabel = branchMergeRequestDetails.Any(x => x.MergeRequest.Labels.Contains(
+                MonitoredProjectsService.AutoMergeLabel,
+                StringComparer.OrdinalIgnoreCase));
 
             if (!hasLabel)
             {
@@ -675,7 +673,7 @@ public class AutoMergeService : BackgroundService
         BranchWithActivity branch,
         GitLabDetailedMergeRequest mr,
         bool isIntraGroupBlockedOnly,
-        List<string> reasons)
+        List<string> unreadyReasons)
     {
         var branchLabel = $"{branch.ProjectName}/{branch.BranchName}";
 
@@ -699,9 +697,10 @@ public class AutoMergeService : BackgroundService
                 branch.ProjectId,
                 mr.DetailedMergeStatus);
 
-            reasons.Add(
-                $"{branchLabel}: {MergeRequestStatusCalculator.FormatDetailedMergeStatus(mr.DetailedMergeStatus ?? "unknown")}");
+            var reason = MergeRequestStatusCalculator.FormatDetailedMergeStatus(
+                mr.DetailedMergeStatus.IsNotEmpty() ? mr.DetailedMergeStatus : "unknown");
 
+            unreadyReasons.Add($"{branchLabel}: {reason}");
             return false;
         }
 
