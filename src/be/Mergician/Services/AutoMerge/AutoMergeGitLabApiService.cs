@@ -1,9 +1,9 @@
-using System.Net;
-using System.Text;
-using System.Text.Json;
 using Mergician.Entities;
 using Mergician.Services.Authentication;
 using Mergician.Services.GitLab;
+using System.Net;
+using System.Text;
+using System.Text.Json;
 
 namespace Mergician.Services.AutoMerge;
 
@@ -17,15 +17,11 @@ public class AutoMergeGitLabApiService
 
     private readonly ILogger<AutoMergeGitLabApiService> _logger;
 
-    private readonly GitLabPipelineService _pipelineService;
-
     public AutoMergeGitLabApiService(
         GitLabApiClient gitLabApiClient,
-        GitLabPipelineService pipelineService,
         ILogger<AutoMergeGitLabApiService> logger)
     {
         _gitLabApiClient = gitLabApiClient;
-        _pipelineService = pipelineService;
         _logger = logger;
     }
 
@@ -56,49 +52,6 @@ public class AutoMergeGitLabApiService
 
             return null;
         }
-    }
-
-    /// <summary>
-    ///     Fetches the latest pipeline for a merge request, or null if none exists.
-    /// </summary>
-    public async Task<GitLabPipelineDetail?> GetLatestMergeRequestPipeline(
-        AccessDetailsBase accessDetails,
-        int projectId,
-        int mergeRequestIid,
-        CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            var pipelines = await _gitLabApiClient.Execute<List<GitLabPipelineDetail>>(
-                () =>
-                    accessDetails.CreateRequest(
-                        $"projects/{projectId}/merge_requests/{mergeRequestIid}/pipelines?per_page=1&sort=desc"),
-                cancellationToken);
-
-            return pipelines.FirstOrDefault();
-        }
-        catch (GitLabUnexpectedResponseException ex)
-        {
-            _logger.LogError(
-                "GetLatestMergeRequestPipeline failed with status {StatusCode} for project {ProjectId}, MR {MergeRequestIid}",
-                (int)ex.StatusCode,
-                projectId,
-                mergeRequestIid);
-
-            return null;
-        }
-    }
-
-    /// <summary>
-    ///     Fetches jobs for a specific pipeline. Delegates to <see cref="GitLabPipelineService" />.
-    /// </summary>
-    public Task<List<BranchBuildJob>> GetPipelineJobs(
-        AccessDetailsBase accessDetails,
-        int projectId,
-        int pipelineId,
-        CancellationToken cancellationToken = default)
-    {
-        return _pipelineService.GetJobsFromPipeline(accessDetails, projectId, pipelineId, cancellationToken);
     }
 
     /// <summary>
