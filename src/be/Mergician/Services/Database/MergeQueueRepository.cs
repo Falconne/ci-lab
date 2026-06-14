@@ -1,6 +1,6 @@
-using System.Data;
 using Dapper;
 using Mergician.Entities;
+using System.Data;
 
 namespace Mergician.Services.Database;
 
@@ -34,12 +34,12 @@ public class MergeQueueRepository : IMergeQueueRepository
             new { MergeGroupId = mergeGroupId });
     }
 
-    public IReadOnlyList<MergeQueueInfo> GetAllQueues()
+    public IReadOnlyList<int> GetAllQueueIds()
     {
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();
 
-        return LoadAllQueues(connection);
+        return connection.Query<int>("SELECT id FROM merge_queue ORDER BY id").ToList();
     }
 
     public void AddMergeGroupToQueue(int mergeGroupId, IReadOnlyCollection<int> projectIds)
@@ -104,7 +104,7 @@ public class MergeQueueRepository : IMergeQueueRepository
                 break;
         }
 
-        AppendGroupToQueue(connection, transaction, targetQueueId, mergeGroupId);
+        AddGroupToQueue(connection, transaction, targetQueueId, mergeGroupId);
         transaction.Commit();
     }
 
@@ -113,11 +113,11 @@ public class MergeQueueRepository : IMergeQueueRepository
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();
 
-        var entry = connection.QueryFirstOrDefault<(int QueueId, int Position)>(
-            "SELECT queue_id AS QueueId, position AS Position FROM merge_queue_entry WHERE merge_group_id = @MergeGroupId",
+        var queueId = connection.QueryFirstOrDefault<int>(
+            "SELECT queue_id AS QueueId FROM merge_queue_entry WHERE merge_group_id = @MergeGroupId",
             new { MergeGroupId = mergeGroupId });
 
-        if (entry == default)
+        if (queueId == 0)
         {
             _logger.LogDebug(
                 "MergeQueueRepository: merge group {MergeGroupId} is not in any queue, nothing to remove",
@@ -125,8 +125,6 @@ public class MergeQueueRepository : IMergeQueueRepository
 
             return;
         }
-
-        var queueId = entry.QueueId;
 
         using var transaction = connection.BeginTransaction();
         connection.Execute(
@@ -143,10 +141,10 @@ public class MergeQueueRepository : IMergeQueueRepository
             mergeGroupId,
             queueId);
 
-        // Check for possible split outside the remove transaction to keep it focused.
         CheckAndSplitQueue(queueId);
     }
 
+    // After removing a merge group from a multi-repo queue, check if the queue can not be split
     public void CheckAndSplitQueue(int queueId)
     {
         using var connection = _connectionFactory.CreateConnection();
@@ -164,54 +162,51 @@ public class MergeQueueRepository : IMergeQueueRepository
             return;
         }
 
+        var mergeGroupIds = entries.Select(e => e.MergeGroupId).ToArray();
+
         // Build a project-ID map per merge group entry.
-        var projectsPerGroup = LoadProjectIdsForQueueEntries(
-            connection,
-            entries.Select(e => e.MergeGroupId).ToList());
+        var projectsPerMergeGroup = LoadProjectIdsForQueueEntries(connection, mergeGroupIds);
 
-        var components = FindConnectedComponents(entries, projectsPerGroup);
+        var connectedMergeGroupsSets = FindConnectedMergeGroupSets(mergeGroupIds, projectsPerMergeGroup);
 
-        if (components.Count <= 1)
+        if (connectedMergeGroupsSets.Count <= 1)
         {
-            _logger.LogDebug(
-                "MergeQueueRepository: queue {QueueId} does not need splitting ({Count} entries, 1 component)",
-                queueId,
-                entries.Count);
-
+            _logger.LogDebug("MergeQueueRepository: queue {QueueId} does not need splitting", queueId);
             return;
         }
 
         _logger.LogInformation(
-            "MergeQueueRepository: splitting queue {QueueId} into {ComponentCount} queues",
+            "MergeQueueRepository: splitting queue {QueueId} into {NewQueueCount} queues",
             queueId,
-            components.Count);
+            connectedMergeGroupsSets.Count);
 
         using var transaction = connection.BeginTransaction();
 
         // Collect all project IDs for each component and build new queues.
-        foreach (var component in components)
+        foreach (var newQueueGroupIds in connectedMergeGroupsSets)
         {
-            var allProjects = component
-                .SelectMany(e => projectsPerGroup.GetValueOrDefault(e.MergeGroupId, []))
+            var allProjects = newQueueGroupIds
+                .SelectMany(id => projectsPerMergeGroup.GetValueOrDefault(id, []))
                 .ToHashSet();
 
             var newQueueId = CreateQueue(connection, transaction, allProjects);
 
-            for (var i = 0; i < component.Count; i++)
+            for (var i = 0; i < newQueueGroupIds.Count; i++)
             {
+                var mergeGroupId = newQueueGroupIds[i];
                 connection.Execute(
                     """
                     INSERT INTO merge_queue_entry (queue_id, merge_group_id, position)
                     VALUES (@QueueId, @MergeGroupId, @Position)
                     """,
-                    new { QueueId = newQueueId, component[i].MergeGroupId, Position = i + 1 },
+                    new { QueueId = newQueueId, mergeGroupId, Position = i + 1 },
                     transaction);
             }
 
             _logger.LogInformation(
                 "MergeQueueRepository: created split queue {NewQueueId} with {Count} entries",
                 newQueueId,
-                component.Count);
+                newQueueGroupIds.Count);
         }
 
         // Remove original queue (cascade deletes its entries and projects).
@@ -238,17 +233,14 @@ public class MergeQueueRepository : IMergeQueueRepository
             return;
         }
 
-        var currentIds = currentEntries.Select(e => e.MergeGroupId).ToHashSet();
-        var reordered = new List<int>();
+        var currentIds = currentEntries
+            .Select(e => e.MergeGroupId)
+            .ToHashSet();
 
-        // Requested order first (only for groups that are actually in the queue).
-        foreach (var id in orderedMergeGroupIds)
-        {
-            if (currentIds.Contains(id))
-            {
-                reordered.Add(id);
-            }
-        }
+        // Ignore any entries that may have been removed.
+        var reordered = orderedMergeGroupIds
+            .Where(id => currentIds.Contains(id))
+            .ToList();
 
         // Any groups not in the requested list keep their relative order at the end.
         var requestedSet = orderedMergeGroupIds.ToHashSet();
@@ -303,7 +295,10 @@ public class MergeQueueRepository : IMergeQueueRepository
 
         var projectNamesByQueue = projectNameRows
             .GroupBy(r => r.QueueId)
-            .ToDictionary(g => g.Key, g => g.Select(r => r.ProjectName).Distinct().OrderBy(n => n).ToList());
+            .ToDictionary(
+                g =>
+                    g.Key,
+                g => g.Select(r => r.ProjectName).Distinct().OrderBy(n => n).ToList());
 
         // Determine which queues contain at least one merge group tracked by the current user.
         var trackedQueueIds = connection.Query<int>(
@@ -453,7 +448,7 @@ public class MergeQueueRepository : IMergeQueueRepository
         return newQueueId;
     }
 
-    private void AppendGroupToQueue(
+    private void AddGroupToQueue(
         IDbConnection connection,
         IDbTransaction transaction,
         int queueId,
@@ -472,7 +467,7 @@ public class MergeQueueRepository : IMergeQueueRepository
 
     private static void ResequencePositions(IDbConnection connection, IDbTransaction transaction, int queueId)
     {
-        // Re-number positions 1, 2, 3 ... in existing order to close any gaps.
+        // Re-number positions in existing order to close any gaps (i.e. after removing a queue entry).
         connection.Execute(
             """
             UPDATE merge_queue_entry mqe
@@ -498,30 +493,6 @@ public class MergeQueueRepository : IMergeQueueRepository
                 ORDER BY position
                 """,
                 new { QueueId = queueId })
-            .ToList();
-    }
-
-    private IReadOnlyList<MergeQueueInfo> LoadAllQueues(IDbConnection connection)
-    {
-        var projectRows = connection.Query<(int QueueId, int ProjectId)>(
-                "SELECT queue_id AS QueueId, project_id AS ProjectId FROM merge_queue_project")
-            .GroupBy(r => r.QueueId)
-            .ToDictionary(g => g.Key, g => (IReadOnlyList<int>)g.Select(r => r.ProjectId).ToList());
-
-        var entryRows = connection.Query<MergeQueueEntryInfo>(
-                "SELECT queue_id AS QueueId, merge_group_id AS MergeGroupId, position AS Position FROM merge_queue_entry ORDER BY queue_id, position")
-            .GroupBy(r => r.QueueId)
-            .ToDictionary(
-                g => g.Key,
-                g => (IReadOnlyList<MergeQueueEntryInfo>)g.ToList());
-
-        var queueIds = connection.Query<int>("SELECT id FROM merge_queue ORDER BY id").ToList();
-
-        return queueIds
-            .Select(id => new MergeQueueInfo(
-                id,
-                projectRows.GetValueOrDefault(id, []),
-                entryRows.GetValueOrDefault(id, [])))
             .ToList();
     }
 
@@ -559,26 +530,34 @@ public class MergeQueueRepository : IMergeQueueRepository
     }
 
     /// <summary>
-    ///     Finds connected components in the merge-group graph where edges exist between
-    ///     groups that share at least one project.  Returns one list per component, preserving
-    ///     the original entry order within each component.
+    ///     Finds merge groups that share at least one project. Returns one list per set of connected
+    ///     Merge Groups.
     /// </summary>
-    private static List<List<MergeQueueEntryInfo>> FindConnectedComponents(
-        IReadOnlyList<MergeQueueEntryInfo> entries,
-        Dictionary<int, HashSet<int>> projectsPerGroup)
+    private static List<List<int>> FindConnectedMergeGroupSets(
+        int[] mergeGroupIds,
+        Dictionary<int, HashSet<int>> projectsPerMergeGroup)
     {
-        var parent = entries.Select((e, i) => i).ToArray();
+        var parent = mergeGroupIds.Select((_, i) => i).ToArray();
 
-        int Find(int x)
+        // Union entries that share at least one project.
+        for (var i = 0; i < mergeGroupIds.Length; i++)
         {
-            while (parent[x] != x)
+            for (var j = i + 1; j < mergeGroupIds.Length; j++)
             {
-                parent[x] = parent[parent[x]];
-                x = parent[x];
+                var pi = projectsPerMergeGroup.GetValueOrDefault(mergeGroupIds[i], []);
+                var pj = projectsPerMergeGroup.GetValueOrDefault(mergeGroupIds[j], []);
+                if (pi.Overlaps(pj))
+                {
+                    Union(i, j);
+                }
             }
-
-            return x;
         }
+
+        return mergeGroupIds
+            .Select((e, i) => (entry: e, root: Find(i)))
+            .GroupBy(x => x.root)
+            .Select(g => g.Select(x => x.entry).ToList())
+            .ToList();
 
         void Union(int a, int b)
         {
@@ -590,25 +569,16 @@ public class MergeQueueRepository : IMergeQueueRepository
             }
         }
 
-        // Union entries that share at least one project.
-        for (var i = 0; i < entries.Count; i++)
+        int Find(int x)
         {
-            for (var j = i + 1; j < entries.Count; j++)
+            while (parent[x] != x)
             {
-                var pi = projectsPerGroup.GetValueOrDefault(entries[i].MergeGroupId, []);
-                var pj = projectsPerGroup.GetValueOrDefault(entries[j].MergeGroupId, []);
-                if (pi.Overlaps(pj))
-                {
-                    Union(i, j);
-                }
+                parent[x] = parent[parent[x]];
+                x = parent[x];
             }
-        }
 
-        return entries
-            .Select((e, i) => (entry: e, root: Find(i)))
-            .GroupBy(x => x.root)
-            .Select(g => g.Select(x => x.entry).ToList())
-            .ToList();
+            return x;
+        }
     }
 
     /// <summary>
