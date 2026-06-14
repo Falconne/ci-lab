@@ -20,6 +20,11 @@ public static class MergeRequestStatusCalculator
         "approvals_syncing"
     };
 
+    public static bool IsTransientStatus(string status)
+    {
+        return _transientMergeStatuses.Contains(status);
+    }
+
     /// <summary>
     ///     Computes the MR status and the top reason for any non-Ready state from
     ///     GitLab's <c>detailed_merge_status</c>.

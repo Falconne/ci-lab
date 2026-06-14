@@ -11,9 +11,9 @@ namespace Mergician.Services;
 /// </summary>
 public class MergeQueueService
 {
+    // TODO: Like with `IsTransientStatus`, move this allowed status check into MergeRequestStatusCalculator
+    // as `IsMergeableStatus`.
     private readonly HashSet<string> _allowedStatuses = ["ci_still_running", "mergeable", "need_rebase"];
-
-    private readonly HashSet<string> _indeterminateStatuses = ["checking", "preparing", "unchecked"];
 
     private readonly ILogger<MergeQueueService> _logger;
 
@@ -66,7 +66,7 @@ public class MergeQueueService
 
         foreach (var (branch, mr) in branchMRDetails)
         {
-            if (_indeterminateStatuses.Contains(mr.DetailedMergeStatus))
+            if (MergeRequestStatusCalculator.IsTransientStatus(mr.DetailedMergeStatus))
             {
                 _logger.LogDebug(
                     "MergeQueueService: group '{GroupName}' ({GroupId}) is in non determinate state, will not change queue status — branch '{BranchName}' detailed_merge_status={Status}",
