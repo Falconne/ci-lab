@@ -32,10 +32,6 @@ public class MergeGroupManagementService
         _logger = logger;
     }
 
-    //TODO: There are some repeated concepts in AddBranchByMergeRequestUrl and FindOrCreateMergeGroupByMergeRequestUrl such
-    // as looking up MRs, subscribing users to merge groups and removing newly tracked branches from the user's ignored
-    // list. Add helper methods to generalise these sections of repeated concepts.
-
     /// <summary>
     ///     Parses a merge request URL, looks up the MR in GitLab, and adds its source branch
     ///     to the specified merge group, subscribing the user if not already subscribed.
@@ -46,11 +42,13 @@ public class MergeGroupManagementService
         string mergeRequestUrl,
         CancellationToken cancellationToken = default)
     {
-        var parsed = _mergeRequestLookupService.ParseMergeRequestUrl(mergeRequestUrl);
-        if (parsed == null)
+        var lookupResult = await LookupMergeRequestFromUrl(userAccessDetails, mergeRequestUrl, cancellationToken);
+        if (lookupResult.Error != null)
         {
-            return new AddBranchResult(null, MergeGroupManagementError.InvalidUrl);
+            return new AddBranchResult(null, lookupResult.Error);
         }
+
+        var mr = lookupResult.Result!;
 
         var existing = _mergeGroupRepository.GetMergeGroup(mergeGroupId);
         if (existing == null)
@@ -62,41 +60,17 @@ public class MergeGroupManagementService
             return new AddBranchResult(null, MergeGroupManagementError.MergeGroupNotFound);
         }
 
-        var lookupResult = await _mergeRequestLookupService.LookupMergeRequest(
-            userAccessDetails,
-            parsed.ProjectPath,
-            parsed.MergeRequestIid,
-            cancellationToken);
-
-        if (lookupResult == null)
-        {
-            return new AddBranchResult(null, MergeGroupManagementError.MergeRequestNotFound);
-        }
-
-        var branchRecord = _mergeGroupRepository.GetOrCreateBranchRecord(
-            lookupResult.SourceBranch,
-            lookupResult.Project);
-
+        var branchRecord = _mergeGroupRepository.GetOrCreateBranchRecord(mr.SourceBranch, mr.Project);
         _mergeGroupRepository.EnsureBranchInMergeGroup(mergeGroupId, branchRecord.Id);
-        var wasAdded = _mergeGroupRepository.EnsureUserInMergeGroup(userAccessDetails.UserId, mergeGroupId);
-        await _ignoredBranchRepository.RemoveIgnoredBranch(
-            userAccessDetails.UserId,
-            lookupResult.SourceBranch);
+
+        await SubscribeUserToMergeGroup(userAccessDetails.UserId, mergeGroupId, null, mr.SourceBranch);
 
         _logger.LogInformation(
             "User {UserId} added branch '{BranchName}' from project {ProjectId} to merge group {MergeGroupId} via MR URL",
             userAccessDetails.UserId,
-            lookupResult.SourceBranch,
-            lookupResult.Project.Id,
+            mr.SourceBranch,
+            mr.Project.Id,
             mergeGroupId);
-
-        if (wasAdded)
-        {
-            _logger.LogInformation(
-                "User {UserId} added to tracked branches for merge group {MergeGroupId} via MR URL addition",
-                userAccessDetails.UserId,
-                mergeGroupId);
-        }
 
         var updated = _mergeGroupRepository.GetMergeGroup(mergeGroupId);
         return new AddBranchResult(updated, null);
@@ -111,86 +85,103 @@ public class MergeGroupManagementService
         string mergeRequestUrl,
         CancellationToken cancellationToken = default)
     {
-        var parsed = _mergeRequestLookupService.ParseMergeRequestUrl(mergeRequestUrl);
-        if (parsed == null)
+        var lookupResult = await LookupMergeRequestFromUrl(userAccessDetails, mergeRequestUrl, cancellationToken);
+        if (lookupResult.Error != null)
         {
-            return new FindOrCreateMergeGroupResult(null, false, MergeGroupManagementError.InvalidUrl);
+            return new FindOrCreateMergeGroupResult(null, false, lookupResult.Error);
         }
 
-        var lookupResult = await _mergeRequestLookupService.LookupMergeRequest(
-            userAccessDetails,
-            parsed.ProjectPath,
-            parsed.MergeRequestIid,
-            cancellationToken);
+        var mr = lookupResult.Result!;
 
-        if (lookupResult == null)
-        {
-            return new FindOrCreateMergeGroupResult(
-                null,
-                false,
-                MergeGroupManagementError.MergeRequestNotFound);
-        }
-
-        var existingMergeGroup = _mergeGroupRepository.FindMergeGroupByBranch(
-            lookupResult.SourceBranch,
-            lookupResult.Project.Id);
-
+        var existingMergeGroup = _mergeGroupRepository.FindMergeGroupByBranch(mr.SourceBranch, mr.Project.Id);
         if (existingMergeGroup != null)
         {
-            var wasAdded = _mergeGroupRepository.EnsureUserInMergeGroup(
+            await SubscribeUserToMergeGroup(
                 userAccessDetails.UserId,
-                existingMergeGroup.Id);
-
-            await _ignoredBranchRepository.RemoveIgnoredBranch(
-                userAccessDetails.UserId,
-                lookupResult.SourceBranch);
+                existingMergeGroup.Id,
+                existingMergeGroup.Name,
+                mr.SourceBranch);
 
             _logger.LogInformation(
                 "User {UserId} found existing merge group {MergeGroupId} for branch '{BranchName}' via MR URL",
                 userAccessDetails.UserId,
                 existingMergeGroup.Id,
-                lookupResult.SourceBranch);
-
-            if (wasAdded)
-            {
-                _logger.LogInformation(
-                    "User {UserId} added to tracked branches for merge group {MergeGroupId} ('{MergeGroupName}') via MR URL lookup",
-                    userAccessDetails.UserId,
-                    existingMergeGroup.Id,
-                    existingMergeGroup.Name);
-            }
+                mr.SourceBranch);
 
             return new FindOrCreateMergeGroupResult(existingMergeGroup.Id, false, null);
         }
 
-        var mergeGroup = _mergeGroupRepository.GetOrCreateMergeGroup(lookupResult.SourceBranch);
-        var branchRecord = _mergeGroupRepository.GetOrCreateBranchRecord(
-            lookupResult.SourceBranch,
-            lookupResult.Project);
-
+        var mergeGroup = _mergeGroupRepository.GetOrCreateMergeGroup(mr.SourceBranch);
+        var branchRecord = _mergeGroupRepository.GetOrCreateBranchRecord(mr.SourceBranch, mr.Project);
         _mergeGroupRepository.EnsureBranchInMergeGroup(mergeGroup.Id, branchRecord.Id);
-        var wasAddedToNewGroup =
-            _mergeGroupRepository.EnsureUserInMergeGroup(userAccessDetails.UserId, mergeGroup.Id);
 
-        await _ignoredBranchRepository.RemoveIgnoredBranch(
+        await SubscribeUserToMergeGroup(
             userAccessDetails.UserId,
-            lookupResult.SourceBranch);
+            mergeGroup.Id,
+            mergeGroup.Name,
+            mr.SourceBranch);
 
         _logger.LogInformation(
             "User {UserId} created merge group {MergeGroupId} for branch '{BranchName}' via MR URL",
             userAccessDetails.UserId,
             mergeGroup.Id,
-            lookupResult.SourceBranch);
-
-        if (wasAddedToNewGroup)
-        {
-            _logger.LogInformation(
-                "User {UserId} added to tracked branches for merge group {MergeGroupId} ('{MergeGroupName}') via MR URL lookup",
-                userAccessDetails.UserId,
-                mergeGroup.Id,
-                mergeGroup.Name);
-        }
+            mr.SourceBranch);
 
         return new FindOrCreateMergeGroupResult(mergeGroup.Id, true, null);
+    }
+
+    // -------------------------------------------------------------------------
+    // Private helpers
+    // -------------------------------------------------------------------------
+
+    private record MrLookupOutcome(MergeRequestLookupResult? Result, MergeGroupManagementError? Error);
+
+    /// <summary>
+    ///     Parses a merge request URL and looks up the MR in GitLab.
+    ///     Returns the lookup result or a management error if either step fails.
+    /// </summary>
+    private async Task<MrLookupOutcome> LookupMergeRequestFromUrl(
+        UserAccessDetails userAccessDetails,
+        string mergeRequestUrl,
+        CancellationToken cancellationToken)
+    {
+        var parsed = _mergeRequestLookupService.ParseMergeRequestUrl(mergeRequestUrl);
+        if (parsed == null)
+        {
+            return new MrLookupOutcome(null, MergeGroupManagementError.InvalidUrl);
+        }
+
+        var result = await _mergeRequestLookupService.LookupMergeRequest(
+            userAccessDetails,
+            parsed.ProjectPath,
+            parsed.MergeRequestIid,
+            cancellationToken);
+
+        return result == null
+            ? new MrLookupOutcome(null, MergeGroupManagementError.MergeRequestNotFound)
+            : new MrLookupOutcome(result, null);
+    }
+
+    /// <summary>
+    ///     Subscribes the user to a merge group and removes the branch from the user's ignored
+    ///     list. Logs if the user was newly added to the group.
+    /// </summary>
+    private async Task SubscribeUserToMergeGroup(
+        int userId,
+        int mergeGroupId,
+        string? mergeGroupName,
+        string sourceBranch)
+    {
+        var wasAdded = _mergeGroupRepository.EnsureUserInMergeGroup(userId, mergeGroupId);
+        await _ignoredBranchRepository.RemoveIgnoredBranch(userId, sourceBranch);
+
+        if (wasAdded)
+        {
+            _logger.LogInformation(
+                "User {UserId} added to tracked branches for merge group {MergeGroupId}{GroupNameSuffix}",
+                userId,
+                mergeGroupId,
+                mergeGroupName != null ? $" ('{mergeGroupName}')" : "");
+        }
     }
 }
