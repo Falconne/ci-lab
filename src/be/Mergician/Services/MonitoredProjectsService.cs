@@ -133,7 +133,7 @@ public class MonitoredProjectsService : BackgroundService
         }
 
         // Disable auto merge on groups where the label has been removed from all monitored-project MRs
-        DisableLabelRemovedGroups(labeledBranches, cancellationToken);
+        DisableAutoMergeOnLabelRemovedGroups(labeledBranches, cancellationToken);
     }
 
     private async Task ProcessMonitoredProject(
@@ -224,7 +224,7 @@ public class MonitoredProjectsService : BackgroundService
         }
     }
 
-    private void DisableLabelRemovedGroups(
+    private void DisableAutoMergeOnLabelRemovedGroups(
         HashSet<(int ProjectId, string BranchName)> labeledBranches,
         CancellationToken cancellationToken)
     {
