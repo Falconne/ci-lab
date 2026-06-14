@@ -11,10 +11,6 @@ namespace Mergician.Services;
 /// </summary>
 public class MergeQueueService
 {
-    // TODO: Like with `IsTransientStatus`, move this allowed status check into MergeRequestStatusCalculator
-    // as `IsMergeableStatus`.
-    private readonly HashSet<string> _allowedStatuses = ["ci_still_running", "mergeable", "need_rebase"];
-
     private readonly ILogger<MergeQueueService> _logger;
 
     private readonly IMergeQueueRepository _queueRepository;
@@ -78,7 +74,7 @@ public class MergeQueueService
                 return null;
             }
 
-            if (!_allowedStatuses.Contains(mr.DetailedMergeStatus))
+            if (!MergeRequestStatusCalculator.IsMergeableStatus(mr.DetailedMergeStatus))
             {
                 _logger.LogDebug(
                     "MergeQueueService: group '{GroupName}' ({GroupId}) is not eligible — branch '{BranchName}' detailed_merge_status={Status}",

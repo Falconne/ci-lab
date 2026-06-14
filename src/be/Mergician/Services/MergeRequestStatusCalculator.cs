@@ -20,9 +20,30 @@ public static class MergeRequestStatusCalculator
         "approvals_syncing"
     };
 
+    /// <summary>
+    ///     GitLab <c>detailed_merge_status</c> values that allow a merge group to be placed in
+    ///     a merge queue.  <c>mergeable</c> and <c>need_rebase</c> are fully ready;
+    ///     <c>ci_still_running</c> is permitted so the group enters the queue while CI finishes.
+    /// </summary>
+    private static readonly HashSet<string> _mergeableStatuses = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "ci_still_running",
+        "mergeable",
+        "need_rebase"
+    };
+
     public static bool IsTransientStatus(string status)
     {
         return _transientMergeStatuses.Contains(status);
+    }
+
+    /// <summary>
+    ///     Returns true if the MR's <c>detailed_merge_status</c> allows the merge group to enter
+    ///     the merge queue (i.e. no hard blockers remain).
+    /// </summary>
+    public static bool IsMergeableStatus(string status)
+    {
+        return _mergeableStatuses.Contains(status);
     }
 
     /// <summary>
