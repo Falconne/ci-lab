@@ -241,7 +241,14 @@ public class AutoMergeService : BackgroundService
         }
 
         // Step 1: Auto Rebase - rebase branches that are behind their target
-        await ProcessAutoRebase(serviceUser, group, branchMergeRequestDetails, cancellationToken);
+        if (!await ProcessAutoRebase(serviceUser, group, branchMergeRequestDetails, cancellationToken))
+        {
+            _logger.LogWarning(
+                "AutoMergeService: merge group '{MergeGroupName}' could not be rebased",
+                group.Name);
+
+            return;
+        }
 
         // Step 2: Auto Merge - check if all branches are ready and merge them all
 
@@ -259,12 +266,13 @@ public class AutoMergeService : BackgroundService
             cancellationToken);
     }
 
-    private async Task ProcessAutoRebase(
+    private async Task<bool> ProcessAutoRebase(
         AccessDetailsBase serviceUser,
         MergeGroup group,
         List<BranchWithMergeRequest> branchMergeRequestDetails,
         CancellationToken cancellationToken)
     {
+        var okToMerge = true;
         foreach (var (branch, mr) in branchMergeRequestDetails)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -345,6 +353,7 @@ public class AutoMergeService : BackgroundService
                     branch.BranchName,
                     branch.ProjectId);
 
+                okToMerge = false;
                 continue;
             }
 
@@ -370,8 +379,10 @@ public class AutoMergeService : BackgroundService
             await _apiService.PostComment(serviceUser, branch.ProjectId, mr.Iid, comment, cancellationToken);
 
             // Stop processing further branches in this group since auto settings are now disabled
-            break;
+            return false;
         }
+
+        return okToMerge;
     }
 
     private string BuildRebaseConflictComment(int mergeGroupId, string mergeGroupName)
