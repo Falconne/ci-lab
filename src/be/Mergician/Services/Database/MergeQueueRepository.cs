@@ -34,31 +34,12 @@ public class MergeQueueRepository : IMergeQueueRepository
             new { MergeGroupId = mergeGroupId });
     }
 
-    public IReadOnlyList<MergeQueueInfo> GetAllQueues()
+    public IReadOnlyList<int> GetAllQueueIds()
     {
         using var connection = _connectionFactory.CreateConnection();
         connection.Open();
 
-        var projectRows = connection.Query<(int QueueId, int ProjectId)>(
-                "SELECT queue_id AS QueueId, project_id AS ProjectId FROM merge_queue_project")
-            .GroupBy(r => r.QueueId)
-            .ToDictionary(g => g.Key, g => (IReadOnlyList<int>)g.Select(r => r.ProjectId).ToList());
-
-        var entryRows = connection.Query<MergeQueueEntryInfo>(
-                "SELECT queue_id AS QueueId, merge_group_id AS MergeGroupId, position AS Position FROM merge_queue_entry ORDER BY queue_id, position")
-            .GroupBy(r => r.QueueId)
-            .ToDictionary(
-                g => g.Key,
-                g => (IReadOnlyList<MergeQueueEntryInfo>)g.ToList());
-
-        var queueIds = connection.Query<int>("SELECT id FROM merge_queue ORDER BY id").ToList();
-
-        return queueIds
-            .Select(id => new MergeQueueInfo(
-                id,
-                projectRows.GetValueOrDefault(id, []),
-                entryRows.GetValueOrDefault(id, [])))
-            .ToList();
+        return connection.Query<int>("SELECT id FROM merge_queue ORDER BY id").ToList();
     }
 
     public void AddMergeGroupToQueue(int mergeGroupId, IReadOnlyCollection<int> projectIds)

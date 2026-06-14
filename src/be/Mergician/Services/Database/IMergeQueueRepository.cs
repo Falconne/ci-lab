@@ -8,14 +8,6 @@ namespace Mergician.Services.Database;
 public record MergeQueueEntryInfo(int QueueId, int MergeGroupId, int Position);
 
 /// <summary>
-///     Summary of a merge queue returned by <see cref="IMergeQueueRepository.GetAllQueues" />.
-/// </summary>
-public record MergeQueueInfo(
-    int QueueId,
-    IReadOnlyList<int> ProjectIds,
-    IReadOnlyList<MergeQueueEntryInfo> Entries);
-
-/// <summary>
 ///     Repository interface for merge-queue management.
 ///     Queues are identified by the set of GitLab project IDs they cover.
 ///     Two merge groups that share at least one project must be on the same queue to avoid
@@ -29,9 +21,9 @@ public interface IMergeQueueRepository
     MergeQueueEntryInfo? GetQueueEntry(int mergeGroupId);
 
     /// <summary>
-    ///     Returns all active queues with their project keys and ordered entries.
+    ///     Returns all active queues IDs.
     /// </summary>
-    IReadOnlyList<MergeQueueInfo> GetAllQueues();
+    IReadOnlyList<int> GetAllQueueIds();
 
     /// <summary>
     ///     Adds a merge group to an appropriate queue based on its project IDs:

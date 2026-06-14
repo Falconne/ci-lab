@@ -61,8 +61,8 @@ public class MergeQueueController : ControllerBase
         if (groups.Count == 0)
         {
             // Distinguish between an empty queue and a non-existent one.
-            var allQueues = _mergeQueueRepository.GetAllQueues();
-            if (allQueues.NotAny(q => q.QueueId == queueId))
+            var allQueueIds = _mergeQueueRepository.GetAllQueueIds();
+            if (allQueueIds.NotAny(id => id == queueId))
             {
                 _logger.LogDebug("MergeQueueController: queue {QueueId} not found", queueId);
                 return NotFound(new ErrorResponse($"Queue {queueId} not found"));
