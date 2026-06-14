@@ -295,7 +295,10 @@ public class MergeQueueRepository : IMergeQueueRepository
 
         var projectNamesByQueue = projectNameRows
             .GroupBy(r => r.QueueId)
-            .ToDictionary(g => g.Key, g => g.Select(r => r.ProjectName).Distinct().OrderBy(n => n).ToList());
+            .ToDictionary(
+                g =>
+                    g.Key,
+                g => g.Select(r => r.ProjectName).Distinct().OrderBy(n => n).ToList());
 
         // Determine which queues contain at least one merge group tracked by the current user.
         var trackedQueueIds = connection.Query<int>(
