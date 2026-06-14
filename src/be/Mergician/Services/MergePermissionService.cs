@@ -12,10 +12,6 @@ namespace Mergician.Services;
 /// </summary>
 public class MergePermissionService
 {
-    private const GitLabAccessLevel MinMergeAccessLevel = GitLabAccessLevel.Developer;
-
-    private const GitLabAccessLevel MinViewAccessLevel = GitLabAccessLevel.Reporter;
-
     private readonly GitLabService _gitLabService;
 
     private readonly ILogger<MergePermissionService> _logger;
@@ -47,7 +43,7 @@ public class MergePermissionService
         return await GetProjectsWithInsufficientAccess(
             userAccessDetails,
             mergeGroup,
-            MinMergeAccessLevel,
+            GitLabAccessLevel.Developer,
             "merge",
             cancellationToken);
     }
@@ -64,7 +60,7 @@ public class MergePermissionService
         return await GetProjectsWithInsufficientAccess(
             userAccessDetails,
             mergeGroup,
-            MinViewAccessLevel,
+            GitLabAccessLevel.Reporter,
             "view",
             cancellationToken);
     }
