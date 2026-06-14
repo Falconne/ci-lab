@@ -21,6 +21,9 @@ public class CleanupService : IHostedService, IDisposable
 
     private Timer? _timer;
 
+    // TODO: On nightly cleanup, also check for and remove empty Merge Queues that may not have been properly removed after their
+    // last entry was removed.
+
     public CleanupService(
         IMergeGroupRepository mergeGroupRepository,
         DeadBranchesService deadBranchesService,

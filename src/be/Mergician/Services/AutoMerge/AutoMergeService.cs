@@ -485,7 +485,7 @@ public class AutoMergeService : BackgroundService
             return;
         }
 
-        // Only merge branches whose intra-group prerequisites have not yet been merged.
+        // Only merge unblocked branches.
         // Blocked branches wait for subsequent cycles once their prerequisites land.
         var branchesToMergeNow = preComputedIntraGroupBlockedIds.Count > 0
             ? branchMergeRequestDetails.Where(x => !preComputedIntraGroupBlockedIds.Contains(x.Branch.Id))
@@ -494,15 +494,14 @@ public class AutoMergeService : BackgroundService
 
         if (branchesToMergeNow.Count == 0)
         {
-            // Circular intra-group dependency — every branch is waiting on another in the group.
-            // Fall back to merging everything and let GitLab sort it out.
-            _logger.LogWarning(
-                "AutoMergeService: merge group '{MergeGroupName}' has a circular intra-group dependency; merging all branches",
+            _logger.LogError(
+                "AutoMergeService: merge group '{MergeGroupName}' has a circular intra-group dependency; aborting",
                 group.Name);
 
-            branchesToMergeNow = branchMergeRequestDetails;
+            return;
         }
-        else if (preComputedIntraGroupBlockedIds.Count > 0)
+
+        if (preComputedIntraGroupBlockedIds.Count > 0)
         {
             _logger.LogInformation(
                 "AutoMergeService: merging {NowCount} of {TotalCount} branches in merge group '{MergeGroupName}' — {WaitingCount} branch(es) are waiting for intra-group prerequisites to merge first",
@@ -548,7 +547,6 @@ public class AutoMergeService : BackgroundService
             .ToList();
 
         var results = await Task.WhenAll(mergeTasks);
-
         var succeeded = results.Where(r => r.result.Success).ToList();
         var failed = results.Where(r => !r.result.Success).ToList();
 
@@ -581,7 +579,7 @@ public class AutoMergeService : BackgroundService
             {
                 var hasPriorState = _mergeGroupRetryState.TryGetValue(group.Id, out var current);
                 // Reset exponential backoff when transitioning away from a permission-denied failure.
-                var currentBackoff = hasPriorState && !current!.IsPermissionDenied
+                var currentBackoff = hasPriorState && current!.IsPermissionDenied
                     ? current.Backoff
                     : TimeSpan.Zero;
 
