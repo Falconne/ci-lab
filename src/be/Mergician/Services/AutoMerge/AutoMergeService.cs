@@ -221,46 +221,42 @@ public class AutoMergeService : BackgroundService
 
         ReconcileBlockingConditions(branchMergeRequestDetails);
 
-        // Step 0: Queue management — evaluate whether this group should be in a merge queue.
-        if (group.AutoMerge)
+        if (!group.AutoMerge)
         {
-            _mergeQueueService.EvaluateAndUpdateQueueMembership(group, branchMergeRequestDetails);
+            return;
+        }
 
-            // Re-read queue position from DB — EvaluateAndUpdateQueueMembership may have changed it.
-            var queueEntry = _mergeQueueRepository.GetQueueEntry(group.Id);
-            if (queueEntry is { Position: > 1 })
-            {
-                _logger.LogDebug(
-                    "AutoMergeService: merge group '{MergeGroupName}' is at queue position {Position} — skipping rebase/merge this cycle",
-                    group.Name,
-                    queueEntry.Position);
+        // Step 0: Queue management — evaluate whether this group should be in a merge queue.
+        _mergeQueueService.EvaluateAndUpdateQueueMembership(group, branchMergeRequestDetails);
 
-                return;
-            }
+        var queueEntry = _mergeQueueRepository.GetQueueEntry(group.Id);
+        if (queueEntry is { Position: > 1 })
+        {
+            _logger.LogDebug(
+                "AutoMergeService: merge group '{MergeGroupName}' is at queue position {Position} — skipping rebase/merge this cycle",
+                group.Name,
+                queueEntry.Position);
+
+            return;
         }
 
         // Step 1: Auto Rebase - rebase branches that are behind their target
-        if (group.AutoMerge)
-        {
-            await ProcessAutoRebase(serviceUser, group, branchMergeRequestDetails, cancellationToken);
-        }
+        await ProcessAutoRebase(serviceUser, group, branchMergeRequestDetails, cancellationToken);
 
         // Step 2: Auto Merge - check if all branches are ready and merge them all
-        if (group.AutoMerge)
-        {
-            // Disabled until proper MR blocking can be determined.
-            //var intraGroupBlockedBranchIds = await GetIntraGroupBlockedBranchIds(
-            //    serviceUser,
-            //    branchMergeRequestDetails,
-            //    cancellationToken);
 
-            await ProcessAutoMerge(
-                serviceUser,
-                group,
-                branchMergeRequestDetails,
-                [],
-                cancellationToken);
-        }
+        // Intra group dependencies disabled until proper MR blocking can be determined.
+        //var intraGroupBlockedBranchIds = await GetIntraGroupBlockedBranchIds(
+        //    serviceUser,
+        //    branchMergeRequestDetails,
+        //    cancellationToken);
+
+        await ProcessAutoMerge(
+            serviceUser,
+            group,
+            branchMergeRequestDetails,
+            [],
+            cancellationToken);
     }
 
     private async Task ProcessAutoRebase(
