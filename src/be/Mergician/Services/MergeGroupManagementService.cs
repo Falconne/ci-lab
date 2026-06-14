@@ -32,6 +32,10 @@ public class MergeGroupManagementService
         _logger = logger;
     }
 
+    //TODO: There are some repeated concepts in AddBranchByMergeRequestUrl and FindOrCreateMergeGroupByMergeRequestUrl such
+    // as looking up MRs, subscribing users to merge groups and removing newly tracked branches from the user's ignored
+    // list. Add helper methods to generalise these sections of repeated concepts.
+
     /// <summary>
     ///     Parses a merge request URL, looks up the MR in GitLab, and adds its source branch
     ///     to the specified merge group, subscribing the user if not already subscribed.
