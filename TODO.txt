@@ -1,2 +1,0 @@
-Task 1)
-In the merge group (MG) details page, if the MG is set to auto merge, show an explicit Status section. This should show the position in the queue if the MG is in a queue, otherwise it should show the blocking reasons. The status chip should go in this section (but we don't need the hover tooltip on it because whatever was in that tooltip should now be shown in the Status section).)
