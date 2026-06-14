@@ -227,7 +227,10 @@ public class AutoMergeService : BackgroundService
         }
 
         // Step 0: Queue management — evaluate whether this group should be in a merge queue.
-        _mergeQueueService.EvaluateAndUpdateQueueMembership(group, branchMergeRequestDetails);
+        if (!_mergeQueueService.EvaluateAndUpdateQueueMembership(group, branchMergeRequestDetails))
+        {
+            return;
+        }
 
         var queueEntry = _mergeQueueRepository.GetQueueEntry(group.Id);
         if (queueEntry is { Position: > 1 })

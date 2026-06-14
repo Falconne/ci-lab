@@ -11,6 +11,10 @@ namespace Mergician.Services;
 /// </summary>
 public class MergeQueueService
 {
+    private readonly string[] _allowedStatuses = ["ci_still_running", "mergeable", "need_rebase"];
+
+    private readonly string[] _indeterminateStatuses = ["checking", "preparing", "unchecked"];
+
     private readonly ILogger<MergeQueueService> _logger;
 
     private readonly IMergeQueueRepository _queueRepository;
@@ -33,7 +37,7 @@ public class MergeQueueService
     ///         </item>
     ///     </list>
     /// </summary>
-    public bool IsQueueEligible(
+    public bool? IsQueueEligible(
         MergeGroup group,
         IReadOnlyList<BranchWithMergeRequest> branchMRDetails)
     {
@@ -62,7 +66,19 @@ public class MergeQueueService
 
         foreach (var (branch, mr) in branchMRDetails)
         {
-            if (mr.DetailedMergeStatus != "mergeable" && mr.DetailedMergeStatus != "ci_still_running")
+            if (_indeterminateStatuses.Contains(mr.DetailedMergeStatus))
+            {
+                _logger.LogDebug(
+                    "MergeQueueService: group '{GroupName}' ({GroupId}) is in non determinate state, will not change queue status — branch '{BranchName}' detailed_merge_status={Status}",
+                    group.Name,
+                    group.Id,
+                    branch.BranchName,
+                    mr.DetailedMergeStatus);
+
+                return null;
+            }
+
+            if (!_allowedStatuses.Contains(mr.DetailedMergeStatus))
             {
                 _logger.LogDebug(
                     "MergeQueueService: group '{GroupName}' ({GroupId}) is not eligible — branch '{BranchName}' detailed_merge_status={Status}",
@@ -83,14 +99,19 @@ public class MergeQueueService
     ///     performs the corresponding queue update.  Should be called on every AutoMerge cycle
     ///     for groups with auto settings enabled, after MR details have been fetched.
     /// </summary>
-    public void EvaluateAndUpdateQueueMembership(
+    public bool EvaluateAndUpdateQueueMembership(
         MergeGroup group,
         IReadOnlyList<BranchWithMergeRequest> branchMRDetails)
     {
         var eligible = IsQueueEligible(group, branchMRDetails);
+        if (eligible == null)
+        {
+            return false;
+        }
+
         var currentlyQueued = group.QueueId.HasValue;
 
-        if (eligible && !currentlyQueued)
+        if (eligible.Value && !currentlyQueued)
         {
             var projectIds = group.Branches.Select(b => b.ProjectId).ToHashSet();
 
@@ -101,8 +122,10 @@ public class MergeQueueService
                 string.Join(", ", projectIds));
 
             _queueRepository.AddMergeGroupToQueue(group.Id, projectIds);
+            return true;
         }
-        else if (!eligible && currentlyQueued)
+
+        if (!eligible.Value && currentlyQueued)
         {
             _logger.LogInformation(
                 "MergeQueueService: removing group '{GroupName}' ({GroupId}) from queue {QueueId} — no longer eligible",
@@ -111,8 +134,11 @@ public class MergeQueueService
                 group.QueueId);
 
             _queueRepository.RemoveMergeGroupFromQueue(group.Id);
+
+            return false;
         }
-        else if (eligible)
+
+        if (eligible.Value)
         {
             _logger.LogDebug(
                 "MergeQueueService: group '{GroupName}' ({GroupId}) remains in queue {QueueId} at position {Position}",
@@ -120,13 +146,15 @@ public class MergeQueueService
                 group.Id,
                 group.QueueId,
                 group.QueuePosition);
+
+            return true;
         }
-        else
-        {
-            _logger.LogDebug(
-                "MergeQueueService: group '{GroupName}' ({GroupId}) is not eligible and not queued — no action",
-                group.Name,
-                group.Id);
-        }
+
+        _logger.LogDebug(
+            "MergeQueueService: group '{GroupName}' ({GroupId}) is not eligible and not queued — no action",
+            group.Name,
+            group.Id);
+
+        return false;
     }
 }
