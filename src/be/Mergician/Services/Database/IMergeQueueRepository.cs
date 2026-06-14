@@ -61,6 +61,12 @@ public interface IMergeQueueRepository
     void ReorderQueue(int queueId, IReadOnlyList<int> orderedMergeGroupIds);
 
     /// <summary>
+    ///     Deletes all queues that have no entries (e.g. due to improper cleanup after the
+    ///     last entry was removed).  Returns the number of queues deleted.
+    /// </summary>
+    int RemoveEmptyQueues();
+
+    /// <summary>
     ///     Returns summary info for all queues, including project display names, entry count,
     ///     and whether the specified user has any tracked merge groups in each queue.
     /// </summary>

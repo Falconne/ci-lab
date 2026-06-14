@@ -17,19 +17,20 @@ public class CleanupService : IHostedService, IDisposable
 
     private readonly IMergeGroupRepository _mergeGroupRepository;
 
+    private readonly IMergeQueueRepository _mergeQueueRepository;
+
     private CancellationToken _stoppingToken;
 
     private Timer? _timer;
 
-    // TODO: On nightly cleanup, also check for and remove empty Merge Queues that may not have been properly removed after their
-    // last entry was removed.
-
     public CleanupService(
         IMergeGroupRepository mergeGroupRepository,
+        IMergeQueueRepository mergeQueueRepository,
         DeadBranchesService deadBranchesService,
         ILogger<CleanupService> logger)
     {
         _mergeGroupRepository = mergeGroupRepository;
+        _mergeQueueRepository = mergeQueueRepository;
         _deadBranchesService = deadBranchesService;
         _logger = logger;
     }
@@ -122,6 +123,9 @@ public class CleanupService : IHostedService, IDisposable
         }
 
         _logger.LogInformation("CleanupService completed: removed {RemovedBranches} branches", removedCount);
+
+        var removedQueues = _mergeQueueRepository.RemoveEmptyQueues();
+        _logger.LogInformation("CleanupService completed: removed {RemovedQueues} empty queues", removedQueues);
     }
 
     private static TimeSpan CalculateDelayUntilNext15UtcHour()

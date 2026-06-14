@@ -218,6 +218,35 @@ public class MergeQueueRepository : IMergeQueueRepository
         transaction.Commit();
     }
 
+    public int RemoveEmptyQueues()
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        connection.Open();
+
+        var emptyQueueIds = connection.Query<int>(
+                """
+                SELECT id FROM merge_queue
+                WHERE id NOT IN (SELECT DISTINCT queue_id FROM merge_queue_entry)
+                """)
+            .ToList();
+
+        if (emptyQueueIds.Count == 0)
+        {
+            return 0;
+        }
+
+        connection.Execute(
+            "DELETE FROM merge_queue WHERE id = ANY(@Ids)",
+            new { Ids = emptyQueueIds.ToArray() });
+
+        _logger.LogInformation(
+            "MergeQueueRepository: removed {Count} empty queue(s): [{QueueIds}]",
+            emptyQueueIds.Count,
+            string.Join(", ", emptyQueueIds));
+
+        return emptyQueueIds.Count;
+    }
+
     public void ReorderQueue(int queueId, IReadOnlyList<int> orderedMergeGroupIds)
     {
         using var connection = _connectionFactory.CreateConnection();
