@@ -12,13 +12,13 @@ namespace Mergician.Services;
 /// </summary>
 public class MergeGroupManagementService
 {
+    private readonly IIgnoredBranchRepository _ignoredBranchRepository;
+
     private readonly ILogger<MergeGroupManagementService> _logger;
 
     private readonly IMergeGroupRepository _mergeGroupRepository;
 
     private readonly MergeRequestLookupService _mergeRequestLookupService;
-
-    private readonly IIgnoredBranchRepository _ignoredBranchRepository;
 
     public MergeGroupManagementService(
         IMergeGroupRepository mergeGroupRepository,
@@ -75,7 +75,9 @@ public class MergeGroupManagementService
 
         _mergeGroupRepository.EnsureBranchInMergeGroup(mergeGroupId, branchRecord.Id);
         var wasAdded = _mergeGroupRepository.EnsureUserInMergeGroup(userAccessDetails.UserId, mergeGroupId);
-        await _ignoredBranchRepository.RemoveIgnoredBranch(userAccessDetails.UserId, lookupResult.SourceBranch);
+        await _ignoredBranchRepository.RemoveIgnoredBranch(
+            userAccessDetails.UserId,
+            lookupResult.SourceBranch);
 
         _logger.LogInformation(
             "User {UserId} added branch '{BranchName}' from project {ProjectId} to merge group {MergeGroupId} via MR URL",
@@ -125,13 +127,16 @@ public class MergeGroupManagementService
                 MergeGroupManagementError.MergeRequestNotFound);
         }
 
-        var existingMg = _mergeGroupRepository.FindMergeGroupByBranch(
+        var existingMergeGroup = _mergeGroupRepository.FindMergeGroupByBranch(
             lookupResult.SourceBranch,
             lookupResult.Project.Id);
 
-        if (existingMg != null)
+        if (existingMergeGroup != null)
         {
-            var wasAdded = _mergeGroupRepository.EnsureUserInMergeGroup(userAccessDetails.UserId, existingMg.Id);
+            var wasAdded = _mergeGroupRepository.EnsureUserInMergeGroup(
+                userAccessDetails.UserId,
+                existingMergeGroup.Id);
+
             await _ignoredBranchRepository.RemoveIgnoredBranch(
                 userAccessDetails.UserId,
                 lookupResult.SourceBranch);
@@ -139,7 +144,7 @@ public class MergeGroupManagementService
             _logger.LogInformation(
                 "User {UserId} found existing merge group {MergeGroupId} for branch '{BranchName}' via MR URL",
                 userAccessDetails.UserId,
-                existingMg.Id,
+                existingMergeGroup.Id,
                 lookupResult.SourceBranch);
 
             if (wasAdded)
@@ -147,11 +152,11 @@ public class MergeGroupManagementService
                 _logger.LogInformation(
                     "User {UserId} added to tracked branches for merge group {MergeGroupId} ('{MergeGroupName}') via MR URL lookup",
                     userAccessDetails.UserId,
-                    existingMg.Id,
-                    existingMg.Name);
+                    existingMergeGroup.Id,
+                    existingMergeGroup.Name);
             }
 
-            return new FindOrCreateMergeGroupResult(existingMg.Id, false, null);
+            return new FindOrCreateMergeGroupResult(existingMergeGroup.Id, false, null);
         }
 
         var mergeGroup = _mergeGroupRepository.GetOrCreateMergeGroup(lookupResult.SourceBranch);
@@ -163,7 +168,9 @@ public class MergeGroupManagementService
         var wasAddedToNewGroup =
             _mergeGroupRepository.EnsureUserInMergeGroup(userAccessDetails.UserId, mergeGroup.Id);
 
-        await _ignoredBranchRepository.RemoveIgnoredBranch(userAccessDetails.UserId, lookupResult.SourceBranch);
+        await _ignoredBranchRepository.RemoveIgnoredBranch(
+            userAccessDetails.UserId,
+            lookupResult.SourceBranch);
 
         _logger.LogInformation(
             "User {UserId} created merge group {MergeGroupId} for branch '{BranchName}' via MR URL",

@@ -1,6 +1,6 @@
-using System.Text.RegularExpressions;
 using Mergician.Entities;
 using Mergician.Services.Authentication;
+using System.Text.RegularExpressions;
 using Util;
 
 namespace Mergician.Services.GitLab;
@@ -114,6 +114,6 @@ public partial class MergeRequestLookupService
         return await _gitLabService.GetProjectByPath(accessDetails, projectPath, cancellationToken);
     }
 
-    [GeneratedRegex(@"https?://[^/]+/(?<projectPath>.+?)/-/merge_requests/(?<mergeRequestIid>\d+)")]
+    [GeneratedRegex(@"https?://[^/]+/(?<projectPath>.+?)/-/merge_requests/(?<mergeRequestIid>\d+).*")]
     private static partial Regex MergeRequestUrlPattern();
 }
