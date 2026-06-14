@@ -11,9 +11,9 @@ namespace Mergician.Services;
 /// </summary>
 public class MergeQueueService
 {
-    private readonly string[] _allowedStatuses = ["ci_still_running", "mergeable", "need_rebase"];
+    private readonly HashSet<string> _allowedStatuses = ["ci_still_running", "mergeable", "need_rebase"];
 
-    private readonly string[] _indeterminateStatuses = ["checking", "preparing", "unchecked"];
+    private readonly HashSet<string> _indeterminateStatuses = ["checking", "preparing", "unchecked"];
 
     private readonly ILogger<MergeQueueService> _logger;
 

@@ -582,7 +582,7 @@ public class AutoMergeService : BackgroundService
             {
                 var hasPriorState = _mergeGroupRetryState.TryGetValue(group.Id, out var current);
                 // Reset exponential backoff when transitioning away from a permission-denied failure.
-                var currentBackoff = hasPriorState && current!.IsPermissionDenied
+                var currentBackoff = hasPriorState && !current!.IsPermissionDenied
                     ? current.Backoff
                     : TimeSpan.Zero;
 

@@ -245,7 +245,7 @@ public class MonitoredProjectsService : BackgroundService
             if (!stillLabeled)
             {
                 _logger.LogInformation(
-                    "MonitoredProjectsService: '{Label}' label removed from all monitored-project MRs in merge group {MergeGroupId} '{MergeGroupName}', disabling auto merge",
+                    "MonitoredProjectsService: '{Label}' label removed from all MRs in merge group {MergeGroupId} '{MergeGroupName}', disabling auto merge",
                     AutoMergeLabel,
                     group.Id,
                     group.Name);
@@ -255,7 +255,7 @@ public class MonitoredProjectsService : BackgroundService
             else
             {
                 _logger.LogDebug(
-                    "MonitoredProjectsService: merge group {MergeGroupId} '{MergeGroupName}' still has '{Label}' label on at least one monitored-project MR",
+                    "MonitoredProjectsService: merge group {MergeGroupId} '{MergeGroupName}' still has '{Label}' label on at least one MR",
                     group.Id,
                     group.Name,
                     AutoMergeLabel);
