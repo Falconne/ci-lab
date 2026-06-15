@@ -1,6 +1,0 @@
-ALTER TABLE merge_group
-    ADD COLUMN auto_merge BOOLEAN NOT NULL DEFAULT FALSE;
-ALTER TABLE merge_group
-    ADD COLUMN auto_rebase BOOLEAN NOT NULL DEFAULT FALSE;
-ALTER TABLE merge_group
-    ADD COLUMN auto_merge_warning TEXT;
