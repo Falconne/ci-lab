@@ -238,21 +238,6 @@ public class BranchDetailsRefreshService(
             reasons.Add(reason);
         }
 
-        // If a previous auto merge attempt failed and GitLab otherwise considers the branch Ready,
-        // force Blocked so the user sees the error until they dismiss the warning.
-        var existingMergeError = (branch as BranchWithActivity)?.MergeError;
-        if (existingMergeError.IsNotEmpty() && mrStatus == MRStatus.Ready)
-        {
-            logger.LogDebug(
-                "Branch '{BranchName}' in project {ProjectId}: overriding Ready status to Blocked due to merge error: {Error}",
-                branch.BranchName,
-                branch.ProjectId,
-                existingMergeError);
-
-            mrStatus = MRStatus.Blocked;
-            reasons.Add(existingMergeError!);
-        }
-
         var mrStatusReasons = reasons.Count > 0 ? JsonSerializer.Serialize(reasons) : null;
 
         logger.LogDebug(

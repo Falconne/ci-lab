@@ -797,14 +797,6 @@ public class AutoMergeService : BackgroundService
                 blockingReasons.Add(blockingReason);
             }
 
-            // Apply the same merge-error override that the sync service uses, so a pending merge
-            // error is not silently cleared by this reconciliation.
-            if (branch.MergeError.IsNotEmpty() && currentMrStatus == MRStatus.Ready)
-            {
-                currentMrStatus = MRStatus.Blocked;
-                blockingReasons.Add(branch.MergeError!);
-            }
-
             var storedNeedsRebase = branch.NeedsRebase == true;
             if (storedNeedsRebase == currentlyNeedsRebase && branch.MRStatus == currentMrStatus)
             {
