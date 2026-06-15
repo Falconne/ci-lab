@@ -1,0 +1,5 @@
+Task 1)
+In the Merge Group Details page, when the user opens the page or refreshes it by pressing F5 (as opposed to the regular automatic background fetch the frontend does), we must make sure the merge group details returned are upto date as on Gitlab. So when this manual refresh happens, run the code path that updates this particular merge group (i.e. using `GetBranchDetails`; move this method into a new or appropriate existing shared service for this) and do not display the page till it has run. Until then, show a loading spinner ont he page saying "Refreshing merge group details...". This forced refresh should still update the database as usual and then this page can be displayed from the database like it currently does. The regular background fetch that happens automatically should not trigger this refresh, that one should keep fetching what's currently in the database.
+
+Task 2)
+Condense the DB migration scripts into a single initial schema file. These intermediate migrations were created during development and no longer needed. Any new deployments of this product will have a clean database.

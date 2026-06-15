@@ -647,6 +647,7 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             mergeRequestUrl = mr.WebUrl;
             needsRebase = mr.DetailedMergeStatus == "need_rebase";
 
+            // TODO: Fetch approval counts, buildJobs and GetBranchDetails in parallel.
             var approvalCounts = await _gitLabService.GetMergeRequestApprovalCounts(
                 userAccessDetails,
                 branch.ProjectId,

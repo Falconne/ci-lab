@@ -6,9 +6,7 @@ using Mergician.Services.GitLab;
 namespace Mergician.Services;
 
 /// <summary>
-///     Orchestrates merge group management operations that involve both GitLab API lookups
-///     and database operations, such as adding branches by MR URL and finding or creating
-///     merge groups by MR URL.
+///     Service used to modify a merge group, such as add branches or create a merge group manually.
 /// </summary>
 public class MergeGroupManagementService
 {
@@ -42,7 +40,11 @@ public class MergeGroupManagementService
         string mergeRequestUrl,
         CancellationToken cancellationToken = default)
     {
-        var lookupResult = await LookupMergeRequestFromUrl(userAccessDetails, mergeRequestUrl, cancellationToken);
+        var lookupResult = await LookupMergeRequestFromUrl(
+            userAccessDetails,
+            mergeRequestUrl,
+            cancellationToken);
+
         if (lookupResult.Error != null)
         {
             return new AddBranchResult(null, lookupResult.Error);
@@ -85,7 +87,11 @@ public class MergeGroupManagementService
         string mergeRequestUrl,
         CancellationToken cancellationToken = default)
     {
-        var lookupResult = await LookupMergeRequestFromUrl(userAccessDetails, mergeRequestUrl, cancellationToken);
+        var lookupResult = await LookupMergeRequestFromUrl(
+            userAccessDetails,
+            mergeRequestUrl,
+            cancellationToken);
+
         if (lookupResult.Error != null)
         {
             return new FindOrCreateMergeGroupResult(null, false, lookupResult.Error);
@@ -129,12 +135,6 @@ public class MergeGroupManagementService
 
         return new FindOrCreateMergeGroupResult(mergeGroup.Id, true, null);
     }
-
-    // -------------------------------------------------------------------------
-    // Private helpers
-    // -------------------------------------------------------------------------
-
-    private record MrLookupOutcome(MergeRequestLookupResult? Result, MergeGroupManagementError? Error);
 
     /// <summary>
     ///     Parses a merge request URL and looks up the MR in GitLab.
@@ -184,4 +184,10 @@ public class MergeGroupManagementService
                 mergeGroupName != null ? $" ('{mergeGroupName}')" : "");
         }
     }
+
+    // -------------------------------------------------------------------------
+    // Private helpers
+    // -------------------------------------------------------------------------
+
+    private record MrLookupOutcome(MergeRequestLookupResult? Result, MergeGroupManagementError? Error);
 }
