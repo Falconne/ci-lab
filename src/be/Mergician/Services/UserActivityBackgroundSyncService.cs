@@ -646,58 +646,66 @@ public class UserActivityBackgroundSyncService : IHostedService, IDisposable
             mergeRequestTitle = mr.Title;
             mergeRequestUrl = mr.WebUrl;
             needsRebase = mr.DetailedMergeStatus == "need_rebase";
+        }
 
-            // TODO: Fetch approval counts, buildJobs and GetBranchDetails in parallel.
-            var approvalCounts = await _gitLabService.GetMergeRequestApprovalCounts(
+        var approvalCountsTask = mr != null
+            ? _gitLabService.GetMergeRequestApprovalCounts(
                 userAccessDetails,
                 branch.ProjectId,
                 mr.Iid,
-                cancellationToken);
+                cancellationToken)
+            : Task.FromResult<(int Required, int Given)?>(null);
 
-            if (approvalCounts != null)
-            {
-                approvalsRequired = approvalCounts.Value.Required;
-                approvalsGiven = approvalCounts.Value.Given;
-            }
-
-            // Can't currently support intra-group MR dependencies, because there's no way to tell if that
-            // is the only reason an MR is blocked. We would have to check all other known blocking conditions
-            // which should be done at some point.
-            // See https://docs.gitlab.com/api/merge_requests/#merge-status
-            // Known blockers are:
-            // * Rebase needed / Merge conflicts
-            // * CI pipeline failures
-            // * Not enough approvals
-            // * Discussions not resolved
-            // * MR is in Draft
-
-            //if (mr.DetailedMergeStatus == "blocked_status")
-            //{
-            //    var resolved = await ResolveBlockingMRDescriptions(
-            //        userAccessDetails,
-            //        branch,
-            //        mr.Iid,
-            //        groupSiblings,
-            //        cancellationToken);
-
-            //    // null means the endpoint is unavailable (GitLab CE / non-Premium); use a generic reason
-            //    blockingMRDescriptions =
-            //        resolved ?? ["Blocked by a dependency (details unavailable on this GitLab tier)"];
-            //}
-        }
-
-        var buildJobs = await _gitLabPipelineService.GetLatestBuildJobsForBranch(
+        var buildJobsTask = _gitLabPipelineService.GetLatestBuildJobsForBranch(
             userAccessDetails,
             branch.ProjectId,
             branch.BranchName,
             cancellationToken);
 
         // Fetch the branch's latest commit date from GitLab to use as the last updated timestamp
-        var (branchDetails, status) = await _gitLabService.GetBranchDetails(
+        var branchDetailsTask = _gitLabService.GetBranchDetails(
             userAccessDetails,
             branch.ProjectId,
             branch.BranchName,
             cancellationToken);
+
+        await Task.WhenAll(approvalCountsTask, buildJobsTask, branchDetailsTask);
+
+        var approvalCounts = approvalCountsTask.Result;
+        if (approvalCounts != null)
+        {
+            approvalsRequired = approvalCounts.Value.Required;
+            approvalsGiven = approvalCounts.Value.Given;
+        }
+
+        var buildJobs = buildJobsTask.Result;
+
+        // Can't currently support intra-group MR dependencies, because there's no way to tell if that
+        // is the only reason an MR is blocked. We would have to check all other known blocking conditions
+        // which should be done at some point.
+        // See https://docs.gitlab.com/api/merge_requests/#merge-status
+        // Known blockers are:
+        // * Rebase needed / Merge conflicts
+        // * CI pipeline failures
+        // * Not enough approvals
+        // * Discussions not resolved
+        // * MR is in Draft
+
+        //if (mr?.DetailedMergeStatus == "blocked_status")
+        //{
+        //    var resolved = await ResolveBlockingMRDescriptions(
+        //        userAccessDetails,
+        //        branch,
+        //        mr.Iid,
+        //        groupSiblings,
+        //        cancellationToken);
+
+        //    // null means the endpoint is unavailable (GitLab CE / non-Premium); use a generic reason
+        //    blockingMRDescriptions =
+        //        resolved ?? ["Blocked by a dependency (details unavailable on this GitLab tier)"];
+        //}
+
+        var (branchDetails, status) = branchDetailsTask.Result;
 
         if (status == GitLabBranchLookupStatus.Missing)
         {
