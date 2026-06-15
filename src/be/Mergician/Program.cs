@@ -74,6 +74,7 @@ try
     builder.Services.AddSingleton<GitLabService>();
     builder.Services.AddSingleton<GitLabPipelineService>();
     builder.Services.AddSingleton<DeadBranchesService>();
+    builder.Services.AddSingleton<BranchDetailsRefreshService>();
     builder.Services.AddSingleton<AutoMergeGitLabApiService>();
     builder.Services.AddSingleton<MergeRequestLookupService>();
     builder.Services.AddSingleton<MergeGroupManagementService>();

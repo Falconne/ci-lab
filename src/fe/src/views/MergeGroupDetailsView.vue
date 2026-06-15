@@ -84,7 +84,8 @@
         </v-alert>
 
         <div v-if="initialLoading" class="text-center pa-8">
-          <p class="text-body-1 text-grey">Loading merge group details...</p>
+          <v-progress-circular indeterminate color="primary" class="mb-4" />
+          <p class="text-body-1 text-grey">Refreshing merge group details...</p>
         </div>
 
         <template v-else-if="!mergeGroupGone && !accessDenied">
@@ -691,6 +692,59 @@ async function pollMergeGroup() {
   }
 }
 
+/**
+ * Forces a synchronous refresh of all branch details from GitLab.
+ * Called on page load/F5 to ensure up-to-date data before the page is displayed.
+ * Populates the initial view state if successful.
+ */
+async function forceRefresh() {
+  if (!mergeGroupId.value) return
+
+  try {
+    const response = await fetchBackend(`/api/merge-groups/${mergeGroupId.value}/force-refresh`, {
+      method: 'POST'
+    })
+
+    if (response.status === 404) {
+      mergeGroupGone.value = true
+      return
+    }
+
+    if (response.status === 403) {
+      const body = await response.json().catch(() => null) as { deniedProjects?: string[] } | null
+      accessDeniedProjects.value = body?.deniedProjects ?? []
+      accessDenied.value = true
+      return
+    }
+
+    if (!response.ok) {
+      console.warn('[Mergician] Force refresh returned', response.status, '— will proceed with polling')
+      return
+    }
+
+    let data: MergeGroup
+    try {
+      data = await response.json()
+    } catch (parseError) {
+      console.error('[Mergician] Failed to parse force refresh response as JSON:', parseError)
+      return
+    }
+
+    mergeGroupName.value = data.name
+    updateRouteTitle(data.name)
+    autoMerge.value = data.autoMerge
+    autoMergeByLabel.value = data.autoMergeByLabel
+    autoMergeWarning.value = data.autoMergeWarning
+    queueId.value = data.queueId ?? null
+    queuePosition.value = data.queuePosition ?? null
+    activities.value = data.branches
+  } catch (err) {
+    if (isStartupRequiredError(err)) return
+    console.error('[Mergician] Force refresh failed:', err)
+  }
+}
+
+
 function updateRouteTitle(name: string) {
   if (route.query.title !== name) {
     router.replace({
@@ -713,14 +767,18 @@ onMounted(async () => {
     mergeGroupName.value = route.query.title as string
   }
 
-  initialLoading.value = false
-  startPolling()
-  loadSubscription().catch(err => {
-    console.error('[Mergician] Failed to load subscription:', err)
-  })
-  checkMergePermissions().catch(err => {
-    console.error('[Mergician] Failed to check merge permissions:', err)
-  })
+  try {
+    await forceRefresh()
+  } finally {
+    initialLoading.value = false
+    startPolling()
+    loadSubscription().catch(err => {
+      console.error('[Mergician] Failed to load subscription:', err)
+    })
+    checkMergePermissions().catch(err => {
+      console.error('[Mergician] Failed to check merge permissions:', err)
+    })
+  }
 })
 </script>
 

@@ -17,6 +17,8 @@ public class MergeGroupController : ControllerBase
 
     private readonly UserActivityBackgroundSyncService _backgroundSyncService;
 
+    private readonly BranchDetailsRefreshService _branchDetailsRefreshService;
+
     private readonly IIgnoredBranchRepository _ignoredBranchRepository;
 
     private readonly ILogger<MergeGroupController> _logger;
@@ -34,6 +36,7 @@ public class MergeGroupController : ControllerBase
         IIgnoredBranchRepository ignoredBranchRepository,
         AutoMergeService autoMergeService,
         UserActivityBackgroundSyncService backgroundSyncService,
+        BranchDetailsRefreshService branchDetailsRefreshService,
         MergeGroupManagementService mergeGroupManagementService,
         IMergeQueueRepository mergeQueueRepository,
         MergePermissionService mergePermissionService,
@@ -43,6 +46,7 @@ public class MergeGroupController : ControllerBase
         _ignoredBranchRepository = ignoredBranchRepository;
         _autoMergeService = autoMergeService;
         _backgroundSyncService = backgroundSyncService;
+        _branchDetailsRefreshService = branchDetailsRefreshService;
         _mergeGroupManagementService = mergeGroupManagementService;
         _mergeQueueRepository = mergeQueueRepository;
         _mergePermissionService = mergePermissionService;
@@ -148,7 +152,107 @@ public class MergeGroupController : ControllerBase
     }
 
     /// <summary>
-    ///     Updates auto merge settings for a merge group.
+    ///     Forces a synchronous refresh of all branch details in the merge group directly from
+    ///     GitLab, then returns the updated snapshot from the database. Called when the user
+    ///     first opens or manually refreshes the merge group details page, to ensure data is
+    ///     up-to-date before the page is displayed.
+    ///     Returns 404 if the merge group does not exist or has been merged/removed.
+    ///     Returns 403 with denied project names if the user lacks Reporter access to any project.
+    /// </summary>
+    [HttpPost("{mergeGroupId:int}/force-refresh")]
+    public async Task<ActionResult<MergeGroup>> ForceRefresh(int mergeGroupId, CancellationToken cancellationToken)
+    {
+        var userAccessDetails = HttpContext.GetGitLabUser();
+        var userId = userAccessDetails.UserId;
+
+        _logger.LogInformation(
+            "Force refresh requested by user {UserId} for merge group {MergeGroupId}",
+            userId,
+            mergeGroupId);
+
+        var result = _mergeGroupRepository.GetMergeGroup(mergeGroupId);
+
+        if (result == null)
+        {
+            _logger.LogInformation(
+                "Merge group {MergeGroupId} not found during force refresh for user {UserId}",
+                mergeGroupId,
+                userId);
+
+            return NotFound(new ErrorResponse("Merge group not found"));
+        }
+
+        if (!_mergeGroupRepository.IsUserInMergeGroup(userId, mergeGroupId))
+        {
+            _logger.LogInformation(
+                "User {UserId} is not a member of merge group {MergeGroupId}; checking view permissions for force refresh",
+                userId,
+                mergeGroupId);
+
+            var viewPermissions = await _mergePermissionService.CheckViewPermissions(
+                userAccessDetails,
+                result,
+                cancellationToken);
+
+            if (viewPermissions is { CheckFailed: false, HasPermission: false })
+            {
+                _logger.LogInformation(
+                    "User {UserId} denied view access to merge group {MergeGroupId}: [{DeniedProjects}]",
+                    userId,
+                    mergeGroupId,
+                    string.Join(", ", viewPermissions.DeniedProjects));
+
+                return StatusCode(
+                    403,
+                    new AccessDeniedResponse(
+                        "You do not have access to view this merge group",
+                        viewPermissions.DeniedProjects));
+            }
+
+            if (viewPermissions.CheckFailed)
+            {
+                _logger.LogWarning(
+                    "View permission check failed for user {UserId} in merge group {MergeGroupId}; failing open",
+                    userId,
+                    mergeGroupId);
+            }
+        }
+
+        if (result.Branches.Count == 0)
+        {
+            _logger.LogInformation(
+                "Merge group {MergeGroupId} '{Name}' has no branches during force refresh for user {UserId}; triggering cleanup",
+                mergeGroupId,
+                result.Name,
+                userId);
+
+            _mergeGroupRepository.CleanupEmptyMergeGroups();
+            return NotFound(new ErrorResponse("Merge group has no branches and has been removed"));
+        }
+
+        _logger.LogInformation(
+            "Refreshing {Count} branches from GitLab for merge group {MergeGroupId}",
+            result.Branches.Count,
+            mergeGroupId);
+
+        await _branchDetailsRefreshService.RefreshBranches(
+            userAccessDetails,
+            result.Branches,
+            cancellationToken);
+
+        var updated = _mergeGroupRepository.GetMergeGroup(mergeGroupId);
+        if (updated == null)
+        {
+            return NotFound(new ErrorResponse("Merge group not found"));
+        }
+
+        _logger.LogInformation(
+            "Force refresh complete for merge group {MergeGroupId}, returning {Count} branches",
+            mergeGroupId,
+            updated.Branches.Count);
+
+        return Ok(updated);
+    }
     ///     Returns 404 if the merge group does not exist.
     /// </summary>
     [HttpPut("{mergeGroupId:int}/settings")]
