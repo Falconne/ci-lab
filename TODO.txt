@@ -1,0 +1,22 @@
+Task 1)
+In the background user sync loop, if a merge group is about to gain more than 12 branches, immediately remove that merge group from the database and automatically add its branch name to the ignored branches list of the user. Any merge group with this many branches is likely came from an automated bulk operation and should not appearin the user's dashboard.
+
+Task 2)
+The Merge Group Details page should pause its regular background poll when doing full refresh when the page is first loaded or the user presses F5 (if it does not already behave this way). The bakcground fetch should only start after the full refresh is complete.
+
+Task 3)
+Currently, when the associated user is shown in log messages and errors, we only see the user ID, not the username. Show the username rather than user id here. This may require storing the username in the user access object or in another suitable way.
+
+Task 4)
+When the /satus endpoint for a commit returns a 5xx error (like in the example below), do not retry. Some commits have a lot of info associated with them and Gitlab fails to fetch that info completely. For now it's enough to log this error in the backend and return an empty list for the details this API call was supposed to fetch (e.g. build jobs).
+
+```
+mergician-1  | [00:19:39 INF] [Mergician.Services.StartupAndRecoveryService] StartupAndRecoveryService: GitLab recovery requested, re-running GitLab checks {"Application": "Mergician"}
+mergician-1  | [00:19:39 INF] [Mergician.Services.GitLab.GitLabApiClient] GitLabApiClient: checking GitLab connectivity and detecting timezone during recovery {"Application": "Mergician"}
+mergician-1  | [00:19:39 ERR] [Mergician.Services.UserActivityBackgroundSyncService] GitLab became unavailable while refreshing branch details for user 284; ending the current refresh cycle {"ActionId": "64497f59-de77-4dfa-bdbb-4ea865ec9ed7", "ActionName": "Mergician.Controllers.DashboardController.Refresh (Mergician)", "RequestId": "0HNMB65D6S4H8:00000002", "RequestPath": "/api/dashboard/refresh", "ConnectionId": "0HNMB65D6S4H8", "Application": "Mergician"}
+mergician-1  | Mergician.Services.GitLab.GitLabStartupRequiredException: GitLab call 'GET projects/66/repository/commits/0987ba04a0bb8535f0a46a470bf037be4d2fa49a/statuses' requires startup recovery.
+mergician-1  |  ---> Mergician.Services.GitLab.GitLabApiFailureException: GitLab call 'GET projects/66/repository/commits/0987ba04a0bb8535f0a46a470bf037be4d2fa49a/statuses' failed after 4 attempts.
+mergician-1  |  ---> Mergician.Services.GitLab.GitLabUnexpectedResponseException: GitLab call 'GET projects/66/repository/commits/0987ba04a0bb8535f0a46a470bf037be4d2fa49a/statuses' returned unexpected status 500.
+mergician-1  |    --- End of inner exception stack trace ---
+mergician-1  |    --- End of inner exception stack trace ---
+```
